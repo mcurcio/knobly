@@ -1,0 +1,17 @@
+[31mError:[0m Error when generating parser
+
+Caused by:
+    Unresolved conflict for symbol sequence:
+    
+      _header  •  ';'  …
+    
+    Possible interpretations:
+    
+      1:  (directive  _header  •  ';')
+      2:  (directive  _header)  •  ';'  …
+    
+    Possible resolutions:
+    
+      1:  Specify a left or right associativity in `directive`
+      2:  Add a conflict for these rules: `directive`
+    

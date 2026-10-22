@@ -1,0 +1,19 @@
+[31mError:[0m Error when generating parser
+
+Caused by:
+    Unresolved conflict for symbol sequence:
+    
+      word  •  space  …
+    
+    Possible interpretations:
+    
+      1:  (_header  word  •  _gap)
+      2:  (_header  word  •  _header_repeat1  _gap)
+      3:  (_header  word  •  _header_repeat1)
+      4:  (_header  word)  •  space  …
+    
+    Possible resolutions:
+    
+      1:  Specify a left or right associativity in `_header`
+      2:  Add a conflict for these rules: `_header`
+    

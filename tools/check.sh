@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Soundness checks for grammar/Villanelle.g4. Exits non-zero on any failure.
+#   1. The parser rules, translated to Bison, have 0 conflicts (proves the grammar unambiguous).
+#   2. No two token kinds can match the same text.
+#   3. Each planted bad grammar in tools/planted/ is caught (the checks still bite).
+# Needs: python3, bison, uv (for interegular).
+set -u
+cd "$(dirname "$0")/.."
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+fail=0
+
+bison_check() {  # $1 = grammar; returns 0 if translated and conflict-free
+  python3 tools/g4bison.py "$1" > "$tmp/g.y" 2> "$tmp/err" || return 2
+  bison -o "$tmp/g.tab.c" "$tmp/g.y" > "$tmp/bison" 2>&1
+}
+
+if bison_check grammar/Villanelle.g4; then echo "ok   grammar: 0 conflicts"
+else echo "FAIL grammar: $(cat "$tmp/err" "$tmp/bison" 2>/dev/null)"; fail=1; fi
+
+if uv run -q --with interegular python tools/g4overlap.py grammar/Villanelle.g4 > "$tmp/ov" 2>&1
+then echo "ok   tokens: $(tail -1 "$tmp/ov")"
+else echo "FAIL tokens: $(cat "$tmp/ov")"; fail=1; fi
+
+for f in tools/planted/*.g4; do
+  if bison_check "$f"; then echo "FAIL planted $(basename "$f"): not caught"; fail=1
+  else echo "ok   planted $(basename "$f"): caught"; fi
+done
+exit $fail
