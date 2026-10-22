@@ -8,7 +8,8 @@ Instructions for AI coding agents in this repo. `CLAUDE.md` is a symlink to this
   refuses them because they can hide a conflict.
 - Whitespace, comments and newlines are ordinary tokens. Nothing goes on a hidden channel, so the
   parse tree keeps every character.
-- Work lands through pull requests into `main`. The owner reviews and merges; never push to `main`.
+- Push directly to `main`; do not open pull requests yet (owner, 2026-10-22: "Don't open PRs in
+  villanelle yet. Just push directly").
 - Commits follow Conventional Commits.
 - Design history and current choices are in `design/RECORD.md`. Planned work is tracked in the
   `mcurcio/rasl` beads (epic `rasl-g7n`).
