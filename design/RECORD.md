@@ -13,16 +13,16 @@ durable record. Every choice below is current and can be revised.
 | R2 | Sound = "Both": (a) the grammar is unambiguous, checked by a tool; (b) the parser accepts exactly the grammar's language | owner, 2026-10-21 |
 | R3 | "An EBNF gives a language independent syntax. And then parsers can be written against it, and then finally language-specific idiomatic sugar APIs can be layered on top" | owner, 2026-10-21 |
 | R4 | "the TS *config* is canonical. The python version of the full runtime is still more comprehensive" | owner, 2026-10-21 |
-| R5 | Slices `[n:m]`, `[n:]` and `[:m]`; `[:]` is rejected with a located error | `rasl-9ze.1` |
+| R5 | Slices `[n:m]`, `[n:]` and `[:m]`; `[:]` is rejected with a located error | `vil-9ze.1` |
 | R6 | "A is ideal if we don't sacrifice the CST. Otherwise, C." (the condition on choosing ANTLR4) | owner, 2026-10-22 |
 
 ## Owner answers
 
 | Question | Answer | Recorded in |
 |---|---|---|
-| Comments, and `:` in words | B: `#` only, where a token starts. A word that starts with a digit or `-` cannot contain `:` | `rasl-m8w.1` |
-| Values touching | A: values are separated by a space or comment; a slice touches its word; punctuation may touch | `rasl-9ze` |
-| Which tool | A: ANTLR4, provided the CST is kept. The check below says it is | `rasl-k2e` |
+| Comments, and `:` in words | B: `#` only, where a token starts. A word that starts with a digit or `-` cannot contain `:` | `vil-m8w.1` |
+| Values touching | A: values are separated by a space or comment; a slice touches its word; punctuation may touch | `vil-9ze` |
+| Which tool | A: ANTLR4, provided the CST is kept. The check below says it is | `vil-k2e` |
 
 ## Current choices
 
@@ -31,7 +31,7 @@ durable record. Every choice below is current and can be revised.
   - Whitespace, comments and newlines are ordinary grammar tokens: nothing goes on a hidden
     channel and nothing is skipped.
   - Lists and value runs are written as loops, not recursion.
-  - `*` and `?` are word characters, so include globs work (`rasl-trv`).
+  - `*` and `?` are word characters, so include globs work (`vil-trv`).
   - [config.ebnf](config.ebnf) stays as the readable EBNF view and the reference used in
     testing.
 - **Soundness (a), proven in CI:**
@@ -51,7 +51,7 @@ durable record. Every choice below is current and can be revised.
   - Node kinds: document, directive, block, list, slice, error.
   - The parts of a slice stay separate tokens.
 - **Recovery:**
-  - A custom ANTLR error strategy, about 95 lines per language, meets `rasl-bzv.1`.
+  - A custom ANTLR error strategy, about 95 lines per language, meets `vil-bzv.1`.
   - The first error is reported at the real position.
   - A bad statement becomes one error node, and later siblings are kept.
 - **Runtime:** the official `antlr4` 4.13.2 for TS (sync, pure JS, about 36 KB gzip in the
@@ -79,7 +79,7 @@ durable record. Every choice below is current and can be revised.
 - **`connect foo[1];` stays an error.** The other choice is a fourth slice form meaning a
   single channel; that is the owner's call.
 
-## Bead outline (under `rasl-g7n`)
+## Bead outline (under `vil-g7n`; ported beads keep their old rasl numbers with the `vil-` prefix)
 
 1. **Spec and CI checks:**
    - `Rasl.g4`, with the generated parsers checked in or generated in CI;
@@ -90,10 +90,10 @@ durable record. Every choice below is current and can be revised.
      and on to the engine;
    - `parseSliceTokens` is deleted;
    - `lexer.ts` and `parser.ts` are replaced.
-3. **Recovery and stable codes** (`rasl-bzv.1`), in TS.
-4. **Python parser on ANTLR** (`rasl-9pn`): the same corpus, replacing crossplane.
-5. **Value rules and typed values** (`rasl-9ze`), then the delegator and definitions
-   (`rasl-stq`, `rasl-xlo`).
+3. **Recovery and stable codes** (`vil-bzv.1`), in TS.
+4. **Python parser on ANTLR** (`rasl-9pn (mcurcio/rasl)`): the same corpus, replacing crossplane.
+5. **Value rules and typed values** (`vil-9ze`), then the delegator and definitions
+   (`vil-stq`, `vil-xlo`).
 
 ## NOT RUN
 

@@ -1,95 +1,80 @@
 # AGENTS.md
 
-Instructions for AI coding agents in this repo. `CLAUDE.md` is a symlink to this file.
+Instructions for every AI coding agent in this repo. `CLAUDE.md` is a symlink to this file.
+
+## What this repo is
+
+villanelle is a configuration language, defined by one formal grammar, with generated TypeScript
+and Python parsers. It began as `@rasl/config` in mcurcio/rasl, and rasl will consume it.
 
 - `grammar/Villanelle.g4` is the language. Change the language only there, and run
-  `tools/check.sh` after every grammar change. It must exit 0.
+  `tools/check.sh` after every grammar change: it must exit 0.
 - The grammar may not use ANTLR actions, semantic predicates, lexer commands or modes. The check
   refuses them because they can hide a conflict.
 - Whitespace, comments and newlines are ordinary tokens. Nothing goes on a hidden channel, so the
   parse tree keeps every character.
+- Current design choices and the work outline are in `design/RECORD.md`. The older requirement
+  plans are in `design/plans/`. Code carried over from rasl is in `reference/`
+  (see `reference/README.md`).
+
+## Landing work
+
 - Push directly to `main`; do not open pull requests yet (owner, 2026-10-22: "Don't open PRs in
   villanelle yet. Just push directly").
 - Commits follow Conventional Commits.
-- Design history and current choices are in `design/RECORD.md`. Planned work is tracked in the
-  `mcurcio/rasl` beads (epic `rasl-g7n`).
 
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:970c3bf2 -->
-## Beads Issue Tracker
+## Task tracking: beads
 
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
+All planned work is tracked in beads (`bd`, prefix `vil-`). Agents manage beads themselves
+(owner, 2026-10-21, in rasl: "I want to use beads, and want you to auto manage it"). The beads
+were ported from mcurcio/rasl on 2026-10-22; each one's notes say where it came from.
 
-### Quick Reference
+- **Before work:** `bd ready`, `bd show <id>`, `bd update <id> --claim`.
+- **During work:** file a bead for every follow-up, bug or open question; record decided rules in
+  the bead's design field.
+- **After work:** `bd close <id>`; update the rest.
+- **Sync to GitHub:** the beads database's Dolt remote is `origin` (`refs/dolt/data`). A
+  `Stop` hook in `.claude/settings.json` runs `bd dolt push` after every Claude turn. Agents
+  without that hook run `bd dolt push` after changing beads. On a new machine, run
+  `bd dolt pull`.
+- **Readable snapshot:** `bd export -o .beads/issues.jsonl`, committed with the work.
+- Lasting notes about the owner or the project go in Claude memory files, not `bd remember`.
 
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
-```
+## Collaboration preferences
 
-### Rules
+- **Brainstorming cadence**
+  - When we are ideating / brainstorming, keep responses concise and optimize for quick back-and-forth.
 
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+- **Opinions vs decisions**
+  - Offer **opinions and options**.
+  - Do not present choices as "decided" unless the owner explicitly asks you to decide.
 
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
+- **Specificity & intent**
+  - Ask targeted clarifying questions when requirements are ambiguous.
+  - Do not guess intentions; when in doubt, present explicit assumptions and ask for confirmation.
+  - If a request specifies *interfaces* (ports/config) but leaves *runtime semantics* underspecified (e.g., timing, edge cases, shape rules, default behaviors), **pause implementation** and ask for clarification rather than inventing defaults.
 
-## Agent Context Profiles
+- **No implicit semantic changes**
+  - Do not change node semantics, runtime semantics, config semantics, or payload contracts implicitly.
+  - If a change might affect behavior (even if tests still pass), call it out **before** implementing and confirm it is wanted.
 
-The managed Beads block is task-tracking guidance, not permission to override repository, user, or orchestrator instructions.
+- **Breaking changes / renames**
+  - Confirm renames and behavior changes with the owner before making them.
+  - Do not add aliases, deprecated exports, migration messages, or compatibility shims unless explicitly asked.
 
-- **Conservative (default)**: Use `bd` for task tracking. Do not run git commits, git pushes, or Dolt remote sync unless explicitly asked. At handoff, report changed files, validation, and suggested next commands.
-- **Minimal**: Keep tool instruction files as pointers to `bd prime`; use the same conservative git policy unless active instructions say otherwise.
-- **Team-maintainer**: Only when the repository explicitly opts in, agents may close beads, run quality gates, commit, and push as part of session close. A current "do not commit" or "do not push" instruction still wins.
+- **Scope discipline**
+  - Keep diffs minimal and tied to the request.
+  - Avoid drive-by refactors unless asked; file a bead instead.
 
-## Session Completion
+- **Config ergonomics**
+  - When adding DSL/config sugar:
+    - propose exact semantics (including edge cases)
+    - avoid ambiguous behavior
+    - confirm constraints (e.g., "only supported without slicing") up front
 
-This protocol applies when ending a Beads implementation workflow. It is subordinate to explicit user, repository, and orchestrator instructions.
-
-1. **File issues for remaining work** - Create beads for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **Handle git/sync by active profile**:
-   ```bash
-   # Conservative/minimal/default: report status and proposed commands; wait for approval.
-   git status
-
-   # Team-maintainer opt-in only, unless current instructions forbid it:
-   git pull --rebase
-   bd dolt push
-   git push
-   git status
-   ```
-5. **Hand off** - Summarize changes, validation, issue status, and any blocked sync/commit/push step
-
-**Critical rules:**
-- Explicit user or orchestrator instructions override this Beads block.
-- Do not commit or push without clear authority from the active profile or the current user request.
-- If a required sync or push is blocked, stop and report the exact command and error.
-<!-- END BEADS INTEGRATION -->
-
-<!-- BEGIN BEADS CODEX SETUP: generated by bd setup codex -->
-## Beads Issue Tracker
-
-Use Beads (`bd`) for durable task tracking in repositories that include it. Use the `beads` skill at `.agents/skills/beads/SKILL.md` (project install) or `~/.agents/skills/beads/SKILL.md` (global install) for Beads workflow guidance, then use the `bd` CLI for issue operations.
-
-### Quick Reference
-
-```bash
-bd ready                # Find available work
-bd show <id>            # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>           # Complete work
-bd prime                # Refresh Beads context
-```
-
-### Rules
-
-- Use `bd` for all task tracking; do not create markdown TODO lists.
-- Run `bd prime` when Beads context is missing or stale. Codex 0.129.0+ can load Beads context automatically through native hooks; use `/hooks` to inspect or toggle them.
-- Keep persistent project memory in Beads via `bd remember`; do not create ad hoc memory files.
-
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
-<!-- END BEADS CODEX SETUP -->
+- **Change reporting**
+  - After edits, summarize:
+    - what changed
+    - why
+    - any behavior-impacting implications
+    - what to run to validate

@@ -38,7 +38,9 @@ It needs `python3`, `bison` and `uv`.
 | `grammar/` | The grammar (`Villanelle.g4`) and its EBNF view |
 | `tools/` | The soundness checks and the planted bad grammars they must catch |
 | `conformance/` | Test cases every parser must pass. The expected-output format is still to be fixed |
-| `design/` | The design record ([`design/RECORD.md`](design/RECORD.md)), drafts, reviews and experiments |
+| `design/` | The design record ([`design/RECORD.md`](design/RECORD.md)), the older plans, drafts, reviews and experiments |
+| `reference/` | The config code copied from mcurcio/rasl, as source material ([`reference/README.md`](reference/README.md)) |
+| `.beads/` | The issue tracker (`bd ready` for work) |
 
 ## Status
 
