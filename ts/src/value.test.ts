@@ -61,7 +61,8 @@ describe("valueOf", () => {
     expect(valueOf(syntax, sliceOf(syntax))).toMatchObject({ kind: "slice", start: -3, end: -1 });
   });
 
-  it("throws E4001 at a non-integer bound: foo[a:b] parses clean", () => {
+  it("throws E4001 at a non-integer bound: foo[a:b] parses clean as one WORD index", () => {
+    // A letter-start WORD may hold ':' (grammar rule WORD), so a:b is one bound token: the index arm.
     const syntax = parse("connect foo[a:b];");
     expect(syntax.diagnostics).toEqual([]);
     const error = thrown(() => valueOf(syntax, sliceOf(syntax)));
@@ -69,6 +70,23 @@ describe("valueOf", () => {
     const { diagnostic } = error as DiagnosticError;
     expect(diagnostic.code).toBe(DiagnosticCode.NonIntegerBound);
     expect(diagnostic.span.start).toEqual({ offset: 12, line: 0, column: 12 });
+    expect(diagnostic.span.end).toEqual({ offset: 15, line: 0, column: 15 });
+  });
+
+  it("throws E4001 at a non-integer start bound of a slice", () => {
+    for (const [src, end] of [
+      ["connect foo[1.5:2];", 15],
+      ["connect foo[-:1];", 13],
+    ] as const) {
+      const syntax = parse(src);
+      expect(syntax.diagnostics).toEqual([]);
+      expect(syntax.tokens.map((t) => t.kind)).toContain(TokenKind.Colon);
+      const error = thrown(() => valueOf(syntax, sliceOf(syntax)));
+      const { diagnostic } = error as DiagnosticError;
+      expect(diagnostic.code).toBe(DiagnosticCode.NonIntegerBound);
+      expect(diagnostic.span.start).toEqual({ offset: 12, line: 0, column: 12 });
+      expect(diagnostic.span.end).toEqual({ offset: end, line: 0, column: end });
+    }
   });
 
   it("throws E4001 for bounds that are not safe integers", () => {

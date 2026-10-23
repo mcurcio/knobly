@@ -12,6 +12,7 @@ from villanelle import (
     SourcePosition,
     SourceSpan,
     Syntax,
+    TokenKind,
     ValueKind,
     WordValue,
     parse,
@@ -73,13 +74,27 @@ def test_accepts_the_largest_safe_integers() -> None:
     assert (value.start, value.end) == (-(2**53 - 1), 2**53 - 1)
 
 
-def test_raises_e4001_at_a_non_integer_bound_foo_a_b_parses_clean() -> None:
+def test_raises_e4001_at_a_non_integer_bound_foo_a_b_parses_clean_as_one_word_index() -> None:
+    # A letter-start WORD may hold ':' (grammar rule WORD), so a:b is one bound token: the index arm.
     syntax = parse("connect foo[a:b];")
     assert syntax.diagnostics == ()
     with pytest.raises(DiagnosticError) as raised:
         value_of(syntax, slice_of(syntax))
     assert raised.value.diagnostic.code is DiagnosticCode.NON_INTEGER_BOUND
     assert raised.value.diagnostic.span.start == SourcePosition(12, 0, 12)
+    assert raised.value.diagnostic.span.end == SourcePosition(15, 0, 15)
+
+
+@pytest.mark.parametrize(("src", "end"), [("connect foo[1.5:2];", 15), ("connect foo[-:1];", 13)])
+def test_raises_e4001_at_a_non_integer_start_bound_of_a_slice(src: str, end: int) -> None:
+    syntax = parse(src)
+    assert syntax.diagnostics == ()
+    assert TokenKind.COLON in [t.kind for t in syntax.tokens]
+    with pytest.raises(DiagnosticError) as raised:
+        value_of(syntax, slice_of(syntax))
+    assert raised.value.diagnostic.code is DiagnosticCode.NON_INTEGER_BOUND
+    assert raised.value.diagnostic.span.start == SourcePosition(12, 0, 12)
+    assert raised.value.diagnostic.span.end == SourcePosition(end, 0, end)
 
 
 @pytest.mark.parametrize(
