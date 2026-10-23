@@ -27,8 +27,8 @@ export interface IParseGraphOptions {
  * include directive and the resolvedPath of the document that contains it. A document reached twice is parsed
  * once; a cycle gives E3002 and leaves that edge's target the already-open node.
  *
- * Never rejects for anything in the texts or for a loader failure; those become diagnostics.
- * @throws TypeError when `options.loader` is missing.
+ * Never rejects for anything in the texts or for a loader failure; those become diagnostics. The only rejection
+ * is a TypeError when `options.loader` is missing (an async function: it rejects, it does not throw).
  */
 export async function parseGraph(source: string, options: IParseGraphOptions): Promise<IDocumentGraph> {
   // A JavaScript caller can omit what the types require.

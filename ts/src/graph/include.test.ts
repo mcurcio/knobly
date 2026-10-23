@@ -43,7 +43,7 @@ const codes = (graph: IDocumentGraph, code: DiagnosticCode): IGraphDiagnostic[] 
 
 describe("parseGraph", () => {
   describe("basic includes", () => {
-    it("throws if loader is missing", async () => {
+    it("rejects with a TypeError if loader is missing", async () => {
       await expect(parseGraph("listen 8080;", undefined as unknown as never)).rejects.toThrow(/loader is required/);
       await expect(parseGraph("listen 8080;", {} as never)).rejects.toThrow(TypeError);
     });
