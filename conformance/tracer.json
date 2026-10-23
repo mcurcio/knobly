@@ -1,0 +1,26 @@
+[
+{
+"name": "tracer-slice",
+"src": "connect hyperhdr_color[144:152];"
+},
+{
+"name": "tracer-open-end",
+"src": "connect hyperhdr_color[144:];"
+},
+{
+"name": "tracer-open-start",
+"src": "connect hyperhdr_color[:152];"
+},
+{
+"name": "tracer-empty-slice",
+"src": "connect foo[:];"
+},
+{
+"name": "tracer-word-bounds",
+"src": "connect foo[a:b];"
+},
+{
+"name": "tracer-index",
+"src": "connect foo[1];"
+}
+]

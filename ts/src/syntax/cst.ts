@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/no-unused-vars -- M1 skeleton (vil-g7n.1): the slice that fills the bodies deletes this line. */
 /**
  * The lossless concrete syntax tree: concept nodes over token ranges (design/RECORD.md, "The CST").
  */
 
 import type { IDiagnostic } from "../diagnostics.js";
-import type { ISourceSpan } from "../span.js";
+import type { ISourcePosition, ISourceSpan } from "../span.js";
 import type { IToken } from "./tokens.js";
 
 export const NodeKind = {
@@ -57,7 +56,13 @@ export type ValueRef = number | INode;
  * @throws RangeError when the range is outside [0, tokens.length] or start > end.
  */
 export function spanOf(syntax: ISyntax, range: ITokenRange): ISourceSpan {
-  throw new Error("not implemented");
+  const { tokens } = syntax;
+  checkRange(tokens.length, range);
+  const at = (i: number): ISourcePosition =>
+    tokens[i]?.span.start ?? tokens.at(-1)?.span.end ?? { offset: 0, line: 0, column: 0 };
+  const start = at(range.start);
+  if (range.start === range.end) return { start, end: start };
+  return { start, end: tokens[range.end - 1]?.span.end ?? start };
 }
 
 /**
@@ -65,5 +70,15 @@ export function spanOf(syntax: ISyntax, range: ITokenRange): ISourceSpan {
  * @throws RangeError when the range is outside [0, tokens.length] or start > end.
  */
 export function textOf(syntax: ISyntax, range: ITokenRange): string {
-  throw new Error("not implemented");
+  checkRange(syntax.tokens.length, range);
+  let text = "";
+  for (let i = range.start; i < range.end; i++) text += syntax.tokens[i]?.text ?? "";
+  return text;
+}
+
+function checkRange(length: number, range: ITokenRange): void {
+  const { start, end } = range;
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > length || start > end) {
+    throw new RangeError(`token range [${start}, ${end}) is outside [0, ${length}]`);
+  }
 }

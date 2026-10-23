@@ -14,7 +14,7 @@ separator     : ';' | NEWLINE ;
 block         : '{' statements '}' ;
 value         : WORD | STRING | slicedWord | list ;
 slicedWord    : WORD '[' bounds ']' ;
-bounds        : WORD ':' WORD? | ':' WORD ;
+bounds        : WORD ':' WORD? | ':' WORD | WORD ;
 list          : '[' listGap? items? ']' ;
 items         : value listGap? (',' listGap? value listGap?)* (',' listGap?)? ;
 listGap       : (SPACE | COMMENT | NEWLINE)+ ;

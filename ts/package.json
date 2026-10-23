@@ -31,10 +31,11 @@
   },
   "packageManager": "pnpm@12.15.0",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "gen": "bash ../tools/gen.sh ts",
+    "build": "bash ../tools/gen.sh ts && tsc -p tsconfig.build.json",
+    "test": "bash ../tools/gen.sh ts && vitest run",
+    "typecheck": "bash ../tools/gen.sh ts && tsc --noEmit",
+    "lint": "bash ../tools/gen.sh ts && eslint ."
   },
   "dependencies": {
     "antlr4": "4.13.2"
