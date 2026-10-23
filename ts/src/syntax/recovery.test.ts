@@ -95,6 +95,42 @@ describe("recovery", () => {
     expect(shape("x [a][b]").codes).toEqual([["E2009", 0, 5]]);
     expect(shape("x a[0:1]b").codes).toEqual([["E2009", 0, 8]]);
   });
+
+  it("resumes after a long run of bad statements in a loop, never overflowing the stack", () => {
+    const run = 5000;
+    const bad = "a ]\n".repeat(run);
+    for (const text of [bad, "a ];".repeat(run), `a {\n${bad}}\n`, "a ]\nb 1\n".repeat(run / 2)]) {
+      const syntax = parse(text);
+      expect(syntax.diagnostics.length).toBe(text.startsWith("a ]\nb") ? run / 2 : run);
+      expect(textOf(syntax, syntax.root)).toBe(text);
+    }
+    const top = shape(bad);
+    expect(top.tree[2]).toEqual(Array.from({ length: run }, () => ["error", "a ]\n", []]));
+    expect(top.codes[run - 1]).toEqual(["E2004", run - 1, 2]);
+    const inBlock = shape(`a {\n${bad}}\n`).tree[2][0]?.[2][0];
+    expect(inBlock?.[2]).toEqual(Array.from({ length: run }, () => ["error", "a ]\n", []]));
+    expect(shape("a ]\nb 1\n".repeat(run / 2)).tree[2].slice(0, 4)).toEqual([
+      ["error", "a ]\n", []],
+      ["directive", "b 1\n", []],
+      ["error", "a ]\n", []],
+      ["directive", "b 1\n", []],
+    ]);
+  });
+
+  it("parses wrong-format files and bad runs at full nesting depth without throwing", () => {
+    const lines = (f: (i: number) => string): string => Array.from({ length: 600 }, (_, i) => f(i)).join("");
+    for (const text of [
+      lines((i) => `key${i}: [value, ${i}]]\n`),
+      lines((i) => `"k${i}": "v",\n`),
+      `${"a {".repeat(MAX_NESTING)}${"x ]\n".repeat(200)}${"}".repeat(MAX_NESTING)}`,
+    ]) {
+      const syntax = parse(text);
+      expect(syntax.diagnostics.length).toBeGreaterThan(0);
+      expect(textOf(syntax, syntax.root)).toBe(text);
+    }
+    const deep = parse(`${"a {".repeat(MAX_NESTING)}${"x ]\n".repeat(200)}${"}".repeat(MAX_NESTING)}`);
+    expect(deep.diagnostics.map((d) => d.code)).toEqual(Array.from({ length: 200 }, () => "E2004"));
+  });
 });
 
 describe("nesting depth guard", () => {

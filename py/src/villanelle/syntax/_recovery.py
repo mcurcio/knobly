@@ -247,8 +247,13 @@ class _Recovery(DefaultErrorStrategy):  # type: ignore[misc]
         rule = _rule_of(p._ctx)
         if _is_statements(p._ctx):
             self._skip(p)
-            if la() not in (_EOF, P.RBRACE):
-                p.statements()
+            # Resume in a loop, not by recursion, so a long run of bad statements cannot overflow the stack: a resumed
+            # statements() that fails again returns here after its skip, and this loop resumes once more.
+            if _is_statements(p._ctx.parentCtx):
+                return
+            resumed = True
+            while resumed and la() not in (_EOF, P.RBRACE):
+                resumed = p.statements().exception is not None
         elif rule == P.RULE_document:
             while la() != _EOF:
                 self._junk(p)

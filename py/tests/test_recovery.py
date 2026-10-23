@@ -99,6 +99,43 @@ def test_gives_touching_values_e2009() -> None:
     assert shape("x a[0:1]b")["codes"] == [["E2009", 0, 8]]
 
 
+def test_resumes_after_a_long_run_of_bad_statements_in_a_loop_never_overflowing_the_stack() -> None:
+    run = 5000
+    bad = "a ]\n" * run
+    for text, count in (
+        (bad, run),
+        ("a ];" * run, run),
+        (f"a {{\n{bad}}}\n", run),
+        ("a ]\nb 1\n" * (run // 2), run // 2),
+    ):
+        syntax = parse(text)
+        assert len(syntax.diagnostics) == count
+        assert text_of(syntax, syntax.root) == text
+    top = shape(bad)
+    assert top["tree"][2] == [["error", "a ]\n", []]] * run
+    assert top["codes"][run - 1] == ["E2004", run - 1, 2]
+    assert shape(f"a {{\n{bad}}}\n")["tree"][2][0][2][0][2] == [["error", "a ]\n", []]] * run
+    assert shape("a ]\nb 1\n" * (run // 2))["tree"][2][:4] == [
+        ["error", "a ]\n", []],
+        ["directive", "b 1\n", []],
+        ["error", "a ]\n", []],
+        ["directive", "b 1\n", []],
+    ]
+
+
+def test_parses_wrong_format_files_and_bad_runs_at_full_nesting_depth_without_raising() -> None:
+    deep = "a {" * MAX_NESTING + "x ]\n" * 200 + "}" * MAX_NESTING
+    for text in (
+        "".join(f"key{i}: [value, {i}]]\n" for i in range(600)),
+        "".join(f'"k{i}": "v",\n' for i in range(600)),
+        deep,
+    ):
+        syntax = parse(text)
+        assert syntax.diagnostics
+        assert text_of(syntax, syntax.root) == text
+    assert [d.code for d in parse(deep).diagnostics] == [DiagnosticCode.EXPECTED_CLOSING_BRACKET] * 200
+
+
 def blocks(n: int) -> str:
     return "a {" * n + "}" * n
 

@@ -144,7 +144,7 @@ interface IParser {
   getCurrentToken(): IStreamToken;
   consume(): void;
   match(type: number): void;
-  statements(): unknown;
+  statements(): { readonly exception: unknown };
 }
 
 /** The parts of ANTLR's DefaultErrorStrategy the strategy overrides or calls. */
@@ -269,7 +269,11 @@ class Recovery extends DefaultErrorStrategy {
     const rule = p._ctx.ruleIndex;
     if (isStatements(p._ctx)) {
       this.skip(p);
-      if (la() !== EOF && la() !== P.RBRACE) p.statements();
+      // Resume in a loop, not by recursion, so a long run of bad statements cannot overflow the stack: a resumed
+      // statements() that fails again returns here after its skip, and this loop resumes once more.
+      if (isStatements(p._ctx.parentCtx)) return;
+      let resumed = true;
+      while (resumed && la() !== EOF && la() !== P.RBRACE) resumed = p.statements().exception !== null;
     } else if (rule === P.RULE_document) {
       while (la() !== EOF) {
         this.junk(p);
