@@ -4,6 +4,7 @@ import { DiagnosticCode, DiagnosticError } from "./diagnostics.js";
 import type { INode, ISyntax } from "./syntax/cst.js";
 import { NodeKind } from "./syntax/cst.js";
 import { parse } from "./syntax/parse.js";
+import { TokenKind } from "./syntax/tokens.js";
 import { valueOf } from "./value.js";
 
 /** The slice node of the first directive (`connect <value>;`). */
@@ -84,9 +85,7 @@ describe("valueOf", () => {
     expect(valueOf(syntax, 2)).toEqual({ kind: "word", text: "foo", span: syntax.tokens[2]?.span });
   });
 
-  it("throws 'unsupported value kind' for strings and lists", () => {
-    const string = parse('connect "x";');
-    expect(() => valueOf(string, 2)).toThrow(new Error("unsupported value kind: string"));
+  it("throws 'unsupported value kind' for lists", () => {
     const list = parse("connect [1, 2];");
     const node = list.root.children[0]?.children[0] as INode;
     expect(node.kind).toBe(NodeKind.List);
@@ -99,5 +98,44 @@ describe("valueOf", () => {
     expect(() => valueOf(syntax, 99)).toThrow(TypeError);
     expect(() => valueOf(syntax, -1)).toThrow(TypeError);
     expect(() => valueOf(syntax, syntax.root.children[0] as INode)).toThrow(TypeError); // directive
+  });
+
+  it("gives a string, its quotes stripped and each v1 escape decoded", () => {
+    const cases: [string, string][] = [
+      ['"plain"', "plain"],
+      ["'single'", "single"],
+      ['"a\\\\b"', "a\\b"],
+      ['"a\\nb"', "a\nb"],
+      ['"a\\tb"', "a\tb"],
+      ['"a\\rb"', "a\rb"],
+      ['"a\\"b"', 'a"b'],
+      ["'a\\'b'", "a'b"],
+      ['"a\\\'b"', "a'b"],
+      ['""', ""],
+    ];
+    for (const [literal, decoded] of cases) {
+      const syntax = parse(`connect ${literal};`);
+      expect(syntax.diagnostics).toEqual([]);
+      expect(valueOf(syntax, 2)).toEqual({ kind: "string", value: decoded, span: syntax.tokens[2]?.span });
+    }
+  });
+
+  it("decodes an unknown escape to the escaped character, astral ones whole", () => {
+    for (const [literal, decoded] of [
+      ['"\\q"', "q"],
+      ['"\\\\n"', "\\n"],
+      ['"x\\😀y"', "x😀y"],
+    ] as const) {
+      const syntax = parse(`connect ${literal};`);
+      expect(syntax.diagnostics).toEqual([]);
+      expect(valueOf(syntax, 2)).toMatchObject({ kind: "string", value: decoded });
+    }
+  });
+
+  it("throws TypeError for an unterminated string token", () => {
+    const syntax = parse('connect "abc');
+    const index = syntax.tokens.findIndex((t) => t.kind === TokenKind.UnterminatedString);
+    expect(index).toBeGreaterThan(0);
+    expect(() => valueOf(syntax, index)).toThrow(TypeError);
   });
 });

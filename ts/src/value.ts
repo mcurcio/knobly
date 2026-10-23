@@ -85,10 +85,18 @@ function tokenValue(syntax: ISyntax, index: number): Value {
     case TokenKind.Word:
       return { kind: ValueKind.Word, text: token.text, span: token.span };
     case TokenKind.String:
-      throw new Error("unsupported value kind: string");
+      return { kind: ValueKind.String, value: decodeString(token.text), span: token.span };
     default:
       throw new TypeError(`not a value: a ${token.kind} token`);
   }
+}
+
+/** Backslash escapes with their own meaning; any other `\x` (`\\`, `\"`, `\'` among them) decodes to `x`. */
+const ESCAPES: Readonly<Record<string, string>> = { n: "\n", t: "\t", r: "\r" };
+
+/** The text between a STRING token's quotes, escapes decoded (see IStringValue). One escape is one code point. */
+function decodeString(text: string): string {
+  return text.slice(1, -1).replace(/\\(.)/gsu, (_, escaped: string) => ESCAPES[escaped] ?? escaped);
 }
 
 /** A slice node holds exactly `WORD [ bounds ]`, bounds being `W`, `W:W`, `W:` or `:W` (grammar rule bounds). */
