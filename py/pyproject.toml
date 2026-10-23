@@ -1,0 +1,50 @@
+[project]
+name = "villanelle"
+# Placeholder: the release job stamps the real version at build time (vil-g7n.3).
+version = "0.0.0"
+description = "A configuration language defined by one formal grammar, with a lossless syntax tree"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = ["antlr4-python3-runtime==4.13.2"]
+
+[project.urls]
+Repository = "https://github.com/mcurcio/villanelle"
+
+[dependency-groups]
+dev = ["pytest", "ruff", "mypy"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# src/villanelle/_gen/ is made by `bash ../tools/gen.sh py` and ignored by git, so hatchling would drop it:
+# artifacts force it into the wheel and sdist (proven by tests/test_build.py). Run gen.sh before building.
+[tool.hatch.build.targets.wheel]
+packages = ["src/villanelle"]
+artifacts = ["src/villanelle/_gen/*"]
+
+[tool.hatch.build.targets.sdist]
+artifacts = ["src/villanelle/_gen/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["src/villanelle/_gen"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+mypy_path = "src"
+files = ["src", "tests"]
+exclude = ["src/villanelle/_gen/"]
+
+[[tool.mypy.overrides]]
+module = ["antlr4", "antlr4.*", "villanelle._gen", "villanelle._gen.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
