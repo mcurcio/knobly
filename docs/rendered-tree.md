@@ -1,8 +1,18 @@
-# The low-level API (TypeScript and Python)
+# The rendered tree (TypeScript and Python)
 
-This page is for a program that reads villanelle files. It covers the load layer: one call reads a root file and
-everything it includes, expands variables and snippets, and gives back directives with values a program can read,
-the place each one was written, an identity that survives edits, and a list of what changed between two loads.
+This page is for a program that reads villanelle config. It covers the middle layer, the **rendered tree**: the
+directives a program reads, with variables, snippets and included files already worked out, every value's origin
+(where it was written), and the problems found, as located diagnostics. It also covers addresses (a directive's
+identity across reloads) and the list of what changed between two renders.
+
+villanelle has three layers. Each one is built on the one below, and a program can work at any of them:
+
+| Layer | What it is | Where it is described |
+|---|---|---|
+| the syntax tree | `parse(text)`: one text, every character in exactly one token | [`ts/README.md`](../ts/README.md), [`py/README.md`](../py/README.md) |
+| the low level | `load(path)`: the files as written, with the variables and include lines in them, editable and saved back | [low-level-api.md](low-level-api.md) |
+| the rendered tree | `render(graph)`: what the files say once variables, snippets and includes are worked out | this page |
+
 The language itself is described in [language.md](language.md).
 
 The two packages have the same parts under each language's own names. Each section shows TypeScript first, then
@@ -12,9 +22,6 @@ Python.
 package's source files (`./processor.js`, `../include.js`); the examples write the imports a program would write
 (`villanelle`, `villanelle/include`, `villanelle/node`). "Excerpt" means lines were left out; nothing else was
 changed.
-
-There is a tier below this one: `parse(text)` gives the lossless syntax tree of one text, with every character in
-exactly one token. A program that edits files works at that level; this page does not cover it.
 
 ## Worked example: how rasl reads its config and reloads it
 
@@ -27,7 +34,7 @@ TypeScript:
 ```ts
 import { fileURLToPath } from "node:url";
 
-import { type IDirective, type ILoaded, type KeyRule, villanelle } from "villanelle";
+import { type IDirective, type IProcessor, type IRendered, type KeyRule, villanelle } from "villanelle";
 import { include } from "villanelle/include";
 import { createFileSource } from "villanelle/node";
 
@@ -39,7 +46,7 @@ const RASL_KEY: KeyRule = (d) => {
   return undefined;
 };
 
-function nodeIds(loaded: ILoaded): string[] {
+function nodeIds(loaded: IRendered): string[] {
   const ids: string[] = [];
   loaded.walk((d: IDirective) => {
     if (d.name === "node" && d.parent?.name === "graph") ids.push(d.args[1]?.text ?? "");
@@ -49,20 +56,24 @@ function nodeIds(loaded: ILoaded): string[] {
 
 const HANDED = { leds_host: '"10.0.70.1"' };
 
-    const processor = villanelle({ source: files, extensions: [include()], key: RASL_KEY });
+export async function rendered(processor: IProcessor, path: string, options?: { readonly variables?: Readonly<Record<string, string>> }): Promise<IRendered> {
+  return processor.render(await processor.load(path, options));
+}
+
+    const processor = villanelle({ source: files, extensions: [include()] });
     const path = fileURLToPath(new URL(name, FIXTURES));
     const options = { variables: HANDED };
-    const first = await processor.load(path, options);
+    const first = await rendered(processor, path, options);
     expect(first.diagnostics).toEqual(expected.diagnostics);
     expect(nodeIds(first)).toEqual(expected.nodes);
     edit();
-    const second = await processor.load(path, options);
-    expect(processor.diff(first, second).map((c) => [c.kind, c.address.toString()])).toEqual(expected.changes);
+    const second = await rendered(processor, path, options);
+    expect(processor.diff(first, second, { key: RASL_KEY }).map((c) => [c.kind, c.address.toString()])).toEqual(expected.changes);
 ```
 
 Excerpt of `ts/src/load/rasl.test.ts`, test "%s loads with the expected nodes and reload changes" (run once per
-fixture). `files` is the file source from `createFileSource()`, wrapped so that `edit()` makes the next read say
-`set $pixels 2400;` instead of `2284`.
+fixture), and of `rendered` in `ts/src/load/testing.ts`. `files` is the file source from `createFileSource()`,
+wrapped so that `edit()` makes the next read say `set $pixels 2400;` instead of `2284`.
 
 Python:
 
@@ -72,7 +83,7 @@ from villanelle.files import file_source
 from villanelle.include import include
 
 
-def rasl_key(d: vl.KeyInput) -> str | None:
+def rasl_key(d: vl.Directive) -> str | None:
     """The "rasl" key rule of conformance/load/format.md."""
     if d.name == "node" and d.parent is not None and d.parent.name == "graph":
         return d.args[1].text if len(d.args) > 1 else None
@@ -83,14 +94,14 @@ def rasl_key(d: vl.KeyInput) -> str | None:
     return None
 
 
-def node_ids(loaded: vl.Loaded) -> list[str]:
+def node_ids(loaded: vl.Rendered) -> list[str]:
     graph = next(d for d in loaded.body if d.name == "graph")
     return [d.args[1].text for d in graph.body or () if d.name == "node"]
 
 
-    processor = vl.Processor(source=file_source(), extensions=[include()], key=rasl_key)
+    processor = vl.Processor(source=file_source(), extensions=[include()])
     variables = {"leds_host": '"10.0.0.9"'} if handed else None
-    first = processor.load(str(root), variables=variables)
+    first = processor.render(processor.load(str(root), variables=variables))
     expected = EXPECTED[name]
     assert expected["diagnostics"] == []
     assert first.diagnostics == ()
@@ -98,8 +109,9 @@ def node_ids(loaded: vl.Loaded) -> list[str]:
     text = root.read_text(encoding="utf-8")
     assert text.count("set $pixels 2284;") == 1
     root.write_text(text.replace("set $pixels 2284;", "set $pixels 2400;"), encoding="utf-8")
-    second = processor.load(str(root), variables=variables)
-    assert [[type(c).__name__.lower(), str(c.address)] for c in processor.diff(first, second)] == expected["changes"]
+    second = processor.render(processor.load(str(root), variables=variables))
+    changes = processor.diff(first, second, key=rasl_key)
+    assert [[type(c).__name__.lower(), str(c.address)] for c in changes] == expected["changes"]
 ```
 
 Excerpt of `py/tests/test_rasl.py`, `test_a_rasl_fixture_loads_and_reloads_as_expected`.
@@ -114,49 +126,94 @@ changed  graph > node "leds" > connect "crossfade_rgb pixels" > repeat_until
 
 The rest of this page goes through each part used above.
 
-## Making a processor and loading
+## Making a processor, loading and rendering
 
-A **processor** is made once, with three things: the **document source** (where files come from), the
-**extensions** (such as include), and the **key rule** (how to name a directive among its siblings). Every load and
-every comparison goes through it, so two loads are always read the same way.
+A **processor** is made once, with two things: the **document source** (where files come from) and the
+**extensions** (such as include). Every load, render and comparison goes through it, so two loads are always read
+the same way.
 
 | | TypeScript | Python |
 |---|---|---|
-| make | `villanelle({ source, extensions?, key? })` | `Processor(source=..., extensions=(), key=None)` |
-| load | `await processor.load(path, { variables? })` | `processor.load(path, variables=None)` |
-| compare | `processor.diff(before, after)` | `processor.diff(before, after)` |
+| make | `villanelle({ source, extensions? })` | `Processor(source=..., extensions=())` |
+| load the files as written | `await processor.load(path, { variables? })` | `processor.load(path, variables=None)` |
+| read files an edit added | `await processor.read(graph)` | `processor.read(graph)` |
+| render | `processor.render(graph)` | `processor.render(graph)` |
+| compare | `processor.diff(before, after, { key? })` | `processor.diff(before, after, key=None)` |
+
+`load` gives back the **document graph**: the files as written, described on the [low-level page](low-level-api.md).
+`render(graph)` builds the rendered tree from the graph's current texts and handed-in values. It reads no file, so
+it can be called again after an edit, and two calls never disagree about the same texts. A rendered tree is a
+snapshot: an edit made after `render` does not change it; render again to see the edit.
 
 `load` resolves `path` through the source as an include spec is resolved (with an empty parent path), reads that
-file, then everything it splices in, so the root has one path however it is written (load case `load-root-spelling`). Each file is read once per
-load, however many places include it. A load never fails because of what a file says: every problem becomes a
-diagnostic and the rest is read. It fails only when:
+file, then everything it splices in, so the root has one path however it is written (load case `load-root-spelling`).
+Each file is read once per load, however many places include it. A load never fails because of what a file says:
+every problem becomes a diagnostic and the rest is read. It fails only when:
 
-- the source cannot resolve `path` to exactly one file, or cannot read it: a `DiagnosticError` with code E3004,
-  placed at `path` as written, at line 0, column 0 (test "rejects the load with a DiagnosticError E3004 at the root file when the source cannot read it",
-  `ts/src/load/rules.test.ts`; `test_a_root_the_source_cannot_read_raises_e3004_at_the_root`, `py/tests/test_load.py`);
+- the source cannot resolve `path` to exactly one file, or cannot read it: a `ReadError` (a `DiagnosticError`) with
+  code E3004, placed at `path` as written, at line 0, column 0 (test "rejects with ReadError, a DiagnosticError E3004
+  at the root path (B10)", `ts/src/written/edits.test.ts`; `test_a_root_the_source_cannot_read_raises_e3004_at_the_root`,
+  `py/tests/test_load.py`);
 - a handed-in variable has a bad name or a text that is not one run of values (TypeError in TypeScript, ValueError in
-  Python);
-- the key rule throws: the load ends with what it threw (a bug in the program, not in the config).
+  Python).
+
+`render`, `read` and `diff` refuse a graph or a render that another processor made (TypeError in TypeScript,
+ValueError in Python).
 
 **Handed-in variables** are texts read as values: `{ ports: '8080 443 "x" [1, 2]' }` gives `$ports` four values.
-They win over every `set` of the same name.
+They win over every `set` of the same name. The low level can change them later without a reload
+(`graph.setHanded`, [low-level-api.md](low-level-api.md#handed-in-values)).
 
-What a load gives back (`ILoaded` / `Loaded`):
+What a render gives back (`IRendered` / `Rendered`):
 
 | Field | What it is |
 |---|---|
 | `body` | the top-level directives, expanded |
 | `unreadable` | top-level statements that could not be read, in place |
-| `diagnostics` | every problem: each file's syntax problems, then the load's, in order |
-| `graph` | the files read, and one edge per include line (below) |
+| `diagnostics` | every problem: each file's syntax problems, then the render's, in order |
+| `graph` | the document graph it was rendered from |
 | `origin` | the root file at 0:0, where a problem of the whole file is placed |
 | `walk(...)`, `error(...)` | see "Walking" and "Problems" |
+| `addresses({ key })` | every directive's address under a key rule (see "Addresses and the key rule") |
 
 ## Walking the directives
 
 A directive (`IDirective` / `Directive`) has `name`, `args` (its values), `body` (the directives of its block, or
-undefined/None when written without a block), `unreadable`, `parent`, `address`, `origin` and `node` (its node in the
-syntax tree). `set`, `snippet`, `use` and include lines never appear: what they produce does, in their place.
+undefined/None when written without a block), `unreadable`, `parent`, `origin` and `written`. `set`, `snippet`,
+`use` and include lines never appear: what they produce does, in their place.
+
+`written` is the directive as written, on the low level: the line to edit. A line read at two places (a file
+included twice, a snippet used twice) renders as two directives with the same `written` object:
+
+```ts
+    const files = { "main.conf": 'g {\n  include "s.conf";\n}\nh {\n  include "s.conf";\n}\n', "s.conf": "x 1;\ny $nope;\n" };
+    const processor = villanelle({ source: memorySource(files), extensions: [include()] });
+    const graph = await processor.load("main.conf");
+    const rendered = processor.render(graph);
+    const [g, h] = rendered.body;
+    const x = graph.documents.get("s.conf")?.body.statements[0];
+    const y = graph.documents.get("s.conf")?.body.statements[1];
+    expect(g?.body?.[0]?.written).toBe(x);
+    expect(h?.body?.[0]?.written).toBe(x);
+    expect(g?.unreadable[0]?.written).toBe(y);
+    expect(h?.unreadable[0]?.written).toBe(y);
+    expect(g?.written).toBe(graph.root.body.statements[0]);
+```
+
+`ts/src/written/edits.test.ts`, test "gives both copies of a line read twice the same statement, and an unreadable
+copy its statement".
+
+```python
+    files = {"main.conf": 'a { include "p.conf"; }\nb { include "p.conf"; }\n', "p.conf": "x 1;\n"}
+    processor = vl.Processor(source=vl.memory_source(files), extensions=[include()])
+    graph = processor.load("main.conf")
+    rendered = processor.render(graph)
+    x1, x2 = (d for d in vl.walk(rendered) if d.name == "x")
+    assert x1.written is x2.written is graph.documents["p.conf"].body[0]
+    assert len(x1.written.copies()) == 2
+```
+
+`py/tests/test_written.py`, `test_a_rendered_directive_is_a_copy_of_one_written_directive_handle`.
 
 TypeScript walks with a callback. Return `"skip"` to pass over a directive's block, `"stop"` to end the walk:
 
@@ -180,7 +237,7 @@ Python walks with a generator. `descend` returning False passes over a block; `b
 Excerpt of `test_walk_is_depth_first_in_written_order_and_descend_false_passes_over_a_block`,
 `py/tests/test_load.py`.
 
-Both walk depth-first in written order, from the load or from one directive. `closest(predicate)` gives this
+Both walk depth-first in written order, from the render or from one directive. `closest(predicate)` gives this
 directive or the nearest enclosing one that matches. Python directives and values also take part in `match`:
 
 ```python
@@ -193,14 +250,14 @@ Excerpt of `test_directive_matches_by_name_args_and_body`, `py/tests/test_load.p
 
 ### Unreadable statements
 
-A statement that could not be read stays in its block's `unreadable` list, with its `kind`, its `origin` and its
-syntax node. It has no name and no address: what it would have been is unknown.
+A statement that could not be read stays in its block's `unreadable` list, with its `kind`, its `origin` and
+`written` (the statement as written). It has no name and no address: what it would have been is unknown.
 
 | Kind | Why |
 |---|---|
 | `syntax` | the parser could not read it |
 | `expansion` | a variable, `set`, `snippet` or `use` failed (unknown name, wrong count, loop, limits) |
-| `value` | a value broke a rule checked at load (E4001, E4003) |
+| `value` | a value broke a rule checked when rendering (E4001, E4003) |
 | `extension` | an include line (or another extension's line) failed |
 
 ```ts
@@ -217,13 +274,14 @@ syntax node. It has no name and no address: what it would have been is unknown.
     expect(addresses(loaded)).toEqual(["a", "a > b", "a > e"]);
 ```
 
-`ts/src/load/rules.test.ts`, test "keeps a bad line in its place without its block expanded, siblings kept". The
-`$nope2` inside the broken line's block is not reported.
+`ts/src/load/rules.test.ts`, test "keeps a bad line in its place without its block expanded, siblings kept"
+(`loadText` loads one text and renders it). The `$nope2` inside the broken line's block is not reported.
 
 ## Reading values
 
 Each value (`IArgument` / `Argument`) has a `kind` (word, string, list, slice, index), a canonical `text`, an
-`origin`, and readers. A reader that meets the wrong value throws a `DiagnosticError` placed on that value.
+`origin`, `written` and `resolutions` (below), and readers. A reader that meets the wrong value throws a
+`DiagnosticError` placed on that value.
 
 | Reads | TypeScript | Python | Error |
 |---|---|---|---|
@@ -283,6 +341,20 @@ TypeScript an absent side is left out of the object (`{ kind: "slice", name: "c"
 
 `ts/src/load/readers.test.ts`, test "drops comments, line breaks and a trailing comma from a list".
 
+### From a rendered value to what is written
+
+Two members lead from a rendered value back to the low level, where it can be edited:
+
+- `written`: the written value at the end of its chain (for `max_count $pixels;`, the `2284` of `set $pixels 2284;`);
+  undefined (None) for a value handed in by the program.
+- `resolutions`: one per `$name` the value came through, starting with the `$name` written on the directive's own
+  line. Each says which variable won at this place, and which it won over. Empty for a value written where it is
+  read.
+
+So `resolutions[0].winner` is the variable to change for every place that reads it, and
+`resolutions[0].reference` is the `$name` on this line, to replace with a value of its own. The
+[low-level page](low-level-api.md#user-code-first) shows both edits.
+
 ## Origins: where each value was written
 
 Every directive, value, unreadable statement and diagnostic carries an **origin**: `written`, the place the text was
@@ -326,21 +398,47 @@ Lines and columns are 0-based and columns count UTF-16 code units, in both langu
 
 ## Addresses and the key rule
 
-An **address** is a directive's identity across loads of one processor: from the top level down, each step is the
+An **address** is a directive's identity across renders of one processor: from the top level down, each step is the
 directive's name, its key (what the key rule returned, or none), and its occurrence among earlier siblings with the
-same name and key (counting from 0). It is unique within one load. A file included at two places, or a snippet used
-twice, lands at two addresses.
+same name and key (counting from 0). It is unique within one render. A file included at two places, or a snippet
+used twice, lands at two addresses.
 
 | | TypeScript | Python |
 |---|---|---|
+| every directive's address | `rendered.addresses({ key })`, a map from directive to address | `rendered.addresses(key=...)` |
 | for people | `address.toString()`: `graph > node "leds" > max_count` | `str(address)` |
 | as a map key | `address.text` (JSON, the same bytes in both languages) | `address.text`, or the `Address` itself (hashable) |
 | enclosing | `address.parent` | `address.parent` |
 
-The **key rule** is the program's: it sees each directive's name, its expanded values, whether it has a block, and
-its parent's key input, parents first, and returns a key or nothing. Without a key rule, a directive is named by its
-position among same-name siblings, so moving a line changes addresses. With rasl's rule, a node keeps its address
-when it moves:
+The **key rule** is the program's, and it is given where addresses are asked for: to `addresses({ key })` and to
+`diff(before, after, { key })`. It is called once per readable directive, parents first, with the rendered
+directive, and returns a key or nothing. What it throws comes out of `addresses` or `diff` unchanged (a bug in the
+program, not in the config):
+
+```ts
+    const named = loaded.addresses({ key: RASL_KEY });
+    loaded.walk((d) => {
+      if (d.name === "target") targets.push([named.get(d)?.toString() ?? "", d.args[0]?.text ?? ""]);
+    });
+    expect(targets).toEqual([
+      ['graph > node "leds" > target', '"10.0.70.1"'],
+      ['graph > node "porch" > target', '"10.0.60.31"'],
+    ]);
+```
+
+Excerpt of `ts/src/load/rasl.test.ts`, test "splits one sink file over two places, each with its own include-block
+values and the handed-in host".
+
+Without a key rule, a directive is named by its position among same-name siblings, so moving a line changes
+addresses:
+
+```python
+def test_without_a_key_rule_a_directive_is_named_by_its_position_among_same_name_siblings() -> None:
+    loaded = load("a 1;\nb;\na 2;\n")
+    assert [str(a) for a in loaded.addresses().values()] == ["a", "b", "a #1"]
+```
+
+`py/tests/test_load.py`. With rasl's rule, a node keeps its address when it moves:
 
 ```ts
     const text = (first: string, second: string): string => `graph {\n  ${first}\n  ${second}\n}\n`;
@@ -358,13 +456,12 @@ when it moves:
 `ts/src/load/diff.test.ts`, test "follows a keyed node that moved: no change". `RASL_KEY` there is
 `(d) => (d.name === "node" && d.parent?.name === "graph" ? d.args[1]?.text : undefined)`.
 
-The key rule runs only for directives that could be read. A key rule that reads values from variables makes identity
-follow config edits; that is the program's choice.
+A key rule that reads values from variables makes identity follow config edits; that is the program's choice.
 
 ## What changed: diff
 
-`processor.diff(before, after)` compares two loads of the same processor by address. Each change carries its address
-and its directives (`before`, `after`, or both):
+`processor.diff(before, after, { key })` compares two renders of the same processor by address, under the key rule
+given. Each change carries its address and its directives (`before`, `after`, or both):
 
 | Change | When |
 |---|---|
@@ -375,8 +472,8 @@ and its directives (`before`, `after`, or both):
 
 An added, removed or unknown directive is listed alone, never with the directives inside it. A changed or unchanged
 directive's block is compared at its own addresses. Order: removed and unknown in `before`'s walk order, then added
-and changed in `after`'s. Loads with diagnostics can be compared. Loads of another processor are refused (TypeError
-in TypeScript, ValueError in Python).
+and changed in `after`'s. Renders with diagnostics can be compared. Renders of another processor are refused
+(TypeError in TypeScript, ValueError in Python).
 
 In TypeScript a change has `kind` (`"added"`, `"removed"`, `"changed"`, `"unknown"`). In Python each kind is its own
 class (`Added`, `Removed`, `Changed`, `Unknown`); test with `isinstance` or `match`.
@@ -390,7 +487,7 @@ def test_a_directive_missing_beside_an_unreadable_statement_is_unknown_not_remov
     assert changes("a;\nb;\n", 'a;\nb x"y";\n') == [("unknown", "b")]
 ```
 
-`py/tests/test_load.py`. `changes` loads the first text, then the second, through one processor.
+`py/tests/test_load.py`. `changes` renders the first text, then the second, through one processor.
 
 A comment or a quote style is no change; a number's spelling is (`0.5` to `0.50`), because values compare by text
 (test "compares canonical texts: a comment or a quote style is no change, a number's spelling is",
@@ -403,12 +500,12 @@ A **located diagnostic** (`ILocatedDiagnostic` / `LocatedDiagnostic`) has a `cod
 part of the contract between the languages), `at` (a place in a file) and `via` (the steps). A problem with a
 handed-in value is placed on the `$name` that used it.
 
-A program places its own problems on what it read. Every directive, value and the load itself has
+A program places its own problems on what it read. Every directive, value and the render itself has
 `error(message, code)` (Python: `error(message, code=...)`), which returns a `DiagnosticError` to throw or record. A
 program's code is `<namespace>/<name>`, such as `rasl/unknown-node`; both parts must be there (TypeError /
 ValueError otherwise), so a program's code never looks like villanelle's.
 
-**The sink** (`Diagnostics`) is the one place problems collect. Start it with the load's problems, report into it,
+**The sink** (`Diagnostics`) is the one place problems collect. Start it with the render's problems, report into it,
 and run reads through it so a reader's error is recorded instead of ending the program:
 
 ```ts
@@ -437,7 +534,8 @@ Excerpt of `test_report_and_add_record_in_order_after_the_initial_ones`, `py/tes
 `with problems.collecting():` records a `DiagnosticError` raised inside it and ends the block.
 
 **Printing** (`formatDiagnostic(d, graph?)` / `format_diagnostic(d, graph=None)`): the place 1-based, the code and
-message, the source line, a caret line under the span, and one line per step. Without the graph, only the first line.
+message, the source line (from the document's current text), a caret line under the span, and one line per step.
+Without the graph, only the first line.
 
 ```ts
     const files = { "main.conf": 'include "x.conf";\n', "x.conf": "a 1;\nport c[0:$n];\n" };
@@ -454,8 +552,8 @@ line per step".
 
 The core does no input or output. A **document source** does it, with two methods: `resolve(spec, context)` gives the
 paths a spec names (a path, or a glob with `*` and `?` in its last part; none means not found, E3001), and
-`read(path)` gives a file's text. If either throws, the load reports E3004 at the include line (or, for the root
-file, fails as above). In TypeScript both return promises; in Python both are plain calls.
+`read(path)` gives a file's text. If either throws, the render reports E3004 at the include line (or, for the root
+file, `load` fails as above). In TypeScript both return promises; in Python both are plain calls.
 
 | Source | TypeScript | Python |
 |---|---|---|
@@ -495,8 +593,8 @@ glob resolves to nothing (test "resolves without fetching, resolves a glob to no
 ## Extensions
 
 An **extension** owns one directive name and turns each use of it into specs of files to splice in its place.
-`include()` is the one villanelle ships. The extension only names files: the load resolves and reads them through the
-source, reads each file once, applies the line's block of `set` lines, and checks loops and limits.
+`include()` is the one villanelle ships. The extension only names files: villanelle resolves and reads them through
+the source, reads each file once, applies the line's block of `set` lines, and checks loops and limits.
 
 An extension has `directive` (its name) and `specs(use)`, where `use` has the line's expanded `args` and its `origin`.
 To refuse a use at a place, throw a `DiagnosticError` from a value's or the use's `error(...)`; anything else thrown
@@ -523,18 +621,19 @@ and records a DiagnosticError as thrown". In Python an extension is any object w
 
 While an extension is registered, its name is reserved at the start of a statement, as `set`, `snippet` and `use` are.
 
-### The file graph
+### The files behind a render
 
-`loaded.graph` holds `root`, `nodes` (each file read, by path, in first-read order, with its text and syntax tree)
-and `edges` (one per extension line whose specs were given: its directive name, origin, specs and the paths it
-spliced, empty when resolving or reading failed). TypeScript also has `save(graph, writer)` with `createFsWriter()`
-(`villanelle/node`) and `createFetchWriter(...)` (`villanelle/browser`) to write files back.
+`rendered.graph` is the document graph the render was built from: `root`, `documents` (each file read, by path,
+root first, then in first-read order, with its text and syntax tree), `edges()` (one per place an extension line is
+read: the line, the specs it gave and the paths it spliced, empty when resolving or reading failed), variables, and
+the edits and save of the low level. All of it is on the [low-level page](low-level-api.md).
 
 ## Error codes
 
 Lines and columns are 0-based in the API. "At" says where the diagnostic is placed. The 1xxx and 2xxx codes come from
 the syntax tier, which places them as the cases in [`conformance/`](../conformance/) show; they are listed here so
-the table is complete.
+the table is complete. An edit on the low level that is refused reports the same codes, placed in the text the edit
+was given ([low-level-api.md](low-level-api.md#edits-and-their-errors)).
 
 | Code | TypeScript name | Python name | Meaning | At |
 |---|---|---|---|---|
@@ -549,12 +648,12 @@ the table is complete.
 | E2009 | `ValuesTouch` | `VALUES_TOUCH` | two values with no space or comment between | per `conformance/` |
 | E2010 | `NestingTooDeep` | `NESTING_TOO_DEEP` | blocks and lists nested deeper than 100 | per `conformance/` |
 | E3001 | `IncludeNotFound` | `INCLUDE_NOT_FOUND` | a spec matched no file | the extension line's name |
-| E3004 | `IncludeResolverFailed` | `INCLUDE_RESOLVER_FAILED` | the source threw (for the root file the load fails) | the extension line's name; the root file at 0:0 |
+| E3004 | `IncludeResolverFailed` | `INCLUDE_RESOLVER_FAILED` | the source threw (for the root file `load` fails) | the extension line's name; the root file at 0:0 |
 | E3005 | `IncludeBadPath` | `INCLUDE_BAD_PATH` | include needs exactly one quoted path | the bad value, or the name when there is none |
 | E3006 | `ExtensionFailed` | `EXTENSION_FAILED` | an extension threw something other than a located error | the extension line's name |
 | E4001 | `NonIntegerBound` | `NON_INTEGER_BOUND` | a slice or index bound that is not a whole number | the bound (a bound from a variable: the value, via the variable) |
 | E4002 | `WrongValueKind` | `WRONG_VALUE_KIND` | a reader met the wrong kind of value | the value |
-| E4003 | `BadEscape` | `BAD_ESCAPE` | a string escape other than the six (found at load) | the string |
+| E4003 | `BadEscape` | `BAD_ESCAPE` | a string escape other than the six (found when rendering) | the string |
 | E4004 | `NotANumber` | `NOT_A_NUMBER` | `number()` met a word that is not a number | the value |
 | E4005 | `NotAnInteger` | `NOT_AN_INTEGER` | `integer()` met a word that is not a whole number | the value |
 | E4006 | `NotABoolean` | `NOT_A_BOOLEAN` | `boolean()` met a word other than `true`, `false` | the value |
@@ -579,11 +678,13 @@ high-level API, which is not built yet; none is defined.
 
 By design (each language's own way):
 
-- TypeScript's load and document sources are async (promises); Python's are plain calls.
+- TypeScript's `load`, `read` and document sources are async (promises); Python's are plain calls. `render` and
+  `diff` are plain calls in both.
 - Readers are `word()`, `integer()`... in TypeScript and `as_word()`, `as_int()`... in Python; `walk` is a callback in
   TypeScript and a generator in Python; change kinds are a `kind` field in TypeScript and classes in Python.
+- The key rule is an options object in TypeScript (`{ key }`) and a keyword argument in Python (`key=`).
 - Misuse by a program is TypeError in TypeScript and ValueError in Python.
-- Python has no fetch source and no writers (`save` is TypeScript only).
+- Python has no fetch source or fetch writer.
 
 Both languages refuse an extension named `set`, `snippet` or `use`, or two extensions with one name, when the
 processor is made (TypeError in TypeScript, ValueError in Python).

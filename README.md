@@ -21,34 +21,40 @@ snippet twinkle $source {
 (Excerpt of [`fixtures/rasl/family_room.conf`](fixtures/rasl/family_room.conf), which both packages' tests load.)
 The language, with every rule the load applies, is described in [docs/language.md](docs/language.md).
 
-## Reading a config from a program
+## Using it from a program
 
-A program makes a processor once, with a document source (where files come from), the include extension if it
-wants includes, and a key rule (how to name a directive among its siblings), then loads a root file:
+villanelle has three layers, each built on the one below; a program can work at any of them.
+
+- **The syntax tree.** `parse(text)` reads one text into tokens and a tree, with every character in exactly one
+  token. It never fails: problems are diagnostics.
+- **The low level: the files as written.** `processor.load(path)` reads a root file and every file it includes, and
+  shows which files were read, what variables exist and where each one is overridden. A program can change any of
+  it (values, lines, variables, handed-in values) and `save` writes the changed files back, comments and layout
+  kept. Reference: [docs/low-level-api.md](docs/low-level-api.md).
+- **The rendered tree.** `processor.render(graph)` works out variables, snippets and included files into the
+  directives a program reads, each value with the place it was written. It also gives every directive an address
+  under the program's key rule, and `processor.diff(before, after, { key })` lists what changed between two
+  renders. Reference: [docs/rendered-tree.md](docs/rendered-tree.md).
 
 ```ts
-    const processor = villanelle({ source: files, extensions: [include()], key: RASL_KEY });
-    const path = fileURLToPath(new URL(name, FIXTURES));
-    const options = { variables: HANDED };
-    const first = await processor.load(path, options);
+  const config = villanelle({ source: memorySource(FILES), extensions: [include()] });
+  const graph = await config.load("main.conf", { variables: { leds_host: '"10.0.70.1"' } });
 ```
 
 ```python
-    processor = vl.Processor(source=file_source(), extensions=[include()], key=rasl_key)
-    variables = {"leds_host": '"10.0.0.9"'} if handed else None
-    first = processor.load(str(root), variables=variables)
+    config = vl.Processor(source=vl.memory_source(FILES), extensions=[include()])
+    return config, config.load("main.conf", variables={"leds_host": '"10.0.70.1"'})
 ```
 
-(Excerpts of `ts/src/load/rasl.test.ts` and `py/tests/test_rasl.py`.) The load gives back the directives with
-variables, snippets and included files expanded, every value's origin, an address per directive, and every problem
-as a located diagnostic; `processor.diff(first, second)` lists what changed between two loads. The reference for
-both languages is [docs/low-level-api.md](docs/low-level-api.md).
+(Excerpts of `ts/src/written/tracer.test.ts` and `py/tests/test_tracer.py`, which go on to list the variables of
+[`fixtures/rasl/split`](fixtures/rasl/split/), change `$pixels`, save, and render.) Every example in the docs is
+copied from a test that runs.
 
 | Entry point | TypeScript | Python |
 |---|---|---|
-| the core (no input or output) | `villanelle`: `parse`, `villanelle`, `memorySource`, `Diagnostics`, `formatDiagnostic`, ... | `villanelle`: `parse`, `Processor`, `memory_source`, `Diagnostics`, `format_diagnostic`, `walk`, ... |
+| the core (no input or output) | `villanelle`: `parse`, `villanelle`, `save`, `quote`, `memorySource`, `Diagnostics`, `formatDiagnostic`, ... | `villanelle`: `parse`, `Processor`, `save`, `quote`, `memory_source`, `Diagnostics`, `format_diagnostic`, `walk`, ... |
 | the include extension | `villanelle/include`: `include()` | `villanelle.include`: `include()` |
-| files on disk | `villanelle/node`: `createFileSource()`, `createFsWriter()` | `villanelle.files`: `file_source()` |
+| files on disk | `villanelle/node`: `createFileSource()`, `createFsWriter()` | `villanelle.files`: `file_source()`, `fs_writer()` |
 | files over `fetch` | `villanelle/browser`: `createFetchSource(fetch)`, `createFetchWriter(fetch, options?)` | none |
 
 ## The language is defined by one file
@@ -79,9 +85,9 @@ It needs `python3`, `bison` and `uv`.
 | `tools/` | The soundness checks (`check.sh`), the planted bad grammars they must catch, and the parser generator script (`gen.sh`) |
 | `ts/` | The TypeScript package, npm name `villanelle` ([`ts/README.md`](ts/README.md)) |
 | `py/` | The Python package, PyPI name `villanelle` ([`py/README.md`](py/README.md)) |
-| `conformance/` | Test cases both packages must pass, and the expected output for each: syntax cases (format in [`conformance/format.md`](conformance/format.md)) and load cases in `conformance/load/` (format in [`conformance/load/format.md`](conformance/load/format.md)) |
+| `conformance/` | Test cases both packages must pass, and the expected output for each: syntax cases (format in [`conformance/format.md`](conformance/format.md)), load cases in `conformance/load/` (format in [`conformance/load/format.md`](conformance/load/format.md)) and low-level cases in `conformance/written/` (format in [`conformance/written/format.md`](conformance/written/format.md)) |
 | `fixtures/rasl/` | rasl's real config files, which each package's rasl test loads ([`fixtures/rasl/README.md`](fixtures/rasl/README.md)) |
-| `docs/` | The language ([`docs/language.md`](docs/language.md)) and the low-level API reference ([`docs/low-level-api.md`](docs/low-level-api.md)) |
+| `docs/` | The language ([`docs/language.md`](docs/language.md)), the low level ([`docs/low-level-api.md`](docs/low-level-api.md)) and the rendered tree ([`docs/rendered-tree.md`](docs/rendered-tree.md)) |
 | `.github/` | CI and the release build (`workflows/ci.yml`, `release-build.sh`) |
 | `package.json`, `.releaserc.json` | Release tooling only (semantic-release); the packages are `ts/` and `py/` |
 | `design/` | The design record ([`design/RECORD.md`](design/RECORD.md)), run logs, the older plans, drafts, reviews and experiments |
@@ -131,8 +137,8 @@ gh variable set RELEASE_ENABLED --body true -R mcurcio/villanelle
 
 ## Status
 
-The TypeScript and Python packages are built from the grammar and pass the same syntax and load
-conformance cases. Both have the low-level API (the syntax tree and the directive layer); the high-level
-API, where a program declares its directives, is deferred (`vil-xlo`). No release has been made yet.
-The grammar design was done in [mcurcio/rasl#2](https://github.com/mcurcio/rasl/pull/2), where this
+The TypeScript and Python packages are built from the grammar and pass the same syntax, load and low-level
+conformance cases. Both have the syntax tree, the low level (the files as written, editable and saved back) and the
+rendered tree; the high-level API, where a program declares its directives, is deferred (`vil-xlo`). No release has
+been made yet. The grammar design was done in [mcurcio/rasl#2](https://github.com/mcurcio/rasl/pull/2), where this
 language began as `@rasl/config`.

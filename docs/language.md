@@ -236,4 +236,4 @@ the load's problems in the order the load met them.
 
 ## Error codes
 
-Every code, with where it is placed, is listed in the [low-level API reference](low-level-api.md#error-codes).
+Every code, with where it is placed, is listed in the [rendered-tree reference](rendered-tree.md#error-codes).

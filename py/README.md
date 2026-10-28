@@ -16,30 +16,35 @@ own style: `Processor` for `villanelle()`, `as_int()` for `integer()`, `walk()` 
 
 | Import | What it has |
 |---|---|
-| `villanelle` | The core: `parse`, `Processor`, `memory_source`, `walk`, `Diagnostics`, `format_diagnostic`, and the types they use |
+| `villanelle` | The core: `parse`, `Processor`, `save`, `quote`, `memory_source`, `walk`, `Diagnostics`, `format_diagnostic`, and the types they use |
 | `villanelle.include` | `include()`: the include extension |
-| `villanelle.files` | `file_source()`: files on disk |
+| `villanelle.files` | `file_source()` and `fs_writer()`: files on disk |
 
-- **Syntax.** `parse(text)` returns a `Syntax` with `tokens`, `root` and `diagnostics`. It never
+- **The syntax tree.** `parse(text)` returns a `Syntax` with `tokens`, `root` and `diagnostics`. It never
   raises. The tree is lossless: `text_of(syntax, syntax.root)` gives the text back.
-- **Directives (the load layer).** `Processor(source=..., extensions=[...], key=...)` is made once;
-  `processor.load(path, variables=...)` reads the root file and every file it includes, and
-  expands variables and snippets. The result has the directives (`body`, `walk(loaded)`), each
-  value's readers (`as_word()`, `as_str()`, `as_number()`, `as_int()`, `as_bool()`, `as_list()`,
-  `as_slice()`, `plain()`), the origin of every directive and value, an address per directive,
-  every problem as a located diagnostic, and the file graph. `processor.diff(before, after)` lists
-  what changed between two loads, as `Added`, `Removed`, `Changed` and `Unknown`.
+- **The low level: the files as written.** `Processor(source=..., extensions=[...])` is made once;
+  `processor.load(path, variables=...)` reads the root file and every file it includes and returns a
+  `DocumentGraph`: the documents, their statements and values (one class per kind, for `match`), the include
+  copies, the variables and what each `$name` reads at each place. Named edits (`set_values`,
+  `replace_with_text`, `insert_statements`, `rename`, `set_handed`, ...) change the text and keep comments and
+  layout; `processor.read(graph)` reads files an edit added; `save(graph, writer)` hands the changed files to a
+  writer in one batch. Reference: [docs/low-level-api.md](../docs/low-level-api.md).
+- **The rendered tree.** `processor.render(graph)` expands variables, snippets and included files into directives
+  (`body`, `walk(rendered)`), each value with its readers (`as_word()`, `as_str()`, `as_number()`, `as_int()`,
+  `as_bool()`, `as_list()`, `as_slice()`, `plain()`), its origin, and `written`/`resolutions` leading back to the
+  low level. `rendered.addresses(key=...)` names each directive under a key rule, and
+  `processor.diff(before, after, key=...)` lists what changed, as `Added`, `Removed`, `Changed` and `Unknown`.
+  Reference: [docs/rendered-tree.md](../docs/rendered-tree.md).
 
-There is no fetch source and no writer in Python.
-
-The reference, with examples from the tests, is [docs/low-level-api.md](../docs/low-level-api.md);
-the language is [docs/language.md](../docs/language.md).
+There is no fetch source and no fetch writer in Python. Every example in the reference pages is copied from a test
+that runs; the language is [docs/language.md](../docs/language.md).
 
 Diagnostic codes are the same as in TypeScript. Offsets and columns count UTF-16 code units, as in
 TypeScript, so an offset is not a Python `str` index once a character outside the Basic
 Multilingual Plane comes before it. For every case in `conformance/`, the two packages produce
-byte-identical tokens, trees and diagnostics, and for every case in `conformance/load/` the same
-directives, addresses, origins, diagnostics and change lists.
+byte-identical tokens, trees and diagnostics; for every case in `conformance/load/` the same
+directives, addresses, origins, diagnostics and change lists; and for every case in `conformance/written/` the
+same documents, variables, resolutions, edit results and saved texts.
 
 ## Build and test
 

@@ -17,23 +17,28 @@ It is not on npm. Releases attach the `npm pack` tarball to the GitHub Release (
 | `villanelle/node` | `createFileSource()` and `createFsWriter()`: files on disk |
 | `villanelle/browser` | `createFetchSource(fetch)` and `createFetchWriter(fetch, options?)`: files over `fetch` |
 
-The core has two tiers:
+The core has three layers, each built on the one below:
 
-- **Syntax.** `parse(text)` returns `{ tokens, root, diagnostics }`. It is synchronous and never
+- **The syntax tree.** `parse(text)` returns `{ tokens, root, diagnostics }`. It is synchronous and never
   throws. The tree is lossless: every character of the text is in exactly one token, and
   `textOf(syntax, syntax.root)` gives the text back. Node kinds are `document`, `directive`,
   `block`, `list`, `slice` and `error`.
-- **Directives (the load layer).** `villanelle({ source, extensions, key })` makes a processor;
-  `await processor.load(path, { variables })` reads the root file and every file it includes, and
-  expands variables and snippets. The result has the directives (`body`, `walk`), each value's
-  readers (`word()`, `number()`, `integer()`, `boolean()`, `items()`, `slice()`, `plain()`), the
-  origin of every directive and value, an address per directive, every problem as a located
-  diagnostic, and the file graph. `processor.diff(before, after)` lists what changed between two
-  loads. `Diagnostics` collects problems; `formatDiagnostic` prints one with its source line.
-  `save(graph, writer)` writes files back.
+- **The low level: the files as written.** `villanelle({ source, extensions })` makes a processor;
+  `await processor.load(path, { variables })` reads the root file and every file it includes and returns the
+  document graph: the documents, their statements and values, the include copies, the variables and what each
+  `$name` reads at each place. Named edits (`setValues`, `replaceWithText`, `insertStatements`, `rename`,
+  `setHanded`, ...) change the text and keep comments and layout; `await processor.read(graph)` reads files an edit
+  added; `save(graph, writer)` hands the changed files to a writer in one batch. Reference:
+  [docs/low-level-api.md](../docs/low-level-api.md).
+- **The rendered tree.** `processor.render(graph)` expands variables, snippets and included files into directives
+  (`body`, `walk`), each value with its readers (`word()`, `number()`, `integer()`, `boolean()`, `items()`,
+  `slice()`, `plain()`), its origin, and `written`/`resolutions` leading back to the low level.
+  `rendered.addresses({ key })` names each directive under a key rule, and `processor.diff(before, after, { key })`
+  lists what changed between two renders. `Diagnostics` collects problems; `formatDiagnostic` prints one with its
+  source line. Reference: [docs/rendered-tree.md](../docs/rendered-tree.md).
 
-The reference, with examples from the tests, is [docs/low-level-api.md](../docs/low-level-api.md);
-the language is [docs/language.md](../docs/language.md).
+Every example in those pages is copied from a test that runs. The language is
+[docs/language.md](../docs/language.md).
 
 Problems are diagnostics with stable codes (`DiagnosticCode`: 1xxx lexical, 2xxx syntax, 3xxx
 files and extensions, 4xxx values, 5xxx expansion); a program's own codes are
