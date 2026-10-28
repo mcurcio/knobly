@@ -4,10 +4,10 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { DiagnosticCode } from "./diagnostics.js";
-import { parseGraph } from "./graph/parse-graph.js";
 import { save } from "./graph/save.js";
-import { createFsLoader, createFsWriter } from "./node.js";
+import { include } from "./include.js";
+import { villanelle } from "./load/processor.js";
+import { createFileSource, createFsWriter } from "./node.js";
 
 describe("villanelle/node", () => {
   let dir = "";
@@ -19,7 +19,7 @@ describe("villanelle/node", () => {
     await writeFile(join(dir, "root.conf"), 'include "conf.d/*.conf";\ninclude "plain.conf";\n');
     await writeFile(join(dir, "plain.conf"), "plain 1;\n");
     for (const name of ["b.conf", "C.conf", "é.conf", "a.conf", "a.txt", "x[1].conf"]) {
-      await writeFile(join(dir, "conf.d", name), "f;\n");
+      await writeFile(join(dir, "conf.d", name), `f "${name}";\n`);
     }
   });
 
@@ -27,43 +27,43 @@ describe("villanelle/node", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it("resolves specs against the including file's directory and sorts glob matches by code point", async () => {
+  it("resolves specs against the including file's directory and splices glob matches in code-point order", async () => {
     const root = join(dir, "root.conf");
-    const graph = await parseGraph(await readFile(root, "utf8"), { path: root, loader: createFsLoader() });
-    expect(graph.diagnostics).toEqual([]);
-    const [glob, plain] = graph.root.document.children.toArray().map((d) => graph.root.includes.get(d.node));
+    const loaded = await villanelle({ source: createFileSource(), extensions: [include()] }).load(root);
+    expect(loaded.diagnostics).toEqual([]);
     // Files only (the sub.conf directory is skipped); the [ ] in a file name match themselves.
-    expect(glob?.targets.map((t) => t.resolvedPath)).toEqual(
-      ["C.conf", "a.conf", "b.conf", "x[1].conf", "é.conf"].map((name) => join(dir, "conf.d", name)),
-    );
-    expect(plain?.targets.map((t) => t.source)).toEqual(["plain 1;\n"]);
+    const [glob, plain] = loaded.graph.edges;
+    expect(glob?.targets).toEqual(["C.conf", "a.conf", "b.conf", "x[1].conf", "é.conf"].map((name) => join(dir, "conf.d", name)));
+    expect(plain?.targets).toEqual([join(dir, "plain.conf")]);
+    expect(loaded.body.map((d) => d.args[0]?.text)).toEqual(['"C.conf"', '"a.conf"', '"b.conf"', '"x[1].conf"', '"é.conf"', "1"]);
   });
 
   it("matches ? to one character", async () => {
-    const found = await createFsLoader()("conf.d/?.conf", { parentPath: join(dir, "root.conf"), depth: 0 });
-    expect(found.map((d) => d.resolvedPath)).toEqual(
-      ["C.conf", "a.conf", "b.conf", "é.conf"].map((name) => join(dir, "conf.d", name)),
-    );
+    const found = await createFileSource().resolve("conf.d/?.conf", { parentPath: join(dir, "root.conf") });
+    expect([...found].sort()).toEqual(["C.conf", "a.conf", "b.conf", "é.conf"].map((name) => join(dir, "conf.d", name)).sort());
   });
 
-  it("rejects a missing plain file, which parseGraph reports as E3004", async () => {
-    const loader = createFsLoader();
-    await expect(loader("missing.conf", { parentPath: join(dir, "root.conf"), depth: 0 })).rejects.toThrow(/ENOENT/);
-    const graph = await parseGraph('include "missing.conf";', { path: join(dir, "root.conf"), loader });
-    expect(graph.diagnostics.map((d) => d.code)).toEqual([DiagnosticCode.IncludeResolverFailed]);
+  it("resolves a missing file or directory to no paths (E3001) and rejects reading a missing file", async () => {
+    const source = createFileSource();
+    const context = { parentPath: join(dir, "root.conf") };
+    expect(await source.resolve("missing.conf", context)).toEqual([]);
+    expect(await source.resolve("conf.d/*.none", context)).toEqual([]);
+    expect(await source.resolve("nodir/*.conf", context)).toEqual([]);
+    expect(await source.resolve("conf.d/sub.conf", context)).toEqual([]);
+    await expect(source.read(join(dir, "missing.conf"))).rejects.toThrow(/ENOENT/);
+    const loaded = await villanelle({ source, extensions: [include()] }).load(join(dir, "plain.conf"));
+    expect(loaded.diagnostics).toEqual([]);
+    await writeFile(join(dir, "missing-include.conf"), 'include "missing.conf";\n');
+    const missing = await villanelle({ source, extensions: [include()] }).load(join(dir, "missing-include.conf"));
+    expect(missing.diagnostics.map((d) => d.code)).toEqual(["E3001"]);
   });
 
-  it("returns no documents for a glob without matches", async () => {
-    const found = await createFsLoader()("conf.d/*.none", { parentPath: join(dir, "root.conf"), depth: 0 });
-    expect(found).toEqual([]);
-  });
-
-  it("writes text back with the fs writer", async () => {
+  it("writes text back with the fs writer, and save writes nothing for an unchanged load", async () => {
     const path = join(dir, "written.conf");
     await createFsWriter().write(path, "w 1;\n");
     expect(await readFile(path, "utf8")).toBe("w 1;\n");
-    const graph = await parseGraph("w 1;\n", { path, loader: createFsLoader() });
-    await save(graph, createFsWriter());
+    const loaded = await villanelle({ source: createFileSource() }).load(path);
+    await save(loaded.graph, createFsWriter());
     expect(await readFile(path, "utf8")).toBe("w 1;\n");
   });
 });

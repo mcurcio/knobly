@@ -3,7 +3,7 @@
  * programs see them through the interfaces of directive.ts and processor.ts.
  */
 
-import type { DiagnosticError } from "../diagnostics.js";
+import { DiagnosticCode, type DiagnosticError } from "../diagnostics.js";
 import type { INode } from "../syntax/cst.js";
 import type { IIndexValue, ISliceValue } from "../value.js";
 import { ValueKind } from "../value.js";
@@ -12,8 +12,8 @@ import type { IDocumentGraph } from "./graph.js";
 import type { IDirectiveOrigin, IOrigin, IStep } from "./origin.js";
 import type { ILoaded } from "./processor.js";
 import type { ILocatedDiagnostic, ProgramCode } from "./report.js";
-import { notImplemented } from "./todo.js";
-import { canonicalList, canonicalSlice, canonicalString } from "./values.js";
+import { codeError, programError } from "./locate.js";
+import { booleanOf, canonicalList, canonicalSlice, canonicalString, integerOf, numberOf } from "./values.js";
 
 /** What an argument holds, by kind. */
 export type ArgumentData =
@@ -69,39 +69,71 @@ export class Argument implements IArgument {
   }
 
   word(): string {
-    throw notImplemented("IArgument.word");
+    if (this.data.kind !== ValueKind.Word) throw this.wrongKind("a word");
+    return this.data.text;
   }
 
   string(): string {
-    throw notImplemented("IArgument.string");
+    if (this.data.kind === ValueKind.Word) return this.data.text;
+    if (this.data.kind === ValueKind.String) return this.data.value;
+    throw this.wrongKind("a word or a string");
   }
 
   number(): number {
-    throw notImplemented("IArgument.number");
+    const value = numberOf(this.word());
+    if (value === undefined) throw codeError(this.origin, DiagnosticCode.NotANumber, this.text);
+    return value;
   }
 
   integer(): number {
-    throw notImplemented("IArgument.integer");
+    const value = integerOf(this.word());
+    if (value === undefined) throw codeError(this.origin, DiagnosticCode.NotAnInteger, this.text);
+    return value;
   }
 
   boolean(): boolean {
-    throw notImplemented("IArgument.boolean");
+    const value = booleanOf(this.word());
+    if (value === undefined) throw codeError(this.origin, DiagnosticCode.NotABoolean, this.text);
+    return value;
   }
 
   items(): readonly IArgument[] {
-    throw notImplemented("IArgument.items");
+    if (this.data.kind !== ValueKind.List) throw this.wrongKind("a list");
+    return this.data.items;
   }
 
   slice(): ISliceValue | IIndexValue {
-    throw notImplemented("IArgument.slice");
+    const { data } = this;
+    if (data.kind === ValueKind.Index) return { kind: data.kind, name: data.name, index: data.index };
+    if (data.kind !== ValueKind.Slice) throw this.wrongKind("a slice or an index");
+    return {
+      kind: data.kind,
+      name: data.name,
+      ...(data.start === undefined ? {} : { start: data.start }),
+      ...(data.end === undefined ? {} : { end: data.end }),
+    };
   }
 
   plain(): PlainValue {
-    throw notImplemented("IArgument.plain");
+    switch (this.data.kind) {
+      case ValueKind.String:
+        return this.data.value;
+      case ValueKind.Word:
+        return numberOf(this.data.text) ?? booleanOf(this.data.text) ?? this.data.text;
+      case ValueKind.List:
+        return this.data.items.map((item) => item.plain());
+      case ValueKind.Slice:
+      case ValueKind.Index:
+        return this.slice();
+    }
   }
 
   error(message: string, code: ProgramCode): DiagnosticError {
-    throw notImplemented("IArgument.error", message, code);
+    return programError(this.origin, message, code);
+  }
+
+  private wrongKind(wanted: string): DiagnosticError {
+    return codeError(this.origin, DiagnosticCode.WrongValueKind, `wanted ${wanted}, found a ${this.kind}: ${this.text}`);
   }
 }
 
@@ -160,7 +192,7 @@ export class Directive implements IDirective {
   }
 
   error(message: string, code: ProgramCode): DiagnosticError {
-    throw notImplemented("IDirective.error", message, code);
+    return programError(this.origin, message, code);
   }
 }
 
@@ -178,6 +210,6 @@ export class Loaded implements ILoaded {
   }
 
   error(message: string, code: ProgramCode): DiagnosticError {
-    throw notImplemented("ILoaded.error", message, code);
+    return programError(this.origin, message, code);
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Include glob rules shared by composeLoaders, memorySource and the loaders of ./node and ./browser. Private to the
+ * Include glob rules shared by memorySource and the document sources of ./node and ./browser. Private to the
  * package.
  */
 

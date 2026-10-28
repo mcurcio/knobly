@@ -1,5 +1,5 @@
 /**
- * The value rules of grammar/villanelle.ebnf (IntegerText, EscapeText) and the canonical text of a value
+ * The value rules of grammar/villanelle.ebnf (NumberText, IntegerText, BooleanText, EscapeText) and the canonical text of a value
  * (slices.md §1.3): the one home of each rule. Private to the load layer; Python ports it as `_values.py`.
  */
 
@@ -14,6 +14,21 @@ export function integerOf(word: string): number | undefined {
   if (!INTEGER_TEXT.test(word)) return undefined;
   const value = Number(word);
   return Number.isSafeInteger(value) ? value : undefined;
+}
+
+/** NumberText: a JSON number (RFC 8259 section 6), `'-'? Digits Fraction? Exponent?`. */
+const NUMBER_TEXT = /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?$/;
+
+/** The number a word spells, or undefined when it is not a NumberText. */
+export function numberOf(word: string): number | undefined {
+  return NUMBER_TEXT.test(word) ? Number(word) : undefined;
+}
+
+/** BooleanText: the word `true` or `false`; undefined for any other word. */
+export function booleanOf(word: string): boolean | undefined {
+  if (word === "true") return true;
+  if (word === "false") return false;
+  return undefined;
 }
 
 /** The six escapes of EscapeText and what each decodes to. */

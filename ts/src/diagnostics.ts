@@ -2,13 +2,15 @@
  * Stable diagnostic codes and the diagnostic shape every layer reports.
  *
  * This is the one registry of codes for the TypeScript package; the Python package mirrors it value for value.
- * Codes are stable across languages and releases: a code is never reused for a different meaning.
+ * Codes are stable across languages and releases: a code is never reused for a different meaning. Retired, never
+ * reused: E2006 (include's path, now E3005), E3002 (include cycle, now E5006), E3003 (include depth, now E5007).
  * Ranges: 1xxx lexical, 2xxx syntax, 3xxx files and extensions, 4xxx values, 5xxx expansion (variables, snippets,
  * limits), 6xxx reserved for the deferred sugar (none yet). A program's own codes are namespaced ("rasl/no-graph"),
  * so they can never collide with these (ProgramCode, load/report.ts).
  * Every code is an error; there are no warning codes.
  */
 
+import type { ILocatedDiagnostic } from "./load/report.js";
 import type { ISourceSpan } from "./span.js";
 
 export const DiagnosticCode = {
@@ -24,8 +26,6 @@ export const DiagnosticCode = {
   ExpectedClosingBrace: "E2003",
   /** A stray `]`, or a `[` list with no matching `]`. */
   ExpectedClosingBracket: "E2004",
-  /** An `include` directive whose first value is not a string literal. */
-  ExpectedStringLiteral: "E2006",
   /** A malformed slice after a word: `a[:]`, `a[1:b c]`, an unclosed slice bracket. */
   BadSlice: "E2007",
   /** A `{` that starts its line: a block must open on its directive's line. */
@@ -34,15 +34,11 @@ export const DiagnosticCode = {
   ValuesTouch: "E2009",
   /** Blocks and lists nested deeper than 100 levels (vil-bzv.3). */
   NestingTooDeep: "E2010",
-  /** The loader found no document for an include spec. */
+  /** An extension directive's spec (an include path or glob) matched no file. */
   IncludeNotFound: "E3001",
-  /** An include leads back to a document that is still being included. */
-  IncludeCycle: "E3002",
-  /** Includes nested deeper than the configured maximum. */
-  IncludeDepthExceeded: "E3003",
-  /** The loader threw or rejected for an include spec. */
+  /** The document source rejected while resolving or reading a file (for the root file, the load rejects). */
   IncludeResolverFailed: "E3004",
-  /** An `include` whose values are not exactly one quoted path. Replaces E2006 once the include extension lands. */
+  /** An `include` whose values are not exactly one quoted path. */
   IncludeBadPath: "E3005",
   /** An extension threw something other than a DiagnosticError while giving its specs. */
   ExtensionFailed: "E3006",
@@ -70,7 +66,7 @@ export const DiagnosticCode = {
   SnippetDefinedTwice: "E5005",
   /** A `use` or an extension directive that reaches itself again (a snippet using itself, a file including itself). */
   ExpansionCycle: "E5006",
-  /** `use` and extension directives nested deeper than 16 places. Replaces E3003 once the include extension lands. */
+  /** `use` and extension directives nested deeper than 16 places. */
   ExpansionTooDeep: "E5007",
   /** More than 100,000 directives after expansion. */
   TooManyDirectives: "E5008",
@@ -95,13 +91,13 @@ export interface IDiagnostic {
 }
 
 /**
- * Thrown by operations whose contract a user's input breaks (STYLE 11.6), carrying the located diagnostic.
- * `valueOf` throws it for a non-integer bound.
+ * Thrown by operations whose contract a user's input breaks (STYLE 11.6), carrying the located diagnostic: a value
+ * reader given the wrong kind of value, `error()` on a directive or value, or a load whose root file cannot be read.
  */
 export class DiagnosticError extends Error {
-  readonly diagnostic: IDiagnostic;
+  readonly diagnostic: ILocatedDiagnostic;
 
-  constructor(diagnostic: IDiagnostic) {
+  constructor(diagnostic: ILocatedDiagnostic) {
     super(diagnostic.message);
     this.name = "DiagnosticError";
     this.diagnostic = diagnostic;

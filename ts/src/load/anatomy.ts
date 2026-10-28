@@ -1,6 +1,6 @@
 /**
  * Directive anatomy (vil-g7n.1.3): which parts of a `directive` node are its name, its values and its block.
- * The one home of this rule; the Python facade ports it.
+ * The one home of this rule; the Python load layer ports it. Private to the load layer.
  */
 
 import { type INode, NodeKind, type ValueRef } from "../syntax/cst.js";
@@ -52,9 +52,4 @@ function split(tokens: readonly IToken[], node: INode): { values: ValueRef[]; bl
     i++;
   }
   return { values, block };
-}
-
-/** The directive children of a scope (the document or a block), in source order; error nodes are skipped. */
-export function directivesOf(scope: INode): readonly INode[] {
-  return scope.children.filter((child) => child.kind === NodeKind.Directive);
 }

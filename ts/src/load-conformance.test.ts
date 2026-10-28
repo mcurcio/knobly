@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import { include } from "./include.js";
 import type { IDirective, KeyRule } from "./load/directive.js";
-import type { IOrigin, IPlace, IStep } from "./load/origin.js";
 import { type ILoaded, type IProcessor, villanelle } from "./load/processor.js";
 import { type IDocumentSource, memorySource } from "./load/source.js";
+import { originText as origin } from "./load/testing.js";
 
 const LOAD = new URL("../../conformance/load/", import.meta.url);
 const EXPECTED = new URL("expected/", LOAD);
@@ -23,9 +23,6 @@ interface ICase {
   readonly after?: Readonly<Record<string, string>>;
 }
 
-/** What this package implements so far; a case needing anything else is skipped until it does. */
-const SUPPORTED: ReadonlySet<string> = new Set<string>();
-
 const CASES = JSON.parse(readFileSync(new URL("cases.json", LOAD), "utf8")) as ICase[];
 
 /** The "rasl" key rule of format.md. */
@@ -35,15 +32,6 @@ const RASL_KEY: KeyRule = (d) => {
   if (d.name === "fill") return d.args[0]?.text;
   return undefined;
 };
-
-function place(at: IPlace): string {
-  return `${at.resolvedPath}:${String(at.span.start.line)}:${String(at.span.start.column)}`;
-}
-
-function origin({ written, via }: { readonly written: IOrigin["written"]; readonly via: readonly IStep[] }): string {
-  const head = written.kind === "handed" ? `handed ${written.variable}` : place(written);
-  return head + via.map((step) => ` < ${step.kind} ${step.name} ${place(step.at)}`).join("");
-}
 
 function format(loaded: ILoaded, changes: unknown[][] | undefined): string {
   const directives: unknown[] = [];
@@ -76,11 +64,8 @@ function processor(c: ICase, files: () => Readonly<Record<string, string>>): IPr
   });
 }
 
-const supported = (c: ICase): boolean => c.needs.every((need) => SUPPORTED.has(need));
-
 describe("load conformance (conformance/load/)", () => {
-  it.skip.each(CASES.filter((c) => !supported(c)).map((c) => [c.name]))("%s (needs what is not built yet)", () => {});
-  it.each(CASES.filter(supported).map((c) => [c.name, c] as const))("%s", async (name, c) => {
+  it.each(CASES.map((c) => [c.name, c] as const))("%s", async (name, c) => {
     const options = c.variables === undefined ? undefined : { variables: c.variables };
     // The second load reads `after`'s texts in place of the first load's; other files are unchanged.
     let files: Readonly<Record<string, string>> = c.files;

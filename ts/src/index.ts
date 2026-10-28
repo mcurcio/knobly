@@ -1,9 +1,8 @@
 /**
- * villanelle: a configuration language defined by one grammar (grammar/Villanelle.g4), with a lossless syntax
- * tree, typed values, a directive facade and an include graph. The core does no I/O: see "villanelle/node" and
- * "villanelle/browser" for loaders and writers.
- *
- * This barrel is frozen with the M1 interfaces (vil-g7n.1): slices fill bodies, they do not add exports.
+ * villanelle: a configuration language defined by one grammar (grammar/Villanelle.g4). Tier 1 is the lossless
+ * syntax tree of one text (`parse`); tier 2 is the load layer (`villanelle({ source }).load(path)`): directives after
+ * expansion, with origins, addresses, value readers and change lists. The core does no I/O: see "villanelle/node"
+ * and "villanelle/browser" for document sources and writers, and "villanelle/include" for the include extension.
  */
 
 export type { ISourcePosition, ISourceSpan } from "./span.js";
@@ -12,35 +11,37 @@ export { DiagnosticCode, DiagnosticError, type IDiagnostic } from "./diagnostics
 export { type IToken, TokenKind } from "./syntax/tokens.js";
 export { type INode, type ISyntax, type ITokenRange, NodeKind, spanOf, textOf, type ValueRef } from "./syntax/cst.js";
 export { parse } from "./syntax/parse.js";
-export {
-  type IIndexValue,
-  type ISliceValue,
-  type IStringValue,
-  type IWordValue,
-  type Value,
-  ValueKind,
-  valueOf,
-} from "./value.js";
+export { type IIndexValue, type ISliceValue, ValueKind } from "./value.js";
 
+export { type IDirectiveOrigin, type IHanded, type IOrigin, type IPlace, type IStep, StepKind } from "./load/origin.js";
+export { Diagnostics, formatDiagnostic, type ILocatable, type ILocatedDiagnostic, type ProgramCode } from "./load/report.js";
 export {
-  createAst,
-  findDirectives,
-  type IAstArgument,
-  type IAstDirective,
-  type IAstDirectiveList,
-  type IAstDocument,
-  parseDocument,
-  walkDirectives,
-} from "./ast/ast.js";
-
-export type { IDocumentEdge, IDocumentGraph, IDocumentNode, IGraphDiagnostic } from "./graph/graph.js";
+  type IAddress,
+  type IAddressStep,
+  type IArgument,
+  type IDirective,
+  type IKeyInput,
+  type IUnreadable,
+  type KeyRule,
+  type PlainValue,
+  UnreadableKind,
+  type WalkControl,
+} from "./load/directive.js";
+export { type IDocumentSource, type ILoadContext, memorySource } from "./load/source.js";
+export type { IDocumentEdge, IDocumentGraph, IDocumentNode } from "./load/graph.js";
 export {
-  composeLoaders,
-  type DocumentLoader,
-  type IDocumentWriter,
-  type ILoadContext,
-  type ILoadedDocument,
-} from "./graph/io.js";
-export { type IParseGraphOptions, parseGraph } from "./graph/parse-graph.js";
-export { iterateDirectives } from "./graph/iterate.js";
-export { save } from "./graph/save.js";
+  type Change,
+  ChangeKind,
+  type IAdded,
+  type IChanged,
+  type IExtension,
+  type IExtensionUse,
+  type ILoaded,
+  type ILoadOptions,
+  type IProcessor,
+  type IProcessorOptions,
+  type IRemoved,
+  type IUnknown,
+  villanelle,
+} from "./load/processor.js";
+export { type IDocumentWriter, save } from "./graph/save.js";

@@ -4,10 +4,9 @@
  * HCL's `hcl.Diagnostics`.
  */
 
-import type { DiagnosticCode, DiagnosticError } from "../diagnostics.js";
+import { type DiagnosticCode, DiagnosticError } from "../diagnostics.js";
 import type { IDocumentGraph } from "./graph.js";
 import type { IPlace, IStep } from "./origin.js";
-import { notImplemented } from "./todo.js";
 
 /**
  * A program's own code: `<namespace>/<name>`, such as "rasl/unknown-node". Never collides with villanelle's codes
@@ -40,24 +39,26 @@ export interface ILocatable {
  * it, and runs reads through `collect` so a reader's DiagnosticError is recorded instead of ending the program.
  */
 export class Diagnostics implements Iterable<ILocatedDiagnostic> {
+  private readonly items: ILocatedDiagnostic[];
+
   /** Start with these, in order (usually `loaded.diagnostics`). */
   constructor(initial?: Iterable<ILocatedDiagnostic>) {
-    throw notImplemented("Diagnostics", initial);
+    this.items = [...(initial ?? [])];
   }
 
   /** How many problems are recorded. */
   get length(): number {
-    throw notImplemented("Diagnostics.length");
+    return this.items.length;
   }
 
   /** Record one problem. */
   add(diagnostic: ILocatedDiagnostic): void {
-    throw notImplemented("Diagnostics.add", diagnostic);
+    this.items.push(diagnostic);
   }
 
   /** Record a program's problem placed on `at`: `problems.report(d, "no such node", "rasl/unknown-node")`. */
   report(at: ILocatable, message: string, code: ProgramCode): void {
-    throw notImplemented("Diagnostics.report", at, message, code);
+    this.add(at.error(message, code).diagnostic);
   }
 
   /**
@@ -65,17 +66,28 @@ export class Diagnostics implements Iterable<ILocatedDiagnostic> {
    * what it returned. Any other exception passes through.
    */
   collect<T>(read: () => T): T | undefined {
-    throw notImplemented("Diagnostics.collect", read);
+    try {
+      return read();
+    } catch (error) {
+      if (!(error instanceof DiagnosticError)) throw error;
+      this.add(error.diagnostic);
+      return undefined;
+    }
   }
 
   /** The problems recorded, in order. */
   toArray(): readonly ILocatedDiagnostic[] {
-    throw notImplemented("Diagnostics.toArray");
+    return [...this.items];
   }
 
   [Symbol.iterator](): Iterator<ILocatedDiagnostic> {
-    throw notImplemented("Diagnostics[Symbol.iterator]");
+    return this.items[Symbol.iterator]();
   }
+}
+
+/** `path:line:col`, 1-based, for people. */
+function where(at: IPlace): string {
+  return `${at.resolvedPath}:${String(at.span.start.line + 1)}:${String(at.span.start.column + 1)}`;
 }
 
 /**
@@ -84,5 +96,19 @@ export class Diagnostics implements Iterable<ILocatedDiagnostic> {
  * Reads text only from `graph`; never does I/O.
  */
 export function formatDiagnostic(diagnostic: ILocatedDiagnostic, graph?: IDocumentGraph): string {
-  throw notImplemented("formatDiagnostic", diagnostic, graph);
+  const { at, via } = diagnostic;
+  const lines = [`${where(at)}: ${diagnostic.code}: ${diagnostic.message}`];
+  const source = graph?.nodes.get(at.resolvedPath)?.source;
+  if (source !== undefined) {
+    const { start, end } = at.span;
+    const lineStart = start.offset - start.column;
+    const lineEnd = source.slice(lineStart).search(/\r\n|\n|\r/u);
+    const text = lineEnd < 0 ? source.slice(lineStart) : source.slice(lineStart, lineStart + lineEnd);
+    const width = end.line === start.line ? end.column - start.column : text.length - start.column;
+    // Tabs stay tabs so the caret lines up under the same characters.
+    const pad = text.slice(0, start.column).replace(/[^\t]/g, " ");
+    lines.push(text, `${pad}${"^".repeat(Math.max(1, width))}`);
+  }
+  for (const step of via) lines.push(`  via ${step.kind} ${step.name} at ${where(step.at)}`);
+  return lines.join("\n");
 }
