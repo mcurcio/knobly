@@ -10,24 +10,36 @@ It is not on PyPI. Releases attach the wheel and sdist to the GitHub Release (se
 
 ## What it has
 
-It follows the TypeScript package ([`ts/README.md`](../ts/README.md)) name for name, in Python
-spelling (`value_of` for `valueOf`, `AstDocument` for `IAstDocument`). It does no I/O.
+It has the same parts as the TypeScript package ([`ts/README.md`](../ts/README.md)), in Python's
+own style: `Processor` for `villanelle()`, `as_int()` for `integer()`, `walk()` as a generator,
+`snake_case` names. The core does no input or output.
+
+| Import | What it has |
+|---|---|
+| `villanelle` | The core: `parse`, `Processor`, `memory_source`, `walk`, `Diagnostics`, `format_diagnostic`, and the types they use |
+| `villanelle.include` | `include()`: the include extension |
+| `villanelle.files` | `file_source()`: files on disk |
 
 - **Syntax.** `parse(text)` returns a `Syntax` with `tokens`, `root` and `diagnostics`. It never
   raises. The tree is lossless: `text_of(syntax, syntax.root)` gives the text back.
-- **Values.** `value_of(syntax, ref)` gives a `WordValue`, `StringValue`, `SliceValue` or
-  `IndexValue`; a list raises `NotImplementedError` until `vil-9ze`. A bound that is not an
-  integer raises `DiagnosticError` with code E4001.
-- **Directives.** `parse_document(text)` and `create_ast(syntax)` give a directive tree;
-  `walk_directives` and `find_directives` search it.
+- **Directives (the load layer).** `Processor(source=..., extensions=[...], key=...)` is made once;
+  `processor.load(path, variables=...)` reads the root file and every file it includes, and
+  expands variables and snippets. The result has the directives (`body`, `walk(loaded)`), each
+  value's readers (`as_word()`, `as_str()`, `as_number()`, `as_int()`, `as_bool()`, `as_list()`,
+  `as_slice()`, `plain()`), the origin of every directive and value, an address per directive,
+  every problem as a located diagnostic, and the file graph. `processor.diff(before, after)` lists
+  what changed between two loads, as `Added`, `Removed`, `Changed` and `Unknown`.
 
-There is no include graph in Python yet: `parseGraph` and its loaders and writers are
-TypeScript only.
+There is no fetch source and no writer in Python.
+
+The reference, with examples from the tests, is [docs/low-level-api.md](../docs/low-level-api.md);
+the language is [docs/language.md](../docs/language.md).
 
 Diagnostic codes are the same as in TypeScript. Offsets and columns count UTF-16 code units, as in
 TypeScript, so an offset is not a Python `str` index once a character outside the Basic
 Multilingual Plane comes before it. For every case in `conformance/`, the two packages produce
-byte-identical tokens, trees and diagnostics.
+byte-identical tokens, trees and diagnostics, and for every case in `conformance/load/` the same
+directives, addresses, origins, diagnostics and change lists.
 
 ## Build and test
 
