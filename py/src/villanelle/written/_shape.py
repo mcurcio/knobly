@@ -9,7 +9,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Literal, TypeAlias
 
-from villanelle._anatomy import anatomy_of
+from villanelle._anatomy import Anatomy, anatomy_of
 from villanelle.diagnostics import DiagnosticCode
 from villanelle.syntax.cst import Node, NodeKind
 from villanelle.syntax.tokens import Token, TokenKind
@@ -40,7 +40,11 @@ def shape_of(tokens: tuple[Token, ...], node: Node, extensions: frozenset[str] |
     """The shape of one node of a block, ignoring the one-per-block rules (E5002, E5005)."""
     if node.kind is not NodeKind.DIRECTIVE:
         return Shape("unreadable")
-    anatomy = anatomy_of(tokens, node)
+    return shape_of_anatomy(tokens, anatomy_of(tokens, node), extensions)
+
+
+def shape_of_anatomy(tokens: tuple[Token, ...], anatomy: Anatomy, extensions: frozenset[str] | set[str]) -> Shape:
+    """The shape of a directive by its anatomy, ignoring the one-per-block rules (the binding's walk asks this too)."""
     name = tokens[anatomy.name]
     args = anatomy.args
     first = tokens[args[0]] if args and isinstance(args[0], int) else None

@@ -110,7 +110,7 @@ def set_handed(graph: DocumentGraph, name: str, text: str | None) -> None:
     """Add, change or remove one handed-in value (D28: one Variable per name for the graph's life). The text is
     checked as a values text (2.3), then read as a load reads it; whatever that refuses is a BadTextError located in
     the given text."""
-    if not _bind._VARIABLE_NAME.fullmatch(name):
+    if not _bind.VARIABLE_NAME.fullmatch(name):
         raise ValueError(f"handed-in variable name must be letters, digits and _: {name!r}")
     if text is None:
         if name in graph._handed_texts:

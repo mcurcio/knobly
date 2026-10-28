@@ -27,6 +27,7 @@ from villanelle.syntax.cst import Node, NodeKind, Syntax, ValueRef, span_of
 from villanelle.syntax.parse import parse
 from villanelle.syntax.tokens import Token, TokenKind
 from villanelle.value import IndexValue, SliceValue, ValueKind
+from villanelle.written._shape import shape_of_anatomy
 from villanelle.written.model import (
     Copy,
     Document,
@@ -127,14 +128,15 @@ def bind(
     return binding
 
 
-_VARIABLE_NAME = re.compile(r"[A-Za-z0-9_]+")
+VARIABLE_NAME = re.compile(r"[A-Za-z0-9_]+")
+"""A variable name (a ``$name`` without its ``$``, a handed-in name): the one home of the rule."""
 
 
 def read_handed(name: str, written: str) -> tuple[Argument, ...]:
     """A handed-in value's values, read as PR 3's ``read_handed`` read them: the text as the values of one directive.
     ValueError for a name that is not letters, digits and ``_``, or a text that is not one or more values (a syntax
     error, a block, a variable, an unknown escape, a non-integer bound)."""
-    if not _VARIABLE_NAME.fullmatch(name):
+    if not VARIABLE_NAME.fullmatch(name):
         raise ValueError(f"handed-in variable name must be letters, digits and _: {name!r}")
 
     def bad(why: str) -> ValueError:
@@ -506,10 +508,10 @@ class Binding:
         anatomy = anatomy_of(tokens, node)
         name = tokens[anatomy.name]
         if name.text == "set":
-            self._set(anatomy, name, copy, text, scope, via)
+            self._set(anatomy, copy, text, scope, via)
             return
         if name.text == "snippet":
-            self._snippet(anatomy, name, copy, context)
+            self._snippet(anatomy, copy, context)
             return
         if name.text == "use":
             self._use(anatomy, name, copy, context)
@@ -544,15 +546,21 @@ class Binding:
         if anatomy.block is not None and children is not None:
             self._statements(anatomy.block, _Context(text, _Scope(scope), via, context.open, children))
 
-    def _set(
-        self, anatomy: Anatomy, name: Token, copy: Copy, text: _Text, scope: _BlockScope, via: tuple[Step, ...]
-    ) -> None:
+    def _well_formed(self, anatomy: Anatomy, text: _Text, via: tuple[Step, ...]) -> None:
+        """A ``set``, ``snippet`` or ``use`` line's text-alone shape (``_shape``, the one home of those rules), or its
+        problem."""
+        fault = shape_of_anatomy(text.syntax.tokens, anatomy, frozenset()).fault
+        if fault is not None:
+            span = text.syntax.tokens[fault.token].span
+            raise self._problem(UnreadableKind.EXPANSION, fault.code, text, span, via)
+
+    def _set(self, anatomy: Anatomy, copy: Copy, text: _Text, scope: _BlockScope, via: tuple[Step, ...]) -> None:
         """``set $name value...;`` (rule 2): binds from this line to the end of the enclosing block."""
+        self._well_formed(anatomy, text, via)
         tokens = text.syntax.tokens
         args = anatomy.args
-        variable = tokens[args[0]] if args and isinstance(args[0], int) else None
-        if variable is None or variable.kind is not TokenKind.VARIABLE or len(args) < 2 or anatomy.block is not None:
-            raise self._problem(UnreadableKind.EXPANSION, DiagnosticCode.BAD_SET, text, name.span, via)
+        assert isinstance(args[0], int)
+        variable = tokens[args[0]]
         variable_name = variable.text[1:]
         if not scope.claim(variable_name):
             raise self._problem(
@@ -567,20 +575,15 @@ class Binding:
             _Definition(line._variable, tuple(v._rebase(len(via), ()) for v in bound), tuple(line._value_list)),
         )
 
-    def _snippet(self, anatomy: Anatomy, keyword: Token, copy: Copy, context: _Context) -> None:
+    def _snippet(self, anatomy: Anatomy, copy: Copy, context: _Context) -> None:
         """``snippet name $param... { body }`` (rule 5): visible from this line to the end of its block."""
         text, scope, via = context.text, context.scope, context.via
+        self._well_formed(anatomy, text, via)
         tokens = text.syntax.tokens
         args = anatomy.args
-        name = tokens[args[0]] if args and isinstance(args[0], int) else None
-        params: list[str] = []
-        for ref in args[1:]:
-            token = tokens[ref] if isinstance(ref, int) else None
-            if token is None or token.kind is not TokenKind.VARIABLE or token.text[1:] in params:
-                raise self._problem(UnreadableKind.EXPANSION, DiagnosticCode.BAD_SNIPPET, text, keyword.span, via)
-            params.append(token.text[1:])
-        if name is None or name.kind is not TokenKind.WORD or anatomy.block is None:
-            raise self._problem(UnreadableKind.EXPANSION, DiagnosticCode.BAD_SNIPPET, text, keyword.span, via)
+        assert isinstance(args[0], int) and anatomy.block is not None
+        name = tokens[args[0]]
+        params = [tokens[ref].text[1:] for ref in args[1:] if isinstance(ref, int)]
         line = copy.statement
         defined = isinstance(line, SnippetLine) and scope.define(
             _Snippet(name.text, tuple(params), anatomy.block, text, scope, line)
@@ -593,11 +596,11 @@ class Binding:
     def _use(self, anatomy: Anatomy, keyword: Token, copy: Copy, context: _Context) -> None:
         """``use name value...;`` (rule 6): the snippet's body, spliced in place with its parameters bound."""
         text, scope, via, open_ = context.text, context.scope, context.via, context.open
+        self._well_formed(anatomy, text, via)
         tokens = text.syntax.tokens
         args = anatomy.args
-        name = tokens[args[0]] if args and isinstance(args[0], int) else None
-        if name is None or name.kind is not TokenKind.WORD or anatomy.block is not None:
-            raise self._problem(UnreadableKind.EXPANSION, DiagnosticCode.BAD_USE, text, keyword.span, via)
+        assert isinstance(args[0], int)
+        name = tokens[args[0]]
         visible: list[_Snippet] = []
         scope.snippets(name.text, visible)
         use = copy.statement
@@ -720,7 +723,7 @@ class Binding:
                 raise self._problem(
                     UnreadableKind.EXTENSION, DiagnosticCode.EXTENSION_BLOCK_NOT_SET, text, name.span, via
                 )
-            self._set(anatomy, name, self._copy_of(doc._statements[node.start], via), text, own, via)
+            self._set(anatomy, self._copy_of(doc._statements[node.start], via), text, own, via)
         return own.own()
 
     def _check_depth(self, open_: tuple[_Snippet | str, ...], text: _Text, name: Token, via: tuple[Step, ...]) -> None:

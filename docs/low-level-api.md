@@ -358,9 +358,10 @@ A **variable** is a `set` line's `$name`, a snippet's parameter, or a value hand
 
 A **reference** is one `$name` written as a value. It has two answers to "which variable is this?":
 
-- `declaration`, by where it is written, in its own file only: the parameter of the snippet around it of that name,
-  else the nearest `set` of that name above it, in its block or an enclosing one. Undefined (None) when there is
-  none: a `$name` in an included file that the including line's block sets is free in its own file.
+- `declaration`, by where it is written, in its own file only: nearest first, block by block outward, the `set` of
+  that name above it in that block, then the parameter of that name when the block is a snippet's body. So a `set`
+  in a block inside a snippet's body wins over the snippet's parameter, as it does at every copy. Undefined (None)
+  when there is none: a `$name` in an included file that the including line's block sets is free in its own file.
 - `resolutions()`, one per copy of its line: at that copy, the `winner` (the variable it reads there, or undefined
   when nothing of that name is visible, which rendering reports as E5001), `overridden` (every other variable of
   that name visible there, the next one to win first), and `values` (the winner's values: its `set` line's, or for
@@ -487,11 +488,13 @@ villanelle keeps the file's own layout; there is no formatter.
 - `setValues` replaces the values from the first to the last, comments between them included. On a line with no
   values it puts one space, then the text, after the name (on a `set` line, after its `$name`). An empty text
   removes the values and the space before them.
-- A value's `remove()` deletes it and the space before it; in a list, the item and its comma.
+- A value's `remove()` deletes it and the space before it; in a list, the item and its comma (the one after it, else
+  the one before it). Comments and line breaks between the item and that comma stay; a line left empty goes.
 - Inserted statements take the indentation of the block's statements. In an empty block they take the parent
   line's indentation plus the file's indentation step (the leading spaces of its first indented line, else four
   spaces). Inner lines keep their own indentation relative to the first. Line breaks are the file's own (`\r\n` or
-  `\n`). An empty block written `{}` is opened over lines.
+  `\n`). An empty block (`{}`, or only spaces and line breaks between the braces) is opened over lines; in a block
+  holding only comments, the statements go just before its `}` line.
 - Statements inserted before a statement go before the comments it owns.
 
 ```ts
@@ -665,7 +668,9 @@ and `source` (what was read, to compare with the disk). If the writer fails, `sa
 
 The filesystem writer first checks that each file on disk still holds its `source`; if any does not (someone else
 changed it), it writes nothing and fails, naming the files. Then it writes each text to a temporary file beside its
-target and renames them over the targets, so a failure while staging replaces nothing:
+target and renames them over the targets, so a failure while staging replaces nothing. A missing file holds the
+empty text, so a new file (`source` "") is written. A failure while renaming can leave the files renamed before it
+replaced while their `source` stays the old text, so the next save refuses them as lost updates until you load again:
 
 ```python
 def test_fs_writer_refuses_a_lost_update_writing_nothing(tmp_path: Path) -> None:

@@ -20,6 +20,7 @@ from villanelle.syntax._recovery import message_of
 from villanelle.syntax.cst import Node, NodeKind, Syntax, ValueRef, span_of
 from villanelle.syntax.parse import parse
 from villanelle.syntax.tokens import TokenKind
+from villanelle.written._bind import RESERVED, VARIABLE_NAME
 from villanelle.written._shape import Shape, ShapeKind, block_shapes, parameter_tokens, statement_nodes
 from villanelle.written.errors import BadTextError
 from villanelle.written.model import (
@@ -45,8 +46,32 @@ Handle: TypeAlias = "Statement | WrittenValue | Variable"
 """Anything a reconcile keeps or detaches."""
 
 _TRIVIA = frozenset({TokenKind.SPACE, TokenKind.NEWLINE})
-_RESERVED = frozenset({"set", "snippet", "use"})
-_VARIABLE_NAME = re.compile(r"[A-Za-z0-9_]+")
+_LIST_GAP = frozenset({TokenKind.SPACE, TokenKind.NEWLINE, TokenKind.COMMENT})
+
+Piece: TypeAlias = "str | tuple[int, int]"
+"""A piece of an insert: text the edit adds, or the range ``[from, to)`` of the caller's text it copies."""
+
+
+@dataclass(frozen=True, slots=True)
+class _Insert:
+    """What an edit splices in: its text, the caller's text, and for each ``str`` index its index there (-1: added)."""
+
+    text: str
+    given: str
+    origin: tuple[int, ...]
+
+
+def _insert_of(given: str, pieces: Sequence[Piece]) -> _Insert:
+    text: list[str] = []
+    origin: list[int] = []
+    for piece in pieces:
+        if isinstance(piece, str):
+            text.append(piece)
+            origin.extend([-1] * len(piece))
+        else:
+            text.append(given[piece[0] : piece[1]])
+            origin.extend(range(piece[0], piece[1]))
+    return _Insert("".join(text), given, tuple(origin))
 
 
 @dataclass(frozen=True, slots=True)
@@ -410,19 +435,20 @@ def _build_value(
 
 
 def _splice(
-    doc: Document, start: int, end: int, insert: str, given: Sequence[Diagnostic], keep: Handle | None = None
+    doc: Document, start: int, end: int, insert: str | _Insert, given: Sequence[Diagnostic], keep: Handle | None = None
 ) -> list[Handle]:
     """Replace ``doc._text[start:end]`` with ``insert``, after ``given`` (the given text's own problems) and the
     text-alone rules found nothing wrong; then re-parse, reconcile and tell the graph. Raises BadTextError, changing
     nothing. Returns the handles made for the inserted text."""
     if given:
         raise BadTextError(f"bad text: {', '.join(d.code for d in given)}", given)
-    text = doc._text[:start] + insert + doc._text[end:]
+    spliced = _insert_of(insert, [(0, len(insert))]) if isinstance(insert, str) else insert
+    text = doc._text[:start] + spliced.text + doc._text[end:]
     syntax = parse(text)
-    rules = _rule_problems(syntax, starts_of(syntax), doc._graph._extension_names, start, start + len(insert), insert)
+    rules = _rule_problems(syntax, starts_of(syntax), doc._graph._extension_names, start, spliced)
     if rules:
         raise BadTextError(f"breaks a rule: {', '.join(d.code for d in rules)}", rules)
-    reconcile = _Reconcile(_entries(doc), (start, end, len(insert)), keep)
+    reconcile = _Reconcile(_entries(doc), (start, end, len(spliced.text)), keep)
     _install(doc, text, syntax, reconcile)
     _detach(reconcile.leftovers())
     doc._graph._version += 1
@@ -494,7 +520,7 @@ def replace_statement(statement: Statement, text: str) -> tuple[Statement, ...]:
         remove_statement(statement)
         return ()
     start, end = offsets(doc, owned_range(doc, statement._node))
-    insert = _reindent(doc, text, indentation_at(doc, start))
+    insert = _insert_of(text, _reindent(doc, text, indentation_at(doc, start)))
     owner = statement._parent
     created = _splice(doc, start, end, insert, given)
     return _top_statements(created, owner)
@@ -505,17 +531,31 @@ def _top_statements(created: Sequence[Handle], owner: Statement | None) -> tuple
     return tuple(h for h in created if isinstance(h, statements) and h._parent is owner)
 
 
-def _reindent(doc: Document, text: str, indentation: str) -> str:
-    """The given statements text with its common indentation removed, later lines prefixed with ``indentation``."""
-    trimmed = re.sub(r"(?:\r?\n[ \t]*)+$", "", re.sub(r"^(?:[ \t]*\r?\n)+", "", text))
-    lines = re.split(r"\r?\n", trimmed)
-    common = min(len(line) - len(line.lstrip(" \t")) for line in lines if line.strip() != "")
+def _reindent(doc: Document, text: str, indentation: str) -> list[Piece]:
+    """The given statements text with its common indentation removed, later lines prefixed with ``indentation``, as
+    pieces of an insert (each line's text keeps its place in the given text, for 2.3's locations)."""
+    lead_match = re.match(r"(?:[ \t]*\r?\n)+", text)
+    lead = 0 if lead_match is None else lead_match.end()
+    rest = text[lead:]
+    trail_match = re.search(r"(?:\r?\n[ \t]*)+$", rest)
+    body = rest if trail_match is None else rest[: trail_match.start()]
+    lines: list[tuple[str, int]] = []
+    start = 0
+    for match in re.finditer(r"\r?\n", body):
+        lines.append((body[start : match.start()], lead + start))
+        start = match.end()
+    lines.append((body[start:], lead + start))
+    common = min(len(line) - len(line.lstrip(" \t")) for line, _ in lines if line.strip() != "")
     eol = line_break(doc)
-    out = [
-        line[common:] if i == 0 else "" if line.strip() == "" else indentation + line[common:]
-        for i, line in enumerate(lines)
-    ]
-    return eol.join(out)
+    pieces: list[Piece] = []
+    for i, (line, at_index) in enumerate(lines):
+        if i > 0:
+            pieces.append(eol)
+            if line.strip() == "":
+                continue
+            pieces.append(indentation)
+        pieces.append((at_index + common, at_index + len(line)))
+    return pieces
 
 
 def set_values(statement: Statement, after: int, text: str) -> None:
@@ -527,7 +567,7 @@ def set_values(statement: Statement, after: int, text: str) -> None:
         if text.strip() == "":
             return
         offset = doc._starts[after + 1]
-        _splice(doc, offset, offset, f" {text}", given)
+        _splice(doc, offset, offset, _insert_of(text, [" ", (0, len(text))]), given)
         return
     start = offsets(doc, ref_range(values[0]._ref))[0]
     end = offsets(doc, ref_range(values[-1]._ref))[1]
@@ -572,22 +612,44 @@ def remove_value(value: WrittenValue) -> None:
     """``remove()`` of a value (2.4): with the space before it; in a list, with its comma."""
     doc = value._doc
     start, end = offsets(doc, ref_range(value._ref))
-    container = value._list
-    if container is not None:
-        items = container._items
-        i = next(j for j, item in enumerate(items) if item is value)
-        if i + 1 < len(items):
-            _splice(doc, start, offsets(doc, ref_range(items[i + 1]._ref))[0], "", [])
-        elif i > 0:
-            _splice(doc, offsets(doc, ref_range(items[i - 1]._ref))[1], end, "", [])
-        else:
-            _splice(doc, start, end, "", [])
+    tokens = doc._syntax.tokens
+    if value._list is not None:
+        _remove_item(doc, value, start, end)
         return
     first = ref_range(value._ref)[0]
-    tokens = doc._syntax.tokens
     while first > 0 and tokens[first - 1].kind is TokenKind.SPACE:
         first -= 1
     _splice(doc, doc._starts[first], end, "", [])
+
+
+def _remove_item(doc: Document, value: WrittenValue, start: int, end: int) -> None:
+    """A list item's ``remove()``: the item and its comma only (the one after it, else the one before it); comments
+    and line breaks between them stay, and a line left empty goes (D-F1-3)."""
+    tokens = doc._syntax.tokens
+    n = len(tokens)
+    text = doc._text
+    first, last = ref_range(value._ref)
+    after = last
+    while after < n and tokens[after].kind in _LIST_GAP:
+        after += 1
+    if after < n and tokens[after].kind is TokenKind.COMMA:
+        comma_start, comma_end = doc._starts[after], doc._starts[after + 1]
+        between = text[end:comma_start]
+        if re.fullmatch(r"[ \t]*", between):
+            frm, to = _removal_range(text, start, comma_end)
+            _splice(doc, frm, to, "", [])
+        else:
+            _splice(doc, start, comma_end, between.lstrip(" \t"), [])
+        return
+    before = first - 1
+    while before >= 0 and tokens[before].kind in _LIST_GAP:
+        before -= 1
+    if before >= 0 and tokens[before].kind is TokenKind.COMMA:
+        between = text[doc._starts[before + 1] : start]
+        kept = "" if re.fullmatch(r"[ \t]*", between) else between.rstrip(" \t")
+        _splice(doc, doc._starts[before], end, kept, [])
+        return
+    _splice(doc, start, end, "", [])
 
 
 def insert_statements(block: WrittenBlock, index: int, text: str) -> tuple[Statement, ...]:
@@ -608,44 +670,56 @@ def insert_statements(block: WrittenBlock, index: int, text: str) -> tuple[State
         indentation = indentation_at(doc, offsets(doc, owned_range(doc, items[0]._node))[0])
     else:
         indentation = "" if owner is None else parent_indentation + _indentation_unit(doc)
-    lines = _reindent(doc, text, indentation)
+    lines = [indentation, *_reindent(doc, text, indentation)]
     if index < len(items):
-        at = offsets(doc, owned_range(doc, items[index]._node))[0]
-        created = _splice(doc, at, at, lines + eol + indentation, given)
+        target = offsets(doc, owned_range(doc, items[index]._node))[0]
+        line_start = doc._text.rfind("\n", 0, target) + 1
+        if re.fullmatch(r"[ \t\ufeff]*", doc._text[line_start:target]):
+            # On lines of their own before the target's line (a BOM stays first).
+            at = line_start + (1 if line_start == 0 and doc._text.startswith("\ufeff") else 0)
+            pieces = [*lines, eol]
+        else:
+            # The target shares its line with an earlier statement: the new lines go between them (D-S2-3).
+            at = target
+            pieces = [*lines[1:], eol, indentation_at(doc, target)]
     elif items:
         at = offsets(doc, owned_range(doc, items[-1]._node))[1]
-        created = _splice(doc, at, at, eol + indentation + lines, given)
+        pieces = [eol, *lines]
     elif owner is None:
         at = len(doc._text)
-        before = eol if doc._text != "" and not doc._text.endswith("\n") else ""
-        created = _splice(doc, at, at, before + lines + eol, given)
+        pieces = [eol if doc._text != "" and not doc._text.endswith("\n") else "", *lines, eol]
     else:
-        created = _insert_into_empty_block(doc, owner, lines, indentation, parent_indentation, eol, given)
+        created = _insert_into_empty_block(doc, owner, text, lines, parent_indentation, eol, given)
+        return _top_statements(created, owner)
+    created = _splice(doc, at, at, _insert_of(text, pieces), given)
     return _top_statements(created, owner)
 
 
 def _insert_into_empty_block(
     doc: Document,
     owner: Statement,
-    lines: str,
-    indentation: str,
+    given_text: str,
+    lines: Sequence[Piece],
     parent_indentation: str,
     eol: str,
     given: Sequence[Diagnostic],
 ) -> list[Handle]:
-    """An empty block: ``{}`` becomes ``{``, a line break, the lines, a line break, the parent's indentation, ``}``
-    (D14); a block already spread over lines takes the lines before its ``}`` line."""
+    """An empty block: ``{}`` (or only whitespace and line breaks between) becomes ``{``, a line break, the lines, a
+    line break, the parent's indentation, ``}`` (D14, D-F1-1); a block holding only comments takes the lines before
+    its ``}`` line (D-S2-4)."""
     anatomy = anatomy_of(doc._syntax.tokens, owner._node)
     assert anatomy.block is not None
     brace_open = doc._starts[anatomy.block.start] + 1
     brace_close = doc._starts[anatomy.block.end - 1]
     text = doc._text
-    if re.fullmatch(r"[ \t]*", text[brace_open:brace_close]):
-        return _splice(doc, brace_open, brace_close, eol + indentation + lines + eol + parent_indentation, given)
+    if re.fullmatch(r"[ \t\r\n]*", text[brace_open:brace_close]):
+        pieces = [eol, *lines, eol, parent_indentation]
+        return _splice(doc, brace_open, brace_close, _insert_of(given_text, pieces), given)
     line_start = text.rfind("\n", 0, brace_close) + 1
     if re.fullmatch(r"[ \t]*", text[line_start:brace_close]):
-        return _splice(doc, line_start, line_start, indentation + lines + eol, given)
-    return _splice(doc, brace_close, brace_close, eol + indentation + lines + eol + parent_indentation, given)
+        return _splice(doc, line_start, line_start, _insert_of(given_text, [*lines, eol]), given)
+    pieces = [eol, *lines, eol, parent_indentation]
+    return _splice(doc, brace_close, brace_close, _insert_of(given_text, pieces), given)
 
 
 def rename_directive(statement: WrittenDirective, name: str) -> None:
@@ -653,37 +727,45 @@ def rename_directive(statement: WrittenDirective, name: str) -> None:
     doc = statement._doc
     tokens = parse(name).tokens
     one_word = len(tokens) == 1 and tokens[0].kind is TokenKind.WORD
-    if statement._kind != "directive" or not one_word or name in _RESERVED or name in doc._graph._extension_names:
+    if statement._kind != "directive" or not one_word or name in RESERVED or name in doc._graph._extension_names:
         raise BadTextError(f"not a directive name: {name!r}", [at(name, 0, DiagnosticCode.UNEXPECTED_TOKEN)])
     start, end = offsets(doc, (statement._node.start, statement._node.start + 1))
-    _splice(doc, start, end, name, [])
+    _splice(doc, start, end, name, [], statement)
 
 
 def rename_variable(line: SetLine | SnippetLine, token: int, name: str) -> None:
     """``Variable.rename``: its ``$name`` only; ``[A-Za-z0-9_]+``, then E5002 in its block."""
-    if not _VARIABLE_NAME.fullmatch(name):
+    if not VARIABLE_NAME.fullmatch(name):
         raise BadTextError(f"not a variable name: {name!r}", [at(name, 0, DiagnosticCode.UNEXPECTED_TOKEN)])
     doc = line._doc
     keep = next((p for p in line._parameters if p._token == token), None) if isinstance(line, SnippetLine) else None
     start, end = offsets(doc, (token, token + 1))
-    _splice(doc, start, end, f"${name}", [], keep)
+    _splice(doc, start, end, _insert_of(name, ["$", (0, len(name))]), [], keep)
 
 
 # --- Declarations by where written (2.6) ---
 
 
 def declaration_of(reference: Reference) -> Variable | None:
-    """The variable a reference binds to by where it is written; None when free."""
+    """The variable a reference binds to by where it is written; None when free. Nearest first, as the binding picks
+    (2.5): block by block outward, the ``set`` lines above in that block, then the parameters of the snippet whose
+    body it is (D-F1-8)."""
     name = reference.name
-    s = reference._statement._parent
+    s: Statement | None = reference._statement
     while s is not None:
-        if isinstance(s, SnippetLine):
-            for parameter in s._parameters:
+        parent = s._parent
+        block = parent._block if parent is not None and parent._block is not None else s._doc._body
+        items = block._items
+        i = next(j for j, item in enumerate(items) if item is s)
+        for candidate in reversed(items[:i]):
+            if isinstance(candidate, SetLine) and candidate._variable.name == name:
+                return candidate._variable
+        if isinstance(parent, SnippetLine):
+            for parameter in parent._parameters:
                 if parameter.name == name:
                     return parameter
-        s = s._parent
-    found = above(reference._statement, lambda c: isinstance(c, SetLine) and c._variable.name == name)
-    return found._variable if isinstance(found, SetLine) else None
+        s = parent
+    return None
 
 
 def above(statement: Statement, match: Callable[[Statement], bool]) -> Statement | None:
@@ -820,18 +902,22 @@ def _bound_text_problems(text: str) -> tuple[Diagnostic, ...]:
 
 
 def _rule_problems(
-    syntax: Syntax, starts: Sequence[int], extensions: frozenset[str], frm: int, to: int, inserted: str
+    syntax: Syntax, starts: Sequence[int], extensions: frozenset[str], frm: int, insert: _Insert
 ) -> list[Diagnostic]:
     """The text-alone rules (E5002, E5005, E5009-E5011) a spliced text would break, on the statements the splice
-    touches (D-S1-6): located in the inserted text when the problem lies in it, else at 0:0 (D-S1-5)."""
+    touches (D-S1-6; a ``set`` claiming the name of a snippet parameter the splice touches counts too): located in
+    the caller's text when the problem lies in what it gave (2.3), else at 0:0 (D-S1-5)."""
     out: list[Diagnostic] = []
     tokens = syntax.tokens
+    to = frm + len(insert.text)
 
-    def touches(node: Node) -> bool:
-        s, e = starts[node.start], starts[node.end]
+    def overlaps(s: int, e: int) -> bool:
         return s < frm < e if frm == to else s < to and e > frm
 
-    def visit(container: Node, claimed: Sequence[str]) -> None:
+    def touches(node: Node) -> bool:
+        return overlaps(starts[node.start], starts[node.end])
+
+    def visit(container: Node, claimed: Sequence[str], touched_claims: frozenset[str]) -> None:
         nodes = statement_nodes(container)
         shapes = block_shapes(tokens, nodes, extensions, claimed)
         for i, (node, shape) in enumerate(zip(nodes, shapes, strict=True)):
@@ -843,19 +929,24 @@ def _rule_problems(
                     DiagnosticCode.SNIPPET_DEFINED_TWICE,
                 ):
                     name = fault.detail.removeprefix("$")
-                    involved = any(touches(other) and shapes[j].claims == name for j, other in enumerate(nodes[:i]))
+                    involved = (fault.code is DiagnosticCode.VARIABLE_SET_TWICE and name in touched_claims) or any(
+                        touches(other) and shapes[j].claims == name for j, other in enumerate(nodes[:i])
+                    )
                 if involved:
                     offset = starts[fault.token]
-                    out.append(at(inserted, offset - frm if frm <= offset < to else 0, fault.code))
+                    origin = insert.origin[offset - frm] if frm <= offset < to else -1
+                    out.append(at(insert.given, max(origin, 0), fault.code))
             if node.kind is not NodeKind.DIRECTIVE:
                 continue
             block = anatomy_of(tokens, node).block
             if block is None or shape.kind == "unreadable":
                 continue
-            params = [tokens[t].text[1:] for t in parameter_tokens(tokens, node)] if shape.kind == "snippet" else []
-            visit(block, params)
+            params = list(parameter_tokens(tokens, node)) if shape.kind == "snippet" else []
+            names = [tokens[t].text[1:] for t in params]
+            touched = frozenset(tokens[t].text[1:] for t in params if overlaps(starts[t], starts[t + 1]))
+            visit(block, names, touched)
 
-    visit(syntax.root, [])
+    visit(syntax.root, [], frozenset())
     return out
 
 

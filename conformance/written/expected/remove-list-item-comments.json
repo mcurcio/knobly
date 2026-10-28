@@ -1,0 +1,1 @@
+[["ok"],[["main.conf","foo [\n  # about b\n  b,\n];\nbar [x, # about x\n  y];\n"]],["ok"],[["main.conf","foo [\n  # about b\n  b,\n];\nbar [x # about x\n];\n"]]]

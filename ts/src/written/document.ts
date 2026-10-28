@@ -12,7 +12,7 @@ import { parse } from "../syntax/parse.js";
 import { messageOf } from "../syntax/recovery.js";
 import { type IToken, TokenKind } from "../syntax/tokens.js";
 import { anatomyOf, itemsOf } from "../load/anatomy.js";
-import { type IBinding, RESERVED } from "./bind.js";
+import { type IBinding, RESERVED, VARIABLE_NAME } from "./bind.js";
 import { BadTextError, DetachedError } from "./errors.js";
 import type { IDocument, IDocumentEdge, IVariable, IWrittenBlock, IWrittenDirective, Statement, WrittenValue } from "./model.js";
 import { blockShapes, type IShape, parameterTokens, type ShapeKind, statementNodes } from "./shape.js";
@@ -385,13 +385,14 @@ export class Document implements IDocument {
    * (it returns diagnostics located in the given text). Then re-parse, reconcile, and tell the host.
    * @returns the handles made for the inserted text. @throws BadTextError, changing nothing.
    */
-  splice(start: number, end: number, insert: string, given: readonly IDiagnostic[], keep?: Handle): Handle[] {
+  splice(start: number, end: number, insert: string | IInsert, given: readonly IDiagnostic[], keep?: Handle): Handle[] {
     if (given.length > 0) throw new BadTextError(`bad text: ${given.map((d) => d.code).join(", ")}`, given);
-    const text = this.current.slice(0, start) + insert + this.current.slice(end);
+    const spliced = typeof insert === "string" ? insertOf(insert, [[0, insert.length]]) : insert;
+    const text = this.current.slice(0, start) + spliced.text + this.current.slice(end);
     const syntax = parse(text);
-    const rules = ruleProblems(syntax, this.host.extensionNames, start, start + insert.length, insert);
+    const rules = ruleProblems(syntax, this.host.extensionNames, start, spliced);
     if (rules.length > 0) throw new BadTextError(`breaks a rule: ${rules.map((d) => d.code).join(", ")}`, rules);
-    const reconcile = new Reconcile(this.entries(), { start, end, inserted: insert.length }, keep);
+    const reconcile = new Reconcile(this.entries(), { start, end, inserted: spliced.text.length }, keep);
     this.current = text;
     this.parsed = syntax;
     this.build(reconcile);
@@ -445,18 +446,37 @@ export class Document implements IDocument {
       return [];
     }
     const { start, end } = this.offsets(this.ownedRange(statement.node));
-    const insert = this.reindent(text, this.indentationAt(start));
+    const insert = insertOf(text, this.reindent(text, this.indentationAt(start)));
     const owner = statement.parentHandle;
     const created = this.splice(start, end, insert, given);
     return created.filter((h): h is StatementHandle => h instanceof StatementHandle && h.parentHandle === owner) as unknown as Statement[];
   }
 
-  /** The given statements text with its common indentation removed, later lines prefixed with `indentation`. */
-  reindent(text: string, indentation: string): string {
-    const lines = text.replace(/^(?:[ \t]*\r?\n)+/u, "").replace(/(?:\r?\n[ \t]*)+$/u, "").split(/\r?\n/u);
-    const common = Math.min(...lines.filter((l) => l.trim() !== "").map((l) => /^[ \t]*/u.exec(l)?.[0].length ?? 0));
+  /**
+   * The given statements text with its common indentation removed, later lines prefixed with `indentation`, as
+   * pieces of an insert (each line's text keeps its place in the given text, for 2.3's locations).
+   */
+  reindent(text: string, indentation: string): Piece[] {
+    const lead = /^(?:[ \t]*\r?\n)+/u.exec(text)?.[0].length ?? 0;
+    const rest = text.slice(lead);
+    const body = rest.slice(0, rest.length - (/(?:\r?\n[ \t]*)+$/u.exec(rest)?.[0].length ?? 0));
+    const lines: { readonly text: string; readonly at: number }[] = [];
+    let from = 0;
+    for (const match of body.matchAll(/\r?\n/gu)) {
+      lines.push({ text: body.slice(from, match.index), at: lead + from });
+      from = match.index + match[0].length;
+    }
+    lines.push({ text: body.slice(from), at: lead + from });
+    const common = Math.min(...lines.filter((l) => l.text.trim() !== "").map((l) => /^[ \t]*/u.exec(l.text)?.[0].length ?? 0));
     const eol = this.lineBreak();
-    return lines.map((line, i) => (i === 0 ? line.slice(common) : line.trim() === "" ? "" : indentation + line.slice(common))).join(eol);
+    const pieces: Piece[] = [];
+    lines.forEach((line, i) => {
+      if (i > 0) pieces.push(eol);
+      if (i > 0 && line.text.trim() === "") return;
+      if (i > 0) pieces.push(indentation);
+      pieces.push([line.at + common, line.at + line.text.length]);
+    });
+    return pieces;
   }
 
   /**
@@ -472,9 +492,9 @@ export class Document implements IDocument {
     }
     const eol = this.lineBreak();
     const items = block.items;
-    const lines = (indentation: string): string => indentation + this.reindent(text, indentation);
+    const lines = (indentation: string): Piece[] => [indentation, ...this.reindent(text, indentation)];
     let at: number;
-    let insert: string;
+    let insert: Piece[];
     const first = items[0];
     if (first !== undefined) {
       const indentation = this.indentationAt(this.offsets(this.ownedRange(first.node)).start);
@@ -485,22 +505,22 @@ export class Document implements IDocument {
         if (/^[ \t\uFEFF]*$/u.test(this.current.slice(lineStart, start))) {
           // On lines of their own before the target's line (a BOM stays first).
           at = lineStart + (lineStart === 0 && this.current.startsWith("\uFEFF") ? 1 : 0);
-          insert = lines(indentation) + eol;
+          insert = [...lines(indentation), eol];
         } else {
           // The target shares its line with an earlier statement: the new lines go between them.
           at = start;
-          insert = this.reindent(text, indentation) + eol + this.indentationAt(start);
+          insert = [...this.reindent(text, indentation), eol, this.indentationAt(start)];
         }
       } else {
         const last = items[items.length - 1] as StatementHandle;
         at = this.offsets(this.ownedRange(last.node)).end;
-        insert = eol + lines(indentation);
+        insert = [eol, ...lines(indentation)];
       }
     } else if (block.owner === undefined) {
       // An empty document: at its end, on lines of their own.
       at = this.current.length;
       const open = this.current === "" || this.current.endsWith("\n") ? "" : eol;
-      insert = open + lines("") + eol;
+      insert = [open, ...lines(""), eol];
     } else {
       const { tokens } = this.parsed;
       const node = anatomyOf(tokens, block.owner.node).block;
@@ -511,20 +531,20 @@ export class Document implements IDocument {
       const indentation = parentIndentation + this.indentationUnit();
       if (/^[ \t\r\n]*$/u.test(this.current.slice(open, close))) {
         // `{}` (or only whitespace between): `{`, the lines, the parent's indentation, `}`.
-        const created = this.splice(open, close, eol + lines(indentation) + eol + parentIndentation, given);
+        const created = this.splice(open, close, insertOf(text, [eol, ...lines(indentation), eol, parentIndentation]), given);
         return created.filter((h): h is StatementHandle => h instanceof StatementHandle && h.parentHandle === block.owner) as unknown as Statement[];
       }
       // Only comments inside: the lines go before the `}` line.
       const lineStart = this.current.lastIndexOf("\n", close - 1) + 1;
       if (/^[ \t]*$/u.test(this.current.slice(lineStart, close))) {
         at = lineStart;
-        insert = lines(indentation) + eol;
+        insert = [...lines(indentation), eol];
       } else {
         at = close;
-        insert = eol + lines(indentation) + eol + parentIndentation;
+        insert = [eol, ...lines(indentation), eol, parentIndentation];
       }
     }
-    const created = this.splice(at, at, insert, given);
+    const created = this.splice(at, at, insertOf(text, insert), given);
     return created.filter((h): h is StatementHandle => h instanceof StatementHandle && h.parentHandle === block.owner) as unknown as Statement[];
   }
 
@@ -555,12 +575,12 @@ export class Document implements IDocument {
    * of the name in its block (E5002), by the text-alone rules. The variable keeps its handle.
    */
   renameVariable(token: number, name: string, keep: Handle): void {
-    if (!/^[A-Za-z0-9_]+$/u.test(name)) {
+    if (!VARIABLE_NAME.test(name)) {
       throw new BadTextError(`not a variable name: ${JSON.stringify(name)}`, [at(name, 0, DiagnosticCode.UnexpectedToken)]);
     }
     const span = this.parsed.tokens[token]?.span;
     if (span === undefined) throw new Error("a variable without its token");
-    this.splice(span.start.offset, span.end.offset, `$${name}`, [], keep);
+    this.splice(span.start.offset, span.end.offset, insertOf(name, ["$", [0, name.length]]), [], keep);
   }
 
   /** `setValues` of a statement's values (2.4): first value to last; with none, after `after` (a token index). */
@@ -572,7 +592,7 @@ export class Document implements IDocument {
     if (first === undefined || last === undefined) {
       if (text.trim() === "") return;
       const offset = tokens[after]?.span.end.offset ?? 0;
-      this.splice(offset, offset, ` ${text}`, given);
+      this.splice(offset, offset, insertOf(text, [" ", [0, text.length]]), given);
       return;
     }
     const start = this.valueOffsets(first).start;
@@ -607,23 +627,40 @@ export class Document implements IDocument {
     ) as unknown as WrittenValue[];
   }
 
-  /** `remove()` of a value (2.4): with the space before it; in a list, with its comma. */
+  /**
+   * `remove()` of a value (2.4): with the space before it. In a list, the item and its comma only (the one after it,
+   * else the one before it); comments and line breaks between them stay, and a line left empty goes (D-F1-3).
+   */
   removeValue(value: ValueHandle): void {
     const { tokens } = this.parsed;
     const { start, end } = this.valueOffsets(value);
-    const list = value.listHandle;
-    if (list !== undefined) {
-      const items = list.itemHandles;
-      const i = items.indexOf(value);
-      const next = items[i + 1];
-      const previous = items[i - 1];
-      if (next !== undefined) {
-        this.splice(start, this.valueOffsets(next).start, "", []);
-      } else if (previous !== undefined) {
-        this.splice(this.valueOffsets(previous).end, end, "", []);
-      } else {
-        this.splice(start, end, "", []);
+    if (value.listHandle !== undefined) {
+      const skipped: ReadonlySet<string> = new Set([TokenKind.Space, TokenKind.Newline, TokenKind.Comment]);
+      const ref = value.ref;
+      const first = typeof ref === "number" ? ref : ref.start;
+      const last = typeof ref === "number" ? ref : ref.end - 1;
+      let after = last + 1;
+      while (skipped.has(tokens[after]?.kind ?? "")) after++;
+      if (tokens[after]?.kind === TokenKind.Comma) {
+        const commaEnd = tokens[after]?.span.end.offset ?? end;
+        const between = this.current.slice(end, tokens[after]?.span.start.offset ?? end);
+        if (/^[ \t]*$/u.test(between)) {
+          const [from, to] = this.removalRange(start, commaEnd);
+          this.splice(from, to, "", []);
+        } else {
+          this.splice(start, commaEnd, between.replace(/^[ \t]+/u, ""), []);
+        }
+        return;
       }
+      let before = first - 1;
+      while (skipped.has(tokens[before]?.kind ?? "")) before--;
+      if (tokens[before]?.kind === TokenKind.Comma) {
+        const commaStart = tokens[before]?.span.start.offset ?? start;
+        const between = this.current.slice(tokens[before]?.span.end.offset ?? start, start);
+        this.splice(commaStart, end, /^[ \t]*$/u.test(between) ? "" : between.replace(/[ \t]+$/u, ""), []);
+        return;
+      }
+      this.splice(start, end, "", []);
       return;
     }
     let from = this.tokenIndexOf(value);
@@ -642,17 +679,26 @@ export class Document implements IDocument {
 
   // --- Declarations by where written (2.6) ---
 
-  /** The variable a reference binds to by where it is written; undefined when free. */
+  /**
+   * The variable a reference binds to by where it is written; undefined when free. Nearest first, as the binding
+   * picks (2.5): block by block outward, the `set` lines above in that block, then the parameters of the snippet
+   * whose body it is (D-F1-8).
+   */
   declarationOf(reference: Reference): IVariable | undefined {
     const name = reference.name;
-    for (let s = reference.statementHandle.parentHandle; s !== undefined; s = s.parentHandle) {
-      if (s instanceof SnippetLine) {
-        const parameter = s.parameterHandles.find((p) => p.name === name);
+    for (let s: StatementHandle | undefined = reference.statementHandle; s !== undefined; s = s.parentHandle) {
+      const parent = s.parentHandle;
+      const items = (parent?.blockHandle ?? this.body).items;
+      for (let i = items.indexOf(s) - 1; i >= 0; i--) {
+        const candidate = items[i];
+        if (candidate instanceof SetLine && candidate.variableHandle.name === name) return candidate.variableHandle;
+      }
+      if (parent instanceof SnippetLine) {
+        const parameter = parent.parameterHandles.find((p) => p.name === name);
         if (parameter !== undefined) return parameter;
       }
     }
-    const found = this.above(reference.statementHandle, (s) => s instanceof SetLine && s.variableHandle.name === name);
-    return found instanceof SetLine ? found.variableHandle : undefined;
+    return undefined;
   }
 
   /** The nearest statement above `statement` in its block or an enclosing block that matches. */
@@ -784,24 +830,51 @@ function boundTextProblems(text: string): IDiagnostic[] {
   return [];
 }
 
+/** A piece of an insert: text the edit adds, or the range [from, to) of the caller's text it copies. */
+type Piece = string | readonly [number, number];
+
+/** What an edit splices in: its text, the caller's text, and for each UTF-16 unit its offset there (-1: added). */
+interface IInsert {
+  readonly text: string;
+  readonly given: string;
+  readonly origin: readonly number[];
+}
+
+function insertOf(given: string, pieces: readonly Piece[]): IInsert {
+  let text = "";
+  const origin: number[] = [];
+  for (const piece of pieces) {
+    if (typeof piece === "string") {
+      text += piece;
+      for (let i = 0; i < piece.length; i++) origin.push(-1);
+    } else {
+      text += given.slice(piece[0], piece[1]);
+      for (let i = piece[0]; i < piece[1]; i++) origin.push(i);
+    }
+  }
+  return { text, given, origin };
+}
+
 /**
  * The text-alone rules (E5002, E5005, E5009-E5011) a spliced text would break, on the statements the splice
- * touches: located in the inserted text when the problem lies in it, else at 0:0.
+ * touches (a `set` claiming a name of a snippet parameter the splice touches counts too): located in the caller's
+ * text when the problem lies in what it gave (2.3), else at 0:0.
  */
-function ruleProblems(syntax: ISyntax, extensions: ReadonlySet<string>, from: number, to: number, inserted: string): IDiagnostic[] {
+function ruleProblems(syntax: ISyntax, extensions: ReadonlySet<string>, from: number, insert: IInsert): IDiagnostic[] {
   const out: IDiagnostic[] = [];
   const { tokens } = syntax;
+  const to = from + insert.text.length;
+  const overlaps = (s: number, e: number): boolean => (from === to ? s < from && e > from : s < to && e > from);
   const touches = (node: INode): boolean => {
     const span = spanOf(syntax, node);
-    const [s, e] = [span.start.offset, span.end.offset];
-    return from === to ? s < from && e > from : s < to && e > from;
+    return overlaps(span.start.offset, span.end.offset);
   };
   const report = (fault: { code: DiagnosticCode; span: ISourceSpan }): void => {
     const offset = fault.span.start.offset;
-    const inside = offset >= from && offset < to;
-    out.push(inside ? at(inserted, offset - from, fault.code) : at(inserted, 0, fault.code));
+    const origin = offset >= from && offset < to ? (insert.origin[offset - from] ?? -1) : -1;
+    out.push(at(insert.given, Math.max(origin, 0), fault.code));
   };
-  const visit = (container: INode, claimed: readonly string[]): void => {
+  const visit = (container: INode, claimed: readonly string[], touchedClaims: ReadonlySet<string>): void => {
     const nodes = statementNodes(container);
     const shapes = blockShapes(tokens, nodes, extensions, claimed);
     nodes.forEach((node, i) => {
@@ -810,19 +883,28 @@ function ruleProblems(syntax: ISyntax, extensions: ReadonlySet<string>, from: nu
         const code = shape.fault.code;
         let involved = touches(node);
         if (!involved && (code === DiagnosticCode.VariableSetTwice || code === DiagnosticCode.SnippetDefinedTwice)) {
-          const name = shape.fault.detail?.replace(/^\$/u, "");
-          involved = nodes.slice(0, i).some((other, j) => touches(other) && (shapes[j] as IShape).claims === name);
+          const name = shape.fault.detail?.replace(/^\$/u, "") ?? "";
+          involved =
+            (code === DiagnosticCode.VariableSetTwice && touchedClaims.has(name)) ||
+            nodes.slice(0, i).some((other, j) => touches(other) && (shapes[j] as IShape).claims === name);
         }
         if (involved) report(shape.fault);
       }
       if (node.kind !== NodeKind.Directive) return;
       const { block } = anatomyOf(tokens, node);
       if (block === undefined || shape.kind === "unreadable") return;
-      const params = shape.kind === "snippet" ? parameterTokens(tokens, node).map((t) => tokens[t]?.text.slice(1) ?? "") : [];
-      visit(block, params);
+      const params = shape.kind === "snippet" ? parameterTokens(tokens, node) : [];
+      const names = params.map((t) => tokens[t]?.text.slice(1) ?? "");
+      const touched = new Set(
+        params.flatMap((t) => {
+          const span = tokens[t]?.span;
+          return span !== undefined && overlaps(span.start.offset, span.end.offset) ? [tokens[t]?.text.slice(1) ?? ""] : [];
+        }),
+      );
+      visit(block, names, touched);
     });
   };
-  visit(syntax.root, []);
+  visit(syntax.root, [], new Set());
   return out;
 }
 

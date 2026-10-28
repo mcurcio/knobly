@@ -38,6 +38,7 @@ import type {
   Statement,
   WrittenValue,
 } from "./model.js";
+import { shapeOfAnatomy } from "./shape.js";
 import { SetLine, SnippetLine, type StatementHandle } from "./statements.js";
 
 /** `use` and extension directives may nest this many places deep (E5007 beyond). */
@@ -177,7 +178,36 @@ export function readHanded(name: string, written: unknown): Argument[] {
   }
 }
 
-const VARIABLE_NAME = /^[A-Za-z0-9_]+$/;
+/** No extension names: the binding asks shape.ts only about `set`, `snippet` and `use` lines. */
+const NO_EXTENSIONS: ReadonlySet<string> = new Set();
+
+/** A variable name (a `$name` without its `$`, a handed-in name): the one home of the rule. */
+export const VARIABLE_NAME = /^[A-Za-z0-9_]+$/u;
+
+/**
+ * What the handed-in reader refuses in a text already checked as values (an unknown escape, a non-integer bound):
+ * its code and span in `x <written>`, for `setHanded`'s BadTextError; undefined when it reads.
+ */
+export function handedValueProblem(written: string): { readonly code: DiagnosticCode; readonly span: ISourceSpan } | undefined {
+  const syntax = parse(`x ${written}`);
+  const [node] = syntax.root.children;
+  if (syntax.diagnostics.length > 0 || node?.kind !== NodeKind.Directive) return undefined;
+  const text: IText = {
+    doc: undefined,
+    syntax,
+    resolvedPath: "",
+    written: () => ({ kind: "handed", variable: "" }),
+    place: (span) => ({ kind: "file", resolvedPath: "", span }),
+  };
+  const walk = new Walk(undefined);
+  try {
+    for (const ref of anatomyOf(syntax.tokens, node).args) walk.value(text, ref, new Scope(undefined), [], undefined);
+  } catch (error) {
+    if (!(error instanceof Problem)) throw error;
+    if (error.diagnostic !== undefined) return { code: error.diagnostic.code as DiagnosticCode, span: error.diagnostic.at.span };
+  }
+  return undefined;
+}
 
 /** The package's document behind an IDocument. @throws TypeError for a document this package did not make. */
 export function asDocument(doc: IDocument): Document {
@@ -496,8 +526,8 @@ class Walk implements IBindingWithNeeds {
     const anatomy = anatomyOf(tokens, node);
     const name = tokens[anatomy.name];
     if (name === undefined) throw new Error("a directive node has no name token");
-    if (name.text === "set") return this.set(anatomy, name, copy, context.text, context.scope, context.via);
-    if (name.text === "snippet") return this.snippet(anatomy, name, copy, context);
+    if (name.text === "set") return this.set(anatomy, copy, context.text, context.scope, context.via);
+    if (name.text === "snippet") return this.snippet(anatomy, copy, context);
     if (name.text === "use") return this.use(anatomy, name, copy, context);
     const extension = this.input?.extensions.get(name.text);
     if (extension !== undefined) return this.extension(extension, anatomy, name, copy, context);
@@ -524,14 +554,18 @@ class Walk implements IBindingWithNeeds {
     this.statements(anatomy.block, { text, scope: new Scope(scope), via, open: context.open, into: children });
   }
 
+  /** A `set`, `snippet` or `use` line's text-alone shape (shape.ts, the one home of those rules), or its problem. */
+  private wellFormed(anatomy: IDirectiveAnatomy, text: IText, via: readonly IStep[]): void {
+    const { fault } = shapeOfAnatomy(text.syntax.tokens, anatomy, NO_EXTENSIONS);
+    if (fault !== undefined) throw this.problem(UnreadableKind.Expansion, fault.code, text, fault.span, via);
+  }
+
   /** `set $name value...;` (rule 2): binds from this line to the end of the enclosing block. */
-  private set(anatomy: IDirectiveAnatomy, name: IToken, copy: ICopy, text: IText, scope: IBlockScope, via: readonly IStep[]): void {
+  private set(anatomy: IDirectiveAnatomy, copy: ICopy, text: IText, scope: IBlockScope, via: readonly IStep[]): void {
     const { tokens } = text.syntax;
+    this.wellFormed(anatomy, text, via);
     const [first, ...values] = anatomy.args;
-    const variable = typeof first === "number" ? tokens[first] : undefined;
-    if (variable?.kind !== TokenKind.Variable || values.length === 0 || anatomy.block !== undefined) {
-      throw this.problem(UnreadableKind.Expansion, DiagnosticCode.BadSet, text, name.span, via);
-    }
+    const variable = tokens[first as number] as IToken;
     const variableName = variable.text.slice(1);
     if (!scope.claim(variableName)) {
       throw this.problem(UnreadableKind.Expansion, DiagnosticCode.VariableSetTwice, text, variable.span, via, variable.text);
@@ -548,22 +582,14 @@ class Walk implements IBindingWithNeeds {
   }
 
   /** `snippet name $param... { body }` (rule 5): visible from this line to the end of its block. */
-  private snippet(anatomy: IDirectiveAnatomy, keyword: IToken, copy: ICopy, context: IPlaceContext): void {
+  private snippet(anatomy: IDirectiveAnatomy, copy: ICopy, context: IPlaceContext): void {
     const { text, scope, via } = context;
     const { tokens } = text.syntax;
+    this.wellFormed(anatomy, text, via);
     const [first, ...rest] = anatomy.args;
-    const name = typeof first === "number" ? tokens[first] : undefined;
-    const params: string[] = [];
-    for (const ref of rest) {
-      const token = typeof ref === "number" ? tokens[ref] : undefined;
-      if (token?.kind !== TokenKind.Variable || params.includes(token.text.slice(1))) {
-        throw this.problem(UnreadableKind.Expansion, DiagnosticCode.BadSnippet, text, keyword.span, via);
-      }
-      params.push(token.text.slice(1));
-    }
-    if (name?.kind !== TokenKind.Word || anatomy.block === undefined) {
-      throw this.problem(UnreadableKind.Expansion, DiagnosticCode.BadSnippet, text, keyword.span, via);
-    }
+    const name = tokens[first as number] as IToken;
+    const params = rest.map((ref) => (tokens[ref as number] as IToken).text.slice(1));
+    if (anatomy.block === undefined) throw new Error("a well-formed snippet has a block");
     const line = copy.statement as unknown as StatementHandle;
     const defined = line instanceof SnippetLine && scope.define({ name: name.text, params, body: anatomy.block, text, scope, line });
     if (!defined) {
@@ -575,11 +601,9 @@ class Walk implements IBindingWithNeeds {
   private use(anatomy: IDirectiveAnatomy, keyword: IToken, copy: ICopy, context: IPlaceContext): void {
     const { text, scope, via, open } = context;
     const { tokens } = text.syntax;
+    this.wellFormed(anatomy, text, via);
     const [first, ...rest] = anatomy.args;
-    const name = typeof first === "number" ? tokens[first] : undefined;
-    if (name?.kind !== TokenKind.Word || anatomy.block !== undefined) {
-      throw this.problem(UnreadableKind.Expansion, DiagnosticCode.BadUse, text, keyword.span, via);
-    }
+    const name = tokens[first as number] as IToken;
     const visible: ISnippet[] = [];
     scope.snippets(name.text, visible);
     const [snippet, ...others] = visible;
@@ -705,7 +729,7 @@ class Walk implements IBindingWithNeeds {
       if (name.text !== "set") {
         throw this.problem(UnreadableKind.Extension, DiagnosticCode.ExtensionBlockNotSet, text, name.span, via);
       }
-      this.set(anatomy, name, this.copyOf(doc.statementOf(node), via), text, own, via);
+      this.set(anatomy, this.copyOf(doc.statementOf(node), via), text, own, via);
     }
     return own.own();
   }

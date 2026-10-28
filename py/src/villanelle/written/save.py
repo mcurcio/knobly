@@ -29,7 +29,10 @@ class DocumentWriter(Protocol):
     """The program's writer."""
 
     def write(self, files: Sequence[FileWrite], /) -> None:
-        """One batch: stage every file, then commit them together. Raising means nothing was committed."""
+        """One batch: stage every file, then commit them together. Raising while staging means nothing was committed;
+        a writer that can fail part way through committing (the fs writer's renames) leaves the files it committed
+        changed on disk while their ``source`` stays the old text, so the next save refuses them as lost updates until
+        the program reloads (stated cost, D-F1-10)."""
         ...
 
 
@@ -48,7 +51,7 @@ def save(graph: DocumentGraph, writer: DocumentWriter, /) -> list[str]:
     except Exception as error:
         raise SaveError(f"the writer raised: {error}", batch) from error
     for file in batch:
-        graph.documents[file.resolved_path]._source = file.text
+        graph.documents[file.resolved_path]._mark_saved(file.text)
     return [file.resolved_path for file in batch]
 
 

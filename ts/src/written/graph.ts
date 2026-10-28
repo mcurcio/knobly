@@ -8,11 +8,10 @@ import type { IExtension } from "../load/processor.js";
 import type { ILocatedDiagnostic } from "../load/report.js";
 import type { Argument } from "../load/tree.js";
 import { DiagnosticCode, type IDiagnostic } from "../diagnostics.js";
-import { hasOnlyKnownEscapes } from "../load/values.js";
 import { parse } from "../syntax/parse.js";
 import { messageOf } from "../syntax/recovery.js";
 import { TokenKind } from "../syntax/tokens.js";
-import { bind, type IBindingWithNeeds, type IHandedInput, type IReadLedger, readHanded } from "./bind.js";
+import { bind, handedValueProblem, type IBindingWithNeeds, type IHandedInput, type IReadLedger, readHanded, VARIABLE_NAME } from "./bind.js";
 import { Document, type IDocumentHost, positionIn, valuesTextProblems } from "./document.js";
 import { BadTextError } from "./errors.js";
 import type { IDocumentEdge, IDocumentGraph, IVariable } from "./model.js";
@@ -21,12 +20,10 @@ import { HandedVariable } from "./statements.js";
 /** The codes `render` owns: the graph's `diagnostics()` leaves them out (D11). */
 const RENDER_CODES: ReadonlySet<string> = new Set(["E5001", "E5003", "E5004", "E5008"]);
 
-const HANDED_NAME = /^[A-Za-z0-9_]+$/u;
-
 /**
- * A handed-in text's values for `setHanded` (2.3's values check, D-S2-1): its syntax diagnostics, or E2001 at the
- * first token that is more than values or is a `$name`, or E4003 at a string with an unknown escape; any other value
- * rule `readHanded` refuses (a non-integer slice bound) is E4001 at 0:0. @throws BadTextError
+ * A handed-in text's values for `setHanded` (2.3's values check): its syntax diagnostics, or E2001 at the first
+ * token that is more than values or is a `$name` (at 0:0 for no value), then what the load's handed-in reader refuses
+ * (E4003, E4001) located in the given text (D-F1-7). @throws BadTextError
  */
 function handedValues(name: string, text: string): readonly Argument[] {
   const fault = (offset: number, code: DiagnosticCode): BadTextError => {
@@ -40,14 +37,9 @@ function handedValues(name: string, text: string): readonly Argument[] {
   if (first === undefined) throw fault(0, DiagnosticCode.UnexpectedToken);
   const variable = tokens.find((t) => t.kind === TokenKind.Variable);
   if (variable !== undefined) throw fault(variable.span.start.offset - 2, DiagnosticCode.UnexpectedToken);
-  const escape = tokens.find((t) => t.kind === TokenKind.String && !hasOnlyKnownEscapes(t.text));
-  if (escape !== undefined) throw fault(escape.span.start.offset - 2, DiagnosticCode.BadEscape);
-  try {
-    return readHanded(name, text);
-  } catch (error) {
-    if (!(error instanceof TypeError)) throw error;
-    throw fault(0, DiagnosticCode.NonIntegerBound);
-  }
+  const problem = handedValueProblem(text);
+  if (problem !== undefined) throw fault(problem.span.start.offset - 2, problem.code);
+  return readHanded(name, text);
 }
 
 export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger {
@@ -87,7 +79,7 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
   }
 
   setHanded(name: string, text: string | undefined): void {
-    if (!HANDED_NAME.test(name)) throw new TypeError(`handed-in variable name must be letters, digits and _: ${JSON.stringify(name)}`);
+    if (!VARIABLE_NAME.test(name)) throw new TypeError(`handed-in variable name must be letters, digits and _: ${JSON.stringify(name)}`);
     if (text === undefined) {
       if (!this.handedTexts.has(name)) return;
       this.handedTexts.delete(name);

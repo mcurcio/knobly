@@ -203,7 +203,30 @@ def test_no_scope_class_or_lookup_outside_the_binding() -> None:
     assert offenders == []
 
 
+def test_a_reference_has_the_declaration_the_binding_picks_at_every_copy() -> None:
+    text = "snippet s $a {\n    x {\n        set $a 1;\n        y $a;\n    }\n    z $a;\n}\nuse s 2;\nuse s 3;\n"
+    graph = load({"main.conf": text})
+    references = {id(r): r for v in graph.variables() for r in v.references()}
+    assert len(references) == 2
+    for reference in references.values():
+        winners = [r.winner for r in reference.resolutions()]
+        assert len(winners) == 2
+        assert all(winner is reference.declaration for winner in winners)
+
+
 # --- save ---
+
+
+def test_replacing_a_documents_text_keeps_source_and_save_writes_the_new_text() -> None:
+    graph = load({"main.conf": "a 1;\n"})
+    a = graph.root.body[0]
+    graph.root.replace_with_text("b 2;\n")
+    assert graph.root.source == "a 1;\n"
+    with pytest.raises(vl.DetachedError):
+        _ = a.text
+    writer = Recorder()
+    assert vl.save(graph, writer) == ["main.conf"]
+    assert writer.batches == [[vl.FileWrite("main.conf", "b 2;\n", "a 1;\n")]]
 
 
 def test_save_hands_only_changed_files_to_the_writer_in_one_call_then_updates_source() -> None:

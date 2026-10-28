@@ -280,6 +280,11 @@ export interface IFileWrite {
 
 /** The program's writer. The core does no I/O. */
 export interface IDocumentWriter {
-  /** One batch: stage every file, then commit them together. Rejecting means nothing was committed. */
+  /**
+   * One batch: stage every file, then commit them together. Rejecting while staging means nothing was committed; a
+   * writer that can fail part way through committing (the fs writer's renames, the fetch writer's requests) leaves
+   * the files it committed changed on disk while their `source` stays the old text, so the next save refuses them as
+   * lost updates until the program reloads (stated cost, D-F1-10).
+   */
   write(files: readonly IFileWrite[]): Promise<void>;
 }

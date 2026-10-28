@@ -10,7 +10,8 @@ import type { IDocumentGraph, IDocumentWriter, IFileWrite } from "./model.js";
 /**
  * Hand every document whose `text` differs from its `source` to the writer in one batch, in `documents` order;
  * with none, the writer is not called. When the writer resolves, each written document's `source` becomes the text
- * handed over (an edit made while the writer ran stays unsaved); when it rejects, no `source` changes.
+ * handed over (an edit made while the writer ran stays unsaved); when it rejects, no `source` changes (a writer that
+ * failed part way through committing: see IDocumentWriter).
  * Returns the resolvedPaths handed over.
  * @throws SaveError { files, cause } when the writer rejects
  */

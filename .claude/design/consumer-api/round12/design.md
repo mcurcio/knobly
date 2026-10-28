@@ -12,7 +12,7 @@ import { save, villanelle } from "villanelle";
 import { include } from "villanelle/include";
 import { createFileSource, createFsWriter } from "villanelle/node";
 
-const config = villanelle({ source: createFileSource(), extensions: [include()], key: RASL_KEY });
+const config = villanelle({ source: createFileSource(), extensions: [include()] }); // the key rule goes to diff (O4)
 const graph = await config.load("split/main.conf", { variables: { leds_host: '"10.0.70.1"' } });
 const rendered = config.render(graph);               // the middle layer
 ```

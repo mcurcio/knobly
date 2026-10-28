@@ -9,7 +9,7 @@ import { DiagnosticCode } from "../diagnostics.js";
 import type { ISourceSpan } from "../span.js";
 import { type INode, NodeKind } from "../syntax/cst.js";
 import { type IToken, TokenKind } from "../syntax/tokens.js";
-import { anatomyOf } from "../load/anatomy.js";
+import { anatomyOf, type IDirectiveAnatomy } from "../load/anatomy.js";
 
 /** A statement's kind by its text alone. */
 export type ShapeKind = "directive" | "extension" | "set" | "snippet" | "use" | "unreadable";
@@ -34,7 +34,11 @@ export interface IShape {
 /** The shape of one node of a block, ignoring the one-per-block rules (E5002, E5005). */
 export function shapeOf(tokens: readonly IToken[], node: INode, extensions: ReadonlySet<string>): IShape {
   if (node.kind !== NodeKind.Directive) return { kind: "unreadable", fault: undefined, claims: undefined };
-  const anatomy = anatomyOf(tokens, node);
+  return shapeOfAnatomy(tokens, anatomyOf(tokens, node), extensions);
+}
+
+/** The shape of a directive by its anatomy, ignoring the one-per-block rules (the binding's walk asks this too). */
+export function shapeOfAnatomy(tokens: readonly IToken[], anatomy: IDirectiveAnatomy, extensions: ReadonlySet<string>): IShape {
   const name = tokens[anatomy.name];
   if (name === undefined) throw new Error("a directive node has no name token");
   const [first, ...rest] = anatomy.args;

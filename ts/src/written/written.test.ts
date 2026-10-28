@@ -126,10 +126,24 @@ describe("save", () => {
 
 describe("the binding is the one home of the lookup rule (A8)", () => {
   it("has no scope class or lookup outside written/bind.ts", () => {
-    const dir = new URL("../load/", import.meta.url);
-    const offenders = readdirSync(dir)
-      .filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))
+    const dir = new URL("../", import.meta.url);
+    const offenders = readdirSync(dir, { recursive: true, encoding: "utf8" })
+      .map((name) => name.split("\\").join("/"))
+      .filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts") && !name.startsWith("gen/") && name !== "written/bind.ts")
       .filter((name) => /class \w*Scope\b|\blookup\(/u.test(readFileSync(new URL(name, dir), "utf8")));
     expect(offenders).toEqual([]);
+  });
+
+  it("gives a reference the declaration the binding picks at every copy (2.5, 2.6)", async () => {
+    const graph = await load({
+      "main.conf": "snippet s $a {\n    x {\n        set $a 1;\n        y $a;\n    }\n    z $a;\n}\nuse s 2;\nuse s 3;\n",
+    });
+    const references = graph.variables().flatMap((v) => v.references());
+    expect(references).toHaveLength(2);
+    for (const reference of new Set(references)) {
+      const winners = reference.resolutions().map((r) => r.winner);
+      expect(winners).toHaveLength(2);
+      for (const winner of winners) expect(winner).toBe(reference.declaration);
+    }
   });
 });

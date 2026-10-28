@@ -189,6 +189,10 @@ class Document:
 
         _document.replace_document(self, text)
 
+    def _mark_saved(self, text: str) -> None:
+        """After a writer returned: ``source`` becomes the text handed over (``save`` only)."""
+        self._source = text
+
 
 @final
 @dataclass(frozen=True, slots=True, eq=False)

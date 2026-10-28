@@ -74,3 +74,46 @@ def test_save_through_fs_writer_writes_the_changed_file_once(tmp_path: Path) -> 
     assert vl.save(graph, fs_writer()) == [str(root)]
     assert root.read_text() == "x 2;\n"
     assert vl.save(graph, fs_writer()) == []
+
+
+def test_fs_writer_reads_a_missing_target_as_empty_text(tmp_path: Path) -> None:
+    new, gone = tmp_path / "new.conf", tmp_path / "gone.conf"
+    fs_writer().write([vl.FileWrite(str(new), "a;\n", "")])
+    assert new.read_text() == "a;\n"
+    with pytest.raises(OSError, match=r"gone\.conf"):
+        fs_writer().write([vl.FileWrite(str(gone), "b;\n", "b 1;\n")])
+    assert not gone.exists()
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["new.conf"]
+
+
+def test_fs_writer_replaces_nothing_and_leaves_no_temporary_when_staging_fails(tmp_path: Path) -> None:
+    a = tmp_path / "a.conf"
+    a.write_text("a 1;\n")
+    missing = tmp_path / "no-such-directory" / "b.conf"
+    with pytest.raises(FileNotFoundError):
+        fs_writer().write([vl.FileWrite(str(a), "a 2;\n", "a 1;\n"), vl.FileWrite(str(missing), "b;\n", "")])
+    assert a.read_text() == "a 1;\n"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["a.conf"]
+
+
+def test_fs_writer_removes_the_temporaries_not_yet_renamed_when_a_rename_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    a, b = tmp_path / "a.conf", tmp_path / "b.conf"
+    a.write_text("a 1;\n")
+    b.write_text("b 1;\n")
+    replace = os.replace
+    calls: list[str] = []
+
+    def failing_second(src: str, dst: str) -> None:
+        calls.append(dst)
+        if len(calls) == 2:
+            raise OSError("rename failed")
+        replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", failing_second)
+    with pytest.raises(OSError, match="rename failed"):
+        fs_writer().write([vl.FileWrite(str(a), "a 2;\n", "a 1;\n"), vl.FileWrite(str(b), "b 2;\n", "b 1;\n")])
+    assert a.read_text() == "a 2;\n"
+    assert b.read_text() == "b 1;\n"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["a.conf", "b.conf"]
