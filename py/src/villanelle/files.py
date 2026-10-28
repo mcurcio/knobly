@@ -1,5 +1,5 @@
-"""``villanelle.files``: a document source over the filesystem, the I/O edge the core leaves out (R16), as
-TypeScript's ``villanelle/node`` entry."""
+"""``villanelle.files``: a document source and a writer over the filesystem, the I/O edges the core leaves out (R16),
+as TypeScript's ``villanelle/node`` entry."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from collections.abc import Sequence
 
 from villanelle._glob import glob_pattern, has_glob
 from villanelle.source import DocumentSource, LoadContext
+from villanelle.written.save import DocumentWriter
 
 
 def file_source() -> DocumentSource:
@@ -42,6 +43,13 @@ class _FileSource:
         # newline="" keeps "\r\n" as written: positions count every character of the file.
         with open(resolved_path, encoding="utf-8", newline="") as file:
             return file.read()
+
+
+def fs_writer() -> DocumentWriter:
+    """A writer for one batch (slices.md S3): it raises, writing nothing, when any file on disk no longer holds its
+    ``source`` (a lost update); otherwise it writes each text to a temporary file beside its target, then renames
+    each over its target, as UTF-8 with line breaks as written."""
+    raise NotImplementedError("fs_writer (slices.md S3)")
 
 
 def _is_file(path: str) -> bool:
