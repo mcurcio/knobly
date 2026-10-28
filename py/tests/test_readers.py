@@ -8,8 +8,13 @@ import pytest
 import villanelle as vl
 
 
+def _render(processor: vl.Processor, variables: dict[str, str] | None = None) -> vl.Rendered:
+    """``render(load("main.conf"))``."""
+    return processor.render(processor.load("main.conf", variables=variables))
+
+
 def args(text: str) -> tuple[vl.Argument, ...]:
-    loaded = vl.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})).load("main.conf")
+    loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})))
     assert loaded.diagnostics == ()
     return loaded.body[0].args
 
@@ -114,7 +119,7 @@ def test_plain_reads_by_the_one_rule_quoting_means_text() -> None:
 
 
 def test_a_reader_error_is_placed_on_the_value_with_its_steps() -> None:
-    loaded = vl.Processor(source=vl.memory_source({"main.conf": "set $v x;\na 1 $v;\n"})).load("main.conf")
+    loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": "set $v x;\na 1 $v;\n"})))
     d = raises(loaded.body[0].args[1].as_int, "E4005")
     assert (d.at.span.start.line, d.at.span.start.column) == (0, 7)
     assert [(s.kind, s.name, s.at.span.start.column) for s in d.via] == [("variable", "v", 4)]
@@ -133,7 +138,7 @@ def test_strings_decode_the_six_escapes(literal: str, decoded: str) -> None:
 
 @pytest.mark.parametrize(("text", "column"), [("c[x:2]", 4), ("c[1:x]", 6), ("c[007]", 4), (f"c[{2**53}]", 4)])
 def test_a_non_integer_bound_is_e4001_at_the_bound(text: str, column: int) -> None:
-    loaded = vl.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})).load("main.conf")
+    loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})))
     [d] = loaded.diagnostics
     assert (d.code, d.at.span.start.column) == ("E4001", column)
     assert loaded.body == ()
@@ -163,5 +168,5 @@ def test_canonical_text(written: str, text: str) -> None:
 
 
 def test_a_value_from_a_variable_has_the_values_text() -> None:
-    loaded = vl.Processor(source=vl.memory_source({"main.conf": "set $v 'x';\na $v;\n"})).load("main.conf")
+    loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": "set $v 'x';\na $v;\n"})))
     assert loaded.body[0].args[0].text == '"x"'

@@ -1,4 +1,4 @@
-"""The directive layer (R15 tier 2): what a program walks after a load. Model: the standard ``ast`` module. Nodes are
+"""The rendered tree (R15 tier 2): what a program walks after a render. Model: the standard ``ast`` module. Nodes are
 read-only objects with ``__match_args__``, read with ``match``; ``walk()`` iterates a subtree as ``ast.walk`` does
 (here in written order); every node carries where it came from. Directives and values are expanded (variables
 replaced, snippets and extension files spliced in)."""
@@ -16,11 +16,11 @@ from villanelle.diagnostics import DiagnosticCode, DiagnosticError
 from villanelle.origin import DirectiveOrigin, Origin, Place, Step
 from villanelle.report import LocatedDiagnostic, check_program_code
 from villanelle.syntax._recovery import message_of
-from villanelle.syntax.cst import Node
 from villanelle.value import IndexValue, SliceValue, ValueKind
 
 if TYPE_CHECKING:
-    from villanelle.processor import Loaded
+    from villanelle.processor import Rendered
+    from villanelle.written.model import ReferenceResolution, Statement, WrittenDirective, WrittenValue
 
 PlainValue: TypeAlias = "int | float | bool | str | SliceValue | IndexValue | tuple[PlainValue, ...]"
 """A value by villanelle's one rule. Quoting means text: ``"8080"`` and ``"true"`` are str; only a bare word is read
@@ -34,29 +34,40 @@ class Argument:
     Match it: ``case vl.Argument("word", "true"):``."""
 
     __match_args__ = ("kind", "text")
-    __slots__ = ("_kind", "_origin", "_text", "_value")
+    __slots__ = ("_kind", "_origin", "_resolutions", "_text", "_value", "_written")
 
-    def __init__(self, kind: ValueKind, value: ArgumentValue, origin: Origin) -> None:
-        """Made by the load only. ``value`` by kind: a word's text, a string's decoded text, a list's items, a
+    def __init__(
+        self,
+        kind: ValueKind,
+        value: ArgumentValue,
+        origin: Origin,
+        written: WrittenValue | None = None,
+        resolutions: tuple[ReferenceResolution, ...] = (),
+    ) -> None:
+        """Made by the binding only. ``value`` by kind: a word's text, a string's decoded text, a list's items, a
         SliceValue or an IndexValue."""
         self._kind = kind
         self._value = value
         self._origin = origin
+        self._written = written
+        self._resolutions = resolutions
         self._text = _canonical_text(kind, value)
 
     def __repr__(self) -> str:
         return f"Argument({self._kind.value!r}, {self._text!r})"
 
-    def _rebase(self, drop: int, append: tuple[Step, ...]) -> Argument:
+    def _rebase(self, drop: int, append: tuple[Step, ...], resolution: ReferenceResolution | None = None) -> Argument:
         """The same value having travelled further: the last ``drop`` steps of its origin (and of each list item's)
         are replaced by ``append``. A variable's value is stored with ``drop`` = the ``set`` line's own steps, and read
-        with ``append`` = the variable step and the reading place's steps. Private to the load layer."""
+        with ``append`` = the variable step and the reading place's steps, and that ``$name``'s ``resolution`` first
+        (D7). Private to the binding."""
         via = self._origin.via
         origin = Origin(self._origin.written, via[: len(via) - drop] + append)
         value = self._value
         if isinstance(value, tuple):
-            value = tuple(item._rebase(drop, append) for item in value)
-        return Argument(self._kind, value, origin)
+            value = tuple(item._rebase(drop, append, resolution) for item in value)
+        resolutions = self._resolutions if resolution is None else (resolution, *self._resolutions)
+        return Argument(self._kind, value, origin, self._written, resolutions)
 
     @property
     def kind(self) -> ValueKind:
@@ -71,6 +82,18 @@ class Argument:
     @property
     def origin(self) -> Origin:
         return self._origin
+
+    @property
+    def written(self) -> WrittenValue | None:
+        """The written value at the end of its chain (for ``$pixels``, the ``2284`` of its ``set``); None when handed
+        in. A live handle: the argument itself is a snapshot of one render."""
+        return self._written
+
+    @property
+    def resolutions(self) -> tuple[ReferenceResolution, ...]:
+        """One per variable step of ``origin.via``, from this value's own line toward where it is written (D7):
+        ``[0]`` is the ``$name`` written on the directive's line. Empty for a value written where it is read."""
+        return self._resolutions
 
     def as_word(self) -> str:
         """A bare word. Raises DiagnosticError E4002 for any other kind."""
@@ -228,17 +251,18 @@ class Unreadable:
 
     kind: UnreadableKind
     origin: DirectiveOrigin
-    node: Node
-    """Its tier-1 node in the file ``origin.written`` names: the error node, or the directive node that failed."""
+    written: Statement
+    """The statement that could not be read here."""
 
 
 @final
 class Directive:
     """One directive after expansion. ``set``, ``snippet``, ``use`` and extension directives never appear: their results
-    do, in their place. Match it: ``case vl.Directive("node", [kind, node_id, *rest], body):``."""
+    do, in their place. Match it: ``case vl.Directive("node", [kind, node_id, *rest], body):``. Its address is
+    ``rendered.addresses(key=...)[directive]`` (D4)."""
 
     __match_args__ = ("name", "args", "body")
-    __slots__ = ("_address", "_args", "_body", "_key_input", "_name", "_node", "_origin", "_parent", "_unreadable")
+    __slots__ = ("_args", "_body", "_name", "_origin", "_parent", "_unreadable", "_written")
 
     def __init__(
         self,
@@ -246,33 +270,28 @@ class Directive:
         args: tuple[Argument, ...],
         has_block: bool,
         parent: Directive | None,
-        address: Address,
         origin: DirectiveOrigin,
-        node: Node,
-        key_input: KeyInput,
+        written: WrittenDirective,
     ) -> None:
-        """Made by the load only, which fills the block while it expands it and then calls ``_freeze``."""
+        """Made by render only, which fills the block while it builds it and then calls ``_freeze``."""
         self._name = name
         self._args = args
         self._body: list[Directive] | tuple[Directive, ...] | None = [] if has_block else None
         self._unreadable: list[Unreadable] | tuple[Unreadable, ...] = []
         self._parent = parent
-        self._address = address
         self._origin = origin
-        self._node = node
-        self._key_input = key_input
-        """What the key rule saw of this directive (private to the load layer)."""
+        self._written = written
 
     def __repr__(self) -> str:
-        return f"Directive({self._name!r}, {[a.text for a in self._args]!r}, address={str(self._address)!r})"
+        return f"Directive({self._name!r}, {[a.text for a in self._args]!r})"
 
     def _contents(self) -> tuple[list[Directive], list[Unreadable]]:
-        """The block's lists while the load fills them. Private to the load layer."""
+        """The block's lists while render fills them. Private to render."""
         assert isinstance(self._body, list) and isinstance(self._unreadable, list)
         return self._body, self._unreadable
 
     def _freeze(self) -> None:
-        """End of the load: the block becomes read-only. Private to the load layer."""
+        """End of the render: the block becomes read-only. Private to render."""
         if self._body is not None:
             self._body = tuple(self._body)
         self._unreadable = tuple(self._unreadable)
@@ -301,18 +320,14 @@ class Directive:
         return self._parent
 
     @property
-    def address(self) -> Address:
-        return self._address
-
-    @property
     def origin(self) -> DirectiveOrigin:
         """Where its name was written, and the uses and includes that brought it here."""
         return self._origin
 
     @property
-    def node(self) -> Node:
-        """Its directive node in the tier-1 tree of the file ``origin.written`` names (for editing, vil-uji)."""
-        return self._node
+    def written(self) -> WrittenDirective:
+        """The written directive this is a copy of (closes vil-uji): the same handle for every copy of one line."""
+        return self._written
 
     def closest(self, predicate: Callable[[Directive], bool], /) -> Directive | None:
         """This directive or its nearest enclosing one that matches, as the DOM's ``Element.closest``."""
@@ -327,25 +342,14 @@ class Directive:
         return DiagnosticError(LocatedDiagnostic(code, message, self._origin.written, self._origin.via))
 
 
-@final
-@dataclass(frozen=True, slots=True)
-class KeyInput:
-    """What the key rule sees of one directive: its expanded header, before its block is expanded."""
-
-    name: str
-    args: tuple[Argument, ...]
-    has_block: bool
-    parent: KeyInput | None
-    """The enclosing directive as the key rule saw it; None at the top level."""
-
-
-KeyRule: TypeAlias = Callable[[KeyInput], "str | None"]
-"""The program's rule for naming a directive among its siblings, so it keeps its address when lines move. Called once
-per readable directive, parents before children, in expansion order; an exception it raises ends the load. rasl:
+KeyRule: TypeAlias = Callable[[Directive], "str | None"]
+"""The program's rule for naming a directive among its siblings, so it keeps its address when lines move (D5: it
+takes the rendered directive). Called once per directive, parents before children, in walk order, by
+``Rendered.addresses`` and ``Processor.diff``; what it raises propagates. rasl:
 ``lambda d: d.args[1].text if d.name == "node" and d.parent and d.parent.name == "graph" else None``."""
 
 
-def walk(node: Loaded | Directive, *, descend: Callable[[Directive], bool] | None = None) -> Iterator[Directive]:
+def walk(node: Rendered | Directive, *, descend: Callable[[Directive], bool] | None = None) -> Iterator[Directive]:
     """Every directive under ``node`` (not ``node`` itself), depth-first in written order. ``descend``, when given, is
     asked of each directive yielded; False passes over its block. Stop early with ``break``."""
     stack: list[Iterator[Directive]] = [iter(node.body or ())]

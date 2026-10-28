@@ -7,6 +7,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
+from villanelle._values import canonical_string
+from villanelle.written.errors import SaveError
+
 if TYPE_CHECKING:
     from villanelle.written.model import DocumentGraph
 
@@ -35,10 +38,21 @@ def save(graph: DocumentGraph, writer: DocumentWriter, /) -> list[str]:
     order; with none, the writer is not called. When the writer returns, each written document's ``source`` becomes
     the text handed over; when it raises, no ``source`` changes and ``SaveError`` is raised from it. Returns the
     resolved paths handed over."""
-    raise NotImplementedError("save (slices.md S3)")
+    batch = [
+        FileWrite(doc.resolved_path, doc.text, doc.source) for doc in graph.documents.values() if doc.text != doc.source
+    ]
+    if not batch:
+        return []
+    try:
+        writer.write(tuple(batch))
+    except Exception as error:
+        raise SaveError(f"the writer raised: {error}", batch) from error
+    for file in batch:
+        graph.documents[file.resolved_path]._source = file.text
+    return [file.resolved_path for file in batch]
 
 
 def quote(text: str, /) -> str:
     """A plain string as a villanelle string, escapes included: ``quote("10.0.60.31")`` is ``'"10.0.60.31"'``. The
     canonical string text of a rendered value (``_values.canonical_string``)."""
-    raise NotImplementedError("quote (slices.md S3)")
+    return canonical_string(text)

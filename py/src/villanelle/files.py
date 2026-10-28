@@ -3,13 +3,15 @@ as TypeScript's ``villanelle/node`` entry."""
 
 from __future__ import annotations
 
+import contextlib
 import os
 import stat
+import tempfile
 from collections.abc import Sequence
 
 from villanelle._glob import glob_pattern, has_glob
 from villanelle.source import DocumentSource, LoadContext
-from villanelle.written.save import DocumentWriter
+from villanelle.written.save import DocumentWriter, FileWrite
 
 
 def file_source() -> DocumentSource:
@@ -46,10 +48,45 @@ class _FileSource:
 
 
 def fs_writer() -> DocumentWriter:
-    """A writer for one batch (slices.md S3): it raises, writing nothing, when any file on disk no longer holds its
-    ``source`` (a lost update); otherwise it writes each text to a temporary file beside its target, then renames
-    each over its target, as UTF-8 with line breaks as written."""
-    raise NotImplementedError("fs_writer (slices.md S3)")
+    """A writer for one batch (slices.md S3; D18): it raises, writing nothing, when any file on disk no longer holds
+    its ``source`` (a lost update; the error names the paths); otherwise it writes each text to a temporary file
+    beside its target (``<name>.<random>.tmp``), then renames each over its target, as UTF-8 with line breaks as
+    written. A failure while staging removes the temporaries and raises with nothing replaced; a failure while
+    renaming can leave earlier files replaced (the stated cost)."""
+    return _FsWriter()
+
+
+class _FsWriter:
+    __slots__ = ()
+
+    def write(self, files: Sequence[FileWrite], /) -> None:
+        lost = [file.resolved_path for file in files if _read_or_none(file.resolved_path) != file.source]
+        if lost:
+            raise OSError(f"changed on disk since it was read (a lost update): {', '.join(lost)}")
+        staged: list[tuple[str, str]] = []
+        try:
+            for file in files:
+                directory, name = os.path.split(file.resolved_path)
+                handle, temporary = tempfile.mkstemp(prefix=f"{name}.", suffix=".tmp", dir=directory or ".")
+                staged.append((temporary, file.resolved_path))
+                with os.fdopen(handle, "w", encoding="utf-8", newline="") as out:
+                    out.write(file.text)
+        except BaseException:
+            for temporary, _ in staged:
+                with contextlib.suppress(OSError):
+                    os.remove(temporary)
+            raise
+        for temporary, target in staged:
+            os.replace(temporary, target)
+
+
+def _read_or_none(path: str) -> str | None:
+    """The file's text as written, or None when it is missing."""
+    try:
+        with open(path, encoding="utf-8", newline="") as file:
+            return file.read()
+    except FileNotFoundError:
+        return None
 
 
 def _is_file(path: str) -> bool:

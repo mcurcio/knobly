@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 import villanelle as vl
-from villanelle.files import file_source
+from villanelle.files import file_source, fs_writer
 
 
 def test_resolve_joins_a_spec_to_the_parents_directory_and_a_missing_file_is_no_path(tmp_path: Path) -> None:
@@ -41,3 +41,36 @@ def test_a_permission_error_raises_so_the_load_reports_e3004_not_e3001(tmp_path:
             file_source().resolve("locked/a.conf", vl.LoadContext(str(tmp_path / "main.conf")))
     finally:
         locked.chmod(0o755)
+
+
+def test_fs_writer_stages_every_file_then_renames_each_over_its_target(tmp_path: Path) -> None:
+    a, b = tmp_path / "a.conf", tmp_path / "b.conf"
+    a.write_text("a 1;\r\n", newline="")
+    b.write_text("b 1;\n")
+    fs_writer().write([vl.FileWrite(str(a), "a 2;\r\n", "a 1;\r\n"), vl.FileWrite(str(b), "b 2;\n", "b 1;\n")])
+    assert a.read_bytes() == b"a 2;\r\n"
+    assert b.read_text() == "b 2;\n"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["a.conf", "b.conf"]
+
+
+def test_fs_writer_refuses_a_lost_update_writing_nothing(tmp_path: Path) -> None:
+    a, b = tmp_path / "a.conf", tmp_path / "b.conf"
+    a.write_text("a 1;\n")
+    b.write_text("changed by someone else;\n")
+    with pytest.raises(OSError, match=r"b\.conf"):
+        fs_writer().write([vl.FileWrite(str(a), "a 2;\n", "a 1;\n"), vl.FileWrite(str(b), "b 2;\n", "b 1;\n")])
+    assert a.read_text() == "a 1;\n"
+    assert b.read_text() == "changed by someone else;\n"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["a.conf", "b.conf"]
+
+
+def test_save_through_fs_writer_writes_the_changed_file_once(tmp_path: Path) -> None:
+    root = tmp_path / "main.conf"
+    root.write_text("x 1;\n")
+    graph = vl.Processor(source=file_source()).load(str(root))
+    x = graph.root.body[0]
+    assert isinstance(x, vl.WrittenDirective)
+    x.values[0].replace_with_text("2")
+    assert vl.save(graph, fs_writer()) == [str(root)]
+    assert root.read_text() == "x 2;\n"
+    assert vl.save(graph, fs_writer()) == []

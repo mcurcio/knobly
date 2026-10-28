@@ -7,11 +7,13 @@ import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from villanelle.diagnostics import DiagnosticCode, DiagnosticError
-from villanelle.graph import DocumentGraph
 from villanelle.origin import Place, Step
+
+if TYPE_CHECKING:
+    from villanelle.written.model import DocumentGraph
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,7 +75,7 @@ class Collecting:
 
 
 class Diagnostics:
-    """The one place problems collect. A program starts it with ``loaded.diagnostics``, reports its own problems into
+    """The one place problems collect. A program starts it with ``rendered.diagnostics``, reports its own problems into
     it, and runs reads under ``collecting()`` so a reader's DiagnosticError is recorded instead of ending it."""
 
     __slots__ = ("_items",)
@@ -102,13 +104,13 @@ class Diagnostics:
 
 def format_diagnostic(diagnostic: LocatedDiagnostic, graph: DocumentGraph | None = None) -> str:
     """``path:line:col: code: message`` (1-based line and column, for people), then the source line and a caret under
-    the span when ``graph`` holds the file, then one ``  via <kind> <name> at path:line:col`` line per step.
-    Reads text only from ``graph``; never does I/O."""
+    the span when ``graph`` holds the file (its current text), then one ``  via <kind> <name> at path:line:col`` line
+    per step. Reads text only from ``graph``; never does I/O."""
     lines = [f"{_place(diagnostic.at)}: {diagnostic.code}: {diagnostic.message}"]
-    node = None if graph is None else graph.nodes.get(diagnostic.at.resolved_path)
-    if node is not None:
+    document = None if graph is None else graph.documents.get(diagnostic.at.resolved_path)
+    if document is not None:
         start, end = diagnostic.at.span.start, diagnostic.at.span.end
-        source_lines = node.source.split("\n")
+        source_lines = document.text.split("\n")
         if start.line < len(source_lines):
             line = source_lines[start.line].removesuffix("\r")
             # Columns count UTF-16 code units, as TypeScript's strings do: a character above U+FFFF counts two.

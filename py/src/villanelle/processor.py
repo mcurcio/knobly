@@ -1,24 +1,21 @@
-"""Loading and change lists (R15 tier 2). A ``Processor`` is made once with its document source, extensions and key
-rule (as ``jinja2.Environment`` is made with its loader and extensions); ``load`` reads a root file and everything it
-splices in, synchronously; ``diff`` compares two loads of the same processor by address."""
+"""Loading, rendering and change lists (R15 tier 2; round 12 design.md §6). A ``Processor`` is made once with its
+document source and extensions (as ``jinja2.Environment`` is made with its loader and extensions); ``load`` reads a
+root file and everything it includes into a document graph (the files as written), synchronously; ``render`` builds
+the rendered tree from the graph's current texts; ``diff`` compares two renders by address under a key rule."""
 
 from __future__ import annotations
 
-import contextlib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Protocol, TypeAlias, final
 
-from villanelle.diagnostics import DiagnosticCode, DiagnosticError
-from villanelle.directives import Address, Argument, Directive, KeyRule, Unreadable
-from villanelle.graph import DocumentGraph, DocumentNode
-from villanelle.origin import DirectiveOrigin, Place
+from villanelle.diagnostics import DiagnosticError
+from villanelle.directives import Address, AddressStep, Argument, Directive, KeyRule, Unreadable
+from villanelle.origin import DirectiveOrigin
 from villanelle.report import LocatedDiagnostic, check_program_code
-from villanelle.source import DocumentSource, LoadContext
-from villanelle.span import SourcePosition, SourceSpan
-from villanelle.syntax._recovery import message_of
-from villanelle.syntax.parse import parse
+from villanelle.source import DocumentSource
+from villanelle.written.model import DocumentGraph
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,8 +43,9 @@ class Extension(Protocol):
 
 
 @final
-class Loaded:
-    """What one load produced. Problems are diagnostics; the root file owns the top level, as a directive its block."""
+class Rendered:
+    """The rendered tree of one graph (PR 3's ``Loaded``, renamed). Problems are diagnostics; the root file owns the
+    top level, as a directive its block."""
 
     __slots__ = ("_body", "_diagnostics", "_graph", "_origin", "_processor", "_unreadable")
 
@@ -60,7 +58,7 @@ class Loaded:
         diagnostics: tuple[LocatedDiagnostic, ...],
         graph: DocumentGraph,
     ) -> None:
-        """Made by ``Processor.load`` only."""
+        """Made by ``Processor.render`` only."""
         self._processor = processor
         self._body = body
         self._unreadable = unreadable
@@ -85,12 +83,36 @@ class Loaded:
 
     @property
     def diagnostics(self) -> tuple[LocatedDiagnostic, ...]:
-        """Every file's syntax diagnostics (files in first-read order), then expansion problems in expansion order."""
+        """PR 3's content and order (D11): every file's syntax diagnostics (documents in order), then the walk's
+        problems in walk order."""
         return self._diagnostics
 
     @property
     def graph(self) -> DocumentGraph:
+        """The graph it was rendered from."""
         return self._graph
+
+    def addresses(self, *, key: KeyRule | None = None) -> Mapping[Directive, Address]:
+        """Every directive's address under ``key``, in walk order (the mapping's order). The key rule is called once
+        per directive, parents before children; what it raises propagates. The one home of the address rule (D4);
+        ``Processor.diff`` uses it. Without a key rule, a directive is named by its position among same-name
+        siblings."""
+        out: dict[Directive, Address] = {}
+
+        def name(container: Sequence[Directive], parent: tuple[AddressStep, ...]) -> None:
+            occurrences: dict[tuple[str, str | None], int] = {}
+            for directive in container:
+                key_text = None if key is None else key(directive)
+                slot = (directive.name, key_text)
+                occurrence = occurrences.get(slot, 0)
+                occurrences[slot] = occurrence + 1
+                steps = (*parent, AddressStep(directive.name, key_text, occurrence))
+                out[directive] = Address(steps)
+                if directive.body is not None:
+                    name(directive.body, steps)
+
+        name(self._body, ())
+        return MappingProxyType(out)
 
     def error(self, message: str, *, code: str) -> DiagnosticError:
         """A located error for a problem of the whole file, such as a required top-level directive left out."""
@@ -132,131 +154,112 @@ class Unknown:
 
 
 Change: TypeAlias = Added | Removed | Changed | Unknown
-"""One difference between two loads. An added, removed or unknown directive is listed alone, never with the directives
+"""One difference between two renders. An added, removed or unknown directive is listed alone, never with the directives
 inside it (``walk`` it); a changed one's block is compared at its own addresses."""
 
 
 @final
 class Processor:
-    """Made once with the document source, extensions and key rule; loads and compares."""
+    """Made once with the document source and extensions; loads, reads, renders and compares."""
 
-    def __init__(
-        self,
-        *,
-        source: DocumentSource,
-        extensions: Sequence[Extension] = (),
-        key: KeyRule | None = None,
-    ) -> None:
+    def __init__(self, *, source: DocumentSource, extensions: Sequence[Extension] = ()) -> None:
         """Raises ValueError for an extension named ``set``, ``snippet`` or ``use``, or two extensions with one name
         (S2-01: rule 1 reserves those names, and one directive name has one owner)."""
+        from villanelle.written import _bind
+
         self._source = source
         self._extensions: dict[str, Extension] = {}
         for extension in extensions:
             name = extension.directive
-            if name in _RESERVED or name in self._extensions:
+            if name in _bind.RESERVED or name in self._extensions:
                 raise ValueError(f"extension directive name taken: {name!r}")
             self._extensions[name] = extension
-        self._key = key
 
-    def load(self, path: str, *, variables: Mapping[str, str] | None = None) -> Loaded:
-        """Read the root file at ``path`` (as the source names it) and everything it splices in. ``path`` is resolved
-        through the source first, as an included file's spec is, so the root has one path in the graph. Never raises
-        for anything in the text. Raises DiagnosticError E3004 placed at the root file when the source cannot read it;
-        ValueError for a handed-in variable whose name is not letters, digits and ``_`` or whose text is not one or more
-        values; whatever the key rule raises. A handed-in variable wins over every ``set`` of its name (L3)."""
-        # Imported here: the expander builds ExtensionUse values, so it imports this module.
-        from villanelle._expand import At, Container, Expander, Scope, Stopped, Text, read_handed
+    def load(self, path: str, *, variables: Mapping[str, str] | None = None) -> DocumentGraph:
+        """Read the root file at ``path`` (resolved through the source, as an included file's spec is, so the root
+        has one path in the graph) and every file its include lines name, once each (R21), repeating until nothing
+        new is named. Never raises for anything in the text. Raises ReadError (a DiagnosticError, E3004 placed at
+        the root path) when the source cannot resolve or read the root; ValueError for a handed-in variable whose
+        name is not letters, digits and ``_`` or whose text is not one or more values. A handed-in variable wins
+        over every ``set`` of its name (L3)."""
+        from villanelle.written import _read
 
-        handed = read_handed(variables or {})
-        path, source = self._read_root(path)
-        start = SourceSpan(_START, _START)
-        root = DocumentNode(path, source, parse(source))
-        expander = Expander(
-            source=self._source, extensions=self._extensions, handed=handed, key=self._key, nodes={path: root}
-        )
-        top = Container([], [], None)
-        with contextlib.suppress(Stopped):  # E5008 is recorded; what was read so far stays.
-            expander.statements(At(Text(root.syntax, path), Scope(None), (), (path,)), root.syntax.root, top)
-        for directive in expander.directives:
-            directive._freeze()
-        syntax = [
-            LocatedDiagnostic(d.code, d.message, Place(node.resolved_path, d.span), ())
-            for node in expander.nodes.values()
-            for d in node.syntax.diagnostics
-        ]
-        graph = DocumentGraph(root, MappingProxyType(dict(expander.nodes)), tuple(expander.edges))
-        return Loaded(
-            self,
-            tuple(top.body),
-            tuple(top.unreadable),
-            DirectiveOrigin(Place(path, start), ()),
-            (*syntax, *expander.diagnostics),
-            graph,
-        )
+        return _read.load_graph(self._source, self._extensions, path, variables or {}, self)
 
-    def _read_root(self, path: str) -> tuple[str, str]:
-        """The root file's resolved path and text. The root is resolved through the source as an included file is
-        (F1-04), so one file has one path in the graph however the caller spells it. Raises DiagnosticError E3004
-        at ``path`` when the source fails, finds no file, or finds more than one."""
-        code = DiagnosticCode.INCLUDE_RESOLVER_FAILED
+    def read(self, graph: DocumentGraph, /) -> list[str]:
+        """Resolve and read what ``graph.unread()`` names, repeating until nothing new is named; keeps every text
+        and every kept rejection (D12). Returns the resolved paths read, in read order. Raises ValueError for a
+        graph another processor loaded."""
+        from villanelle.written import _read
 
-        def fail(reason: object) -> DiagnosticError:
-            message = f"{message_of(code)}: {path}: {reason}"
-            return DiagnosticError(LocatedDiagnostic(code, message, Place(path, SourceSpan(_START, _START)), ()))
+        self._check(graph)
+        return _read.read_unread(graph, self._source)
 
-        try:
-            paths = self._source.resolve(path, LoadContext(""))
-        except Exception as error:
-            raise fail(error) from error
-        if len(paths) != 1:
-            raise fail("no such file" if not paths else f"names {len(paths)} files")
-        try:
-            return paths[0], self._source.read(paths[0])
-        except Exception as error:
-            raise fail(error) from error
+    def render(self, graph: DocumentGraph, /) -> Rendered:
+        """The rendered tree of the graph's current texts and handed-in values. Pure: reads no file; an unread
+        include copy renders as nothing (its edge is in ``graph.unread()``). Raises ValueError for a graph another
+        processor loaded."""
+        from villanelle import _render
 
-    def diff(self, before: Loaded, after: Loaded, /) -> list[Change]:
-        """What differs, by address: removed and unknown in ``before``'s walk order, then added and changed in
-        ``after``'s. A directive missing from ``after`` is Unknown, not Removed, when its block in ``after`` (or the top
-        level) holds an unreadable statement. Raises ValueError when either load came from another processor."""
+        self._check(graph)
+        return _render.render(graph, self)
+
+    def diff(self, before: Rendered, after: Rendered, /, *, key: KeyRule | None = None) -> list[Change]:
+        """What differs between two renders of this processor's graphs, by address under ``key`` (D4): removed and
+        unknown in ``before``'s walk order, then added and changed in ``after``'s. A directive missing from ``after``
+        is Unknown, not Removed, when its block in ``after`` (or the top level) holds an unreadable statement.
+        Raises ValueError when either render came from another processor; whatever the key rule raises."""
         if before._processor is not self or after._processor is not self:
-            raise ValueError("diff compares two loads of this processor")
+            raise ValueError("diff compares two renders of this processor")
+        old = before.addresses(key=key)
+        new = after.addresses(key=key)
         gone: list[Change] = []
         came: list[Change] = []
-        _compare_before(before.body, after.body, bool(after.unreadable), gone)
-        _compare_after(after.body, before.body, came)
+        _compare_before(before.body, after.body, bool(after.unreadable), old, new, gone)
+        _compare_after(after.body, before.body, new, old, came)
         return gone + came
 
+    def _check(self, graph: DocumentGraph) -> None:
+        if not isinstance(graph, DocumentGraph) or graph._owner is not self:
+            raise ValueError("this processor takes only graphs it loaded")
 
-_START = SourcePosition(0, 0, 0)
-_RESERVED = frozenset({"set", "snippet", "use"})
-"""The names reserved at a statement's start besides each registered extension's (rule 1)."""
+
+_Addresses: TypeAlias = Mapping[Directive, Address]
 
 
 def _compare_before(
-    before: Sequence[Directive], after: Sequence[Directive], incomplete: bool, into: list[Change]
+    before: Sequence[Directive],
+    after: Sequence[Directive],
+    incomplete: bool,
+    old: _Addresses,
+    new: _Addresses,
+    into: list[Change],
 ) -> None:
     """Removed and unknown, in ``before``'s walk order. ``incomplete``: ``after``'s container holds an unreadable."""
-    by_address = {d.address: d for d in after}
+    by_address = {new[d]: d for d in after}
     for directive in before:
-        match = by_address.get(directive.address)
+        address = old[directive]
+        match = by_address.get(address)
         if match is None:
-            into.append(Unknown(directive.address, directive) if incomplete else Removed(directive.address, directive))
+            into.append(Unknown(address, directive) if incomplete else Removed(address, directive))
         else:
-            _compare_before(directive.body or (), match.body or (), bool(match.unreadable), into)
+            _compare_before(directive.body or (), match.body or (), bool(match.unreadable), old, new, into)
 
 
-def _compare_after(after: Sequence[Directive], before: Sequence[Directive], into: list[Change]) -> None:
+def _compare_after(
+    after: Sequence[Directive], before: Sequence[Directive], new: _Addresses, old: _Addresses, into: list[Change]
+) -> None:
     """Added and changed, in ``after``'s walk order."""
-    by_address = {d.address: d for d in before}
+    by_address = {old[d]: d for d in before}
     for directive in after:
-        match = by_address.get(directive.address)
+        address = new[directive]
+        match = by_address.get(address)
         if match is None:
-            into.append(Added(directive.address, directive))
+            into.append(Added(address, directive))
             continue
         if _changed(match, directive):
-            into.append(Changed(directive.address, match, directive))
-        _compare_after(directive.body or (), match.body or (), into)
+            into.append(Changed(address, match, directive))
+        _compare_after(directive.body or (), match.body or (), new, old, into)
 
 
 def _changed(before: Directive, after: Directive) -> bool:

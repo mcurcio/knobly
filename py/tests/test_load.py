@@ -1,5 +1,6 @@
-"""The load layer through its public API (round 11 slices.md §1.2, S3 criteria 2, 3, 6, 7, 8): every test loads text
-through ``Processor`` and ``memory_source``."""
+"""The load and render layers through their public API (round 11 slices.md §1.2, S3 criteria 2, 3, 6, 7, 8; round
+12: ``render(load(...))``, the key rule at ``addresses()`` and ``diff``): every test loads text through ``Processor``
+and ``memory_source``."""
 
 from __future__ import annotations
 
@@ -11,23 +12,28 @@ import villanelle as vl
 from villanelle.include import include as include_extension
 
 
-def processor(files: Mapping[str, str], *, include: bool = False, key: vl.KeyRule | None = None) -> vl.Processor:
+def processor(files: Mapping[str, str], *, include: bool = False) -> vl.Processor:
     extensions = [include_extension()] if include else []
-    return vl.Processor(source=vl.memory_source(files), extensions=extensions, key=key)
+    return vl.Processor(source=vl.memory_source(files), extensions=extensions)
 
 
-def load(text: str, *, variables: Mapping[str, str] | None = None, key: vl.KeyRule | None = None) -> vl.Loaded:
-    return processor({"main.conf": text}, key=key).load("main.conf", variables=variables)
+def rendered(p: vl.Processor, path: str = "main.conf", *, variables: Mapping[str, str] | None = None) -> vl.Rendered:
+    """``render(load(path))``: the mechanical form of a PR 3 load (D8)."""
+    return p.render(p.load(path, variables=variables))
 
 
-def inner(loaded: vl.Loaded) -> vl.Directive:
+def load(text: str, *, variables: Mapping[str, str] | None = None) -> vl.Rendered:
+    return rendered(processor({"main.conf": text}), variables=variables)
+
+
+def inner(loaded: vl.Rendered) -> vl.Directive:
     """The first directive inside the first top-level directive's block."""
     body = loaded.body[0].body
     assert body
     return body[0]
 
 
-def codes(loaded: vl.Loaded) -> list[str]:
+def codes(loaded: vl.Rendered) -> list[str]:
     return [str(d.code) for d in loaded.diagnostics]
 
 
@@ -35,8 +41,9 @@ def at(d: vl.LocatedDiagnostic) -> tuple[int, int]:
     return d.at.span.start.line, d.at.span.start.column
 
 
-def names(loaded: vl.Loaded | vl.Directive) -> list[str]:
-    return [str(d.address) for d in vl.walk(loaded)]
+def names(loaded: vl.Rendered) -> list[str]:
+    addresses = loaded.addresses()
+    return [str(addresses[d]) for d in vl.walk(loaded)]
 
 
 def texts(directive: vl.Directive) -> list[str]:
@@ -118,7 +125,8 @@ def test_a_syntax_error_keeps_its_siblings_and_stands_as_an_unreadable_in_place(
     assert [d.name for d in loaded.body] == ["a", "c"]
     [bad] = loaded.unreadable
     assert bad.kind is vl.UnreadableKind.SYNTAX
-    assert bad.node.kind is vl.NodeKind.ERROR
+    assert bad.written.kind == "unreadable"
+    assert bad.written.text == 'b x"y";'
     assert codes(loaded) == ["E2009"]
 
 
@@ -142,9 +150,9 @@ def test_the_root_is_resolved_through_the_source_so_it_has_one_path_and_is_read_
             reads.append(resolved_path)
             return memory.read(resolved_path)
 
-    loaded = vl.Processor(source=Counting(), extensions=[include_extension()]).load("./d/../d/main.conf")
+    loaded = rendered(vl.Processor(source=Counting(), extensions=[include_extension()]), "./d/../d/main.conf")
     assert reads == ["d/main.conf"]
-    assert list(loaded.graph.nodes) == ["d/main.conf"]
+    assert list(loaded.graph.documents) == ["d/main.conf"]
     assert codes(loaded) == ["E1001", "E5006"]
     assert names(loaded) == ["y"]
 
@@ -159,7 +167,7 @@ def test_a_root_the_source_cannot_resolve_to_one_file_raises_e3004_at_the_path_a
 
 
 def test_a_root_the_source_cannot_read_raises_e3004_at_the_root() -> None:
-    with pytest.raises(vl.DiagnosticError) as raised:
+    with pytest.raises(vl.ReadError) as raised:
         processor({}).load("missing.conf")
     d = raised.value.diagnostic
     assert (d.code, d.at.resolved_path, at(d), d.via) == ("E3004", "missing.conf", (0, 0), ())
@@ -183,10 +191,10 @@ def test_the_processor_refuses_an_extension_named_set_snippet_or_use_or_two_of_o
 
 def test_set_snippet_and_use_never_reach_the_body_and_include_is_reserved_only_while_registered() -> None:
     files = {"main.conf": 'set $a 1;\nsnippet s { x $a; }\nblk { use s; }\ninclude "p.conf";\n', "p.conf": "y;\n"}
-    loaded = processor(files, include=True).load("main.conf")
+    loaded = rendered(processor(files, include=True), "main.conf")
     assert codes(loaded) == []
     assert names(loaded) == ["blk", "blk > x", "y"]
-    plain = processor(files).load("main.conf")
+    plain = rendered(processor(files), "main.conf")
     assert names(plain) == ["blk", "blk > x", "include"]
     assert texts(plain.body[1]) == ['"p.conf"']
 
@@ -338,7 +346,7 @@ def test_a_snippet_defined_in_an_inner_block_is_not_visible_after_it() -> None:
 
 def test_an_included_files_top_level_set_and_snippet_are_visible_after_the_include_line() -> None:
     files = {"main.conf": 'include "lib.conf";\nport $p;\nuse s;\n', "lib.conf": "set $p 80;\nsnippet s { x; }\n"}
-    loaded = processor(files, include=True).load("main.conf")
+    loaded = rendered(processor(files, include=True), "main.conf")
     assert codes(loaded) == []
     assert names(loaded) == ["port", "x"]
 
@@ -348,7 +356,7 @@ def test_an_extension_block_set_wins_inside_the_spliced_files_only() -> None:
         "main.conf": 'include "sink.conf" { set $host h1; set $two $host; }\nafter $host;\n',
         "sink.conf": "set $host h0;\ntarget $host $two;\n",
     }
-    loaded = processor(files, include=True).load("main.conf")
+    loaded = rendered(processor(files, include=True), "main.conf")
     assert codes(loaded) == []
     target, after = loaded.body
     assert texts(target) == ["h1", "h1"]
@@ -357,7 +365,7 @@ def test_an_extension_block_set_wins_inside_the_spliced_files_only() -> None:
 
 def test_an_include_whose_block_holds_a_syntax_error_is_unreadable_and_reported_once_by_the_parser() -> None:
     files = {"main.conf": 'include "lib.conf" {\n  set $v x"y";\n}\nz;\n', "lib.conf": "l;\n"}
-    loaded = processor(files, include=True).load("main.conf")
+    loaded = rendered(processor(files, include=True), "main.conf")
     assert codes(loaded) == ["E2009"]
     assert [u.kind for u in loaded.unreadable] == ["syntax"]
     assert names(loaded) == ["z"]
@@ -365,7 +373,7 @@ def test_an_include_whose_block_holds_a_syntax_error_is_unreadable_and_reported_
 
 def test_an_extension_block_holds_only_set_lines() -> None:
     files = {"main.conf": 'include "p.conf" {\n  set $a 1;\n  x 2;\n}\nok;\n', "p.conf": "y;\n"}
-    loaded = processor(files, include=True).load("main.conf")
+    loaded = rendered(processor(files, include=True), "main.conf")
     assert codes(loaded) == ["E5012"]
     assert at(loaded.diagnostics[0]) == (2, 2)
     assert [u.kind for u in loaded.unreadable] == ["extension"]
@@ -383,7 +391,7 @@ def test_an_extension_block_holds_only_set_lines() -> None:
     ],
 )
 def test_include_errors(line: str, code: str, where: tuple[int, int]) -> None:
-    loaded = processor({"main.conf": f"{line}\n", "p.conf": "y;\n"}, include=True).load("main.conf")
+    loaded = rendered(processor({"main.conf": f"{line}\n", "p.conf": "y;\n"}, include=True), "main.conf")
     assert codes(loaded) == [code]
     assert at(loaded.diagnostics[0]) == where
     assert [u.kind for u in loaded.unreadable] == ["extension"]
@@ -398,9 +406,9 @@ def test_memory_source_joins_to_the_parents_directory_and_removes_dot_dot_segmen
 
 def test_an_include_glob_splices_matches_in_code_point_order() -> None:
     files = {"main.conf": 'include "d/*.conf";\n', "d/b.conf": "b;\n", "d/B.conf": "B;\n", "d/a.conf": "a;\n"}
-    loaded = processor(files, include=True).load("main.conf")
+    loaded = rendered(processor(files, include=True), "main.conf")
     assert [d.name for d in loaded.body] == ["B", "a", "b"]
-    assert list(loaded.graph.nodes) == ["main.conf", "d/B.conf", "d/a.conf", "d/b.conf"]
+    assert list(loaded.graph.documents) == ["main.conf", "d/B.conf", "d/a.conf", "d/b.conf"]
 
 
 class _Counting:
@@ -424,12 +432,12 @@ class _Counting:
 
 def test_a_file_included_at_two_places_is_read_once_held_once_and_has_two_edges() -> None:
     source = _Counting({"main.conf": 'a { include "p.conf"; }\nb { include "p.conf"; }\n', "p.conf": "x;\n"})
-    loaded = vl.Processor(source=source, extensions=[include_extension()]).load("main.conf")
+    loaded = rendered(vl.Processor(source=source, extensions=[include_extension()]), "main.conf")
     assert source.reads == ["main.conf", "p.conf"]
-    assert list(loaded.graph.nodes) == ["main.conf", "p.conf"]
-    assert [(e.directive, e.specs, e.targets) for e in loaded.graph.edges] == [
-        ("include", ("p.conf",), ("p.conf",)),
-        ("include", ("p.conf",), ("p.conf",)),
+    assert list(loaded.graph.documents) == ["main.conf", "p.conf"]
+    assert [(e.copy.statement.text, e.specs, e.targets) for e in loaded.graph.edges()] == [
+        ('include "p.conf";', ("p.conf",), ("p.conf",)),
+        ('include "p.conf";', ("p.conf",), ("p.conf",)),
     ]
     assert names(loaded) == ["a", "a > x", "b", "b > x"]
 
@@ -437,7 +445,7 @@ def test_a_file_included_at_two_places_is_read_once_held_once_and_has_two_edges(
 def test_a_source_that_raises_gives_e3004_at_the_extension_directive_and_a_failed_read_is_not_retried() -> None:
     main = 'include "r.conf";\ninclude "p.conf";\ninclude "p.conf";\nok;\n'
     source = _Counting({"main.conf": main, "p.conf": ""}, resolve_fails="r.conf", read_fails="p.conf")
-    loaded = vl.Processor(source=source, extensions=[include_extension()]).load("main.conf")
+    loaded = rendered(vl.Processor(source=source, extensions=[include_extension()]), "main.conf")
     assert codes(loaded) == ["E3004", "E3004", "E3004"]
     assert [at(d) for d in loaded.diagnostics] == [(0, 0), (1, 0), (2, 0)]
     assert source.reads == ["main.conf", "p.conf"]
@@ -451,9 +459,7 @@ def test_an_extension_that_raises_something_else_is_e3006() -> None:
         def specs(self, use: vl.ExtensionUse, /) -> Sequence[str]:
             raise RuntimeError("boom")
 
-    loaded = vl.Processor(source=vl.memory_source({"main.conf": "broken 1;\n"}), extensions=[Broken()]).load(
-        "main.conf"
-    )
+    loaded = rendered(vl.Processor(source=vl.memory_source({"main.conf": "broken 1;\n"}), extensions=[Broken()]))
     assert codes(loaded) == ["E3006"]
 
 
@@ -506,7 +512,7 @@ def test_a_value_rule_broken_at_load_makes_the_directive_unreadable(text: str, c
 
 def test_syntax_diagnostics_of_every_file_come_first_then_load_diagnostics() -> None:
     files = {"main.conf": 'a $x;\ninclude "p.conf";\nb x"y";\n', "p.conf": "c $y;\nd x'z';\n"}
-    loaded = processor(files, include=True).load("main.conf")
+    loaded = rendered(processor(files, include=True), "main.conf")
     assert [(str(d.code), d.at.resolved_path) for d in loaded.diagnostics] == [
         ("E2009", "main.conf"),
         ("E2009", "p.conf"),
@@ -519,41 +525,53 @@ def test_syntax_diagnostics_of_every_file_come_first_then_load_diagnostics() -> 
 
 
 def test_address_text_people_form_and_parent() -> None:
-    loaded = load('g {\n  n a;\n  n b;\n  m;\n  n "é";\n}\n', key=lambda d: d.args[0].text if d.name == "n" else None)
+    loaded = load('g {\n  n a;\n  n b;\n  m;\n  n "é";\n}\n')
+    addresses = loaded.addresses(key=lambda d: d.args[0].text if d.name == "n" else None)
     g = loaded.body[0]
     assert g.body is not None
     _n_a, n_b, m, n_e = g.body
-    assert n_b.address.text == '[["g",null,0],["n","b",0]]'
-    assert str(n_b.address) == 'g > n "b"'
-    assert n_e.address.text == '[["g",null,0],["n","\\"é\\"",0]]'
-    assert n_b.address.parent == g.address
-    assert g.address.parent is None
-    assert str(m.address) == "g > m"
-    assert len({d.address for d in vl.walk(loaded)}) == 5
+    assert addresses[n_b].text == '[["g",null,0],["n","b",0]]'
+    assert str(addresses[n_b]) == 'g > n "b"'
+    assert addresses[n_e].text == '[["g",null,0],["n","\\"é\\"",0]]'
+    assert addresses[n_b].parent == addresses[g]
+    assert addresses[g].parent is None
+    assert str(addresses[m]) == "g > m"
+    assert len(set(addresses.values())) == 5
+    assert list(addresses) == list(vl.walk(loaded))
 
 
 def test_occurrence_counts_earlier_siblings_with_the_same_name_and_key() -> None:
-    loaded = load("a 1;\nb;\na 1;\na 2;\nb;\n", key=lambda d: d.args[0].text if d.args else None)
-    assert [str(d.address) for d in loaded.body] == ['a "1"', "b", 'a "1" #1', 'a "2"', "b #1"]
+    loaded = load("a 1;\nb;\na 1;\na 2;\nb;\n")
+    addresses = loaded.addresses(key=lambda d: d.args[0].text if d.args else None)
+    assert [str(addresses[d]) for d in loaded.body] == ['a "1"', "b", 'a "1" #1', 'a "2"', "b #1"]
 
 
-def test_the_key_rule_sees_expanded_args_has_block_and_its_parents_input_parents_first() -> None:
+def test_without_a_key_rule_a_directive_is_named_by_its_position_among_same_name_siblings() -> None:
+    loaded = load("a 1;\nb;\na 2;\n")
+    assert [str(a) for a in loaded.addresses().values()] == ["a", "b", "a #1"]
+
+
+def test_the_key_rule_sees_the_rendered_directive_parents_first() -> None:
     seen: list[tuple[str, list[str], bool, str | None]] = []
 
-    def key(d: vl.KeyInput) -> str | None:
-        seen.append((d.name, [a.text for a in d.args], d.has_block, None if d.parent is None else d.parent.name))
+    def key(d: vl.Directive) -> str | None:
+        seen.append((d.name, [a.text for a in d.args], d.body is not None, None if d.parent is None else d.parent.name))
         return None
 
-    load("set $id leds;\ngraph {\n  node K $id { x; }\n}\n", key=key)
+    load("set $id leds;\ngraph {\n  node K $id { x; }\n}\n").addresses(key=key)
     assert seen == [("graph", [], True, None), ("node", ["K", "leds"], True, "graph"), ("x", [], False, "node")]
 
 
-def test_an_exception_from_the_key_rule_ends_the_load() -> None:
-    def key(d: vl.KeyInput) -> str | None:
+def test_an_exception_from_the_key_rule_propagates_from_addresses_and_diff() -> None:
+    def key(d: vl.Directive) -> str | None:
         raise LookupError("bad key")
 
+    p = processor({"main.conf": "a;\n"})
+    first = rendered(p)
     with pytest.raises(LookupError, match="bad key"):
-        load("a;\n", key=key)
+        first.addresses(key=key)
+    with pytest.raises(LookupError, match="bad key"):
+        p.diff(first, rendered(p), key=key)
 
 
 # --- diff (criterion 6) ------------------------------------------------------------------------------------------
@@ -576,12 +594,12 @@ class _Swap:
         return self.text
 
 
-def changes(before: str, after: str) -> list[tuple[str, str]]:
+def changes(before: str, after: str, key: vl.KeyRule | None = None) -> list[tuple[str, str]]:
     source = _Swap(before)
     p = vl.Processor(source=source)
-    first = p.load("main.conf")
+    first = rendered(p)
     source.text = after
-    return kinds(p.diff(first, p.load("main.conf")))
+    return kinds(p.diff(first, rendered(p), key=key))
 
 
 def test_diff_lists_added_removed_and_changed_by_values_and_by_having_a_block() -> None:
@@ -613,13 +631,25 @@ def test_diff_compares_canonical_texts_not_the_written_form() -> None:
     assert changes("a 0.5;\n", "a 0.50;\n") == [("changed", "a")]
 
 
-def test_diff_refuses_loads_of_another_processor() -> None:
+def test_diff_names_directives_by_the_key_rule_it_is_given() -> None:
+    def key(d: vl.Directive) -> str | None:
+        return d.args[0].text if d.name == "n" else None
+
+    assert changes("n a 1;\nn b 2;\n", "n b 2;\nn a 1;\n", key=key) == []
+    assert changes("n a 1;\nn b 2;\n", "n b 2;\nn a 1;\n") == [("changed", "n"), ("changed", "n #1")]
+
+
+def test_diff_render_and_read_refuse_the_graphs_and_renders_of_another_processor() -> None:
     one = processor({"main.conf": "a;\n"})
     two = processor({"main.conf": "a;\n"})
     with pytest.raises(ValueError, match="this processor"):
-        one.diff(one.load("main.conf"), two.load("main.conf"))
+        one.diff(rendered(one), rendered(two))
     with pytest.raises(ValueError, match="this processor"):
-        one.diff(two.load("main.conf"), one.load("main.conf"))
+        one.diff(rendered(two), rendered(one))
+    with pytest.raises(ValueError, match="this processor"):
+        one.render(two.load("main.conf"))
+    with pytest.raises(ValueError, match="this processor"):
+        one.read(two.load("main.conf"))
 
 
 def test_diff_accepts_loads_with_diagnostics() -> None:

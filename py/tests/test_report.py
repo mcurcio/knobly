@@ -7,14 +7,20 @@ import pytest
 import villanelle as vl
 from villanelle.include import include
 
+
+def _render(processor: vl.Processor, variables: dict[str, str] | None = None) -> vl.Rendered:
+    """``render(load("main.conf"))``."""
+    return processor.render(processor.load("main.conf", variables=variables))
+
+
 MAIN = "set $pixels 2284;\ngraph {\n  node DdpSink leds { max_count $pixels; }\n}\n"
 
 
-def loaded(text: str = MAIN, variables: dict[str, str] | None = None) -> vl.Loaded:
-    return vl.Processor(source=vl.memory_source({"main.conf": text})).load("main.conf", variables=variables)
+def loaded(text: str = MAIN, variables: dict[str, str] | None = None) -> vl.Rendered:
+    return _render(vl.Processor(source=vl.memory_source({"main.conf": text})), variables=variables)
 
 
-def max_count(load: vl.Loaded) -> vl.Directive:
+def max_count(load: vl.Rendered) -> vl.Directive:
     return next(d for d in vl.walk(load) if d.name == "max_count")
 
 
@@ -83,7 +89,7 @@ def test_an_error_on_a_handed_in_value_is_placed_on_the_name_that_used_it() -> N
 
 def test_format_diagnostic_prints_place_code_message_source_caret_and_via() -> None:
     files = {"main.conf": "snippet s $v {\n  value $v;\n}\nuse s 1;\n", "x.conf": ""}
-    load = vl.Processor(source=vl.memory_source(files), extensions=[include()]).load("main.conf")
+    load = _render(vl.Processor(source=vl.memory_source(files), extensions=[include()]))
     d = load.body[0].args[0].error("too small", code="rasl/small").diagnostic
     assert vl.format_diagnostic(d, load.graph) == (
         "main.conf:4:7: rasl/small: too small\n"
