@@ -1,5 +1,5 @@
 /**
- * The objects a load builds: arguments, addresses, directives and the loaded result. Private to the load layer;
+ * The objects a render builds: arguments, addresses, directives and the rendered result. Private to the package;
  * programs see them through the interfaces of directive.ts and processor.ts.
  */
 
@@ -8,9 +8,9 @@ import type { INode } from "../syntax/cst.js";
 import type { IIndexValue, ISliceValue } from "../value.js";
 import { ValueKind } from "../value.js";
 import type { IAddress, IAddressStep, IArgument, IDirective, IUnreadable, PlainValue, WalkControl } from "./directive.js";
-import type { IDocumentGraph } from "./graph.js";
+import type { IDocumentGraph, IReferenceResolution, WrittenValue } from "../written/model.js";
 import type { IDirectiveOrigin, IOrigin, IStep } from "./origin.js";
-import type { ILoaded } from "./processor.js";
+import type { IRendered } from "./processor.js";
 import type { ILocatedDiagnostic, ProgramCode } from "./report.js";
 import { codeError, programError } from "./locate.js";
 import { booleanOf, canonicalList, canonicalSlice, canonicalString, integerOf, numberOf } from "./values.js";
@@ -46,6 +46,10 @@ export class Argument implements IArgument {
   constructor(
     private readonly data: ArgumentData,
     readonly origin: IOrigin,
+    /** The written value at the end of its chain; undefined when handed in. */
+    readonly written: WrittenValue | undefined = undefined,
+    /** One per variable step of `origin.via`, the `$name` on the directive's own line first (D7). */
+    readonly resolutions: readonly IReferenceResolution[] = [],
   ) {
     this.kind = data.kind;
     this.text = textOf(data);
@@ -54,13 +58,15 @@ export class Argument implements IArgument {
   /**
    * The same value having travelled further: the last `drop` steps of its origin (and of each list item's) are
    * replaced by `append`. A variable's value is stored with `drop` = the set line's own steps, and read with
-   * `append` = the variable step and the reading place's steps.
+   * `append` = the variable step and the reading place's steps, and that `$name`'s `resolution` first.
    */
-  rebase(drop: number, append: readonly IStep[]): Argument {
+  rebase(drop: number, append: readonly IStep[], resolution?: IReferenceResolution): Argument {
     const via = [...this.origin.via.slice(0, this.origin.via.length - drop), ...append];
     const origin: IOrigin = { written: this.origin.written, via };
-    const data = this.data.kind === ValueKind.List ? { ...this.data, items: this.data.items.map((i) => i.rebase(drop, append)) } : this.data;
-    return new Argument(data, origin);
+    const data =
+      this.data.kind === ValueKind.List ? { ...this.data, items: this.data.items.map((i) => i.rebase(drop, append, resolution)) } : this.data;
+    const resolutions = resolution === undefined ? this.resolutions : [resolution, ...this.resolutions];
+    return new Argument(data, origin, this.written, resolutions);
   }
 
   /** The word's text when this is a word; undefined otherwise. Used by the load for variable slice bounds. */
@@ -196,7 +202,7 @@ export class Directive implements IDirective {
   }
 }
 
-export class Loaded implements ILoaded {
+export class Rendered implements IRendered {
   constructor(
     readonly body: readonly IDirective[],
     readonly unreadable: readonly IUnreadable[],

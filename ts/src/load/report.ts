@@ -5,7 +5,7 @@
  */
 
 import { type DiagnosticCode, DiagnosticError } from "../diagnostics.js";
-import type { IDocumentGraph } from "./graph.js";
+import type { IDocumentGraph } from "../written/model.js";
 import type { IPlace, IStep } from "./origin.js";
 
 /**
@@ -35,13 +35,13 @@ export interface ILocatable {
 }
 
 /**
- * The one place problems collect. A program starts it with `loaded.diagnostics`, reports its own problems into
+ * The one place problems collect. A program starts it with `rendered.diagnostics`, reports its own problems into
  * it, and runs reads through `collect` so a reader's DiagnosticError is recorded instead of ending the program.
  */
 export class Diagnostics implements Iterable<ILocatedDiagnostic> {
   private readonly items: ILocatedDiagnostic[];
 
-  /** Start with these, in order (usually `loaded.diagnostics`). */
+  /** Start with these, in order (usually `rendered.diagnostics`). */
   constructor(initial?: Iterable<ILocatedDiagnostic>) {
     this.items = [...(initial ?? [])];
   }
@@ -92,13 +92,13 @@ function where(at: IPlace): string {
 
 /**
  * `path:line:col: code: message` (1-based line and column, for people), then the source line and a caret under the
- * span when `graph` holds the file, then one `  via <kind> <name> at path:line:col` line per step (rasl-ynq).
- * Reads text only from `graph`; never does I/O.
+ * span when `graph` holds the file (its current text), then one `  via <kind> <name> at path:line:col` line per
+ * step (rasl-ynq). Reads text only from `graph`; never does I/O.
  */
 export function formatDiagnostic(diagnostic: ILocatedDiagnostic, graph?: IDocumentGraph): string {
   const { at, via } = diagnostic;
   const lines = [`${where(at)}: ${diagnostic.code}: ${diagnostic.message}`];
-  const source = graph?.nodes.get(at.resolvedPath)?.source;
+  const source = graph?.documents.get(at.resolvedPath)?.text;
   if (source !== undefined) {
     const { start, end } = at.span;
     const lineStart = start.offset - start.column;

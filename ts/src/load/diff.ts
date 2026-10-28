@@ -4,7 +4,7 @@
  */
 
 import type { IDirective, IUnreadable } from "./directive.js";
-import type { Change, ILoaded } from "./processor.js";
+import type { Change, IRendered } from "./processor.js";
 
 /** A directive's own state for "changed": its values' canonical texts and whether it has a block. */
 function sameOwn(before: IDirective, after: IDirective): boolean {
@@ -16,7 +16,7 @@ function sameOwn(before: IDirective, after: IDirective): boolean {
 }
 
 /** Every directive of a load by address text. */
-function byAddress(loaded: ILoaded): ReadonlyMap<string, IDirective> {
+function byAddress(loaded: IRendered): ReadonlyMap<string, IDirective> {
   const map = new Map<string, IDirective>();
   loaded.walk((directive) => {
     map.set(directive.address.text, directive);
@@ -28,7 +28,7 @@ function byAddress(loaded: ILoaded): ReadonlyMap<string, IDirective> {
  * Removed and unknown in `before`'s walk order, then added and changed in `after`'s. A directive only on one side
  * is listed alone (its block is not walked); one on both sides has its block compared at its own addresses.
  */
-export function diff(before: ILoaded, after: ILoaded): readonly Change[] {
+export function diff(before: IRendered, after: IRendered): readonly Change[] {
   const beforeMap = byAddress(before);
   const afterMap = byAddress(after);
   const changes: Change[] = [];

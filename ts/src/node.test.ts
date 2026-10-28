@@ -4,9 +4,10 @@ import { join, relative } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { save } from "./graph/save.js";
+import { save } from "./written/save.js";
 import { include } from "./include.js";
 import { villanelle } from "./load/processor.js";
+import { rendered } from "./load/testing.js";
 import { createFileSource, createFsWriter } from "./node.js";
 
 describe("villanelle/node", () => {
@@ -29,10 +30,10 @@ describe("villanelle/node", () => {
 
   it("resolves specs against the including file's directory and splices glob matches in code-point order", async () => {
     const root = join(dir, "root.conf");
-    const loaded = await villanelle({ source: createFileSource(), extensions: [include()] }).load(root);
+    const loaded = await rendered(villanelle({ source: createFileSource(), extensions: [include()] }), root);
     expect(loaded.diagnostics).toEqual([]);
     // Files only (the sub.conf directory is skipped); the [ ] in a file name match themselves.
-    const [glob, plain] = loaded.graph.edges;
+    const [glob, plain] = loaded.graph.edges();
     expect(glob?.targets).toEqual(["C.conf", "a.conf", "b.conf", "x[1].conf", "é.conf"].map((name) => join(dir, "conf.d", name)));
     expect(plain?.targets).toEqual([join(dir, "plain.conf")]);
     expect(loaded.body.map((d) => d.args[0]?.text)).toEqual(['"C.conf"', '"a.conf"', '"b.conf"', '"x[1].conf"', '"é.conf"', "1"]);
@@ -40,8 +41,8 @@ describe("villanelle/node", () => {
 
   it("resolves a relative root through the source, so the root has one path and is read once", async () => {
     await writeFile(join(dir, "self.conf"), 'x "1;\ninclude "self.conf";\ny 1;\n');
-    const loaded = await villanelle({ source: createFileSource(), extensions: [include()] }).load(relative(process.cwd(), join(dir, "self.conf")));
-    expect([...loaded.graph.nodes.keys()]).toEqual([join(dir, "self.conf")]);
+    const loaded = await rendered(villanelle({ source: createFileSource(), extensions: [include()] }), relative(process.cwd(), join(dir, "self.conf")));
+    expect([...loaded.graph.documents.keys()]).toEqual([join(dir, "self.conf")]);
     expect(loaded.diagnostics.map((d) => d.code)).toEqual(["E1001", "E5006"]);
     expect(loaded.body.map((d) => d.name)).toEqual(["y"]);
   });
@@ -59,19 +60,19 @@ describe("villanelle/node", () => {
     expect(await source.resolve("nodir/*.conf", context)).toEqual([]);
     expect(await source.resolve("conf.d/sub.conf", context)).toEqual([]);
     await expect(source.read(join(dir, "missing.conf"))).rejects.toThrow(/ENOENT/);
-    const loaded = await villanelle({ source, extensions: [include()] }).load(join(dir, "plain.conf"));
+    const loaded = await rendered(villanelle({ source, extensions: [include()] }), join(dir, "plain.conf"));
     expect(loaded.diagnostics).toEqual([]);
     await writeFile(join(dir, "missing-include.conf"), 'include "missing.conf";\n');
-    const missing = await villanelle({ source, extensions: [include()] }).load(join(dir, "missing-include.conf"));
+    const missing = await rendered(villanelle({ source, extensions: [include()] }), join(dir, "missing-include.conf"));
     expect(missing.diagnostics.map((d) => d.code)).toEqual(["E3001"]);
   });
 
   it("writes text back with the fs writer, and save writes nothing for an unchanged load", async () => {
     const path = join(dir, "written.conf");
-    await createFsWriter().write(path, "w 1;\n");
+    await createFsWriter().write([{ resolvedPath: path, text: "w 1;\n", source: "" }]);
     expect(await readFile(path, "utf8")).toBe("w 1;\n");
-    const loaded = await villanelle({ source: createFileSource() }).load(path);
-    await save(loaded.graph, createFsWriter());
+    const graph = await villanelle({ source: createFileSource() }).load(path);
+    expect(await save(graph, createFsWriter())).toEqual([]);
     expect(await readFile(path, "utf8")).toBe("w 1;\n");
   });
 });

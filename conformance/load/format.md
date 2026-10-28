@@ -17,13 +17,15 @@ the rules, never a reason to rewrite the file.
 - `name`: unique; the expected output is `conformance/load/expected/<name>.json`.
 - `needs`: a subset of `["snippet", "include", "diff", "key"]`: what the case uses beyond `set` and `$name`. A
   runner may skip a case that needs something its language does not implement yet.
-- `files`: path to text. Every runner serves them with `memorySource(files)` / `memory_source(files)`.
+- `files`: path to text. Every runner serves them with `memorySource(files)` / `memory_source(files)`, loads the
+  graph and renders it: `render(load(root))` (TypeScript: `processor.render(await processor.load(root))`).
 - `root`: the path loaded.
 - `variables`: handed in to the load, by name without `$`.
-- `key`: absent (no key rule) or `"rasl"` (below).
+- `key`: absent (no key rule) or `"rasl"` (below): the key rule the runner names directives with, wherever its
+  language takes it.
 - `extensions`: absent (none) or `["include"]` (the include extension).
-- `after`: path to replacement text for a second load by the same processor (other files unchanged); the
-  expected output's `changes` are `diff(first, second)`.
+- `after`: path to replacement text for a second load and render by the same processor (other files unchanged);
+  the expected output's `changes` are `diff(first, second)` of the two renders.
 
 The `"rasl"` key rule (both runners implement exactly this): a `node` directive whose parent is `graph` is keyed
 by its second argument's text; `connect` by its arguments' texts joined by one space; `fill` by its first
@@ -31,7 +33,7 @@ argument's text; everything else has no key.
 
 ## Expected output
 
-One JSON object of the first load, with exactly these keys in this order:
+One JSON object of the first render, with exactly these keys in this order:
 
 ```
 {"files":[path,...],
@@ -41,13 +43,13 @@ One JSON object of the first load, with exactly these keys in this order:
  "changes":[[kind, address],...]}
 ```
 
-- `files`: the graph's file paths in first-read order.
+- `files`: the graph's document paths in first-read order.
 - `directives`: every directive in walk order (depth-first, written order). `address` is the people form
   (`graph > node "leds" > max_count`); `block` is whether it was written with a block; then the directive's
   origin; then each argument's canonical text and origin.
 - `unreadable`: the top level's unreadable statements first (`containerAddress` `""`), then each directive's, the
   directives taken in walk order; within one container, in the order they stand.
-- `diagnostics`: the load's diagnostics in order, each origin built from its `at` and `via`.
+- `diagnostics`: the render's diagnostics in order, each origin built from its `at` and `via`.
 - `changes`: present only when the case has `after`: `[kind, address]` per change, in `diff`'s order.
 
 An origin is one string: the written place as `path:line:col` (0-based line, UTF-16 column, the span's start), or

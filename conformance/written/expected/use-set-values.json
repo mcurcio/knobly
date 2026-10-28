@@ -1,0 +1,1 @@
+[["ok"],[["main.conf","snippet s $p {\n    x $p;\n}\nuse s 2;\n"]],{"directives":[["x",false,"main.conf:1:4 < use s main.conf:3:0",[["2","main.conf:3:6 < variable p main.conf:1:6 < use s main.conf:3:0","main.conf:3:6",[["main.conf:1:6 < use s main.conf:3:0","main.conf:0:10"]]]]]],"unreadable":[],"diagnostics":[]}]

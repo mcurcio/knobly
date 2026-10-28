@@ -9,7 +9,7 @@ import { include } from "../include.js";
 import type { IExtension } from "./processor.js";
 import { villanelle } from "./processor.js";
 import { memorySource } from "./source.js";
-import { addresses, countingSource, loadFiles, loadText, only, originText, problems, texts } from "./testing.js";
+import { addresses, countingSource, loadFiles, loadText, only, originText, problems, rendered, texts } from "./testing.js";
 
 const INCLUDE = { extensions: [include()] };
 
@@ -286,16 +286,16 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
 
   it("reads a file included at two places once: one graph node, two edges (R21)", async () => {
     const { source, reads } = countingSource({ "main.conf": 'a { include "p.conf"; }\nb { include "p.conf"; }\n', "p.conf": "x 1;\n" });
-    const loaded = await villanelle({ source, extensions: [include()] }).load("main.conf");
+    const loaded = await rendered(villanelle({ source, extensions: [include()] }), "main.conf");
     expect(loaded.diagnostics).toEqual([]);
     expect([...reads]).toEqual([
       ["main.conf", 1],
       ["p.conf", 1],
     ]);
-    expect([...loaded.graph.nodes.keys()]).toEqual(["main.conf", "p.conf"]);
-    expect(loaded.graph.edges.map((e) => [e.directive, originText(e.origin), e.specs, e.targets])).toEqual([
-      ["include", "main.conf:0:4", ["p.conf"], ["p.conf"]],
-      ["include", "main.conf:1:4", ["p.conf"], ["p.conf"]],
+    expect([...loaded.graph.documents.keys()]).toEqual(["main.conf", "p.conf"]);
+    expect(loaded.graph.edges().map((e) => [e.copy.statement.kind, originText({ written: e.copy.statement.place, via: e.copy.via }), e.specs, e.targets])).toEqual([
+      ["extension", "main.conf:0:4", ["p.conf"], ["p.conf"]],
+      ["extension", "main.conf:1:4", ["p.conf"], ["p.conf"]],
     ]);
     expect(addresses(loaded)).toEqual(["a", "a > x", "b", "b > x"]);
   });
@@ -304,14 +304,14 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
     const files = { "main.conf": 'include "d/*.conf";\n', "d/b.conf": "b;\n", "d/B.conf": "B;\n", "d/a.conf": "a;\n", "d/é.conf": "e;\n" };
     const loaded = await loadFiles(files, INCLUDE);
     expect(addresses(loaded)).toEqual(["B", "a", "b", "e"]);
-    expect(loaded.graph.edges[0]?.targets).toEqual(["d/B.conf", "d/a.conf", "d/b.conf", "d/é.conf"]);
+    expect(loaded.graph.edges()[0]?.targets).toEqual(["d/B.conf", "d/a.conf", "d/b.conf", "d/é.conf"]);
   });
 
   it("gives E3001 when a spec matches nothing and E3004 when the source rejects, at the directive's name", async () => {
     const missing = await loadFiles({ "main.conf": 'x {\n  include "nope.conf";\n}\n' }, INCLUDE);
     expect(problems(missing.diagnostics)).toEqual([["E3001", "main.conf:1:2"]]);
     expect(missing.body[0]?.unreadable.map((u) => u.kind)).toEqual(["extension"]);
-    expect(missing.graph.edges[0]?.targets).toEqual([]);
+    expect(missing.graph.edges()[0]?.targets).toEqual([]);
 
     const failing = (resolve: boolean): ReturnType<typeof memorySource> => ({
       resolve: (spec) =>
@@ -319,7 +319,7 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
       read: (path) => (path === "main.conf" ? Promise.resolve('include "other";\n') : Promise.reject(new Error("gone"))),
     });
     for (const resolve of [false, true]) {
-      const loaded = await villanelle({ source: failing(resolve), extensions: [include()] }).load("main.conf");
+      const loaded = await rendered(villanelle({ source: failing(resolve), extensions: [include()] }), "main.conf");
       expect(problems(loaded.diagnostics)).toEqual([["E3004", "main.conf:0:0"]]);
       expect(loaded.diagnostics[0]?.message).toContain(resolve ? "gone" : "network down");
       expect(loaded.unreadable.map((u) => u.kind)).toEqual(["extension"]);

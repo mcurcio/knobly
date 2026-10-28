@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createFetchSource, createFetchWriter } from "./browser.js";
 import { include } from "./include.js";
 import { villanelle } from "./load/processor.js";
+import { rendered } from "./load/testing.js";
 
 /** A fetch over a map of URL to body that records every call. */
 const fakeFetch = (
@@ -13,7 +14,8 @@ const fakeFetch = (
     const url = input instanceof Request ? input.url : input.toString();
     calls.push([url, init]);
     const body = pages[url];
-    return Promise.resolve(body === undefined ? new Response("nope", { status: 404 }) : new Response(body));
+    const write = init?.method !== undefined && init.method !== "GET";
+    return Promise.resolve(body === undefined && !write ? new Response("nope", { status: 404 }) : new Response(body ?? ""));
   };
   return { calls, fetchImpl };
 };
@@ -25,9 +27,9 @@ describe("villanelle/browser", () => {
       "https://h.test/conf/a.conf": 'include "../b.conf";',
       "https://h.test/b.conf": "b 1;",
     });
-    const loaded = await villanelle({ source: createFetchSource(fetchImpl), extensions: [include()] }).load("https://h.test/root.conf");
+    const loaded = await rendered(villanelle({ source: createFetchSource(fetchImpl), extensions: [include()] }), "https://h.test/root.conf");
     expect(loaded.diagnostics).toEqual([]);
-    expect([...loaded.graph.nodes.keys()]).toEqual(["https://h.test/root.conf", "https://h.test/conf/a.conf", "https://h.test/b.conf"]);
+    expect([...loaded.graph.documents.keys()]).toEqual(["https://h.test/root.conf", "https://h.test/conf/a.conf", "https://h.test/b.conf"]);
     expect(loaded.body.map((d) => d.name)).toEqual(["b"]);
   });
 
@@ -42,13 +44,30 @@ describe("villanelle/browser", () => {
     expect(calls.map(([url]) => url)).toEqual(["https://h.test/missing.conf"]);
   });
 
-  it("writes with PUT text/plain by default, or the given method and content type", async () => {
+  it("writes with PUT text/plain by default, or the given method and content type, one request per file", async () => {
     const { calls, fetchImpl } = fakeFetch({});
-    await createFetchWriter(fetchImpl).write("https://h.test/a", "a;");
-    await createFetchWriter(fetchImpl, { method: "POST", contentType: "text/x-conf" }).write("https://h.test/b", "b;");
+    await createFetchWriter(fetchImpl).write([
+      { resolvedPath: "https://h.test/a", text: "a;", source: "" },
+      { resolvedPath: "https://h.test/c", text: "c;", source: "" },
+    ]);
+    await createFetchWriter(fetchImpl, { method: "POST", contentType: "text/x-conf" }).write([{ resolvedPath: "https://h.test/b", text: "b;", source: "" }]);
     expect(calls).toEqual([
       ["https://h.test/a", { method: "PUT", headers: { "content-type": "text/plain" }, body: "a;" }],
+      ["https://h.test/c", { method: "PUT", headers: { "content-type": "text/plain" }, body: "c;" }],
       ["https://h.test/b", { method: "POST", headers: { "content-type": "text/x-conf" }, body: "b;" }],
     ]);
+  });
+
+  it("rejects on the first failed request, sending none after it", async () => {
+    const calls: string[] = [];
+    const fetchImpl = (input: string | URL | Request): Promise<Response> => {
+      const url = input instanceof Request ? input.url : input.toString();
+      calls.push(url);
+      return Promise.resolve(new Response("no", { status: url.endsWith("/a") ? 500 : 200 }));
+    };
+    const writer = createFetchWriter(fetchImpl);
+    const files = ["a", "b"].map((n) => ({ resolvedPath: `https://h.test/${n}`, text: `${n};`, source: "" }));
+    await expect(writer.write(files)).rejects.toThrow(/500/);
+    expect(calls).toEqual(["https://h.test/a"]);
   });
 });

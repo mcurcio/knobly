@@ -11,8 +11,9 @@ import { describe, expect, it } from "vitest";
 import { include } from "../include.js";
 import { createFileSource } from "../node.js";
 import type { IDirective, KeyRule } from "./directive.js";
-import { type ILoaded, villanelle } from "./processor.js";
+import { type IRendered, villanelle } from "./processor.js";
 import type { IDocumentSource } from "./source.js";
+import { rendered } from "./testing.js";
 
 const FIXTURES = new URL("../../../fixtures/rasl/", import.meta.url);
 
@@ -50,7 +51,7 @@ function source(): { source: IDocumentSource; edit: () => void } {
   };
 }
 
-function nodeIds(loaded: ILoaded): string[] {
+function nodeIds(loaded: IRendered): string[] {
   const ids: string[] = [];
   loaded.walk((d: IDirective) => {
     if (d.name === "node" && d.parent?.name === "graph") ids.push(d.args[1]?.text ?? "");
@@ -67,18 +68,18 @@ describe("rasl's configs", () => {
     const processor = villanelle({ source: files, extensions: [include()], key: RASL_KEY });
     const path = fileURLToPath(new URL(name, FIXTURES));
     const options = { variables: HANDED };
-    const first = await processor.load(path, options);
+    const first = await rendered(processor, path, options);
     expect(first.diagnostics).toEqual(expected.diagnostics);
     expect(nodeIds(first)).toEqual(expected.nodes);
     edit();
-    const second = await processor.load(path, options);
+    const second = await rendered(processor, path, options);
     expect(processor.diff(first, second).map((c) => [c.kind, c.address.toString()])).toEqual(expected.changes);
   });
 
   it("splits one sink file over two places, each with its own include-block values and the handed-in host", async () => {
     const processor = villanelle({ source: createFileSource(), extensions: [include()], key: RASL_KEY });
     const path = fileURLToPath(new URL("split/main.conf", FIXTURES));
-    const loaded = await processor.load(path, { variables: HANDED });
+    const loaded = await rendered(processor, path, { variables: HANDED });
     const targets: [string, string][] = [];
     loaded.walk((d) => {
       if (d.name === "target") targets.push([d.address.toString(), d.args[0]?.text ?? ""]);
@@ -87,10 +88,10 @@ describe("rasl's configs", () => {
       ['graph > node "leds" > target', '"10.0.70.1"'],
       ['graph > node "porch" > target', '"10.0.60.31"'],
     ]);
-    expect([...loaded.graph.nodes.keys()]).toEqual([path, fileURLToPath(new URL("split/sink.conf", FIXTURES))]);
-    expect(loaded.graph.edges).toHaveLength(2);
+    expect([...loaded.graph.documents.keys()]).toEqual([path, fileURLToPath(new URL("split/sink.conf", FIXTURES))]);
+    expect(loaded.graph.edges()).toHaveLength(2);
     // Without the handed-in value, the file's own default is used.
-    const plain = await processor.load(path);
+    const plain = await rendered(processor, path);
     let host = "";
     plain.walk((d) => {
       if (d.name === "target" && host === "") host = d.args[0]?.text ?? "";

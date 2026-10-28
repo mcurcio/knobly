@@ -6,8 +6,8 @@ import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 
 import { globToRegExp, hasGlob } from "./graph/glob.js";
-import type { IDocumentWriter } from "./graph/save.js";
 import type { IDocumentSource } from "./load/source.js";
+import type { IDocumentWriter } from "./written/model.js";
 
 /**
  * A document source over the filesystem. `read` reads a path as given, as UTF-8; `resolve` joins a spec to the
@@ -51,11 +51,14 @@ function isMissing(error: unknown): boolean {
   return code === "ENOENT" || code === "ENOTDIR";
 }
 
-/** A writer that replaces the file at resolvedPath with the text, as UTF-8. */
+/**
+ * A writer that replaces each file at its resolvedPath with its text, as UTF-8, in batch order. Not all-or-nothing
+ * yet: a failure part way leaves the earlier files written (slices.md S2 adds the lost-update check and staging).
+ */
 export function createFsWriter(): IDocumentWriter {
   return {
-    async write(resolvedPath, source) {
-      await writeFile(resolvedPath, source, "utf8");
+    async write(files) {
+      for (const file of files) await writeFile(file.resolvedPath, file.text, "utf8");
     },
   };
 }

@@ -8,7 +8,7 @@ import type { IDirective, IKeyInput, KeyRule } from "./directive.js";
 import type { IProcessor } from "./processor.js";
 import { villanelle } from "./processor.js";
 import { type IDocumentSource, memorySource } from "./source.js";
-import { addresses, loadText, processorOf } from "./testing.js";
+import { addresses, loadText, processorOf, rendered } from "./testing.js";
 
 const RASL_KEY: KeyRule = (d) => (d.name === "node" && d.parent?.name === "graph" ? d.args[1]?.text : undefined);
 
@@ -25,9 +25,9 @@ function changing(text: () => string, key?: KeyRule): IProcessor {
 async function changes(before: string, after: string, key?: KeyRule): Promise<[string, string][]> {
   let text = before;
   const processor = changing(() => text, key);
-  const first = await processor.load("main.conf");
+  const first = await rendered(processor, "main.conf");
   text = after;
-  const second = await processor.load("main.conf");
+  const second = await rendered(processor, "main.conf");
   return processor.diff(first, second).map((c) => [c.kind, c.address.toString()]);
 }
 
@@ -163,8 +163,8 @@ describe("diff", () => {
   it("refuses loads of another processor with a TypeError", async () => {
     const one = processorOf({ "main.conf": "a;\n" });
     const other = processorOf({ "main.conf": "a;\n" });
-    const a = await one.load("main.conf");
-    const b = await other.load("main.conf");
+    const a = await rendered(one, "main.conf");
+    const b = await rendered(other, "main.conf");
     expect(() => one.diff(a, b)).toThrow(TypeError);
     expect(() => one.diff(b, a)).toThrow(TypeError);
     expect(one.diff(a, a)).toEqual([]);
@@ -173,9 +173,9 @@ describe("diff", () => {
   it("gives each change its directives", async () => {
     let text = "a 1;\nb;\n";
     const processor = changing(() => text);
-    const first = await processor.load("main.conf");
+    const first = await rendered(processor, "main.conf");
     text = "a 2;\nc;\n";
-    const second = await processor.load("main.conf");
+    const second = await rendered(processor, "main.conf");
     const [removed, changed, added] = processor.diff(first, second);
     expect(removed).toMatchObject({ kind: "removed", before: first.body[1] });
     expect(changed).toMatchObject({ kind: "changed", before: first.body[0], after: second.body[0] });

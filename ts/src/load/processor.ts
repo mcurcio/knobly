@@ -1,24 +1,21 @@
 /**
- * Loading and change lists (R15 tier 2). A processor is made once with its document source, extensions and key
- * rule, as `postcss([plugins])` is; `load` reads a root file and everything it splices in; `diff` compares two loads
- * of the same processor by address.
+ * Loading, rendering and change lists (R15 tier 2; round 12 design.md §5). A processor is made once with its
+ * document source, extensions and key rule, as `postcss([plugins])` is; `load` reads a root file and everything
+ * it includes into a document graph (the files as written); `render` builds the rendered tree from the graph's
+ * current texts; `diff` compares two renders of the same processor by address.
  */
 
-import { DiagnosticCode, DiagnosticError } from "../diagnostics.js";
-import type { ISourceSpan } from "../span.js";
-import { NodeKind } from "../syntax/cst.js";
-import { parse } from "../syntax/parse.js";
-import { messageOf } from "../syntax/recovery.js";
-import { TokenKind } from "../syntax/tokens.js";
-import { anatomyOf } from "./anatomy.js";
+import type { DiagnosticError } from "../diagnostics.js";
+import { RESERVED } from "../written/bind.js";
+import { DocumentGraph } from "../written/graph.js";
+import type { IDocumentGraph } from "../written/model.js";
+import { loadGraph } from "../written/read.js";
 import { diff } from "./diff.js";
 import type { IAddress, IArgument, IDirective, IUnreadable, KeyRule, WalkControl } from "./directive.js";
-import { Expander, type IText, Problem, RESERVED, Scope } from "./expand.js";
-import type { IDocumentGraph } from "./graph.js";
-import type { IDirectiveOrigin, IPlace } from "./origin.js";
+import type { IDirectiveOrigin } from "./origin.js";
+import { render } from "./render.js";
 import type { ILocatedDiagnostic, ProgramCode } from "./report.js";
 import type { IDocumentSource } from "./source.js";
-import { type Argument, Loaded } from "./tree.js";
 
 /** One use of an extension directive, as the extension sees it. */
 export interface IExtensionUse {
@@ -59,16 +56,20 @@ export interface ILoadOptions {
   readonly variables?: Readonly<Record<string, string>>;
 }
 
-/** What one load produced. Problems are diagnostics; the root file owns the top level, as a directive its block. */
-export interface ILoaded {
+/**
+ * The rendered tree of one graph (PR 3's `ILoaded`, renamed). Problems are diagnostics; the root file owns the top
+ * level, as a directive its block.
+ */
+export interface IRendered {
   /** The top-level readable directives, expanded. */
   readonly body: readonly IDirective[];
   /** Top-level statements that could not be read (R6: their siblings stay). */
   readonly unreadable: readonly IUnreadable[];
   /** The root file at 0:0, zero width: where a problem with no line of its own is placed. */
   readonly origin: IDirectiveOrigin;
-  /** Every file's syntax diagnostics (files in first-read order), then expansion problems in expansion order. */
+  /** PR 3's content and order (D11): every file's syntax diagnostics (documents in order), then the walk's problems in walk order. */
   readonly diagnostics: readonly ILocatedDiagnostic[];
+  /** The graph it was rendered from. */
   readonly graph: IDocumentGraph;
 
   /** Every directive, depth-first in written order; see WalkControl. */
@@ -113,129 +114,63 @@ export interface IUnknown {
 }
 
 /**
- * One difference between two loads. An added, removed or unknown directive is listed alone, never with the
+ * One difference between two renders. An added, removed or unknown directive is listed alone, never with the
  * directives inside it (`walk` it); a changed one's block is compared at its own addresses.
  */
 export type Change = IAdded | IRemoved | IChanged | IUnknown;
 
 export interface IProcessor {
   /**
-   * Read the root file at `path` (as the source names it) and everything it splices in. `path` is resolved through
-   * the source first, as an included file's spec is, so the root has one path in the graph. Never rejects for anything
-   * in the text. @throws (rejects) DiagnosticError E3004 placed at the root file when the source cannot read it;
-   * TypeError for bad handed-in variables; whatever the key rule throws.
+   * Read the root file at `path` (resolved through the source, as an included file's spec is, so the root has one
+   * path in the graph) and every file its include lines name, once each (R21), repeating until nothing new is named.
+   * Never rejects for anything in the text.
+   * @throws (rejects) DiagnosticError E3004 at the root path when the source cannot resolve or read it; TypeError
+   * for bad handed-in variables
    */
-  load(path: string, options?: ILoadOptions): Promise<ILoaded>;
+  load(path: string, options?: ILoadOptions): Promise<IDocumentGraph>;
   /**
-   * What differs between two loads of this processor, by address: removed and unknown in `before`'s walk order, then
-   * added and changed in `after`'s. A directive missing from `after` is "unknown", not "removed", when its block in
-   * `after` (or the top level) holds an unreadable statement.
-   * @throws TypeError when either load came from another processor.
+   * The rendered tree of the graph's current texts and handed-in values. Pure: reads no file; an unread include copy
+   * renders as nothing (its edge is in `graph.unread()`). Whatever the key rule throws propagates.
+   * @throws TypeError for a graph another processor made
    */
-  diff(before: ILoaded, after: ILoaded): readonly Change[];
+  render(graph: IDocumentGraph): IRendered;
+  /**
+   * What differs between two renders of this processor, by address: removed and unknown in `before`'s walk order,
+   * then added and changed in `after`'s. A directive missing from `after` is "unknown", not "removed", when its block
+   * in `after` (or the top level) holds an unreadable statement.
+   * @throws TypeError when either render came from another processor.
+   */
+  diff(before: IRendered, after: IRendered): readonly Change[];
 }
 
 /** Make a processor once, with its document source, extensions and key rule. */
 export function villanelle(options: IProcessorOptions): IProcessor {
   const { source, key } = options;
-  const extensions = [...(options.extensions ?? [])];
-  const names = new Set<string>();
-  for (const extension of extensions) {
-    if (RESERVED.has(extension.directive) || names.has(extension.directive)) {
+  const extensions = new Map<string, IExtension>();
+  for (const extension of options.extensions ?? []) {
+    if (RESERVED.has(extension.directive) || extensions.has(extension.directive)) {
       throw new TypeError(`extension directive name taken: ${JSON.stringify(extension.directive)}`);
     }
-    names.add(extension.directive);
+    extensions.set(extension.directive, extension);
   }
-  /** The loads this processor made: `diff` compares only those (one key rule, one set of extensions). */
-  const made = new WeakSet<ILoaded>();
+  /** The graphs and renders this processor made: `render` and `diff` take only those (one key rule, one set of extensions). */
+  const graphs = new WeakSet<IDocumentGraph>();
+  const renders = new WeakSet<IRendered>();
   return {
-    async load(written, loadOptions) {
-      const handed = readHanded(loadOptions?.variables ?? {});
-      const expander = new Expander(source, extensions, handed, key);
-      const fail = (reason: string): DiagnosticError => {
-        const code = DiagnosticCode.IncludeResolverFailed;
-        const at = { kind: "file", resolvedPath: written, span: { start: START, end: START } } as const;
-        return new DiagnosticError({ code, message: `${messageOf(code)}: ${written}: ${reason}`, at, via: [] });
-      };
-      // The root is resolved through the source as an included file's spec is (F1-04), so one file has one path.
-      let paths: readonly string[];
-      try {
-        paths = await source.resolve(written, { parentPath: "" });
-      } catch (error) {
-        throw fail(reasonOf(error));
-      }
-      const [path] = paths;
-      if (path === undefined || paths.length > 1) {
-        throw fail(paths.length === 0 ? "no such file" : `names ${String(paths.length)} files`);
-      }
-      let file;
-      try {
-        file = await expander.read(path);
-      } catch (error) {
-        throw fail(reasonOf(error));
-      }
-      const top = { body: [] as IDirective[], unreadable: [] as IUnreadable[] };
-      await expander.root(file, top);
-      const nodes = expander.nodes;
-      const root = nodes.get(path);
-      if (root === undefined) throw new Error(`root file not in the graph: ${path}`);
-      const syntaxDiagnostics = [...nodes.values()].flatMap((node) =>
-        node.syntax.diagnostics.map((d) => ({ code: d.code, message: d.message, at: place(node.resolvedPath, d.span), via: [] })),
-      );
-      const graph: IDocumentGraph = { root, nodes, edges: expander.edges };
-      const origin = { written: place(path, { start: START, end: START }), via: [] };
-      const loaded = new Loaded(top.body, top.unreadable, origin, [...syntaxDiagnostics, ...expander.diagnostics], graph);
-      made.add(loaded);
-      return loaded;
+    async load(path, loadOptions) {
+      const graph = await loadGraph(source, extensions, path, new Map(Object.entries(loadOptions?.variables ?? {})));
+      graphs.add(graph);
+      return graph;
+    },
+    render(graph) {
+      if (!graphs.has(graph) || !(graph instanceof DocumentGraph)) throw new TypeError("render takes only graphs this processor loaded");
+      const rendered = render(graph, key);
+      renders.add(rendered);
+      return rendered;
     },
     diff(before, after) {
-      if (!made.has(before) || !made.has(after)) throw new TypeError("diff compares only loads of this processor");
+      if (!renders.has(before) || !renders.has(after)) throw new TypeError("diff compares only renders of this processor");
       return diff(before, after);
     },
   };
-}
-
-const START = { offset: 0, line: 0, column: 0 } as const;
-const VARIABLE_NAME = /^[A-Za-z0-9_]+$/;
-
-function place(resolvedPath: string, span: ISourceSpan): IPlace {
-  return { kind: "file", resolvedPath, span };
-}
-
-function reasonOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-/**
- * The values handed in by the program, each text read as the values of one directive. TypeError for a bad name, or
- * a text that is not one or more values (a syntax error, a variable, an unknown escape, a non-integer bound).
- */
-function readHanded(variables: Readonly<Record<string, string>>): ReadonlyMap<string, readonly Argument[]> {
-  const handed = new Map<string, readonly Argument[]>();
-  const nowhere: IDocumentSource = { resolve: () => Promise.resolve([]), read: () => Promise.reject(new Error("no files")) };
-  const reader = new Expander(nowhere, [], new Map(), undefined);
-  for (const [name, written] of Object.entries(variables)) {
-    if (!VARIABLE_NAME.test(name)) throw new TypeError(`handed-in variable name must be letters, digits and _: ${JSON.stringify(name)}`);
-    const bad = (why: string): TypeError => new TypeError(`handed-in variable ${name}: ${why}: ${JSON.stringify(written)}`);
-    if (typeof written !== "string") throw bad("not a string");
-    const syntax = parse(`x ${written}`);
-    const [node, ...rest] = syntax.root.children;
-    if (syntax.diagnostics.length > 0 || node?.kind !== NodeKind.Directive || rest.length > 0) throw bad("not a run of values");
-    if (syntax.tokens.some((t) => t.kind === TokenKind.Variable)) throw bad("a handed-in value may not use a variable");
-    const text: IText = {
-      syntax,
-      resolvedPath: "",
-      written: () => ({ kind: "handed", variable: name }),
-      place: (span) => place("", span),
-    };
-    const { args, block } = anatomyOf(syntax.tokens, node);
-    if (args.length === 0 || block !== undefined) throw bad("not a run of values");
-    try {
-      handed.set(name, args.flatMap((ref) => reader.value(text, ref, new Scope(undefined), [])));
-    } catch (error) {
-      if (error instanceof Problem) throw bad(error.message);
-      throw error;
-    }
-  }
-  return handed;
 }

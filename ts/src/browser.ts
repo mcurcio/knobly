@@ -3,8 +3,8 @@
  */
 
 import { hasGlob } from "./graph/glob.js";
-import type { IDocumentWriter } from "./graph/save.js";
 import type { IDocumentSource } from "./load/source.js";
+import type { IDocumentWriter } from "./written/model.js";
 
 /**
  * A document source over fetch. `resolve` resolves a spec as a URL against `context.parentPath` and returns it
@@ -33,13 +33,20 @@ export interface IFetchWriterOptions {
   readonly contentType?: string;
 }
 
-/** A writer that sends the text to resolvedPath with fetch. */
+/**
+ * A writer that sends each file's text to its resolvedPath with fetch: one request per file, in batch order. It
+ * rejects on the first failure (a non-2xx response or a rejected fetch), so it is not all-or-nothing: files sent
+ * before the failure stay written.
+ */
 export function createFetchWriter(fetchImpl: typeof fetch, options?: IFetchWriterOptions): IDocumentWriter {
   const method = options?.method ?? "PUT";
   const contentType = options?.contentType ?? "text/plain";
   return {
-    async write(resolvedPath, source) {
-      await fetchImpl(resolvedPath, { method, headers: { "content-type": contentType }, body: source });
+    async write(files) {
+      for (const file of files) {
+        const response = await fetchImpl(file.resolvedPath, { method, headers: { "content-type": contentType }, body: file.text });
+        if (!response.ok) throw new Error(`${method} ${file.resolvedPath}: HTTP ${String(response.status)}`);
+      }
     },
   };
 }

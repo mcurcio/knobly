@@ -1,0 +1,1 @@
+[["error","BadTextError",[["E5002",0,0]]],[],["ok"],[["main.conf","set $a 1;\nset $c 2;\nx $b;\n"]]]

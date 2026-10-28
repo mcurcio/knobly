@@ -7,6 +7,7 @@
 import type { DiagnosticError } from "../diagnostics.js";
 import type { INode } from "../syntax/cst.js";
 import type { IIndexValue, ISliceValue, ValueKind } from "../value.js";
+import type { IReferenceResolution, WrittenValue } from "../written/model.js";
 import type { IDirectiveOrigin, IOrigin } from "./origin.js";
 import type { ProgramCode } from "./report.js";
 
@@ -31,6 +32,14 @@ export interface IArgument {
    */
   readonly text: string;
   readonly origin: IOrigin;
+  /** The written value at the end of its chain (for `$pixels`, the `2284` of its `set`); undefined when handed in. */
+  readonly written: WrittenValue | undefined;
+  /**
+   * One per variable step of `origin.via`, from this value's own line toward where it is written (D7): `[0]` is the
+   * `$name` written on the directive's line. Empty for a value written where it is read. A snapshot of the render's
+   * derivation; the handles in it are live.
+   */
+  readonly resolutions: readonly IReferenceResolution[];
 
   /** A bare word. @throws DiagnosticError E4002 for any other kind. */
   word(): string;

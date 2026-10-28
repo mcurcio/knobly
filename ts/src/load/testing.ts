@@ -5,7 +5,7 @@
 
 import type { IDirective, KeyRule } from "./directive.js";
 import type { IOrigin, IPlace, IStep } from "./origin.js";
-import { type IExtension, type ILoaded, type IProcessor, villanelle } from "./processor.js";
+import { type IExtension, type IProcessor, type IRendered, villanelle } from "./processor.js";
 import type { ILocatedDiagnostic } from "./report.js";
 import { type IDocumentSource, memorySource } from "./source.js";
 
@@ -24,13 +24,19 @@ export function processorOf(files: Readonly<Record<string, string>>, options: IT
   });
 }
 
-/** Load `main.conf` (or `root`) from these files. */
-export function loadFiles(files: Readonly<Record<string, string>>, options: ITestOptions = {}, root = "main.conf"): Promise<ILoaded> {
-  return processorOf(files, options).load(root, options.variables === undefined ? undefined : { variables: options.variables });
+/** `processor.render(await processor.load(path, options))`: the mechanical form of a PR 3 load (D8). */
+export async function rendered(processor: IProcessor, path: string, options?: { readonly variables?: Readonly<Record<string, string>> }): Promise<IRendered> {
+  return processor.render(await processor.load(path, options));
 }
 
-/** Load one text as `main.conf`. */
-export function loadText(text: string, options: ITestOptions = {}): Promise<ILoaded> {
+/** Load `main.conf` (or `root`) from these files, and render it. */
+export async function loadFiles(files: Readonly<Record<string, string>>, options: ITestOptions = {}, root = "main.conf"): Promise<IRendered> {
+  const processor = processorOf(files, options);
+  return processor.render(await processor.load(root, options.variables === undefined ? undefined : { variables: options.variables }));
+}
+
+/** Load one text as `main.conf`, and render it. */
+export function loadText(text: string, options: ITestOptions = {}): Promise<IRendered> {
   return loadFiles({ "main.conf": text }, options);
 }
 
@@ -73,7 +79,7 @@ export function problems(diagnostics: Iterable<ILocatedDiagnostic>): [string, st
 }
 
 /** Every directive's people address in walk order. */
-export function addresses(loaded: ILoaded): string[] {
+export function addresses(loaded: IRendered): string[] {
   const out: string[] = [];
   loaded.walk((d: IDirective) => {
     out.push(d.address.toString());

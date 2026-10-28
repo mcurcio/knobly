@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import type { IDirective } from "./directive.js";
-import { type ILoaded, villanelle } from "./processor.js";
+import { type IRendered, villanelle } from "./processor.js";
 import { memorySource } from "./source.js";
 
 const RASL = "set $pixels 2284;\ngraph {\n  node DdpSink leds { max_count $pixels; }\n}\n";
 
-async function load(text: string, variables?: Record<string, string>): Promise<ILoaded> {
+async function load(text: string, variables?: Record<string, string>): Promise<IRendered> {
   const processor = villanelle({ source: memorySource({ "main.conf": text }) });
-  return processor.load("main.conf", variables === undefined ? undefined : { variables });
+  return processor.render(await processor.load("main.conf", variables === undefined ? undefined : { variables }));
 }
 
 function only(directives: readonly IDirective[] | undefined): IDirective {

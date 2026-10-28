@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import { include } from "./include.js";
 import type { IDirective, KeyRule } from "./load/directive.js";
-import { type ILoaded, type IProcessor, villanelle } from "./load/processor.js";
+import { type IRendered, type IProcessor, villanelle } from "./load/processor.js";
 import { type IDocumentSource, memorySource } from "./load/source.js";
-import { originText as origin } from "./load/testing.js";
+import { originText as origin, rendered } from "./load/testing.js";
 
 const LOAD = new URL("../../conformance/load/", import.meta.url);
 const EXPECTED = new URL("expected/", LOAD);
@@ -33,7 +33,7 @@ const RASL_KEY: KeyRule = (d) => {
   return undefined;
 };
 
-function format(loaded: ILoaded, changes: unknown[][] | undefined): string {
+function format(loaded: IRendered, changes: unknown[][] | undefined): string {
   const directives: unknown[] = [];
   const unreadable: unknown[] = loaded.unreadable.map((u) => ["", u.kind, origin(u.origin)]);
   loaded.walk((d: IDirective) => {
@@ -41,7 +41,7 @@ function format(loaded: ILoaded, changes: unknown[][] | undefined): string {
     for (const u of d.unreadable) unreadable.push([d.address.toString(), u.kind, origin(u.origin)]);
   });
   const value: Record<string, unknown> = {
-    files: [...loaded.graph.nodes.keys()],
+    files: [...loaded.graph.documents.keys()],
     directives,
     unreadable,
     diagnostics: loaded.diagnostics.map((d) => [d.code, origin({ written: d.at, via: d.via })]),
@@ -70,11 +70,11 @@ describe("load conformance (conformance/load/)", () => {
     // The second load reads `after`'s texts in place of the first load's; other files are unchanged.
     let files: Readonly<Record<string, string>> = c.files;
     const p = processor(c, () => files);
-    const first = await p.load(c.root, options);
+    const first = await rendered(p, c.root, options);
     let changes: unknown[][] | undefined;
     if (c.after !== undefined) {
       files = { ...c.files, ...c.after };
-      const second = await p.load(c.root, options);
+      const second = await rendered(p, c.root, options);
       changes = p.diff(first, second).map((change) => [change.kind, change.address.toString()]);
     }
     expect(format(first, changes)).toBe(readFileSync(new URL(`${name}.json`, EXPECTED), "utf8"));
