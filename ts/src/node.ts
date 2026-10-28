@@ -8,6 +8,17 @@ import { basename, dirname, resolve } from "node:path";
 import { hasGlob } from "./graph/glob.js";
 import type { DocumentLoader, IDocumentWriter, ILoadedDocument } from "./graph/io.js";
 import { compareCodePoints } from "./graph/order.js";
+import type { IDocumentSource } from "./load/source.js";
+import { notImplemented } from "./load/todo.js";
+
+/**
+ * A document source over the filesystem (round 11; replaces createFsLoader). `read` reads a path as given, as
+ * UTF-8; `resolve` joins a spec to the directory of `context.parentPath`; a glob (`*` and `?` in the last path
+ * segment only) lists that directory and returns every matching file. A missing file resolves to no paths (E3001).
+ */
+export function createFileSource(): IDocumentSource {
+  throw notImplemented("createFileSource");
+}
 
 /**
  * A loader over the filesystem. Specs resolve against the directory of `context.parentPath`. A glob (* and ? in

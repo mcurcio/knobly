@@ -19,6 +19,8 @@ from villanelle.syntax.tokens import Token, TokenKind
 class ValueKind(StrEnum):
     WORD = "word"
     STRING = "string"
+    LIST = "list"
+    """``[0.04, 1, 0.5]``: read through the load layer's ``Argument.as_list()`` (round 11)."""
     SLICE = "slice"
     INDEX = "index"
 

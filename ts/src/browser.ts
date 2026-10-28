@@ -4,6 +4,17 @@
 
 import { hasGlob } from "./graph/glob.js";
 import type { DocumentLoader, IDocumentWriter } from "./graph/io.js";
+import type { IDocumentSource } from "./load/source.js";
+import { notImplemented } from "./load/todo.js";
+
+/**
+ * A document source over fetch (round 11; replaces createFetchLoader). `resolve` resolves a spec as a URL against
+ * `context.parentPath` and returns it without fetching; globs resolve to no paths. `read` fetches the URL and
+ * rejects on a non-2xx response.
+ */
+export function createFetchSource(fetchImpl: typeof fetch): IDocumentSource {
+  throw notImplemented("createFetchSource", fetchImpl);
+}
 
 /** Options for createFetchWriter. */
 export interface IFetchWriterOptions {

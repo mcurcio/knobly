@@ -11,6 +11,8 @@ import { type IToken, TokenKind } from "./syntax/tokens.js";
 export const ValueKind = {
   Word: "word",
   String: "string",
+  /** `[0.04, 1, 0.5]`: read through the load layer's `IArgument.items()` (round 11). */
+  List: "list",
   Slice: "slice",
   Index: "index",
 } as const;
