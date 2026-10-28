@@ -1,6 +1,7 @@
 """Stable diagnostic codes and the diagnostic shape every layer reports.
 
 This mirrors the TypeScript package's registry value for value. Codes are stable across languages and releases.
+Retired, never reused: E2006, E3002, E3003.
 Ranges: 1xxx lexical, 2xxx syntax, 3xxx files and extensions, 4xxx values, 5xxx expansion (variables, snippets,
 limits), 6xxx reserved for the deferred sugar (none yet). A program's own codes are namespaced (``"rasl/no-graph"``),
 so they never collide with these. Every code is an error.
@@ -10,8 +11,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from villanelle.span import SourceSpan
+
+if TYPE_CHECKING:
+    from villanelle.report import LocatedDiagnostic
 
 
 class DiagnosticCode(StrEnum):
@@ -25,17 +30,14 @@ class DiagnosticCode(StrEnum):
     """A token the grammar does not allow here, when no more specific code applies."""
     EXPECTED_CLOSING_BRACE = "E2003"
     EXPECTED_CLOSING_BRACKET = "E2004"
-    EXPECTED_STRING_LITERAL = "E2006"
     BAD_SLICE = "E2007"
     BRACE_ON_OWN_LINE = "E2008"
     VALUES_TOUCH = "E2009"
     NESTING_TOO_DEEP = "E2010"
     INCLUDE_NOT_FOUND = "E3001"
-    INCLUDE_CYCLE = "E3002"
-    INCLUDE_DEPTH_EXCEEDED = "E3003"
     INCLUDE_RESOLVER_FAILED = "E3004"
     INCLUDE_BAD_PATH = "E3005"
-    """An ``include`` whose values are not exactly one quoted path. Replaces E2006 once the include extension lands."""
+    """An ``include`` whose values are not exactly one quoted path."""
     EXTENSION_FAILED = "E3006"
     """An extension raised something other than a DiagnosticError while giving its specs."""
     NON_INTEGER_BOUND = "E4001"
@@ -56,7 +58,7 @@ class DiagnosticCode(StrEnum):
     EXPANSION_CYCLE = "E5006"
     """A ``use`` or an extension directive that reaches itself again."""
     EXPANSION_TOO_DEEP = "E5007"
-    """``use`` and extension directives nested deeper than 16 places. Replaces E3003 once include lands."""
+    """``use`` and extension directives nested deeper than 16 places."""
     TOO_MANY_DIRECTIVES = "E5008"
     """More than 100,000 directives after expansion."""
     BAD_SET = "E5009"
@@ -76,10 +78,11 @@ class Diagnostic:
 
 
 class DiagnosticError(Exception):
-    """Raised by operations whose contract a user's input breaks, carrying the located diagnostic."""
+    """Raised by operations whose contract a user's input breaks (a value reader, a program's own check, a root file
+    the source cannot read), carrying the located diagnostic of the load layer."""
 
-    diagnostic: Diagnostic
+    diagnostic: LocatedDiagnostic
 
-    def __init__(self, diagnostic: Diagnostic) -> None:
+    def __init__(self, diagnostic: LocatedDiagnostic) -> None:
         super().__init__(diagnostic.message)
         self.diagnostic = diagnostic

@@ -29,7 +29,12 @@ class LocatedDiagnostic:
 
     def __post_init__(self) -> None:
         """Raise ValueError when ``code`` is neither a DiagnosticCode value nor a namespaced program code."""
-        raise NotImplementedError("LocatedDiagnostic.__post_init__")
+        if isinstance(self.code, DiagnosticCode):
+            return
+        if self.code in _CODES:
+            object.__setattr__(self, "code", DiagnosticCode(self.code))
+            return
+        check_program_code(self.code)
 
 
 class Locatable(Protocol):
@@ -44,8 +49,13 @@ class Collecting:
     """``with problems.collecting(): ...``: a DiagnosticError raised inside is recorded and the block ends; any other
     exception passes through. A class (not ``@contextmanager``) so type checkers know the block can end early."""
 
+    __slots__ = ("_into",)
+
+    def __init__(self, into: Diagnostics, /) -> None:
+        self._into = into
+
     def __enter__(self) -> None:
-        raise NotImplementedError("Collecting.__enter__")
+        return None
 
     def __exit__(
         self,
@@ -55,37 +65,69 @@ class Collecting:
         /,
     ) -> bool:
         """True (swallow) for a DiagnosticError only."""
-        raise NotImplementedError("Collecting.__exit__")
+        if isinstance(error, DiagnosticError):
+            self._into.add(error.diagnostic)
+            return True
+        return False
 
 
 class Diagnostics:
     """The one place problems collect. A program starts it with ``loaded.diagnostics``, reports its own problems into
     it, and runs reads under ``collecting()`` so a reader's DiagnosticError is recorded instead of ending it."""
 
+    __slots__ = ("_items",)
+
     def __init__(self, initial: Iterable[LocatedDiagnostic] = (), /) -> None:
-        raise NotImplementedError("Diagnostics")
+        self._items: list[LocatedDiagnostic] = list(initial)
 
     def __len__(self) -> int:
-        raise NotImplementedError("Diagnostics.__len__")
+        return len(self._items)
 
     def __iter__(self) -> Iterator[LocatedDiagnostic]:
-        raise NotImplementedError("Diagnostics.__iter__")
+        return iter(tuple(self._items))
 
     def add(self, diagnostic: LocatedDiagnostic, /) -> None:
         """Record one problem."""
-        raise NotImplementedError("Diagnostics.add")
+        self._items.append(diagnostic)
 
     def report(self, at: Locatable, message: str, *, code: str) -> None:
         """Record a program's problem placed on ``at``. Raises ValueError when ``code`` has no "/"."""
-        raise NotImplementedError("Diagnostics.report")
+        self.add(at.error(message, code=code).diagnostic)
 
     def collecting(self) -> Collecting:
         """A context manager that records a DiagnosticError raised inside it into this sink."""
-        raise NotImplementedError("Diagnostics.collecting")
+        return Collecting(self)
 
 
 def format_diagnostic(diagnostic: LocatedDiagnostic, graph: DocumentGraph | None = None) -> str:
     """``path:line:col: code: message`` (1-based line and column, for people), then the source line and a caret under
     the span when ``graph`` holds the file, then one ``  via <kind> <name> at path:line:col`` line per step.
     Reads text only from ``graph``; never does I/O."""
-    raise NotImplementedError("format_diagnostic")
+    lines = [f"{_place(diagnostic.at)}: {diagnostic.code}: {diagnostic.message}"]
+    node = None if graph is None else graph.nodes.get(diagnostic.at.resolved_path)
+    if node is not None:
+        start, end = diagnostic.at.span.start, diagnostic.at.span.end
+        source_lines = node.source.split("\n")
+        if start.line < len(source_lines):
+            line = source_lines[start.line].removesuffix("\r")
+            width = end.column - start.column if end.line == start.line else len(line) - start.column
+            lines.append(line)
+            lines.append(" " * start.column + "^" * max(1, width))
+    lines.extend(f"  via {step.kind} {step.name} at {_place(step.at)}" for step in diagnostic.via)
+    return "\n".join(lines)
+
+
+def _place(place: Place) -> str:
+    """``path:line:col``, 1-based, for people."""
+    position = place.span.start
+    return f"{place.resolved_path}:{position.line + 1}:{position.column + 1}"
+
+
+_CODES = frozenset(code.value for code in DiagnosticCode)
+
+
+def check_program_code(code: str) -> None:
+    """Raise ValueError unless ``code`` is ``<namespace>/<name>`` (a program's own code; villanelle's are its own)."""
+    namespace, slash, name = code.partition("/")
+    if not (slash and namespace and name):
+        raise ValueError(f'a program\'s code is "<namespace>/<name>", such as "rasl/unknown-node": {code!r}')
