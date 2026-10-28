@@ -73,6 +73,7 @@ export function classifyError(kinds: readonly TokenKind[], at: number, from: num
   const before = kinds[at - 1];
 
   if (t === TokenKind.BadChar || (t === TokenKind.Bom && at > 0)) return DiagnosticCode.UnexpectedCharacter;
+  if (t === TokenKind.LoneDollar) return DiagnosticCode.LoneDollar;
   if (t === TokenKind.UnterminatedString) return DiagnosticCode.UnterminatedString;
   if (inSlice) return DiagnosticCode.BadSlice;
   if (t === TokenKind.RBrack || (inBracket && (t === TokenKind.RBrace || t === undefined))) {
@@ -81,8 +82,11 @@ export function classifyError(kinds: readonly TokenKind[], at: number, from: num
   if (t === TokenKind.LBrace && (prev < 0 || kinds[prev] === TokenKind.Newline)) return DiagnosticCode.BraceOnOwnLine;
   if (t === undefined && (inBlock || braces > 0)) return DiagnosticCode.ExpectedClosingBrace;
   if (
-    (t === TokenKind.Word || t === TokenKind.String || t === TokenKind.LBrack) &&
-    (before === TokenKind.Word || before === TokenKind.String || (before === TokenKind.RBrack && closesValue))
+    (t === TokenKind.Word || t === TokenKind.String || t === TokenKind.Variable || t === TokenKind.LBrack) &&
+    (before === TokenKind.Word ||
+      before === TokenKind.String ||
+      before === TokenKind.Variable ||
+      (before === TokenKind.RBrack && closesValue))
   ) {
     return DiagnosticCode.ValuesTouch;
   }
@@ -92,19 +96,36 @@ export function classifyError(kinds: readonly TokenKind[], at: number, from: num
 const MESSAGES: Readonly<Record<DiagnosticCode, string>> = {
   E1001: "unterminated string",
   E1003: "unexpected character",
+  E1004: "'$' must be followed by a variable name",
   E2001: "unexpected token",
   E2003: "expected '}' to close the block",
   E2004: "unmatched bracket",
-  E2006: "expected a string literal",
   E2007: "malformed slice",
   E2008: "'{' must open on its directive's line",
   E2009: "values must be separated by a space or comment",
   E2010: `blocks and lists nest deeper than ${MAX_NESTING} levels`,
   E3001: "include not found",
-  E3002: "include cycle",
-  E3003: "includes nest too deep",
   E3004: "include resolver failed",
+  E3005: "include takes one quoted path",
+  E3006: "extension failed",
   E4001: "bound is not an integer",
+  E4002: "wrong kind of value",
+  E4003: "unknown escape",
+  E4004: "not a number",
+  E4005: "not an integer",
+  E4006: "not true or false",
+  E5001: "unknown variable",
+  E5002: "variable set twice in one block",
+  E5003: "unknown snippet",
+  E5004: "wrong number of values for the snippet",
+  E5005: "snippet defined twice in one block",
+  E5006: "expansion reaches itself",
+  E5007: "expansion nests too deep",
+  E5008: "too many directives after expansion",
+  E5009: "write set $name value...;",
+  E5010: "write snippet name $param... { ... }",
+  E5011: "write use name value...;",
+  E5012: "an extension's block holds only set lines",
 };
 
 /** The message for a code; not part of the cross-language contract. */

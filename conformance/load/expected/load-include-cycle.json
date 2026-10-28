@@ -1,0 +1,1 @@
+{"files":["main.conf","a.conf"],"directives":[["x",false,"a.conf:1:0 < extension include main.conf:0:0",[["1","a.conf:1:2 < extension include main.conf:0:0"]]]],"unreadable":[["","expansion","a.conf:0:0 < extension include main.conf:0:0"]],"diagnostics":[["E5006","a.conf:0:0 < extension include main.conf:0:0"]]}

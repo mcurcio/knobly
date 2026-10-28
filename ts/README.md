@@ -12,30 +12,33 @@ It is not on npm. Releases attach the `npm pack` tarball to the GitHub Release (
 
 | Import | What it has |
 |---|---|
-| `villanelle` | The core. It does no I/O |
-| `villanelle/node` | `createFsLoader()` and `createFsWriter()`: filesystem I/O for the include graph |
-| `villanelle/browser` | `createFetchLoader(fetch)` and `createFetchWriter(fetch, options?)`: I/O over `fetch` |
+| `villanelle` | The core. It does no input or output |
+| `villanelle/include` | `include()`: the include extension |
+| `villanelle/node` | `createFileSource()` and `createFsWriter()`: files on disk |
+| `villanelle/browser` | `createFetchSource(fetch)` and `createFetchWriter(fetch, options?)`: files over `fetch` |
 
-The core, in layers:
+The core has two tiers:
 
 - **Syntax.** `parse(text)` returns `{ tokens, root, diagnostics }`. It is synchronous and never
   throws. The tree is lossless: every character of the text is in exactly one token, and
   `textOf(syntax, syntax.root)` gives the text back. Node kinds are `document`, `directive`,
   `block`, `list`, `slice` and `error`.
-- **Values.** `valueOf(syntax, ref)` gives a `word`, `string`, `slice` (`foo[1:4]`, `foo[1:]`,
-  `foo[:4]`) or `index` (`foo[1]`) value; a list is not a value kind yet (`vil-9ze`). Slice and
-  index bounds are integers; any other bound throws a `DiagnosticError` with code E4001.
-- **Directives.** `parseDocument(text)` and `createAst(syntax)` give a directive tree;
-  `walkDirectives` and `findDirectives` search it.
-- **Include graph.** `parseGraph(source, { loader, ... })` follows `include` directives through a
-  loader (`DocumentLoader`; `composeLoaders` chains several) and returns the document graph.
-  `iterateDirectives` walks it; `save(graph, writer)` writes documents back through an
-  `IDocumentWriter`. An include path must be a quoted string (`include "conf.d/*.conf";`);
-  anything else gives E2006. A glob's matches are taken in code-point order.
+- **Directives (the load layer).** `villanelle({ source, extensions, key })` makes a processor;
+  `await processor.load(path, { variables })` reads the root file and every file it includes, and
+  expands variables and snippets. The result has the directives (`body`, `walk`), each value's
+  readers (`word()`, `number()`, `integer()`, `boolean()`, `items()`, `slice()`, `plain()`), the
+  origin of every directive and value, an address per directive, every problem as a located
+  diagnostic, and the file graph. `processor.diff(before, after)` lists what changed between two
+  loads. `Diagnostics` collects problems; `formatDiagnostic` prints one with its source line.
+  `save(graph, writer)` writes files back.
 
-Errors are reported as diagnostics with stable codes (`DiagnosticCode`: 1xxx lexical, 2xxx
-syntax, 3xxx include graph, 4xxx values). Lines and columns are 0-based; offsets and columns count
-UTF-16 code units. Only a diagnostic's code and span are a contract, not its message.
+The reference, with examples from the tests, is [docs/low-level-api.md](../docs/low-level-api.md);
+the language is [docs/language.md](../docs/language.md).
+
+Problems are diagnostics with stable codes (`DiagnosticCode`: 1xxx lexical, 2xxx syntax, 3xxx
+files and extensions, 4xxx values, 5xxx expansion); a program's own codes are
+`<namespace>/<name>`. Lines and columns are 0-based; offsets and columns count UTF-16 code units.
+Only a diagnostic's code and place are a contract, not its message.
 
 ## Build and test
 

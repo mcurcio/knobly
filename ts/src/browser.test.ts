@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { createFetchLoader, createFetchWriter } from "./browser.js";
-import { parseGraph } from "./graph/parse-graph.js";
+import { createFetchSource, createFetchWriter } from "./browser.js";
+import { include } from "./include.js";
+import { villanelle } from "./load/processor.js";
 
 /** A fetch over a map of URL to body that records every call. */
 const fakeFetch = (
@@ -18,29 +19,26 @@ const fakeFetch = (
 };
 
 describe("villanelle/browser", () => {
-  it("loads specs as URLs relative to the including document", async () => {
+  it("loads specs as URLs relative to the including file", async () => {
     const { fetchImpl } = fakeFetch({
+      "https://h.test/root.conf": 'include "conf/a.conf";',
       "https://h.test/conf/a.conf": 'include "../b.conf";',
       "https://h.test/b.conf": "b 1;",
     });
-    const graph = await parseGraph('include "conf/a.conf";', {
-      path: "https://h.test/root.conf",
-      loader: createFetchLoader(fetchImpl),
-    });
-    expect(graph.diagnostics).toEqual([]);
-    expect([...graph.nodes.keys()]).toEqual([
-      "https://h.test/root.conf",
-      "https://h.test/conf/a.conf",
-      "https://h.test/b.conf",
-    ]);
+    const loaded = await villanelle({ source: createFetchSource(fetchImpl), extensions: [include()] }).load("https://h.test/root.conf");
+    expect(loaded.diagnostics).toEqual([]);
+    expect([...loaded.graph.nodes.keys()]).toEqual(["https://h.test/root.conf", "https://h.test/conf/a.conf", "https://h.test/b.conf"]);
+    expect(loaded.body.map((d) => d.name)).toEqual(["b"]);
   });
 
-  it("returns no documents for a non-2xx response or a glob", async () => {
+  it("resolves without fetching, resolves a glob to nothing, and rejects a non-2xx read", async () => {
     const { calls, fetchImpl } = fakeFetch({});
-    const loader = createFetchLoader(fetchImpl);
-    const context = { parentPath: "https://h.test/root.conf", depth: 0 };
-    expect(await loader("missing.conf", context)).toEqual([]);
-    expect(await loader("*.conf", context)).toEqual([]);
+    const source = createFetchSource(fetchImpl);
+    const context = { parentPath: "https://h.test/root.conf" };
+    expect(await source.resolve("missing.conf", context)).toEqual(["https://h.test/missing.conf"]);
+    expect(await source.resolve("*.conf", context)).toEqual([]);
+    expect(calls).toEqual([]);
+    await expect(source.read("https://h.test/missing.conf")).rejects.toThrow(/404/);
     expect(calls.map(([url]) => url)).toEqual(["https://h.test/missing.conf"]);
   });
 

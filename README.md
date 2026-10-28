@@ -1,15 +1,55 @@
 # villanelle
 
-A small configuration language: directives, `{ }` blocks, lists and slices, with `#` comments.
+A small configuration language: directives, `{ }` blocks, lists and slices, `#` comments, variables and
+snippets, with parsers for TypeScript and Python generated from one grammar.
 
 ```conf
-# comments start with '#'
-server {
-  listen 8080;
-  include "/etc/app/*.conf"
+set $pixels 2284;
+
+snippet twinkle $source {
+    seed 11337;
+    mode brightness;
+    frequency_hz 0.3;
+    attack_ratio 0.33;
+    min_speed 1.0;
+    max_speed 3.0;
+
+    connect $source;
 }
-connect sensor[0:3] output
 ```
+
+(Excerpt of [`fixtures/rasl/family_room.conf`](fixtures/rasl/family_room.conf), which both packages' tests load.)
+The language, with every rule the load applies, is described in [docs/language.md](docs/language.md).
+
+## Reading a config from a program
+
+A program makes a processor once, with a document source (where files come from), the include extension if it
+wants includes, and a key rule (how to name a directive among its siblings), then loads a root file:
+
+```ts
+    const processor = villanelle({ source: files, extensions: [include()], key: RASL_KEY });
+    const path = fileURLToPath(new URL(name, FIXTURES));
+    const options = { variables: HANDED };
+    const first = await processor.load(path, options);
+```
+
+```python
+    processor = vl.Processor(source=file_source(), extensions=[include()], key=rasl_key)
+    variables = {"leds_host": '"10.0.0.9"'} if handed else None
+    first = processor.load(str(root), variables=variables)
+```
+
+(Excerpts of `ts/src/load/rasl.test.ts` and `py/tests/test_rasl.py`.) The load gives back the directives with
+variables, snippets and included files expanded, every value's origin, an address per directive, and every problem
+as a located diagnostic; `processor.diff(first, second)` lists what changed between two loads. The reference for
+both languages is [docs/low-level-api.md](docs/low-level-api.md).
+
+| Entry point | TypeScript | Python |
+|---|---|---|
+| the core (no input or output) | `villanelle`: `parse`, `villanelle`, `memorySource`, `Diagnostics`, `formatDiagnostic`, ... | `villanelle`: `parse`, `Processor`, `memory_source`, `Diagnostics`, `format_diagnostic`, `walk`, ... |
+| the include extension | `villanelle/include`: `include()` | `villanelle.include`: `include()` |
+| files on disk | `villanelle/node`: `createFileSource()`, `createFsWriter()` | `villanelle.files`: `file_source()` |
+| files over `fetch` | `villanelle/browser`: `createFetchSource(fetch)`, `createFetchWriter(fetch, options?)` | none |
 
 ## The language is defined by one file
 
@@ -39,7 +79,9 @@ It needs `python3`, `bison` and `uv`.
 | `tools/` | The soundness checks (`check.sh`), the planted bad grammars they must catch, and the parser generator script (`gen.sh`) |
 | `ts/` | The TypeScript package, npm name `villanelle` ([`ts/README.md`](ts/README.md)) |
 | `py/` | The Python package, PyPI name `villanelle` ([`py/README.md`](py/README.md)) |
-| `conformance/` | Test cases both parsers must pass, and the expected output for each. The format is in [`conformance/format.md`](conformance/format.md) |
+| `conformance/` | Test cases both packages must pass, and the expected output for each: syntax cases (format in [`conformance/format.md`](conformance/format.md)) and load cases in `conformance/load/` (format in [`conformance/load/format.md`](conformance/load/format.md)) |
+| `fixtures/rasl/` | rasl's real config files, which each package's rasl test loads ([`fixtures/rasl/README.md`](fixtures/rasl/README.md)) |
+| `docs/` | The language ([`docs/language.md`](docs/language.md)) and the low-level API reference ([`docs/low-level-api.md`](docs/low-level-api.md)) |
 | `.github/` | CI and the release build (`workflows/ci.yml`, `release-build.sh`) |
 | `package.json`, `.releaserc.json` | Release tooling only (semantic-release); the packages are `ts/` and `py/` |
 | `design/` | The design record ([`design/RECORD.md`](design/RECORD.md)), run logs, the older plans, drafts, reviews and experiments |
@@ -89,6 +131,8 @@ gh variable set RELEASE_ENABLED --body true -R mcurcio/villanelle
 
 ## Status
 
-The TypeScript and Python parsers are built from the grammar and pass the same conformance
-corpus. No release has been made yet. The design was done in
-[mcurcio/rasl#2](https://github.com/mcurcio/rasl/pull/2), where this language began as `@rasl/config`.
+The TypeScript and Python packages are built from the grammar and pass the same syntax and load
+conformance cases. Both have the low-level API (the syntax tree and the directive layer); the high-level
+API, where a program declares its directives, is deferred (`vil-xlo`). No release has been made yet.
+The grammar design was done in [mcurcio/rasl#2](https://github.com/mcurcio/rasl/pull/2), where this
+language began as `@rasl/config`.

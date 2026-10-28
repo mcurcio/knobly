@@ -1,0 +1,1 @@
+{"files":["main.conf"],"directives":[["a",false,"main.conf:1:0",[["1","main.conf:0:7 < variable n main.conf:1:2"]]],["b",true,"main.conf:2:0",[]],["b > c",false,"main.conf:3:2",[["1","main.conf:0:7 < variable n main.conf:3:4"]]]],"unreadable":[],"diagnostics":[],"changes":[["changed","a"],["changed","b > c"]]}

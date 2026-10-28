@@ -45,8 +45,8 @@ export interface ISyntax {
 }
 
 /**
- * A reference to one value of a directive or list: the index of a WORD or STRING token, or a `slice` or `list`
- * node. `valueOf` turns it into a typed value.
+ * A reference to one value of a directive or list: the index of a WORD, STRING or VARIABLE token, or a `slice` or
+ * `list` node. The load layer reads it into an `IArgument`.
  */
 export type ValueRef = number | INode;
 

@@ -1,0 +1,66 @@
+[
+{
+"name": "var-set",
+"src": "set $pixels 2284;"
+},
+{
+"name": "var-value",
+"src": "max_count $pixels;"
+},
+{
+"name": "var-multi",
+"src": "port $ports dev;"
+},
+{
+"name": "var-list-items",
+"src": "x [$a, 1, $b];"
+},
+{
+"name": "var-slice-end",
+"src": "x c[0:$n];"
+},
+{
+"name": "var-index",
+"src": "x c[$i];"
+},
+{
+"name": "var-slice-start",
+"src": "x c[$a:];"
+},
+{
+"name": "var-digits-name",
+"src": "x $1;"
+},
+{
+"name": "var-touch-word",
+"src": "fps$x;"
+},
+{
+"name": "var-touch-string",
+"src": "x $x\"y\";"
+},
+{
+"name": "var-as-name",
+"src": "$x 1;"
+},
+{
+"name": "var-slice-base",
+"src": "x $x[0:3];"
+},
+{
+"name": "var-lone-dollar",
+"src": "cost $;"
+},
+{
+"name": "var-in-string",
+"src": "x \"a $b\";"
+},
+{
+"name": "var-use",
+"src": "use twinkle rgb_150;"
+},
+{
+"name": "var-snippet",
+"src": "snippet twinkle $source { connect $source; }"
+}
+]

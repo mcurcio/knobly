@@ -11,7 +11,7 @@ from villanelle import Node, Syntax, parse, text_of
 
 CONFORMANCE = REPO / "conformance"
 EXPECTED = CONFORMANCE / "expected"
-FILES = ("cases.json", "extra.json", "depth.json", "edge.json", "tracer.json")
+FILES = ("cases.json", "extra.json", "depth.json", "edge.json", "tracer.json", "variables.json")
 """Every corpus file; each case's name is unique across them."""
 
 

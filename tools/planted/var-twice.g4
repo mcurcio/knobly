@@ -1,0 +1,41 @@
+// PLANTED (must be caught): a variable usable both as a whole value and as a piece joined to words
+// (round 8's var-twice). `$b` alone is then both a value and a spliced value: conflicts.
+// villanelle grammar, ported from villanelle.ebnf (draft 2 + rasl-trv: '*' and '?' in words;
+// round 11: variables).
+// Whitespace is explicit: every token is on the default channel, nothing is skipped.
+grammar Villanelle;
+
+document      : BOM? statements EOF ;
+statements    : filler* (directive filler*)* lastDirective? ;
+filler        : SPACE | COMMENT | NEWLINE | ';' ;
+directive     : header (separator | block) ;
+lastDirective : header ;
+header        : WORD rest ;
+rest          : (gap value)* gap? ;
+gap           : (SPACE | COMMENT)+ ;
+separator     : ';' | NEWLINE ;
+block         : '{' statements '}' ;
+value         : WORD | STRING | VARIABLE | slicedWord | list | spliced ;
+spliced       : (WORD | VARIABLE) (WORD | VARIABLE)* ;
+slicedWord    : WORD '[' bounds ']' ;
+bounds        : bound ':' bound? | ':' bound | bound ;
+bound         : WORD | VARIABLE ;
+list          : '[' listGap? items? ']' ;
+items         : value listGap? (',' listGap? value listGap?)* (',' listGap?)? ;
+listGap       : (SPACE | COMMENT | NEWLINE)+ ;
+
+BOM     : '﻿' ;
+SPACE   : [ \t]+ ;
+NEWLINE : '\n' | '\r\n' ;
+COMMENT : '#' CHAR* ;
+VARIABLE : '$' [A-Za-z0-9_]+ ;   // $ + letters, digits and _ (nginx's name rule, round 11 L1)
+WORD    : [A-Za-z_./@*?] [A-Za-z0-9_./@#+:*?-]* | [0-9-] [A-Za-z0-9_./@#+*?-]* ;
+STRING  : '"' (~["\\\u0000-\u0008\n-\u001F\u007F\uD800-\uDFFF] | '\\' CHAR)* '"'
+        | '\'' (~['\\\u0000-\u0008\n-\u001F\u007F\uD800-\uDFFF] | '\\' CHAR)* '\'' ;
+LBRACE : '{' ; RBRACE : '}' ; LBRACK : '[' ; RBRACK : ']' ; SEMI : ';' ; COMMA : ',' ; COLON : ':' ;
+// error tokens: never used by the syntax
+UNTERMINATED_STRING : '"' (~["\\\u0000-\u0008\n-\u001F\u007F\uD800-\uDFFF] | '\\' CHAR)* '\\'?
+                    | '\'' (~['\\\u0000-\u0008\n-\u001F\u007F\uD800-\uDFFF] | '\\' CHAR)* '\\'? ;
+LONE_DOLLAR : '$' ;   // a '$' with no name after it
+BAD_CHAR : ~[\t\n "#$',./0-9:;@A-Z_a-z{}*?[\]\-\uFEFF] ;   // = AnyChar - TokenStart: disjoint from every other kind
+fragment CHAR : [\t -~\u0080-\uD7FF\uE000-\u{10FFFF}] ;

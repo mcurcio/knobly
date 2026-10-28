@@ -1,4 +1,5 @@
-// villanelle grammar, ported from villanelle.ebnf (draft 2 + rasl-trv: '*' and '?' in words).
+// villanelle grammar, ported from villanelle.ebnf (draft 2 + rasl-trv: '*' and '?' in words;
+// round 11: variables).
 // Whitespace is explicit: every token is on the default channel, nothing is skipped.
 grammar Villanelle;
 
@@ -12,9 +13,10 @@ rest          : (gap value)* gap? ;
 gap           : (SPACE | COMMENT)+ ;
 separator     : ';' | NEWLINE ;
 block         : '{' statements '}' ;
-value         : WORD | STRING | slicedWord | list ;
+value         : WORD | STRING | VARIABLE | slicedWord | list ;
 slicedWord    : WORD '[' bounds ']' ;
-bounds        : WORD ':' WORD? | ':' WORD | WORD ;
+bounds        : bound ':' bound? | ':' bound | bound ;
+bound         : WORD | VARIABLE ;
 list          : '[' listGap? items? ']' ;
 items         : value listGap? (',' listGap? value listGap?)* (',' listGap?)? ;
 listGap       : (SPACE | COMMENT | NEWLINE)+ ;
@@ -23,6 +25,7 @@ BOM     : '﻿' ;
 SPACE   : [ \t]+ ;
 NEWLINE : '\n' | '\r\n' ;
 COMMENT : '#' CHAR* ;
+VARIABLE : '$' [A-Za-z0-9_]+ ;   // $ + letters, digits and _ (nginx's name rule, round 11 L1)
 WORD    : [A-Za-z_./@*?] [A-Za-z0-9_./@#+:*?-]* | [0-9-] [A-Za-z0-9_./@#+*?-]* ;
 STRING  : '"' (~["\\\u0000-\u0008\n-\u001F\u007F\uD800-\uDFFF] | '\\' CHAR)* '"'
         | '\'' (~['\\\u0000-\u0008\n-\u001F\u007F\uD800-\uDFFF] | '\\' CHAR)* '\'' ;
@@ -30,5 +33,6 @@ LBRACE : '{' ; RBRACE : '}' ; LBRACK : '[' ; RBRACK : ']' ; SEMI : ';' ; COMMA :
 // error tokens: never used by the syntax
 UNTERMINATED_STRING : '"' (~["\\\u0000-\u0008\n-\u001F\u007F\uD800-\uDFFF] | '\\' CHAR)* '\\'?
                     | '\'' (~['\\\u0000-\u0008\n-\u001F\u007F\uD800-\uDFFF] | '\\' CHAR)* '\\'? ;
-BAD_CHAR : ~[\t\n "#',./0-9:;@A-Z_a-z{}*?[\]\-\uFEFF] ;   // = AnyChar - TokenStart: disjoint from every other kind
+LONE_DOLLAR : '$' ;   // a '$' with no name after it
+BAD_CHAR : ~[\t\n "#$',./0-9:;@A-Z_a-z{}*?[\]\-\uFEFF] ;   // = AnyChar - TokenStart: disjoint from every other kind
 fragment CHAR : [\t -~\u0080-\uD7FF\uE000-\u{10FFFF}] ;

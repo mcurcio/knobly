@@ -52,7 +52,7 @@ class Syntax:
 
 
 ValueRef = int | Node
-"""The index of a WORD or STRING token, or a ``slice`` or ``list`` node. ``value_of`` turns it into a value."""
+"""The index of a WORD, STRING or VARIABLE token, or a ``slice`` or ``list`` node: one value as written."""
 
 _ORIGIN = SourcePosition(offset=0, line=0, column=0)
 

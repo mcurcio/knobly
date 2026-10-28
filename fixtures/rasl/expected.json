@@ -1,0 +1,5 @@
+{
+"family_room.conf": {"nodes": ["hue_ramp", "xmas_light_colors", "hyperhdr", "hyperhdr_color", "pure_white", "hsl", "hsl_rgb", "rgb_150", "twinkle", "white_150", "white_twinkle", "minute_selector", "minute_crossfade", "crossfade_rgb", "console", "leds"], "diagnostics": [], "changes": [["changed", "graph > node \"leds\" > max_count"], ["changed", "graph > node \"leds\" > connect \"crossfade_rgb pixels\" > repeat_until"]]},
+"hyperhdr.conf": {"nodes": ["hyperhdr", "hyperhdr_color", "u2_raw_console", "u2_range_console", "hyperhdr_console", "hyperhdr_range_map", "hyperhdr_matrix", "hyperhdr_smooth", "rec709_to_rgb", "rec709_to_srgb", "console", "leds_random_map", "leds", "lifx_rgb_dim", "lifx_dimmed_rgb"], "diagnostics": [], "changes": [["changed", "graph > node \"leds_random_map\" > channel_count"], ["changed", "graph > node \"leds\" > max_count"]]},
+"split/main.conf": {"nodes": ["hue_ramp", "crossfade_rgb", "leds", "porch"], "diagnostics": [], "changes": [["changed", "graph > node \"leds\" > max_count"], ["changed", "graph > node \"porch\" > max_count"]]}
+}

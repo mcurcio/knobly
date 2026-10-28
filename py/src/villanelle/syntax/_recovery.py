@@ -86,6 +86,8 @@ def classify_error(kinds: Sequence[TokenKind], at: int, start: int, in_block: bo
 
     if t is TokenKind.BAD_CHAR or (t is TokenKind.BOM and at > 0):
         return DiagnosticCode.UNEXPECTED_CHARACTER
+    if t is TokenKind.LONE_DOLLAR:
+        return DiagnosticCode.LONE_DOLLAR
     if t is TokenKind.UNTERMINATED_STRING:
         return DiagnosticCode.UNTERMINATED_STRING
     if in_slice:
@@ -96,8 +98,11 @@ def classify_error(kinds: Sequence[TokenKind], at: int, start: int, in_block: bo
         return DiagnosticCode.BRACE_ON_OWN_LINE
     if t is None and (in_block or braces > 0):
         return DiagnosticCode.EXPECTED_CLOSING_BRACE
-    if (t is TokenKind.WORD or t is TokenKind.STRING or t is TokenKind.LBRACK) and (
-        before is TokenKind.WORD or before is TokenKind.STRING or (before is TokenKind.RBRACK and closes_value)
+    if (t is TokenKind.WORD or t is TokenKind.STRING or t is TokenKind.VARIABLE or t is TokenKind.LBRACK) and (
+        before is TokenKind.WORD
+        or before is TokenKind.STRING
+        or before is TokenKind.VARIABLE
+        or (before is TokenKind.RBRACK and closes_value)
     ):
         return DiagnosticCode.VALUES_TOUCH
     return DiagnosticCode.UNEXPECTED_TOKEN
@@ -106,19 +111,36 @@ def classify_error(kinds: Sequence[TokenKind], at: int, start: int, in_block: bo
 _MESSAGES: dict[DiagnosticCode, str] = {
     DiagnosticCode.UNTERMINATED_STRING: "unterminated string",
     DiagnosticCode.UNEXPECTED_CHARACTER: "unexpected character",
+    DiagnosticCode.LONE_DOLLAR: "'$' must be followed by a variable name",
     DiagnosticCode.UNEXPECTED_TOKEN: "unexpected token",
     DiagnosticCode.EXPECTED_CLOSING_BRACE: "expected '}' to close the block",
     DiagnosticCode.EXPECTED_CLOSING_BRACKET: "unmatched bracket",
-    DiagnosticCode.EXPECTED_STRING_LITERAL: "expected a string literal",
     DiagnosticCode.BAD_SLICE: "malformed slice",
     DiagnosticCode.BRACE_ON_OWN_LINE: "'{' must open on its directive's line",
     DiagnosticCode.VALUES_TOUCH: "values must be separated by a space or comment",
     DiagnosticCode.NESTING_TOO_DEEP: f"blocks and lists nest deeper than {MAX_NESTING} levels",
     DiagnosticCode.INCLUDE_NOT_FOUND: "include not found",
-    DiagnosticCode.INCLUDE_CYCLE: "include cycle",
-    DiagnosticCode.INCLUDE_DEPTH_EXCEEDED: "includes nest too deep",
     DiagnosticCode.INCLUDE_RESOLVER_FAILED: "include resolver failed",
+    DiagnosticCode.INCLUDE_BAD_PATH: "include takes one quoted path",
+    DiagnosticCode.EXTENSION_FAILED: "extension failed",
     DiagnosticCode.NON_INTEGER_BOUND: "bound is not an integer",
+    DiagnosticCode.WRONG_VALUE_KIND: "wrong kind of value",
+    DiagnosticCode.BAD_ESCAPE: "unknown escape",
+    DiagnosticCode.NOT_A_NUMBER: "not a number",
+    DiagnosticCode.NOT_AN_INTEGER: "not an integer",
+    DiagnosticCode.NOT_A_BOOLEAN: "not true or false",
+    DiagnosticCode.UNKNOWN_VARIABLE: "unknown variable",
+    DiagnosticCode.VARIABLE_SET_TWICE: "variable set twice in one block",
+    DiagnosticCode.UNKNOWN_SNIPPET: "unknown snippet",
+    DiagnosticCode.SNIPPET_ARITY: "wrong number of values for the snippet",
+    DiagnosticCode.SNIPPET_DEFINED_TWICE: "snippet defined twice in one block",
+    DiagnosticCode.EXPANSION_CYCLE: "expansion reaches itself",
+    DiagnosticCode.EXPANSION_TOO_DEEP: "expansion nests too deep",
+    DiagnosticCode.TOO_MANY_DIRECTIVES: "too many directives after expansion",
+    DiagnosticCode.BAD_SET: "write set $name value...;",
+    DiagnosticCode.BAD_SNIPPET: "write snippet name $param... { ... }",
+    DiagnosticCode.BAD_USE: "write use name value...;",
+    DiagnosticCode.EXTENSION_BLOCK_NOT_SET: "an extension's block holds only set lines",
 }
 
 

@@ -3,7 +3,27 @@
  */
 
 import { hasGlob } from "./graph/glob.js";
-import type { DocumentLoader, IDocumentWriter } from "./graph/io.js";
+import type { IDocumentWriter } from "./graph/save.js";
+import type { IDocumentSource } from "./load/source.js";
+
+/**
+ * A document source over fetch. `resolve` resolves a spec as a URL against `context.parentPath` and returns it
+ * without fetching; globs resolve to no paths. `read` fetches the URL and rejects on a non-2xx response.
+ */
+export function createFetchSource(fetchImpl: typeof fetch): IDocumentSource {
+  return {
+    resolve(spec, context) {
+      if (hasGlob(spec)) return Promise.resolve([]);
+      // The root path has no parent: it must be a whole URL.
+      return Promise.resolve([(context.parentPath === "" ? new URL(spec) : new URL(spec, context.parentPath)).toString()]);
+    },
+    async read(resolvedPath) {
+      const response = await fetchImpl(resolvedPath);
+      if (!response.ok) throw new Error(`fetch ${resolvedPath}: HTTP ${String(response.status)}`);
+      return response.text();
+    },
+  };
+}
 
 /** Options for createFetchWriter. */
 export interface IFetchWriterOptions {
@@ -11,20 +31,6 @@ export interface IFetchWriterOptions {
   readonly method?: string;
   /** Content-Type header. Default "text/plain". */
   readonly contentType?: string;
-}
-
-/**
- * A loader over fetch. Specs resolve as URLs against `context.parentPath`. Globs are not supported (they return
- * no documents); a non-2xx response returns no documents.
- */
-export function createFetchLoader(fetchImpl: typeof fetch): DocumentLoader {
-  return async (spec, context) => {
-    if (hasGlob(spec)) return [];
-    const url = new URL(spec, context.parentPath).toString();
-    const response = await fetchImpl(url);
-    if (!response.ok) return [];
-    return [{ source: await response.text(), resolvedPath: url }];
-  };
 }
 
 /** A writer that sends the text to resolvedPath with fetch. */

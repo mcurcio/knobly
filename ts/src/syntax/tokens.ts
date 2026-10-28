@@ -10,6 +10,8 @@ export const TokenKind = {
   Space: "SPACE",
   Newline: "NEWLINE",
   Comment: "COMMENT",
+  /** `$name`: a variable reference (letters, digits and `_` after the `$`). */
+  Variable: "VARIABLE",
   Word: "WORD",
   String: "STRING",
   LBrace: "LBRACE",
@@ -21,6 +23,8 @@ export const TokenKind = {
   Colon: "COLON",
   /** Error token: a string literal without its closing quote. Never used by the syntax rules. */
   UnterminatedString: "UNTERMINATED_STRING",
+  /** Error token: a `$` with no variable name after it. Never used by the syntax rules. */
+  LoneDollar: "LONE_DOLLAR",
   /** Error token: one character no other token may start with. Never used by the syntax rules. */
   BadChar: "BAD_CHAR",
 } as const;
