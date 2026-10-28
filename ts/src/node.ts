@@ -5,7 +5,7 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 
-import { hasGlob } from "./graph/glob.js";
+import { globToRegExp, hasGlob } from "./graph/glob.js";
 import type { DocumentLoader, IDocumentWriter, ILoadedDocument } from "./graph/io.js";
 import { compareCodePoints } from "./graph/order.js";
 import type { IDocumentSource } from "./load/source.js";
@@ -50,10 +50,4 @@ export function createFsWriter(): IDocumentWriter {
       await writeFile(resolvedPath, source, "utf8");
     },
   };
-}
-
-/** A file-name pattern: * matches any run of characters, ? one character, everything else itself. */
-function globToRegExp(pattern: string): RegExp {
-  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`^${escaped.replace(/\*/g, ".*").replace(/\?/g, ".")}$`, "su");
 }

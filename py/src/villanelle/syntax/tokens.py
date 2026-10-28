@@ -13,6 +13,8 @@ class TokenKind(StrEnum):
     SPACE = "SPACE"
     NEWLINE = "NEWLINE"
     COMMENT = "COMMENT"
+    VARIABLE = "VARIABLE"
+    """``$name``: a variable reference (letters, digits and ``_`` after the ``$``)."""
     WORD = "WORD"
     STRING = "STRING"
     LBRACE = "LBRACE"
@@ -24,6 +26,8 @@ class TokenKind(StrEnum):
     COLON = "COLON"
     UNTERMINATED_STRING = "UNTERMINATED_STRING"
     """Error token: a string literal without its closing quote. Never used by the syntax rules."""
+    LONE_DOLLAR = "LONE_DOLLAR"
+    """Error token: a ``$`` with no variable name after it. Never used by the syntax rules."""
     BAD_CHAR = "BAD_CHAR"
     """Error token: one character no other token may start with. Never used by the syntax rules."""
 

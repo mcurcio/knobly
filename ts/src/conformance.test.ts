@@ -15,7 +15,7 @@ interface ICase {
 }
 
 /** Every corpus file; each case's name is unique across them. */
-const FILES = ["cases.json", "extra.json", "depth.json", "edge.json", "tracer.json"];
+const FILES = ["cases.json", "extra.json", "depth.json", "edge.json", "tracer.json", "variables.json"];
 
 function load(file: string): ICase[] {
   return JSON.parse(readFileSync(new URL(file, CONFORMANCE), "utf8")) as ICase[];

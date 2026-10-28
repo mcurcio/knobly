@@ -1,0 +1,97 @@
+import { readFileSync } from "node:fs";
+
+import { describe, expect, it } from "vitest";
+
+import { include } from "./include.js";
+import type { IDirective, KeyRule } from "./load/directive.js";
+import type { IOrigin, IPlace, IStep } from "./load/origin.js";
+import { type ILoaded, type IProcessor, villanelle } from "./load/processor.js";
+import { type IDocumentSource, memorySource } from "./load/source.js";
+
+const LOAD = new URL("../../conformance/load/", import.meta.url);
+const EXPECTED = new URL("expected/", LOAD);
+
+/** conformance/load/format.md. */
+interface ICase {
+  readonly name: string;
+  readonly needs: readonly string[];
+  readonly files: Readonly<Record<string, string>>;
+  readonly root: string;
+  readonly variables?: Readonly<Record<string, string>>;
+  readonly key?: "rasl";
+  readonly extensions?: readonly "include"[];
+  readonly after?: Readonly<Record<string, string>>;
+}
+
+/** What this package implements so far; a case needing anything else is skipped until it does. */
+const SUPPORTED: ReadonlySet<string> = new Set<string>();
+
+const CASES = JSON.parse(readFileSync(new URL("cases.json", LOAD), "utf8")) as ICase[];
+
+/** The "rasl" key rule of format.md. */
+const RASL_KEY: KeyRule = (d) => {
+  if (d.name === "node" && d.parent?.name === "graph") return d.args[1]?.text;
+  if (d.name === "connect") return d.args.map((a) => a.text).join(" ");
+  if (d.name === "fill") return d.args[0]?.text;
+  return undefined;
+};
+
+function place(at: IPlace): string {
+  return `${at.resolvedPath}:${String(at.span.start.line)}:${String(at.span.start.column)}`;
+}
+
+function origin({ written, via }: { readonly written: IOrigin["written"]; readonly via: readonly IStep[] }): string {
+  const head = written.kind === "handed" ? `handed ${written.variable}` : place(written);
+  return head + via.map((step) => ` < ${step.kind} ${step.name} ${place(step.at)}`).join("");
+}
+
+function format(loaded: ILoaded, changes: unknown[][] | undefined): string {
+  const directives: unknown[] = [];
+  const unreadable: unknown[] = loaded.unreadable.map((u) => ["", u.kind, origin(u.origin)]);
+  loaded.walk((d: IDirective) => {
+    directives.push([d.address.toString(), d.body !== undefined, origin(d.origin), d.args.map((a) => [a.text, origin(a.origin)])]);
+    for (const u of d.unreadable) unreadable.push([d.address.toString(), u.kind, origin(u.origin)]);
+  });
+  const value: Record<string, unknown> = {
+    files: [...loaded.graph.nodes.keys()],
+    directives,
+    unreadable,
+    diagnostics: loaded.diagnostics.map((d) => [d.code, origin({ written: d.at, via: d.via })]),
+  };
+  if (changes !== undefined) value.changes = changes;
+  const json = JSON.stringify(value).replace(/[\u0080-￿]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+  return `${json}\n`;
+}
+
+/** One processor for both loads; its source serves whatever `files()` holds at each read. */
+function processor(c: ICase, files: () => Readonly<Record<string, string>>): IProcessor {
+  const source: IDocumentSource = {
+    resolve: (spec, context) => memorySource(files()).resolve(spec, context),
+    read: (resolvedPath) => memorySource(files()).read(resolvedPath),
+  };
+  return villanelle({
+    source,
+    ...(c.extensions?.includes("include") === true ? { extensions: [include()] } : {}),
+    ...(c.key === "rasl" ? { key: RASL_KEY } : {}),
+  });
+}
+
+const supported = (c: ICase): boolean => c.needs.every((need) => SUPPORTED.has(need));
+
+describe("load conformance (conformance/load/)", () => {
+  it.skip.each(CASES.filter((c) => !supported(c)).map((c) => [c.name]))("%s (needs what is not built yet)", () => {});
+  it.each(CASES.filter(supported).map((c) => [c.name, c] as const))("%s", async (name, c) => {
+    const options = c.variables === undefined ? undefined : { variables: c.variables };
+    // The second load reads `after`'s texts in place of the first load's; other files are unchanged.
+    let files: Readonly<Record<string, string>> = c.files;
+    const p = processor(c, () => files);
+    const first = await p.load(c.root, options);
+    let changes: unknown[][] | undefined;
+    if (c.after !== undefined) {
+      files = { ...c.files, ...c.after };
+      const second = await p.load(c.root, options);
+      changes = p.diff(first, second).map((change) => [change.kind, change.address.toString()]);
+    }
+    expect(format(first, changes)).toBe(readFileSync(new URL(`${name}.json`, EXPECTED), "utf8"));
+  });
+});

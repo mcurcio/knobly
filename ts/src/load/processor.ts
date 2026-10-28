@@ -4,13 +4,20 @@
  * of the same processor by address.
  */
 
-import type { DiagnosticError } from "../diagnostics.js";
+import { anatomyOf } from "../ast/anatomy.js";
+import { DiagnosticCode, DiagnosticError } from "../diagnostics.js";
+import { NodeKind } from "../syntax/cst.js";
+import { parse } from "../syntax/parse.js";
+import { messageOf } from "../syntax/recovery.js";
+import { TokenKind } from "../syntax/tokens.js";
 import type { IAddress, IArgument, IDirective, IUnreadable, KeyRule, WalkControl } from "./directive.js";
-import type { IDocumentGraph } from "./graph.js";
+import { Expander, fileText, type IText, Problem, Scope } from "./expand.js";
+import type { IDocumentGraph, IDocumentNode } from "./graph.js";
 import type { IDirectiveOrigin } from "./origin.js";
 import type { ILocatedDiagnostic, ProgramCode } from "./report.js";
 import type { IDocumentSource } from "./source.js";
 import { notImplemented } from "./todo.js";
+import { type Argument, Loaded } from "./tree.js";
 
 /** One use of an extension directive, as the extension sees it. */
 export interface IExtensionUse {
@@ -128,5 +135,61 @@ export interface IProcessor {
 
 /** Make a processor once, with its document source, extensions and key rule. */
 export function villanelle(options: IProcessorOptions): IProcessor {
-  throw notImplemented("villanelle", options);
+  const { source, key } = options;
+  return {
+    async load(path, loadOptions) {
+      const handed = readHanded(loadOptions?.variables ?? {});
+      let text: string;
+      try {
+        text = await source.read(path);
+      } catch (error) {
+        const code = DiagnosticCode.IncludeResolverFailed;
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new DiagnosticError({ code, message: `${messageOf(code)}: ${path}: ${reason}`, span: { start: START, end: START } });
+      }
+      const syntax = parse(text);
+      const root: IDocumentNode = { resolvedPath: path, source: text, syntax };
+      const file = fileText(path, syntax);
+      const expander = new Expander(handed, key);
+      const top = { body: [] as IDirective[], unreadable: [] as IUnreadable[] };
+      expander.container(file, syntax.root, new Scope(undefined), [], undefined, top);
+      const located = syntax.diagnostics.map((d) => ({ code: d.code, message: d.message, at: file.place(d.span), via: [] }));
+      const graph: IDocumentGraph = { root, nodes: new Map([[path, root]]), edges: [] };
+      const origin = { written: file.place({ start: START, end: START }), via: [] };
+      return new Loaded(top.body, top.unreadable, origin, [...located, ...expander.diagnostics], graph);
+    },
+    diff(before, after) {
+      throw notImplemented("IProcessor.diff", before, after);
+    },
+  };
+}
+
+const START = { offset: 0, line: 0, column: 0 } as const;
+const VARIABLE_NAME = /^[A-Za-z0-9_]+$/;
+
+/**
+ * The values handed in by the program, each text read as the values of one directive. TypeError for a bad name, or
+ * a text that is not one or more values (a syntax error, a variable, an unknown escape, a non-integer bound).
+ */
+function readHanded(variables: Readonly<Record<string, string>>): ReadonlyMap<string, readonly Argument[]> {
+  const handed = new Map<string, readonly Argument[]>();
+  const reader = new Expander(new Map(), undefined);
+  for (const [name, written] of Object.entries(variables)) {
+    if (!VARIABLE_NAME.test(name)) throw new TypeError(`handed-in variable name must be letters, digits and _: ${JSON.stringify(name)}`);
+    const syntax = parse(`x ${written}`);
+    const [node, ...rest] = syntax.root.children;
+    const bad = (why: string): TypeError => new TypeError(`handed-in variable ${name}: ${why}: ${JSON.stringify(written)}`);
+    if (syntax.diagnostics.length > 0 || node?.kind !== NodeKind.Directive || rest.length > 0) throw bad("not a run of values");
+    if (syntax.tokens.some((t) => t.kind === TokenKind.Variable)) throw bad("a handed-in value may not use a variable");
+    const text: IText = { syntax, written: () => ({ kind: "handed", variable: name }), place: (span) => ({ kind: "file", resolvedPath: "", span }) };
+    const { args } = anatomyOf(syntax.tokens, node);
+    if (args.length === 0) throw bad("no value");
+    try {
+      handed.set(name, args.flatMap((ref) => reader.value(text, ref, new Scope(undefined), [])));
+    } catch (error) {
+      if (error instanceof Problem) throw bad(error.diagnostic.message);
+      throw error;
+    }
+  }
+  return handed;
 }

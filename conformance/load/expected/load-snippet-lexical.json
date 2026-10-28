@@ -1,0 +1,1 @@
+{"files":["main.conf"],"directives":[["blk",true,"main.conf:4:0",[]],["blk > color",false,"main.conf:2:2 < use s main.conf:6:2",[["red","main.conf:0:7 < variable c main.conf:2:8 < use s main.conf:6:2"],["1","main.conf:6:8 < variable x main.conf:2:11 < use s main.conf:6:2"]]]],"unreadable":[],"diagnostics":[]}

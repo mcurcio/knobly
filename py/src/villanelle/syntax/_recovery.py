@@ -86,6 +86,8 @@ def classify_error(kinds: Sequence[TokenKind], at: int, start: int, in_block: bo
 
     if t is TokenKind.BAD_CHAR or (t is TokenKind.BOM and at > 0):
         return DiagnosticCode.UNEXPECTED_CHARACTER
+    if t is TokenKind.LONE_DOLLAR:
+        return DiagnosticCode.LONE_DOLLAR
     if t is TokenKind.UNTERMINATED_STRING:
         return DiagnosticCode.UNTERMINATED_STRING
     if in_slice:
@@ -96,8 +98,11 @@ def classify_error(kinds: Sequence[TokenKind], at: int, start: int, in_block: bo
         return DiagnosticCode.BRACE_ON_OWN_LINE
     if t is None and (in_block or braces > 0):
         return DiagnosticCode.EXPECTED_CLOSING_BRACE
-    if (t is TokenKind.WORD or t is TokenKind.STRING or t is TokenKind.LBRACK) and (
-        before is TokenKind.WORD or before is TokenKind.STRING or (before is TokenKind.RBRACK and closes_value)
+    if (t is TokenKind.WORD or t is TokenKind.STRING or t is TokenKind.VARIABLE or t is TokenKind.LBRACK) and (
+        before is TokenKind.WORD
+        or before is TokenKind.STRING
+        or before is TokenKind.VARIABLE
+        or (before is TokenKind.RBRACK and closes_value)
     ):
         return DiagnosticCode.VALUES_TOUCH
     return DiagnosticCode.UNEXPECTED_TOKEN

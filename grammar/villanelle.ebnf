@@ -1,4 +1,4 @@
-/* @rasl/config language, grammar draft 2.
+/* @rasl/config language, grammar draft 2 (round 11: variables).
    Notation: W3C EBNF (XML 1.0 section 6) in the REx layout: syntax rules,
    then the TOKENS marker, then the regular token definitions.
    Tokenization: at each position the longest match among the token kinds
@@ -19,9 +19,10 @@ Rest         ::= ( Gap ( Value Rest )? )?
 Gap          ::= ( Space | Comment )+
 Separator    ::= ';' | Newline
 Block        ::= '{' Statements '}'                         /* cst: block */
-Value        ::= Word | String | SlicedWord | List
+Value        ::= Word | String | Variable | SlicedWord | List
 SlicedWord   ::= Word '[' Bounds ']'                        /* cst: slice */
-Bounds       ::= Word ':' Word? | ':' Word
+Bounds       ::= Bound ':' Bound? | ':' Bound | Bound
+Bound        ::= Word | Variable
 List         ::= '[' ListGap? Items? ']'                     /* cst: list */
 Items        ::= Value ListGap? ( ',' ListGap? Items? )?
 ListGap      ::= ( Space | Comment | Newline )+
@@ -29,13 +30,14 @@ ListGap      ::= ( Space | Comment | Newline )+
 <?TOKENS?>
 
 /* ---------------- tokens ---------------- */
-/* tokens: Bom Space Newline Comment Word String '{' '}' '[' ']' ';' ',' ':' UnterminatedString BadChar */
+/* tokens: Bom Space Newline Comment Variable Word String '{' '}' '[' ']' ';' ',' ':' UnterminatedString LoneDollar BadChar */
 
 EOF          ::= $
 Bom          ::= #xFEFF
 Space        ::= [#x20#x9]+
 Newline      ::= #xA | #xD #xA
 Comment      ::= '#' Char*
+Variable     ::= '$' VariableChar+                     /* round 11 L1: nginx's name rule */
 Word         ::= NameStart NameChar* | NumberStart NumberChar*
 String       ::= '"' ( ( Char - ( '"' | '\' ) ) | '\' Char )* '"'
                | "'" ( ( Char - ( "'" | '\' ) ) | '\' Char )* "'"
@@ -44,6 +46,7 @@ String       ::= '"' ( ( Char - ( '"' | '\' ) ) | '\' Char )* '"'
 UnterminatedString
              ::= '"' ( ( Char - ( '"' | '\' ) ) | '\' Char )* '\'?
                | "'" ( ( Char - ( "'" | '\' ) ) | '\' Char )* '\'?
+LoneDollar   ::= '$'                                   /* a '$' with no name after it */
 BadChar      ::= AnyChar - TokenStart
 
 /* ---------------- value rules ----------------
@@ -67,4 +70,5 @@ NameStart    ::= [A-Za-z_./@*?]
 NameChar     ::= [A-Za-z0-9_./@#+:*?] | '-'
 NumberStart  ::= [0-9] | '-'
 NumberChar   ::= [A-Za-z0-9_./@#+*?] | '-'
-TokenStart   ::= [#x9#xA#x20"#',./0-9:;@A-Z_a-z{}*?] | '[' | ']' | '-' | #xFEFF
+VariableChar ::= [A-Za-z0-9_]
+TokenStart   ::= [#x9#xA#x20"#$',./0-9:;@A-Z_a-z{}*?] | '[' | ']' | '-' | #xFEFF

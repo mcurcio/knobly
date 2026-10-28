@@ -4,7 +4,7 @@
  * file and fetch sources; `memorySource` serves texts the program already holds (tests, editors).
  */
 
-import { notImplemented } from "./todo.js";
+import { globToRegExp, hasGlob } from "../graph/glob.js";
 
 /** Where a spec is being resolved from. */
 export interface ILoadContext {
@@ -33,5 +33,36 @@ export interface IDocumentSource {
  * a path that is not a key rejects. Pure: no I/O.
  */
 export function memorySource(files: Readonly<Record<string, string>>): IDocumentSource {
-  throw notImplemented("memorySource", files);
+  const texts = new Map(Object.entries(files));
+  return {
+    resolve(spec, context) {
+      const path = spec.startsWith("/") ? normalize(spec) : normalize(`${directoryOf(context.parentPath)}${spec}`);
+      if (!hasGlob(path)) return Promise.resolve(texts.has(path) ? [path] : []);
+      const directory = directoryOf(path);
+      const pattern = globToRegExp(path.slice(directory.length));
+      return Promise.resolve(
+        [...texts.keys()].filter((key) => directoryOf(key) === directory && pattern.test(key.slice(directory.length))),
+      );
+    },
+    read(resolvedPath) {
+      const text = texts.get(resolvedPath);
+      return text === undefined ? Promise.reject(new Error(`no such file: ${resolvedPath}`)) : Promise.resolve(text);
+    },
+  };
+}
+
+/** Everything up to and including the last `/`; empty for a bare name. */
+function directoryOf(path: string): string {
+  return path.slice(0, path.lastIndexOf("/") + 1);
+}
+
+/** POSIX rules: `.` segments and empty segments dropped, each `..` removes the segment before it when there is one. */
+function normalize(path: string): string {
+  const out: string[] = [];
+  for (const segment of path.split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === ".." && out.length > 0 && out.at(-1) !== "..") out.pop();
+    else out.push(segment);
+  }
+  return `${path.startsWith("/") ? "/" : ""}${out.join("/")}`;
 }

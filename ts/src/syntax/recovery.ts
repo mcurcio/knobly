@@ -73,6 +73,7 @@ export function classifyError(kinds: readonly TokenKind[], at: number, from: num
   const before = kinds[at - 1];
 
   if (t === TokenKind.BadChar || (t === TokenKind.Bom && at > 0)) return DiagnosticCode.UnexpectedCharacter;
+  if (t === TokenKind.LoneDollar) return DiagnosticCode.LoneDollar;
   if (t === TokenKind.UnterminatedString) return DiagnosticCode.UnterminatedString;
   if (inSlice) return DiagnosticCode.BadSlice;
   if (t === TokenKind.RBrack || (inBracket && (t === TokenKind.RBrace || t === undefined))) {
@@ -81,8 +82,11 @@ export function classifyError(kinds: readonly TokenKind[], at: number, from: num
   if (t === TokenKind.LBrace && (prev < 0 || kinds[prev] === TokenKind.Newline)) return DiagnosticCode.BraceOnOwnLine;
   if (t === undefined && (inBlock || braces > 0)) return DiagnosticCode.ExpectedClosingBrace;
   if (
-    (t === TokenKind.Word || t === TokenKind.String || t === TokenKind.LBrack) &&
-    (before === TokenKind.Word || before === TokenKind.String || (before === TokenKind.RBrack && closesValue))
+    (t === TokenKind.Word || t === TokenKind.String || t === TokenKind.Variable || t === TokenKind.LBrack) &&
+    (before === TokenKind.Word ||
+      before === TokenKind.String ||
+      before === TokenKind.Variable ||
+      (before === TokenKind.RBrack && closesValue))
   ) {
     return DiagnosticCode.ValuesTouch;
   }

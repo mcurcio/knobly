@@ -1,0 +1,1 @@
+{"files":["main.conf"],"directives":[["listen",false,"main.conf:1:0",[["8080","main.conf:0:11 < variable ports main.conf:1:7"],["443","main.conf:0:16 < variable ports main.conf:1:7"],["dev","main.conf:1:14"]]],["allow",false,"main.conf:2:0",[["[8080, 443, 1]","main.conf:2:6"]]]],"unreadable":[],"diagnostics":[]}
