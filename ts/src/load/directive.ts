@@ -5,9 +5,8 @@
  */
 
 import type { DiagnosticError } from "../diagnostics.js";
-import type { INode } from "../syntax/cst.js";
 import type { IIndexValue, ISliceValue, ValueKind } from "../value.js";
-import type { IReferenceResolution, WrittenValue } from "../written/model.js";
+import type { IReferenceResolution, IWrittenDirective, Statement, WrittenValue } from "../written/model.js";
 import type { IDirectiveOrigin, IOrigin } from "./origin.js";
 import type { ProgramCode } from "./report.js";
 
@@ -78,8 +77,9 @@ export interface IAddressStep {
 }
 
 /**
- * Where a directive lands in the expanded tree: its identity across loads. Unique within one load. A file included
- * at two places, or a snippet used twice, lands at two addresses (R21: "Allowed, per place").
+ * Where a directive lands in the expanded tree: its identity across renders, under one key rule
+ * (`IRendered.addresses`). Unique within one render. A file included at two places, or a snippet used twice, lands
+ * at two addresses (R21: "Allowed, per place").
  */
 export interface IAddress {
   /** From the top level down to this directive. */
@@ -118,8 +118,8 @@ export interface IUnreadable {
   readonly kind: UnreadableKind;
   /** Where the statement was written, and the uses and includes that brought it here. */
   readonly origin: IDirectiveOrigin;
-  /** Its tier-1 node in the file `origin.written` names: the error node, or the directive node that failed. */
-  readonly node: INode;
+  /** The statement that could not be read here (replaces PR 3's `node`). */
+  readonly written: Statement;
 }
 
 /** What a walk callback may return: nothing to go on into the block, "skip" to pass over it, "stop" to end. */
@@ -138,11 +138,10 @@ export interface IDirective {
   readonly unreadable: readonly IUnreadable[];
   /** The enclosing directive; undefined at the top level. */
   readonly parent: IDirective | undefined;
-  readonly address: IAddress;
   /** Where its name was written, and the uses and includes that brought it here. */
   readonly origin: IDirectiveOrigin;
-  /** Its directive node in the tier-1 tree of the file `origin.written` names (for editing, vil-uji). */
-  readonly node: INode;
+  /** The written directive this is a copy of: the same object for every copy of one line (closes vil-uji). */
+  readonly written: IWrittenDirective;
 
   /** Every directive inside this one (not itself), depth-first in written order; see WalkControl. */
   walk(visit: (directive: IDirective) => WalkControl | void): void;
@@ -152,21 +151,11 @@ export interface IDirective {
   error(message: string, code: ProgramCode): DiagnosticError;
 }
 
-/** What the key rule sees of one directive: its expanded header, before its block is expanded. */
-export interface IKeyInput {
-  readonly name: string;
-  /** Expanded values, readers and origins included. */
-  readonly args: readonly IArgument[];
-  /** Whether it was written with a block. */
-  readonly hasBlock: boolean;
-  /** The enclosing directive as the key rule saw it; undefined at the top level. */
-  readonly parent: IKeyInput | undefined;
-}
-
 /**
  * The program's rule for naming a directive among its siblings, so it keeps its address when lines move (React's
- * list `key`). Called once per readable directive, parents before children, in expansion order. An exception it
- * throws ends the load (a program bug, not a config problem). rasl names a node by its id:
+ * list `key`). Passed to `IRendered.addresses` and `IProcessor.diff` (D4); called once per directive of the render,
+ * parents before children, with the rendered directive (D5). What it throws propagates (a program bug, not a config
+ * problem). rasl names a node by its id:
  * `(d) => (d.name === "node" && d.parent?.name === "graph" ? d.args[1]?.text : undefined)`.
  */
-export type KeyRule = (directive: IKeyInput) => string | undefined;
+export type KeyRule = (directive: IDirective) => string | undefined;

@@ -12,7 +12,7 @@ import { parse } from "../syntax/parse.js";
 import { messageOf } from "../syntax/recovery.js";
 import { type IToken, TokenKind } from "../syntax/tokens.js";
 import { anatomyOf, itemsOf } from "../load/anatomy.js";
-import type { IBinding } from "./bind.js";
+import { type IBinding, RESERVED } from "./bind.js";
 import { BadTextError, DetachedError } from "./errors.js";
 import type { IDocument, IDocumentEdge, IVariable, IWrittenBlock, IWrittenDirective, Statement, WrittenValue } from "./model.js";
 import { blockShapes, type IShape, parameterTokens, type ShapeKind, statementNodes } from "./shape.js";
@@ -57,6 +57,8 @@ class Reconcile {
     private readonly old: Map<string, IOldEntry>,
     /** The replaced range in old offsets, and the length of what replaced it; undefined: keep nothing. */
     private readonly range: { readonly start: number; readonly end: number; readonly inserted: number } | undefined,
+    /** The handle an edit keeps although the replaced range starts at its first token (`rename`, 2.1). */
+    private readonly keep?: Handle,
   ) {}
 
   take(key: string, newStart: number): Handle | undefined {
@@ -66,7 +68,12 @@ class Reconcile {
     let oldStart: number;
     if (newStart < range.start) oldStart = newStart;
     else if (newStart >= range.start + range.inserted) oldStart = newStart - delta;
-    else return undefined;
+    else if (newStart === range.start && this.keep !== undefined) {
+      const id = `${key}@${String(range.start)}`;
+      if (this.old.get(id)?.handle !== this.keep) return undefined;
+      this.old.delete(id);
+      return this.keep;
+    } else return undefined;
     const id = `${key}@${String(oldStart)}`;
     const entry = this.old.get(id);
     if (entry === undefined) return undefined;
@@ -104,10 +111,11 @@ export class Block implements IWrittenBlock {
   }
 
   insertStatements(index: number, text: string): readonly Statement[] {
-    void index;
-    void text;
-    void this.document;
-    throw new Error("not implemented: insertStatements (slices.md S2)");
+    this.owner?.live();
+    if (!Number.isInteger(index) || index < 0 || index > this.items.length) {
+      throw new RangeError(`statement index ${String(index)} is outside 0..${String(this.items.length)}`);
+    }
+    return this.document.insertStatements(this, index, text);
   }
 
   addStatements(text: string): readonly Statement[] {
@@ -377,13 +385,13 @@ export class Document implements IDocument {
    * (it returns diagnostics located in the given text). Then re-parse, reconcile, and tell the host.
    * @returns the handles made for the inserted text. @throws BadTextError, changing nothing.
    */
-  splice(start: number, end: number, insert: string, given: readonly IDiagnostic[]): Handle[] {
+  splice(start: number, end: number, insert: string, given: readonly IDiagnostic[], keep?: Handle): Handle[] {
     if (given.length > 0) throw new BadTextError(`bad text: ${given.map((d) => d.code).join(", ")}`, given);
     const text = this.current.slice(0, start) + insert + this.current.slice(end);
     const syntax = parse(text);
     const rules = ruleProblems(syntax, this.host.extensionNames, start, start + insert.length, insert);
     if (rules.length > 0) throw new BadTextError(`breaks a rule: ${rules.map((d) => d.code).join(", ")}`, rules);
-    const reconcile = new Reconcile(this.entries(), { start, end, inserted: insert.length });
+    const reconcile = new Reconcile(this.entries(), { start, end, inserted: insert.length }, keep);
     this.current = text;
     this.parsed = syntax;
     this.build(reconcile);
@@ -449,6 +457,110 @@ export class Document implements IDocument {
     const common = Math.min(...lines.filter((l) => l.trim() !== "").map((l) => /^[ \t]*/u.exec(l)?.[0].length ?? 0));
     const eol = this.lineBreak();
     return lines.map((line, i) => (i === 0 ? line.slice(common) : line.trim() === "" ? "" : indentation + line.slice(common))).join(eol);
+  }
+
+  /**
+   * `insertStatements` (2.4): the text's lines, common indentation removed, each prefixed with the siblings'
+   * indentation (in an empty block: the parent's line indentation plus the document's unit), on lines of their own
+   * before `statements[index]` (its owned comments stay with it), or after the last statement.
+   */
+  insertStatements(block: Block, index: number, text: string): readonly Statement[] {
+    const given = parse(text).diagnostics;
+    if (text.trim() === "") {
+      if (given.length > 0) throw new BadTextError("bad text", given);
+      return [];
+    }
+    const eol = this.lineBreak();
+    const items = block.items;
+    const lines = (indentation: string): string => indentation + this.reindent(text, indentation);
+    let at: number;
+    let insert: string;
+    const first = items[0];
+    if (first !== undefined) {
+      const indentation = this.indentationAt(this.offsets(this.ownedRange(first.node)).start);
+      const target = items[index];
+      if (target !== undefined) {
+        const start = this.offsets(this.ownedRange(target.node)).start;
+        const lineStart = this.current.lastIndexOf("\n", start - 1) + 1;
+        if (/^[ \t\uFEFF]*$/u.test(this.current.slice(lineStart, start))) {
+          // On lines of their own before the target's line (a BOM stays first).
+          at = lineStart + (lineStart === 0 && this.current.startsWith("\uFEFF") ? 1 : 0);
+          insert = lines(indentation) + eol;
+        } else {
+          // The target shares its line with an earlier statement: the new lines go between them.
+          at = start;
+          insert = this.reindent(text, indentation) + eol + this.indentationAt(start);
+        }
+      } else {
+        const last = items[items.length - 1] as StatementHandle;
+        at = this.offsets(this.ownedRange(last.node)).end;
+        insert = eol + lines(indentation);
+      }
+    } else if (block.owner === undefined) {
+      // An empty document: at its end, on lines of their own.
+      at = this.current.length;
+      const open = this.current === "" || this.current.endsWith("\n") ? "" : eol;
+      insert = open + lines("") + eol;
+    } else {
+      const { tokens } = this.parsed;
+      const node = anatomyOf(tokens, block.owner.node).block;
+      if (node === undefined) throw new Error("a block statement without a block node");
+      const open = tokens[node.start]?.span.end.offset ?? 0;
+      const close = tokens[node.end - 1]?.span.start.offset ?? open;
+      const parentIndentation = this.indentationAt(this.offsets(block.owner.node).start);
+      const indentation = parentIndentation + this.indentationUnit();
+      if (/^[ \t\r\n]*$/u.test(this.current.slice(open, close))) {
+        // `{}` (or only whitespace between): `{`, the lines, the parent's indentation, `}`.
+        const created = this.splice(open, close, eol + lines(indentation) + eol + parentIndentation, given);
+        return created.filter((h): h is StatementHandle => h instanceof StatementHandle && h.parentHandle === block.owner) as unknown as Statement[];
+      }
+      // Only comments inside: the lines go before the `}` line.
+      const lineStart = this.current.lastIndexOf("\n", close - 1) + 1;
+      if (/^[ \t]*$/u.test(this.current.slice(lineStart, close))) {
+        at = lineStart;
+        insert = lines(indentation) + eol;
+      } else {
+        at = close;
+        insert = eol + lines(indentation) + eol + parentIndentation;
+      }
+    }
+    const created = this.splice(at, at, insert, given);
+    return created.filter((h): h is StatementHandle => h instanceof StatementHandle && h.parentHandle === block.owner) as unknown as Statement[];
+  }
+
+  /** The document's indentation unit: the leading whitespace of its first indented line, else four spaces (D14). */
+  private indentationUnit(): string {
+    return /^([ \t]+)\S/mu.exec(this.current)?.[1] ?? "    ";
+  }
+
+  /**
+   * `rename` of a directive: its name token. Refused (E2001 at 0:0, D-S1-10): not one WORD; `set`, `snippet`, `use`
+   * or a registered extension's name; or the line is an extension line. The statement keeps its handle.
+   */
+  renameStatement(statement: StatementHandle, name: string): void {
+    const refuse = (): BadTextError =>
+      new BadTextError(`cannot rename to ${JSON.stringify(name)}`, [at(name, 0, DiagnosticCode.UnexpectedToken)]);
+    if (statement.kind !== "directive") throw refuse();
+    const { tokens } = parse(name);
+    const [only] = tokens;
+    if (tokens.length !== 1 || only?.kind !== TokenKind.Word || only.text !== name) throw refuse();
+    if (RESERVED.has(name) || this.host.extensionNames.has(name)) throw refuse();
+    const token = this.parsed.tokens[statement.node.start];
+    if (token === undefined) throw new Error("a statement without a name token");
+    this.splice(token.span.start.offset, token.span.end.offset, name, [], statement);
+  }
+
+  /**
+   * `IVariable.rename`: its `$name` token only (2.3). Refused: not `[A-Za-z0-9_]+` (E2001 at 0:0); a second `set`
+   * of the name in its block (E5002), by the text-alone rules. The variable keeps its handle.
+   */
+  renameVariable(token: number, name: string, keep: Handle): void {
+    if (!/^[A-Za-z0-9_]+$/u.test(name)) {
+      throw new BadTextError(`not a variable name: ${JSON.stringify(name)}`, [at(name, 0, DiagnosticCode.UnexpectedToken)]);
+    }
+    const span = this.parsed.tokens[token]?.span;
+    if (span === undefined) throw new Error("a variable without its token");
+    this.splice(span.start.offset, span.end.offset, `$${name}`, [], keep);
   }
 
   /** `setValues` of a statement's values (2.4): first value to last; with none, after `after` (a token index). */

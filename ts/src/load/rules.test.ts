@@ -200,7 +200,8 @@ describe("rules 5 and 6: snippet and use", () => {
   it("sees its defining block as it stands at the use, never the use site's own block", async () => {
     const loaded = await loadText("snippet s { x $late; }\nset $late 1;\nuse s;\nb { set $mine 2; snippet t { y $mine; } use t; }\nc { set $z 3; use s; }\n");
     expect(loaded.diagnostics).toEqual([]);
-    expect(loaded.body.map((d) => [d.address.toString(), ...texts(d)])).toEqual([
+    const named = loaded.addresses();
+    expect(loaded.body.map((d) => [named.get(d)?.toString(), ...texts(d)])).toEqual([
       ["x", "1"],
       ["b"],
       ["c"],

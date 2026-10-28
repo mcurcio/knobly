@@ -1,6 +1,6 @@
 /**
- * The written-layer conformance runner (conformance/written/format.md): every case whose `needs` this package
- * implements, byte for byte with its expected output. Through the public API only.
+ * The written-layer conformance runner (conformance/written/format.md): every case, byte for byte with its expected
+ * output, none skipped (slices.md B1). Through the public API only.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -30,8 +30,20 @@ const WRITTEN = new URL("../../conformance/written/", import.meta.url);
 const EXPECTED = new URL("expected/", WRITTEN);
 const FIXTURES = new URL("../../fixtures/", import.meta.url);
 
-/** The `needs` tokens this runner implements (slices.md S1; D-S1-2: `statements` too). S2 completes the set. */
-const FEATURES: ReadonlySet<string> = new Set(["include", "snippet", "values", "save", "quote", "statements"]);
+/** The `needs` tokens this runner implements: all of format.md's (slices.md §3). */
+const FEATURES: ReadonlySet<string> = new Set([
+  "include",
+  "snippet",
+  "values",
+  "save",
+  "quote",
+  "statements",
+  "directive-values",
+  "blocks",
+  "rename",
+  "document",
+  "handed",
+]);
 
 type Step = readonly [string, ...unknown[]];
 
@@ -172,9 +184,9 @@ class Runner {
         const [address, arg, step, which] = rest as [string, number, number, "winner" | "reference"];
         const rendered = this.processor.render(this.graph);
         let found;
-        rendered.walk((d) => {
-          if (d.address.toString() === address) found = d.args[arg]?.resolutions[step]?.[which];
-        });
+        for (const [d, at] of rendered.addresses()) {
+          if (at.toString() === address) found = d.args[arg]?.resolutions[step]?.[which];
+        }
         return found;
       }
       default:
@@ -188,7 +200,8 @@ class Runner {
     try {
       const method = handle[op];
       if (typeof method !== "function") throw new Error(`no ${op} on ${JSON.stringify(target)}`);
-      const result = method.apply(handle, [...args]);
+      // JSON has no undefined: `["setHanded", name, null]` removes the value.
+      const result = method.apply(handle, args.map((a) => (a === null ? undefined : a)));
       if (Array.isArray(result)) {
         this.returned = result[0];
         return ["ok", (result as { text: string }[]).map((h) => h.text)];
@@ -236,9 +249,11 @@ class Runner {
     const rendered = this.processor.render(this.graph);
     const directives: unknown[] = [];
     const unreadable: unknown[] = rendered.unreadable.map((u) => ["", u.kind, origin(u.origin)]);
+    const named = rendered.addresses();
     rendered.walk((d) => {
+      const address = named.get(d)?.toString();
       directives.push([
-        d.address.toString(),
+        address,
         d.body !== undefined,
         origin(d.origin),
         d.args.map((a) => [
@@ -248,7 +263,7 @@ class Runner {
           a.resolutions.map((r) => [copyText(r.reference.place, r.copy.via), variableText(r.winner)]),
         ]),
       ]);
-      for (const u of d.unreadable) unreadable.push([d.address.toString(), u.kind, origin(u.origin)]);
+      for (const u of d.unreadable) unreadable.push([address, u.kind, origin(u.origin)]);
     });
     return { directives, unreadable, diagnostics: rendered.diagnostics.map((d) => [d.code, origin({ written: d.at, via: d.via })]) };
   }
@@ -286,10 +301,11 @@ describe("written conformance (conformance/written/)", () => {
     expect(expected).toEqual(CASES.map((c) => c.name).sort());
   });
 
-  const runs = (c: ICase): boolean => c.needs.every((need) => FEATURES.has(need));
-  it.skip.each(CASES.filter((c) => !runs(c)).map((c) => [c.name] as const))("%s (needs a feature of slices.md S2)", () => undefined);
+  it("implements every feature a case needs, so no case is skipped", () => {
+    expect(CASES.flatMap((c) => c.needs.filter((need) => !FEATURES.has(need)).map((need) => `${c.name}: ${need}`))).toEqual([]);
+  });
 
-  it.each(CASES.filter(runs).map((c) => [c.name, c] as const))("%s", async (name, c) => {
+  it.each(CASES.map((c) => [c.name, c] as const))("%s", async (name, c) => {
     const files = c.fixture === undefined ? (c.files ?? {}) : fixtureFiles(c.fixture);
     const processor = villanelle({
       source: memorySource(files),

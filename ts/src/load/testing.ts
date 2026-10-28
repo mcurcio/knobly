@@ -3,15 +3,14 @@
  * (tsconfig.build.json leaves it out).
  */
 
-import type { IDirective, KeyRule } from "./directive.js";
+import type { IDirective } from "./directive.js";
 import type { IOrigin, IPlace, IStep } from "./origin.js";
-import { type IExtension, type IProcessor, type IRendered, villanelle } from "./processor.js";
+import { type IExtension, type IKeyOptions, type IProcessor, type IRendered, villanelle } from "./processor.js";
 import type { ILocatedDiagnostic } from "./report.js";
 import { type IDocumentSource, memorySource } from "./source.js";
 
 export interface ITestOptions {
   readonly variables?: Readonly<Record<string, string>>;
-  readonly key?: KeyRule;
   readonly extensions?: readonly IExtension[];
 }
 
@@ -20,7 +19,6 @@ export function processorOf(files: Readonly<Record<string, string>>, options: IT
   return villanelle({
     source: memorySource(files),
     ...(options.extensions === undefined ? {} : { extensions: options.extensions }),
-    ...(options.key === undefined ? {} : { key: options.key }),
   });
 }
 
@@ -78,13 +76,14 @@ export function problems(diagnostics: Iterable<ILocatedDiagnostic>): [string, st
   return [...diagnostics].map((d) => [d.code, originText({ written: d.at, via: d.via })]);
 }
 
-/** Every directive's people address in walk order. */
-export function addresses(loaded: IRendered): string[] {
-  const out: string[] = [];
-  loaded.walk((d: IDirective) => {
-    out.push(d.address.toString());
-  });
-  return out;
+/** Every directive's people address in walk order, under `options.key`. */
+export function addresses(rendered: IRendered, options?: IKeyOptions): string[] {
+  return [...rendered.addresses(options).values()].map((address) => address.toString());
+}
+
+/** One directive's people address under `options.key`. */
+export function addressOf(rendered: IRendered, directive: IDirective, options?: IKeyOptions): string {
+  return rendered.addresses(options).get(directive)?.toString() ?? "";
 }
 
 /** Each of the directive's values' canonical text. */

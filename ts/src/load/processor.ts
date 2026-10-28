@@ -1,15 +1,16 @@
 /**
  * Loading, rendering and change lists (R15 tier 2; round 12 design.md §5). A processor is made once with its
- * document source, extensions and key rule, as `postcss([plugins])` is; `load` reads a root file and everything
- * it includes into a document graph (the files as written); `render` builds the rendered tree from the graph's
- * current texts; `diff` compares two renders of the same processor by address.
+ * document source and extensions, as `postcss([plugins])` is; `load` reads a root file and everything it includes
+ * into a document graph (the files as written); `read` reads what edits made unread; `render` builds the rendered
+ * tree from the graph's current texts; `diff` compares two renders of the same processor by address, under the
+ * caller's key rule (D4).
  */
 
 import type { DiagnosticError } from "../diagnostics.js";
 import { RESERVED } from "../written/bind.js";
 import { DocumentGraph } from "../written/graph.js";
 import type { IDocumentGraph } from "../written/model.js";
-import { loadGraph } from "../written/read.js";
+import { loadGraph, readUnread } from "../written/read.js";
 import { diff } from "./diff.js";
 import type { IAddress, IArgument, IDirective, IUnreadable, KeyRule, WalkControl } from "./directive.js";
 import type { IDirectiveOrigin } from "./origin.js";
@@ -42,7 +43,10 @@ export interface IExtension {
 export interface IProcessorOptions {
   readonly source: IDocumentSource;
   readonly extensions?: readonly IExtension[];
-  /** Without one, a directive is named by its position among same-name siblings. */
+}
+
+/** How directives are named among same-name siblings; without a key rule, by position. */
+export interface IKeyOptions {
   readonly key?: KeyRule;
 }
 
@@ -76,6 +80,11 @@ export interface IRendered {
   walk(visit: (directive: IDirective) => WalkControl | void): void;
   /** A located error for a problem of the whole file, such as a required top-level directive left out. */
   error(message: string, code: ProgramCode): DiagnosticError;
+  /**
+   * Every directive's address under `options.key`, in walk order (the map's order). The key rule is called once per
+   * directive, parents before children; what it throws propagates. The one home of the address rule; `diff` uses it.
+   */
+  addresses(options?: IKeyOptions): ReadonlyMap<IDirective, IAddress>;
 }
 
 export const ChangeKind = {
@@ -124,28 +133,33 @@ export interface IProcessor {
    * Read the root file at `path` (resolved through the source, as an included file's spec is, so the root has one
    * path in the graph) and every file its include lines name, once each (R21), repeating until nothing new is named.
    * Never rejects for anything in the text.
-   * @throws (rejects) DiagnosticError E3004 at the root path when the source cannot resolve or read it; TypeError
-   * for bad handed-in variables
+   * @throws (rejects) ReadError (a DiagnosticError: E3004 at the root path) when the source cannot resolve or read
+   * the root; TypeError for bad handed-in variables
    */
   load(path: string, options?: ILoadOptions): Promise<IDocumentGraph>;
   /**
+   * Resolve and read what `graph.unread()` names, repeating until nothing new is named; keeps every text and every
+   * kept rejection (D12). Returns the resolvedPaths read, in read order. @throws TypeError for another processor's graph
+   */
+  read(graph: IDocumentGraph): Promise<readonly string[]>;
+  /**
    * The rendered tree of the graph's current texts and handed-in values. Pure: reads no file; an unread include copy
-   * renders as nothing (its edge is in `graph.unread()`). Whatever the key rule throws propagates.
+   * renders as nothing (its edge is in `graph.unread()`).
    * @throws TypeError for a graph another processor made
    */
   render(graph: IDocumentGraph): IRendered;
   /**
-   * What differs between two renders of this processor, by address: removed and unknown in `before`'s walk order,
-   * then added and changed in `after`'s. A directive missing from `after` is "unknown", not "removed", when its block
-   * in `after` (or the top level) holds an unreadable statement.
-   * @throws TypeError when either render came from another processor.
+   * What differs between two renders of this processor's graphs, by address under `options.key` (D4): removed and
+   * unknown in `before`'s walk order, then added and changed in `after`'s. A directive missing from `after` is
+   * "unknown", not "removed", when its block in `after` (or the top level) holds an unreadable statement.
+   * @throws TypeError when either render came from another processor; whatever the key rule throws
    */
-  diff(before: IRendered, after: IRendered): readonly Change[];
+  diff(before: IRendered, after: IRendered, options?: IKeyOptions): readonly Change[];
 }
 
-/** Make a processor once, with its document source, extensions and key rule. */
+/** Make a processor once, with its document source and extensions. */
 export function villanelle(options: IProcessorOptions): IProcessor {
-  const { source, key } = options;
+  const { source } = options;
   const extensions = new Map<string, IExtension>();
   for (const extension of options.extensions ?? []) {
     if (RESERVED.has(extension.directive) || extensions.has(extension.directive)) {
@@ -153,24 +167,30 @@ export function villanelle(options: IProcessorOptions): IProcessor {
     }
     extensions.set(extension.directive, extension);
   }
-  /** The graphs and renders this processor made: `render` and `diff` take only those (one key rule, one set of extensions). */
+  /** The graphs and renders this processor made: `read`, `render` and `diff` take only those (one set of extensions, D27). */
   const graphs = new WeakSet<IDocumentGraph>();
   const renders = new WeakSet<IRendered>();
+  const own = (graph: IDocumentGraph, what: string): DocumentGraph => {
+    if (!graphs.has(graph) || !(graph instanceof DocumentGraph)) throw new TypeError(`${what} takes only graphs this processor loaded`);
+    return graph;
+  };
   return {
     async load(path, loadOptions) {
       const graph = await loadGraph(source, extensions, path, new Map(Object.entries(loadOptions?.variables ?? {})));
       graphs.add(graph);
       return graph;
     },
+    async read(graph) {
+      return await readUnread(own(graph, "read"), source);
+    },
     render(graph) {
-      if (!graphs.has(graph) || !(graph instanceof DocumentGraph)) throw new TypeError("render takes only graphs this processor loaded");
-      const rendered = render(graph, key);
+      const rendered = render(own(graph, "render"));
       renders.add(rendered);
       return rendered;
     },
-    diff(before, after) {
+    diff(before, after, diffOptions) {
       if (!renders.has(before) || !renders.has(after)) throw new TypeError("diff compares only renders of this processor");
-      return diff(before, after);
+      return diff(before, after, diffOptions);
     },
   };
 }

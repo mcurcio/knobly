@@ -2,8 +2,9 @@
  * The "villanelle/node" entry: filesystem I/O edges for Node.js.
  */
 
-import { readdir, readFile, stat, writeFile } from "node:fs/promises";
-import { basename, dirname, resolve } from "node:path";
+import { randomBytes } from "node:crypto";
+import { readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
 
 import { globToRegExp, hasGlob } from "./graph/glob.js";
 import type { IDocumentSource } from "./load/source.js";
@@ -52,13 +53,52 @@ function isMissing(error: unknown): boolean {
 }
 
 /**
- * A writer that replaces each file at its resolvedPath with its text, as UTF-8, in batch order. Not all-or-nothing
- * yet: a failure part way leaves the earlier files written (slices.md S2 adds the lost-update check and staging).
+ * One batch on disk (D18): reads each target first and rejects, writing nothing, when one no longer holds its
+ * `source` (a lost update; the Error names the paths; a missing file holds ""); else writes each text, as UTF-8, to
+ * a temporary file beside its target (`<name>.<random>.tmp`), then renames each over its target in batch order. A
+ * failure while staging removes the temporaries and rejects with nothing replaced; a failure while renaming can
+ * leave earlier files replaced (stated cost) and removes the temporaries not yet renamed.
  */
 export function createFsWriter(): IDocumentWriter {
   return {
     async write(files) {
-      for (const file of files) await writeFile(file.resolvedPath, file.text, "utf8");
+      const lost: string[] = [];
+      for (const file of files) {
+        if ((await readOrEmpty(file.resolvedPath)) !== file.source) lost.push(file.resolvedPath);
+      }
+      if (lost.length > 0) throw new Error(`lost update: changed on disk since it was read: ${lost.join(", ")}`);
+      const staged: { readonly temporary: string; readonly target: string }[] = [];
+      const removeLeft = async (from: number): Promise<void> => {
+        await Promise.all(staged.slice(from).map(({ temporary }) => rm(temporary, { force: true })));
+      };
+      try {
+        for (const file of files) {
+          const temporary = join(dirname(file.resolvedPath), `${basename(file.resolvedPath)}.${randomBytes(6).toString("hex")}.tmp`);
+          staged.push({ temporary, target: file.resolvedPath });
+          await writeFile(temporary, file.text, { encoding: "utf8", flag: "wx" });
+        }
+      } catch (error) {
+        await removeLeft(0);
+        throw error;
+      }
+      for (const [i, { temporary, target }] of staged.entries()) {
+        try {
+          await rename(temporary, target);
+        } catch (error) {
+          await removeLeft(i);
+          throw error;
+        }
+      }
     },
   };
+}
+
+/** A file's text, or "" when nothing is there. Other failures reject. */
+async function readOrEmpty(path: string): Promise<string> {
+  try {
+    return await readFile(path, "utf8");
+  } catch (error) {
+    if (isMissing(error)) return "";
+    throw error;
+  }
 }

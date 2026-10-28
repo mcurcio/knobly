@@ -1,9 +1,10 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { SaveError } from "./written/errors.js";
 import { save } from "./written/save.js";
 import { include } from "./include.js";
 import { villanelle } from "./load/processor.js";
@@ -74,5 +75,71 @@ describe("villanelle/node", () => {
     const graph = await villanelle({ source: createFileSource() }).load(path);
     expect(await save(graph, createFsWriter())).toEqual([]);
     expect(await readFile(path, "utf8")).toBe("w 1;\n");
+  });
+
+  /** The temporary files the fs writer left in a directory. */
+  async function temporaries(directory: string): Promise<string[]> {
+    return (await readdir(directory)).filter((name) => name.endsWith(".tmp"));
+  }
+
+  it("stages a batch beside its targets and renames it over them, updating each source (D18)", async () => {
+    const directory = join(dir, "batch");
+    await mkdir(directory);
+    await writeFile(join(directory, "main.conf"), 'include "part.conf";\nm 1;\n');
+    await writeFile(join(directory, "part.conf"), "p 1;\n");
+    const graph = await villanelle({ source: createFileSource(), extensions: [include()] }).load(join(directory, "main.conf"));
+    const [main, part] = [...graph.documents.values()];
+    const m = main?.body.statements[1];
+    const p = part?.body.statements[0];
+    if (m?.kind !== "directive" || p?.kind !== "directive") throw new Error("fixture");
+    m.setValues("2");
+    p.setValues("2");
+    expect(await save(graph, createFsWriter())).toEqual([join(directory, "main.conf"), join(directory, "part.conf")]);
+    expect(await readFile(join(directory, "main.conf"), "utf8")).toBe('include "part.conf";\nm 2;\n');
+    expect(await readFile(join(directory, "part.conf"), "utf8")).toBe("p 2;\n");
+    expect(main?.source).toBe(main?.text);
+    expect(await temporaries(directory)).toEqual([]);
+  });
+
+  it("refuses a lost update, writing nothing, and names the file", async () => {
+    const directory = join(dir, "lost");
+    await mkdir(directory);
+    const [a, b] = [join(directory, "a.conf"), join(directory, "b.conf")];
+    await writeFile(a, "a 1;\n");
+    await writeFile(b, "b 1;\n");
+    const graph = await villanelle({ source: createFileSource() }).load(a);
+    const statement = graph.root.body.statements[0];
+    if (statement?.kind !== "directive") throw new Error("fixture");
+    statement.setValues("2");
+    // Someone else changes b after it was read.
+    await writeFile(b, "b changed;\n");
+    const batch = [
+      { resolvedPath: a, text: "a 2;\n", source: "a 1;\n" },
+      { resolvedPath: b, text: "b 2;\n", source: "b 1;\n" },
+    ];
+    await expect(createFsWriter().write(batch)).rejects.toThrow(/lost update.*b\.conf/);
+    expect(await readFile(a, "utf8")).toBe("a 1;\n");
+    expect(await readFile(b, "utf8")).toBe("b changed;\n");
+    // Through save: a changed on disk too, so SaveError, and the document keeps its unsaved text.
+    await writeFile(a, "a changed;\n");
+    await expect(save(graph, createFsWriter())).rejects.toBeInstanceOf(SaveError);
+    expect(await readFile(a, "utf8")).toBe("a changed;\n");
+    expect(graph.root.text).not.toBe(graph.root.source);
+    expect(await temporaries(directory)).toEqual([]);
+  });
+
+  it("replaces nothing and leaves no temporary file when staging fails part way", async () => {
+    const directory = join(dir, "staging");
+    await mkdir(directory);
+    const a = join(directory, "a.conf");
+    await writeFile(a, "a 1;\n");
+    const batch = [
+      { resolvedPath: a, text: "a 2;\n", source: "a 1;\n" },
+      // A new file in a directory that is not there: nothing on disk, so no lost update, but it cannot be staged.
+      { resolvedPath: join(directory, "missing", "b.conf"), text: "b 1;\n", source: "" },
+    ];
+    await expect(createFsWriter().write(batch)).rejects.toThrow(/ENOENT/);
+    expect(await readFile(a, "utf8")).toBe("a 1;\n");
+    expect(await temporaries(directory)).toEqual([]);
   });
 });

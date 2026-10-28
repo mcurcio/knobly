@@ -1,51 +1,48 @@
 /**
- * Addresses, the key rule (slices.md §1.4) and `diff` (§1.5), through the public processor.
+ * Addresses, the key rule (slices.md §1.4; round 12 D4, D5: passed to `addresses()` and `diff`) and `diff` (§1.5),
+ * through the public processor.
  */
 
 import { describe, expect, it } from "vitest";
 
-import type { IDirective, IKeyInput, KeyRule } from "./directive.js";
+import type { IDirective, KeyRule } from "./directive.js";
 import type { IProcessor } from "./processor.js";
 import { villanelle } from "./processor.js";
 import { type IDocumentSource, memorySource } from "./source.js";
-import { addresses, loadText, processorOf, rendered } from "./testing.js";
+import { addresses, loadText, only, processorOf, rendered } from "./testing.js";
 
 const RASL_KEY: KeyRule = (d) => (d.name === "node" && d.parent?.name === "graph" ? d.args[1]?.text : undefined);
 
 /** A processor whose `main.conf` is whatever `text()` holds at each read. */
-function changing(text: () => string, key?: KeyRule): IProcessor {
+function changing(text: () => string): IProcessor {
   const source: IDocumentSource = {
     resolve: (spec, context) => memorySource({ "main.conf": text() }).resolve(spec, context),
     read: (path) => memorySource({ "main.conf": text() }).read(path),
   };
-  return villanelle({ source, ...(key === undefined ? {} : { key }) });
+  return villanelle({ source });
 }
 
 /** `diff` of two texts as `[kind, address]` pairs. */
 async function changes(before: string, after: string, key?: KeyRule): Promise<[string, string][]> {
   let text = before;
-  const processor = changing(() => text, key);
+  const processor = changing(() => text);
   const first = await rendered(processor, "main.conf");
   text = after;
   const second = await rendered(processor, "main.conf");
-  return processor.diff(first, second).map((c) => [c.kind, c.address.toString()]);
+  return processor.diff(first, second, key === undefined ? undefined : { key }).map((c) => [c.kind, c.address.toString()]);
 }
 
 describe("address", () => {
   it("counts occurrences among earlier siblings with the same name and key", async () => {
     const loaded = await loadText("a;\nb;\na;\nc { a; a; }\n");
     expect(addresses(loaded)).toEqual(["a", "b", "a #1", "c", "c > a", "c > a #1"]);
-    const keyed = await loadText("graph {\n  node A x;\n  other;\n  node B y;\n  node C x;\n}\n", { key: RASL_KEY });
-    expect(addresses(keyed)).toEqual(["graph", 'graph > node "x"', "graph > other", 'graph > node "y"', 'graph > node "x" #1']);
+    const keyed = await loadText("graph {\n  node A x;\n  other;\n  node B y;\n  node C x;\n}\n");
+    expect(addresses(keyed, { key: RASL_KEY })).toEqual(["graph", 'graph > node "x"', "graph > other", 'graph > node "y"', 'graph > node "x" #1']);
   });
 
   it("has JSON text with the same bytes as Python's, and a parent", async () => {
-    const loaded = await loadText('graph {\n  node A "le\\"ds" { max_count 1; }\n}\n', { key: RASL_KEY });
-    let deepest: IDirective | undefined;
-    loaded.walk((d) => {
-      deepest = d;
-    });
-    const address = deepest?.address;
+    const loaded = await loadText('graph {\n  node A "le\\"ds" { max_count 1; }\n}\n');
+    const address = [...loaded.addresses({ key: RASL_KEY }).values()].at(-1);
     expect(address?.text).toBe('[["graph",null,0],["node","\\"le\\\\\\"ds\\"",0],["max_count",null,0]]');
     expect(address?.toString()).toBe('graph > node "\\"le\\\\\\"ds\\"" > max_count');
     expect(address?.steps.map((s) => [s.name, s.key, s.occurrence])).toEqual([
@@ -64,41 +61,63 @@ describe("address", () => {
 });
 
 describe("key rule", () => {
-  it("sees expanded values, whether there is a block, and its parent's input, parents first", async () => {
-    const seen: IKeyInput[] = [];
+  it("sees each rendered directive, parents first, once per call, and names only that call's addresses", async () => {
+    const loaded = await loadText("set $id leds;\ngraph {\n  node A $id { x; }\n  flag;\n}\n");
+    const seen: IDirective[] = [];
     const key: KeyRule = (d) => {
       seen.push(d);
-      return undefined;
+      return d.name === "node" ? d.args[1]?.text : undefined;
     };
-    await loadText("set $id leds;\ngraph {\n  node A $id { x; }\n  flag;\n}\n", { key });
-    expect(seen.map((d) => [d.name, d.args.map((a) => a.text), d.hasBlock, d.parent?.name])).toEqual([
+    expect(addresses(loaded, { key })).toEqual(["graph", 'graph > node "leds"', 'graph > node "leds" > x', "graph > flag"]);
+    expect(seen.map((d) => [d.name, d.args.map((a) => a.text), d.body !== undefined, d.parent?.name])).toEqual([
       ["graph", [], true, undefined],
       ["node", ["A", "leds"], true, "graph"],
       ["x", [], false, "node"],
       ["flag", [], false, "graph"],
     ]);
     expect(seen[2]?.parent).toBe(seen[1]);
-    expect(seen[2]?.parent?.parent).toBe(seen[0]);
+    expect(seen[1]?.parent).toBe(seen[0]);
+    // Without a key, by position: a key given to one call is not kept by the render.
+    expect(addresses(loaded)).toEqual(["graph", "graph > node", "graph > node > x", "graph > flag"]);
+    expect(seen).toHaveLength(4);
   });
 
-  it("ends the load with whatever it throws", async () => {
+  it("propagates whatever it throws from addresses() and diff", async () => {
     const boom = new RangeError("program bug");
     const key: KeyRule = (d) => {
       if (d.name === "b") throw boom;
       return undefined;
     };
-    await expect(loadText("a;\nb;\n", { key })).rejects.toBe(boom);
+    const processor = processorOf({ "main.conf": "a;\nb;\n" });
+    const loaded = await rendered(processor, "main.conf");
+    expect(() => loaded.addresses({ key })).toThrow(boom);
+    expect(() => processor.diff(loaded, loaded, { key })).toThrow(boom);
   });
 
   it("is called only for readable directives", async () => {
     const names: string[] = [];
-    await loadText("a $nope;\nb;\n", {
+    const loaded = await loadText("a $nope;\nb;\n");
+    loaded.addresses({
       key: (d) => {
         names.push(d.name);
         return undefined;
       },
     });
     expect(names).toEqual(["b"]);
+  });
+
+  it("gives every change the address of its key rule", async () => {
+    let text = "graph {\n  node A one;\n}\n";
+    const processor = changing(() => text);
+    const first = await rendered(processor, "main.conf");
+    text = "graph {\n  node A two;\n}\n";
+    const second = await rendered(processor, "main.conf");
+    const key: KeyRule = (d) => (d.name === "node" ? d.args[1]?.text : undefined);
+    expect(processor.diff(first, second, { key }).map((c) => [c.kind, c.address.toString()])).toEqual([
+      ["removed", 'graph > node "one"'],
+      ["added", 'graph > node "two"'],
+    ]);
+    expect(only(processor.diff(first, second)).kind).toBe("changed");
   });
 });
 

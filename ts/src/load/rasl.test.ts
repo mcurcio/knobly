@@ -65,7 +65,7 @@ describe("rasl's configs", () => {
   it.each(Object.keys(EXPECTED))("%s loads with the expected nodes and reload changes", async (name) => {
     const expected = EXPECTED[name] as IExpected;
     const { source: files, edit } = source();
-    const processor = villanelle({ source: files, extensions: [include()], key: RASL_KEY });
+    const processor = villanelle({ source: files, extensions: [include()] });
     const path = fileURLToPath(new URL(name, FIXTURES));
     const options = { variables: HANDED };
     const first = await rendered(processor, path, options);
@@ -73,16 +73,17 @@ describe("rasl's configs", () => {
     expect(nodeIds(first)).toEqual(expected.nodes);
     edit();
     const second = await rendered(processor, path, options);
-    expect(processor.diff(first, second).map((c) => [c.kind, c.address.toString()])).toEqual(expected.changes);
+    expect(processor.diff(first, second, { key: RASL_KEY }).map((c) => [c.kind, c.address.toString()])).toEqual(expected.changes);
   });
 
   it("splits one sink file over two places, each with its own include-block values and the handed-in host", async () => {
-    const processor = villanelle({ source: createFileSource(), extensions: [include()], key: RASL_KEY });
+    const processor = villanelle({ source: createFileSource(), extensions: [include()] });
     const path = fileURLToPath(new URL("split/main.conf", FIXTURES));
     const loaded = await rendered(processor, path, { variables: HANDED });
     const targets: [string, string][] = [];
+    const named = loaded.addresses({ key: RASL_KEY });
     loaded.walk((d) => {
-      if (d.name === "target") targets.push([d.address.toString(), d.args[0]?.text ?? ""]);
+      if (d.name === "target") targets.push([named.get(d)?.toString() ?? "", d.args[0]?.text ?? ""]);
     });
     expect(targets).toEqual([
       ['graph > node "leds" > target', '"10.0.70.1"'],

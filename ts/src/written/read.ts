@@ -4,17 +4,18 @@
  * PR 3's expansion read them (depth first), each path once (R21), and a rejection is kept, never retried.
  */
 
-import { DiagnosticCode, DiagnosticError } from "../diagnostics.js";
+import { DiagnosticCode } from "../diagnostics.js";
 import type { IExtension } from "../load/processor.js";
 import type { IDocumentSource } from "../load/source.js";
 import { messageOf } from "../syntax/recovery.js";
+import { ReadError } from "./errors.js";
 import { DocumentGraph } from "./graph.js";
 
 const START = { offset: 0, line: 0, column: 0 } as const;
 
 /**
  * Read the root file at `path` (resolved through the source, as an included file's spec is) and every file its
- * include lines name. @throws (rejects) DiagnosticError E3004 at the root path when the source cannot resolve or
+ * include lines name. @throws (rejects) ReadError (E3004 at the root path, D25) when the source cannot resolve or
  * read it; TypeError for bad handed-in variables (checked first)
  */
 export async function loadGraph(
@@ -24,10 +25,10 @@ export async function loadGraph(
   handed: ReadonlyMap<string, string>,
 ): Promise<DocumentGraph> {
   const graph = new DocumentGraph(extensions, handed);
-  const fail = (reason: string): DiagnosticError => {
+  const fail = (reason: string): ReadError => {
     const code = DiagnosticCode.IncludeResolverFailed;
     const at = { kind: "file", resolvedPath: path, span: { start: START, end: START } } as const;
-    return new DiagnosticError({ code, message: `${messageOf(code)}: ${path}: ${reason}`, at, via: [] });
+    return new ReadError({ code, message: `${messageOf(code)}: ${path}: ${reason}`, at, via: [] });
   };
   // The root is resolved through the source as an included file's spec is (F1-04), so one file has one path.
   let paths: readonly string[];

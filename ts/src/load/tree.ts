@@ -4,13 +4,12 @@
  */
 
 import { DiagnosticCode, type DiagnosticError } from "../diagnostics.js";
-import type { INode } from "../syntax/cst.js";
 import type { IIndexValue, ISliceValue } from "../value.js";
 import { ValueKind } from "../value.js";
 import type { IAddress, IAddressStep, IArgument, IDirective, IUnreadable, PlainValue, WalkControl } from "./directive.js";
-import type { IDocumentGraph, IReferenceResolution, WrittenValue } from "../written/model.js";
+import type { IDocumentGraph, IReferenceResolution, IWrittenDirective, WrittenValue } from "../written/model.js";
 import type { IDirectiveOrigin, IOrigin, IStep } from "./origin.js";
-import type { IRendered } from "./processor.js";
+import type { IKeyOptions, IRendered } from "./processor.js";
 import type { ILocatedDiagnostic, ProgramCode } from "./report.js";
 import { codeError, programError } from "./locate.js";
 import { booleanOf, canonicalList, canonicalSlice, canonicalString, integerOf, numberOf } from "./values.js";
@@ -182,9 +181,8 @@ export class Directive implements IDirective {
     readonly args: readonly IArgument[],
     hasBlock: boolean,
     readonly parent: Directive | undefined,
-    readonly address: Address,
     readonly origin: IDirectiveOrigin,
-    readonly node: INode,
+    readonly written: IWrittenDirective,
   ) {
     this.body = hasBlock ? [] : undefined;
   }
@@ -213,6 +211,30 @@ export class Rendered implements IRendered {
 
   walk(visit: (directive: IDirective) => WalkControl | void): void {
     walkBody(this.body, visit);
+  }
+
+  /**
+   * The one home of the address rule (D4): each directive is named by its name, what the key rule returns for it,
+   * and its occurrence among the earlier directives of its container (a block, or the top level, spliced files and
+   * snippets included) with that name and key. The key rule is called once per directive, parents first.
+   */
+  addresses(options?: IKeyOptions): ReadonlyMap<IDirective, IAddress> {
+    const key = options?.key;
+    const out = new Map<IDirective, IAddress>();
+    const name = (body: readonly IDirective[], parent: Address | undefined): void => {
+      const occurrences = new Map<string, number>();
+      for (const directive of body) {
+        const keyText = key?.(directive);
+        const slot = JSON.stringify([directive.name, keyText ?? null]);
+        const occurrence = occurrences.get(slot) ?? 0;
+        occurrences.set(slot, occurrence + 1);
+        const address = new Address(parent, { name: directive.name, key: keyText, occurrence });
+        out.set(directive, address);
+        name(directive.body ?? [], address);
+      }
+    };
+    name(this.body, undefined);
+    return out;
   }
 
   error(message: string, code: ProgramCode): DiagnosticError {

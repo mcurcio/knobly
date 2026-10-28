@@ -118,14 +118,12 @@ export class WrittenDirective extends StatementHandle {
 
   rename(name: string): void {
     this.live();
-    void name;
-    throw new Error("not implemented: rename (slices.md S2)");
+    this.doc.renameStatement(this, name);
   }
 
   setValues(text: string): void {
     this.live();
-    void text;
-    throw new Error("not implemented: IWrittenDirective.setValues (slices.md S2)");
+    this.doc.setValues(this, this.valueList, this.node.start, text);
   }
 }
 
@@ -202,8 +200,7 @@ export class UseLine extends StatementHandle {
 
   setValues(text: string): void {
     this.live();
-    void text;
-    throw new Error("not implemented: IUseLine.setValues (slices.md S2)");
+    this.doc.setValues(this, this.valueList, this.firstArgToken(), text);
   }
 }
 
@@ -266,8 +263,7 @@ export class SetVariable extends VariableBase implements IVariable {
 
   rename(name: string): void {
     this.setLine.live();
-    void name;
-    throw new Error("not implemented: IVariable.rename (slices.md S2)");
+    this.setLine.doc.renameVariable(this.setLine.variableToken, name, this.setLine);
   }
 
   setValues(text: string): void {
@@ -313,9 +309,8 @@ export class ParameterVariable extends VariableBase implements IVariable {
   }
 
   rename(name: string): void {
-    this.alive();
-    void name;
-    throw new Error("not implemented: IVariable.rename (slices.md S2)");
+    const line = this.alive();
+    line.doc.renameVariable(this.token, name, this);
   }
 
   setValues(text: string): void {
