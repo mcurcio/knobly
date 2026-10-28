@@ -8,7 +8,7 @@ import { globToRegExp, hasGlob } from "../graph/glob.js";
 
 /** Where a spec is being resolved from. */
 export interface ILoadContext {
-  /** resolvedPath of the file holding the extension directive. */
+  /** resolvedPath of the file holding the extension directive; empty when the root path itself is resolved. */
   readonly parentPath: string;
 }
 

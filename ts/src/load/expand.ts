@@ -74,9 +74,20 @@ interface ISnippet {
   readonly scope: IScopeView;
 }
 
+/** What `$name` reads at a place, and whether it is a snippet parameter. */
+interface IBinding {
+  readonly values: readonly Argument[];
+  readonly parameter: boolean;
+}
+
 /** What a place can see: variables and snippets. */
 interface IScopeView {
-  lookup(name: string): readonly Argument[] | undefined;
+  /**
+   * What `$name` reads here (F1-01). The nearest `set` or parameter binds (rule 2); an extension block's value wins
+   * over every `set` inside the files it splices (rule 8), but not over a parameter nearer than it. `nearest` is the
+   * nearest `set` value an inner scope already found.
+   */
+  lookup(name: string, nearest?: readonly Argument[]): IBinding | undefined;
   snippet(name: string): ISnippet | undefined;
 }
 
@@ -92,13 +103,21 @@ interface IBlockScope extends IScopeView {
 /** The variables and snippets of one block: its own lines so far, then the enclosing view's. */
 export class Scope implements IBlockScope {
   private readonly vars = new Map<string, readonly Argument[]>();
+  private readonly params = new Map<string, readonly Argument[]>();
   private readonly claimed = new Set<string>();
   private readonly snippets = new Map<string, ISnippet>();
 
   constructor(private readonly outer: IScopeView | undefined) {}
 
-  lookup(name: string): readonly Argument[] | undefined {
-    return this.vars.get(name) ?? this.outer?.lookup(name);
+  lookup(name: string, nearest?: readonly Argument[]): IBinding | undefined {
+    let found = nearest;
+    if (found === undefined) {
+      const param = this.params.get(name);
+      if (param !== undefined) return { values: param, parameter: true };
+      found = this.vars.get(name);
+    }
+    if (this.outer !== undefined) return this.outer.lookup(name, found);
+    return found === undefined ? undefined : { values: found, parameter: false };
   }
 
   snippet(name: string): ISnippet | undefined {
@@ -113,6 +132,12 @@ export class Scope implements IBlockScope {
 
   bind(name: string, values: readonly Argument[]): void {
     this.vars.set(name, values);
+  }
+
+  /** Bind a snippet parameter: the body block's own binding of that name (S3-03). */
+  param(name: string, values: readonly Argument[]): void {
+    this.claimed.add(name);
+    this.params.set(name, values);
   }
 
   define(snippet: ISnippet): boolean {
@@ -130,7 +155,8 @@ export class Scope implements IBlockScope {
 /**
  * The including block's scope as a spliced file sees it: the file's top-level `set` and `snippet` lines claim, bind
  * and define in the including block (L2), and inside the spliced files the extension block's `set` lines win over
- * the file's own (rule 8). After the extension line the including block sees the file's own values (S3-05).
+ * every `set` of the files, at any depth, but not over a parameter (rule 8, F1-01). After the extension line the
+ * including block sees the file's own values (S3-05).
  */
 class SpliceScope implements IBlockScope {
   constructor(
@@ -138,8 +164,9 @@ class SpliceScope implements IBlockScope {
     private readonly overrides: ReadonlyMap<string, readonly Argument[]>,
   ) {}
 
-  lookup(name: string): readonly Argument[] | undefined {
-    return this.overrides.get(name) ?? this.target.lookup(name);
+  lookup(name: string, nearest?: readonly Argument[]): IBinding | undefined {
+    const forced = this.overrides.get(name);
+    return forced === undefined ? this.target.lookup(name, nearest) : { values: forced, parameter: false };
   }
 
   snippet(name: string): ISnippet | undefined {
@@ -357,8 +384,7 @@ export class Expander {
     const body = new Scope(snippet.scope);
     snippet.params.forEach((param, i) => {
       const value = values[i];
-      body.claim(param);
-      if (value !== undefined) body.bind(param, [value.rebase(via.length, [])]);
+      if (value !== undefined) body.param(param, [value.rebase(via.length, [])]);
     });
     const step: IStep = { kind: StepKind.Use, name: name.text, at: text.place(keyword.span) };
     await this.statements(snippet.body, {
@@ -441,8 +467,10 @@ export class Expander {
       if (node.kind !== NodeKind.Directive) continue;
       const anatomy = anatomyOf(tokens, node);
       const name = tokens[anatomy.name];
-      if (name?.text !== "set") {
-        throw this.problem(UnreadableKind.Expansion, DiagnosticCode.ExtensionBlockNotSet, text, spanOf(text.syntax, node), via);
+      if (name === undefined) throw new Error("a directive node has no name token");
+      // Kind `extension` (S3-07), placed at the line's name as every other directive-level code is (F1-02).
+      if (name.text !== "set") {
+        throw this.problem(UnreadableKind.Extension, DiagnosticCode.ExtensionBlockNotSet, text, name.span, via);
       }
       this.set(anatomy, name, text, own, via);
     }
@@ -488,7 +516,9 @@ export class Expander {
   /** `$name`'s values as read at `span`: each with the variable step, then the reading place's steps. */
   private variable(text: IText, written: string, span: ISourceSpan, scope: IScopeView, via: readonly IStep[]): Argument[] {
     const name = written.slice(1);
-    const values = this.handed.get(name) ?? scope.lookup(name);
+    const binding = scope.lookup(name);
+    // A handed-in value wins over every `set` (rule 3), never over a parameter the `use` line passed (F1-01).
+    const values = binding?.parameter === true ? binding.values : (this.handed.get(name) ?? binding?.values);
     if (values === undefined) {
       throw this.problem(UnreadableKind.Expansion, DiagnosticCode.UnknownVariable, text, span, via, written);
     }

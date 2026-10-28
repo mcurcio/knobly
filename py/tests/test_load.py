@@ -129,6 +129,35 @@ def test_the_root_origin_is_the_root_file_at_0_0() -> None:
     assert loaded.graph.root.resolved_path == "main.conf"
 
 
+def test_the_root_is_resolved_through_the_source_so_it_has_one_path_and_is_read_once() -> None:
+    reads: list[str] = []
+    files = {"d/main.conf": 'x "1;\ninclude "main.conf";\ny 1;\n'}
+    memory = vl.memory_source(files)
+
+    class Counting:
+        def resolve(self, spec: str, context: vl.LoadContext, /) -> Sequence[str]:
+            return memory.resolve(spec, context)
+
+        def read(self, resolved_path: str, /) -> str:
+            reads.append(resolved_path)
+            return memory.read(resolved_path)
+
+    loaded = vl.Processor(source=Counting(), extensions=[include_extension()]).load("./d/../d/main.conf")
+    assert reads == ["d/main.conf"]
+    assert list(loaded.graph.nodes) == ["d/main.conf"]
+    assert codes(loaded) == ["E1001", "E5006"]
+    assert names(loaded) == ["y"]
+
+
+def test_a_root_the_source_cannot_resolve_to_one_file_raises_e3004_at_the_path_as_written() -> None:
+    glob = processor({"a.conf": "", "b.conf": ""})
+    for path in ["*.conf", "missing.conf"]:
+        with pytest.raises(vl.DiagnosticError) as raised:
+            glob.load(path)
+        d = raised.value.diagnostic
+        assert (d.code, d.at.resolved_path, at(d), d.via) == ("E3004", path, (0, 0), ())
+
+
 def test_a_root_the_source_cannot_read_raises_e3004_at_the_root() -> None:
     with pytest.raises(vl.DiagnosticError) as raised:
         processor({}).load("missing.conf")
@@ -137,6 +166,19 @@ def test_a_root_the_source_cannot_read_raises_e3004_at_the_root() -> None:
 
 
 # --- rule 1: reserved names --------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("names", [["set"], ["snippet"], ["use"], ["include", "include"]])
+def test_the_processor_refuses_an_extension_named_set_snippet_or_use_or_two_of_one_name(names: list[str]) -> None:
+    class Named:
+        def __init__(self, directive: str) -> None:
+            self.directive = directive
+
+        def specs(self, use: vl.ExtensionUse, /) -> Sequence[str]:
+            return []
+
+    with pytest.raises(ValueError, match="name taken"):
+        vl.Processor(source=vl.memory_source({}), extensions=[Named(name) for name in names])
 
 
 def test_set_snippet_and_use_never_reach_the_body_and_include_is_reserved_only_while_registered() -> None:
@@ -204,6 +246,14 @@ def test_a_variable_becomes_all_its_values_in_a_directive_and_in_a_list() -> Non
     port, allow = loaded.body
     assert texts(port) == ["8080", "443", "dev"]
     assert [a.text for a in allow.args[0].as_list()] == ["8080", "443", "1"]
+
+
+def test_a_handed_in_slice_bound_that_is_not_an_integer_is_e4001_at_the_name_that_used_it() -> None:
+    loaded = load("ok 1;\na c[0:$n];\n", variables={"n": "x1"})
+    assert codes(loaded) == ["E4001"]
+    d = loaded.diagnostics[0]
+    assert (d.at.resolved_path, at(d), d.via) == ("main.conf", (1, 6), ())
+    assert [u.kind for u in loaded.unreadable] == ["value"]
 
 
 def test_a_variable_slice_bound_must_hold_one_integer_word() -> None:
@@ -305,6 +355,14 @@ def test_an_extension_block_set_wins_inside_the_spliced_files_only() -> None:
     assert texts(after) == ["h0"]
 
 
+def test_an_include_whose_block_holds_a_syntax_error_is_unreadable_and_reported_once_by_the_parser() -> None:
+    files = {"main.conf": 'include "lib.conf" {\n  set $v x"y";\n}\nz;\n', "lib.conf": "l;\n"}
+    loaded = processor(files, include=True).load("main.conf")
+    assert codes(loaded) == ["E2009"]
+    assert [u.kind for u in loaded.unreadable] == ["syntax"]
+    assert names(loaded) == ["z"]
+
+
 def test_an_extension_block_holds_only_set_lines() -> None:
     files = {"main.conf": 'include "p.conf" {\n  set $a 1;\n  x 2;\n}\nok;\n', "p.conf": "y;\n"}
     loaded = processor(files, include=True).load("main.conf")
@@ -320,6 +378,7 @@ def test_an_extension_block_holds_only_set_lines() -> None:
         ("include;", "E3005", (0, 0)),
         ("include p.conf;", "E3005", (0, 8)),
         ('include "p.conf" "q.conf";', "E3005", (0, 17)),
+        ('include "p.conf" "q.conf" x;', "E3005", (0, 17)),
         ('include "nope.conf";', "E3001", (0, 0)),
     ],
 )
@@ -328,6 +387,13 @@ def test_include_errors(line: str, code: str, where: tuple[int, int]) -> None:
     assert codes(loaded) == [code]
     assert at(loaded.diagnostics[0]) == where
     assert [u.kind for u in loaded.unreadable] == ["extension"]
+
+
+def test_memory_source_joins_to_the_parents_directory_and_removes_dot_dot_segments() -> None:
+    source = vl.memory_source({"x.conf": "", "../y.conf": ""})
+    assert source.resolve("../x.conf", vl.LoadContext("a/b.conf")) == ["x.conf"]
+    assert source.resolve("../../y.conf", vl.LoadContext("a/b.conf")) == ["../y.conf"]
+    assert source.resolve("./x.conf", vl.LoadContext("")) == ["x.conf"]
 
 
 def test_an_include_glob_splices_matches_in_code_point_order() -> None:
@@ -504,7 +570,7 @@ class _Swap:
         self.text = text
 
     def resolve(self, spec: str, context: vl.LoadContext, /) -> Sequence[str]:
-        return []
+        return [spec]
 
     def read(self, resolved_path: str, /) -> str:
         return self.text

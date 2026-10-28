@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -36,6 +36,14 @@ describe("villanelle/node", () => {
     expect(glob?.targets).toEqual(["C.conf", "a.conf", "b.conf", "x[1].conf", "é.conf"].map((name) => join(dir, "conf.d", name)));
     expect(plain?.targets).toEqual([join(dir, "plain.conf")]);
     expect(loaded.body.map((d) => d.args[0]?.text)).toEqual(['"C.conf"', '"a.conf"', '"b.conf"', '"x[1].conf"', '"é.conf"', "1"]);
+  });
+
+  it("resolves a relative root through the source, so the root has one path and is read once", async () => {
+    await writeFile(join(dir, "self.conf"), 'x "1;\ninclude "self.conf";\ny 1;\n');
+    const loaded = await villanelle({ source: createFileSource(), extensions: [include()] }).load(relative(process.cwd(), join(dir, "self.conf")));
+    expect([...loaded.graph.nodes.keys()]).toEqual([join(dir, "self.conf")]);
+    expect(loaded.diagnostics.map((d) => d.code)).toEqual(["E1001", "E5006"]);
+    expect(loaded.body.map((d) => d.name)).toEqual(["y"]);
   });
 
   it("matches ? to one character", async () => {

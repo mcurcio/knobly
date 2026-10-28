@@ -120,7 +120,8 @@ export type Change = IAdded | IRemoved | IChanged | IUnknown;
 
 export interface IProcessor {
   /**
-   * Read the root file at `path` (as the source names it) and everything it splices in. Never rejects for anything
+   * Read the root file at `path` (as the source names it) and everything it splices in. `path` is resolved through
+   * the source first, as an included file's spec is, so the root has one path in the graph. Never rejects for anything
    * in the text. @throws (rejects) DiagnosticError E3004 placed at the root file when the source cannot read it;
    * TypeError for bad handed-in variables; whatever the key rule throws.
    */
@@ -148,16 +149,30 @@ export function villanelle(options: IProcessorOptions): IProcessor {
   /** The loads this processor made: `diff` compares only those (one key rule, one set of extensions). */
   const made = new WeakSet<ILoaded>();
   return {
-    async load(path, loadOptions) {
+    async load(written, loadOptions) {
       const handed = readHanded(loadOptions?.variables ?? {});
       const expander = new Expander(source, extensions, handed, key);
+      const fail = (reason: string): DiagnosticError => {
+        const code = DiagnosticCode.IncludeResolverFailed;
+        const at = { kind: "file", resolvedPath: written, span: { start: START, end: START } } as const;
+        return new DiagnosticError({ code, message: `${messageOf(code)}: ${written}: ${reason}`, at, via: [] });
+      };
+      // The root is resolved through the source as an included file's spec is (F1-04), so one file has one path.
+      let paths: readonly string[];
+      try {
+        paths = await source.resolve(written, { parentPath: "" });
+      } catch (error) {
+        throw fail(reasonOf(error));
+      }
+      const [path] = paths;
+      if (path === undefined || paths.length > 1) {
+        throw fail(paths.length === 0 ? "no such file" : `names ${String(paths.length)} files`);
+      }
       let file;
       try {
         file = await expander.read(path);
       } catch (error) {
-        const code = DiagnosticCode.IncludeResolverFailed;
-        const at = { kind: "file", resolvedPath: path, span: { start: START, end: START } } as const;
-        throw new DiagnosticError({ code, message: `${messageOf(code)}: ${path}: ${reasonOf(error)}`, at, via: [] });
+        throw fail(reasonOf(error));
       }
       const top = { body: [] as IDirective[], unreadable: [] as IUnreadable[] };
       await expander.root(file, top);

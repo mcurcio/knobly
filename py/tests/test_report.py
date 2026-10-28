@@ -49,7 +49,7 @@ def test_collecting_lets_any_other_exception_through() -> None:
     assert len(problems) == 0
 
 
-@pytest.mark.parametrize("code", ["E5001", "unknown-node", "/x", "rasl/", ""])
+@pytest.mark.parametrize("code", ["E5001", "unknown-node", "/x", "rasl/", "", "a b/c", "a/b c"])
 def test_a_program_code_needs_a_namespace(code: str) -> None:
     load = loaded()
     directive = max_count(load)
@@ -92,6 +92,19 @@ def test_format_diagnostic_prints_place_code_message_source_caret_and_via() -> N
         "  via variable v at main.conf:2:9\n"
         "  via use s at main.conf:4:1"
     )
+
+
+@pytest.mark.parametrize(
+    ("text", "caret"),
+    [
+        ("\ta\t$y;\n", "\t \t^^"),
+        ('a "\U0001f600" $y;\n', "       ^^"),
+    ],
+)
+def test_format_diagnostic_keeps_tabs_and_counts_columns_as_typescript_does(text: str, caret: str) -> None:
+    load = loaded(text)
+    [d] = load.diagnostics
+    assert vl.format_diagnostic(d, load.graph).split("\n")[1:] == [text.removesuffix("\n"), caret]
 
 
 def test_format_diagnostic_without_the_file_prints_the_first_line_only() -> None:

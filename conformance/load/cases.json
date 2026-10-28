@@ -22,5 +22,11 @@
 {"name": "load-diff-var-edit", "needs": ["diff"], "files": {"main.conf": "set $n 1;\na $n;\nb {\n  c $n;\n}\n"}, "root": "main.conf", "after": {"main.conf": "set $n 2;\na $n;\nb {\n  c $n;\n}\n"}},
 {"name": "load-diff-broken-line-unknown", "needs": ["diff"], "files": {"main.conf": "g {\n  a 1;\n  b 2;\n}\n"}, "root": "main.conf", "after": {"main.conf": "g {\n  a 1;\n  b x\"y\";\n}\n"}},
 {"name": "load-diff-moved-node", "needs": ["diff", "key"], "files": {"main.conf": "graph {\n  node A one { x 1; }\n  node B two { x 2; }\n}\n"}, "root": "main.conf", "key": "rasl", "after": {"main.conf": "graph {\n  node B two { x 2; }\n  node A one { x 1; }\n}\n"}},
-{"name": "load-diff-list-comment", "needs": ["diff"], "files": {"main.conf": "colors [1, # warm\n  2];\n"}, "root": "main.conf", "after": {"main.conf": "colors [1, # cool\n  2];\n"}}
+{"name": "load-diff-list-comment", "needs": ["diff"], "files": {"main.conf": "colors [1, # warm\n  2];\n"}, "root": "main.conf", "after": {"main.conf": "colors [1, # cool\n  2];\n"}},
+{"name": "load-include-block-wins-inner", "needs": ["include"], "files": {"main.conf": "include \"f.conf\" {\n  set $n y;\n}\n", "f.conf": "a {\n  set $n x;\n  t $n;\n}\nb $n;\n"}, "root": "main.conf", "extensions": ["include"]},
+{"name": "load-include-block-param", "needs": ["snippet", "include"], "files": {"main.conf": "include \"f.conf\" {\n  set $p 1;\n}\n", "f.conf": "snippet s $p {\n  t $p;\n}\nuse s 9;\nu $p;\n"}, "root": "main.conf", "extensions": ["include"]},
+{"name": "load-snippet-param-beats-handed", "needs": ["snippet"], "files": {"main.conf": "snippet s $p {\n  t $p;\n}\nuse s v;\nu $p;\n"}, "root": "main.conf", "variables": {"p": "h"}},
+{"name": "load-include-block-not-set", "needs": ["include"], "files": {"main.conf": "include \"f.conf\" {\n  set $x 1;\n  other;\n}\nz;\n", "f.conf": "l;\n"}, "root": "main.conf", "extensions": ["include"]},
+{"name": "load-include-extra-path", "needs": ["include"], "files": {"main.conf": "include \"a.conf\" \"b.conf\" x;\nz;\n", "a.conf": "a;\n", "b.conf": "b;\n"}, "root": "main.conf", "extensions": ["include"]},
+{"name": "load-root-spelling", "needs": ["include"], "files": {"main.conf": "x 1;\ninclude \"main.conf\";\n"}, "root": "./main.conf", "extensions": ["include"]}
 ]

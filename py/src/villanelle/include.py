@@ -28,14 +28,13 @@ class _Include:
         return "include"
 
     def specs(self, use: ExtensionUse, /) -> Sequence[str]:
-        """D18: exactly one quoted path or glob. E3005 at the first value that is not a string, else at the second
-        value, else (no value) at the directive's name."""
+        """D18: exactly one quoted path or glob. E3005 at the first value that breaks that: the first value when it
+        is not a string, else the second value; with no value, at the directive's name (F1-05)."""
         code = DiagnosticCode.INCLUDE_BAD_PATH
         if not use.args:
             raise DiagnosticError(LocatedDiagnostic(code, message_of(code), use.origin.written, use.origin.via))
-        bad = next((arg for arg in use.args if arg.kind is not ValueKind.STRING), None)
-        if bad is None and len(use.args) > 1:
-            bad = use.args[1]
+        first = use.args[0]
+        bad = first if first.kind is not ValueKind.STRING else (use.args[1] if len(use.args) > 1 else None)
         if bad is not None:
             raise value_error(bad, code, f"{message_of(code)}: {bad.text}")
         return [use.args[0].as_str()]

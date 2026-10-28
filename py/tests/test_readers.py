@@ -42,7 +42,18 @@ def test_as_word_and_as_str() -> None:
 
 
 @pytest.mark.parametrize(
-    ("text", "value"), [("8080", 8080), ("-0.0176515", -0.0176515), ("1e3", 1000.0), ("0", 0), ("2.5E-1", 0.25)]
+    ("text", "value"),
+    [
+        ("8080", 8080),
+        ("-0.0176515", -0.0176515),
+        ("1e3", 1000.0),
+        ("0", 0),
+        ("2.5E-1", 0.25),
+        (str(2**53 - 1), 2**53 - 1),
+        # Beyond ±(2**53 - 1) the same rounded float TypeScript reads (F1-09).
+        ("12345678901234567891", 12345678901234567891.0),
+        ("-9007199254740993", -9007199254740992.0),
+    ],
 )
 def test_as_number_reads_a_number_text(text: str, value: float) -> None:
     number = arg(text).as_number()

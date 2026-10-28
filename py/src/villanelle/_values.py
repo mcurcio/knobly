@@ -25,12 +25,15 @@ def integer_of(word: str) -> int | None:
 
 
 def number_of(word: str) -> int | float | None:
-    """The number a word spells (int without fraction or exponent, else float), or None when not a NumberText."""
+    """The number a word spells (int without fraction or exponent and within ±(2**53 - 1), else float), or None when
+    not a NumberText."""
     if not _NUMBER_TEXT.fullmatch(word):
         return None
     if any(c in word for c in ".eE"):
         return float(word)
-    return int(word)
+    value = int(word)
+    # Outside ±(2**53 - 1) an int would be exact here and rounded in TypeScript: read it as the same float (F1-09).
+    return value if abs(value) <= MAX_SAFE_INTEGER else float(word)
 
 
 def boolean_of(word: str) -> bool | None:

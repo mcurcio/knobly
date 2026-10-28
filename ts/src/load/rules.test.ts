@@ -271,7 +271,8 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
     const files = { "main.conf": 'include "lib.conf" {\n  set $v 2;\n  other;\n}\nz;\n', "lib.conf": "l;\n" };
     const loaded = await loadFiles(files, INCLUDE);
     expect(problems(loaded.diagnostics)).toEqual([["E5012", "main.conf:2:2"]]);
-    expect(loaded.unreadable.map((u) => u.kind)).toEqual(["expansion"]);
+    expect(loaded.unreadable.map((u) => u.kind)).toEqual(["extension"]);
+    expect(loaded.diagnostics[0]?.at.span.end.column).toBe(7);
     expect(addresses(loaded)).toEqual(["z"]);
   });
 
@@ -313,7 +314,8 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
     expect(missing.graph.edges[0]?.targets).toEqual([]);
 
     const failing = (resolve: boolean): ReturnType<typeof memorySource> => ({
-      resolve: () => (resolve ? Promise.resolve(["other"]) : Promise.reject(new Error("network down"))),
+      resolve: (spec) =>
+        spec === "main.conf" ? Promise.resolve([spec]) : resolve ? Promise.resolve(["other"]) : Promise.reject(new Error("network down")),
       read: (path) => (path === "main.conf" ? Promise.resolve('include "other";\n') : Promise.reject(new Error("gone"))),
     });
     for (const resolve of [false, true]) {

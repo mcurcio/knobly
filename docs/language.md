@@ -87,7 +87,9 @@ The rules:
 - **An unknown name** (no `set` above it, nothing handed in) is E5001 at the `$name`, and its directive is kept as
   unreadable (see below). It never quietly becomes nothing.
 - **Values handed in by the program win.** A program can pass variables when it loads a file (rasl's
-  `--set host=...`). A handed-in value wins over every `set` of that name, so a `set` acts as the default.
+  `--set host=...`). A handed-in value wins over every `set` of that name, so a `set` acts as the default. It does
+  not win over a snippet parameter: the value written on the `use` line is used (load case
+  `load-snippet-param-beats-handed` in `conformance/load/`).
 - `$` inside a string is plain text; a `$` on its own is E1004; `$x 1;` is a syntax error, because a directive's
   name is a word (cases `var-in-string`, `var-lone-dollar`, `var-as-name`).
 - Any other form of `set` (no `$name`, no value, a block) is E5009 at `set`.
@@ -141,7 +143,9 @@ The rules:
 - **The body sees the variables where the snippet is written**, plus its parameters; never the variables of the
   block where it is used. It sees a `set` written after the snippet but before the `use`.
 - **A body exports nothing.** A `set` or `snippet` inside a body is seen only inside it.
-- A parameter is the body's own variable: `set` of a parameter's name in the body is E5002.
+- A parameter is the body's own variable: `set` of a parameter's name in the body is E5002. A value handed in by the
+  program or set in an include line's block never replaces a parameter (load cases `load-snippet-param-beats-handed`
+  and `load-include-block-param`).
 - An unknown snippet name is E5003, at the name. Any other form of `snippet` (no name, no block, a parameter written
   twice) is E5010 at `snippet`; a `use` with a block or a name that is not a word is E5011 at `use`.
 - A problem inside a body is reported at each `use` of it, and its place says which `use` brought it there.
@@ -191,11 +195,14 @@ The rules:
 - **A file is read once per load**, however many places include it, and its syntax errors are reported once. Each
   place gets its own copy of the directives, with its own variables.
 - **The include line's block may hold only `set` lines** (E5012 at the first other line). They set variables for the
-  included file and win over the file's own `set` of the same name. After the include line, the including block sees
-  the file's own `set` values, not the block's.
+  included file and win over every `set` of the same name in it, also inside its blocks (load case
+  `load-include-block-wins-inner`), but not over a snippet parameter. After the include line, the including block
+  sees the file's own `set` values, not the block's. E5012 is placed on the other line's name, and the include line
+  is kept unreadable with kind `extension` (case `load-include-block-not-set`).
 - **An included file's top-level `set` and `snippet`** are seen after the include line in the including block, and
   count for that block's one-per-name checks.
-- `include` takes exactly one quoted path (E3005, on the bad value, or on `include` when there is none). A path that
+- `include` takes exactly one quoted path (E3005, on the first value when it is not quoted, else on the second value,
+  or on `include` when there is none; case `load-include-extra-path`). A path that
   matches no file is E3001, and a source that fails to read is E3004, both at `include`.
 - A program can write its own extensions. One that fails with anything but a located error gives E3006.
 

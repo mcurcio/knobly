@@ -87,14 +87,16 @@ class Snippet:
 
 
 class Scope:
-    """What one block can see: its own ``set`` and ``snippet`` lines so far, then the enclosing block's. ``forced``
-    holds an extension block's ``set`` values, which win over every ``set`` in the files it splices (rule 8)."""
+    """What one block can see: its own ``set`` and ``snippet`` lines so far, then the enclosing block's. ``params``
+    holds a snippet body's parameters; ``forced`` holds an extension block's ``set`` values (on the scope its files
+    are read in)."""
 
-    __slots__ = ("bound", "claimed", "forced", "outer", "snippets")
+    __slots__ = ("bound", "claimed", "forced", "outer", "params", "snippets")
 
     def __init__(self, outer: Scope | None) -> None:
         self.outer = outer
         self.bound: dict[str, tuple[Argument, ...]] = {}
+        self.params: dict[str, tuple[Argument, ...]] = {}
         self.claimed: set[str] = set()
         self.snippets: dict[str, Snippet] = {}
         self.forced: Mapping[str, tuple[Argument, ...]] = {}
@@ -103,22 +105,25 @@ class Scope:
         """The scope an extension's files are read in: this block's own bindings (shared, so a file's top-level
         ``set`` and ``snippet`` stay visible after the extension line, L2), with ``forced`` winning inside."""
         view = Scope(self.outer)
-        view.bound, view.claimed, view.snippets = self.bound, self.claimed, self.snippets
+        view.bound, view.params, view.claimed, view.snippets = self.bound, self.params, self.claimed, self.snippets
         view.forced = {**self.forced, **forced}
         return view
 
-    def lookup(self, name: str) -> tuple[Argument, ...] | None:
+    def lookup(self, name: str) -> tuple[tuple[Argument, ...], bool] | None:
+        """What ``$name`` reads here, and whether it is a snippet parameter (F1-01). The nearest ``set`` or
+        parameter binds (rule 2); an extension block's value wins over every ``set`` inside the files it splices
+        (rule 8), but not over a parameter nearer than it."""
+        nearest: tuple[Argument, ...] | None = None
         scope: Scope | None = self
         while scope is not None:
             if name in scope.forced:
-                return scope.forced[name]
+                return scope.forced[name], False
+            if nearest is None:
+                if name in scope.params:
+                    return scope.params[name], True
+                nearest = scope.bound.get(name)
             scope = scope.outer
-        scope = self
-        while scope is not None:
-            if name in scope.bound:
-                return scope.bound[name]
-            scope = scope.outer
-        return None
+        return None if nearest is None else (nearest, False)
 
     def snippet(self, name: str) -> Snippet | None:
         scope: Scope | None = self
@@ -304,7 +309,7 @@ class Expander:
         body = Scope(snippet.scope)
         for param, value in zip(snippet.params, values, strict=True):
             body.claimed.add(param)
-            body.bound[param] = (value._rebase(len(at.via), ()),)
+            body.params[param] = (value._rebase(len(at.via), ()),)
         step = Step(StepKind.USE, snippet.name, at.place(use_token.span))
         self.statements(At(snippet.text, body, (step, *at.via), (*at.active, snippet)), snippet.block, into)
 
@@ -433,9 +438,11 @@ class Expander:
     def _variable(self, at: At, token: Token) -> list[Argument]:
         """``$name``'s values as read at ``token``: each with the variable step, then the reading place's steps."""
         name = token.text[1:]
-        values = self._handed.get(name)
-        if values is None:
-            values = at.scope.lookup(name)
+        binding = at.scope.lookup(name)
+        # A handed-in value wins over every `set` (rule 3), never over a parameter the `use` line passed (F1-01).
+        values = binding[0] if binding is not None and binding[1] else self._handed.get(name)
+        if values is None and binding is not None:
+            values = binding[0]
         if values is None:
             raise self._problem(UnreadableKind.EXPANSION, DiagnosticCode.UNKNOWN_VARIABLE, at, token.span, token.text)
         step = Step(StepKind.VARIABLE, name, at.place(token.span))

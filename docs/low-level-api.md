@@ -126,12 +126,13 @@ every comparison goes through it, so two loads are always read the same way.
 | load | `await processor.load(path, { variables? })` | `processor.load(path, variables=None)` |
 | compare | `processor.diff(before, after)` | `processor.diff(before, after)` |
 
-`load` reads the root file at `path` through the source, then everything it splices in. Each file is read once per
+`load` resolves `path` through the source as an include spec is resolved (with an empty parent path), reads that
+file, then everything it splices in, so the root has one path however it is written (load case `load-root-spelling`). Each file is read once per
 load, however many places include it. A load never fails because of what a file says: every problem becomes a
 diagnostic and the rest is read. It fails only when:
 
-- the source cannot read the root file: a `DiagnosticError` with code E3004, placed at the root file at line 0,
-  column 0 (test "rejects the load with a DiagnosticError E3004 at the root file when the source cannot read it",
+- the source cannot resolve `path` to exactly one file, or cannot read it: a `DiagnosticError` with code E3004,
+  placed at `path` as written, at line 0, column 0 (test "rejects the load with a DiagnosticError E3004 at the root file when the source cannot read it",
   `ts/src/load/rules.test.ts`; `test_a_root_the_source_cannot_read_raises_e3004_at_the_root`, `py/tests/test_load.py`);
 - a handed-in variable has a bad name or a text that is not one run of values (TypeError in TypeScript, ValueError in
   Python);
@@ -568,7 +569,7 @@ the table is complete.
 | E5009 | `BadSet` | `BAD_SET` | any other form of `set` | `set` |
 | E5010 | `BadSnippet` | `BAD_SNIPPET` | any other form of `snippet` | `snippet` |
 | E5011 | `BadUse` | `BAD_USE` | any other form of `use` | `use` |
-| E5012 | `ExtensionBlockNotSet` | `EXTENSION_BLOCK_NOT_SET` | an extension line's block holds a line other than `set` | that line |
+| E5012 | `ExtensionBlockNotSet` | `EXTENSION_BLOCK_NOT_SET` | an extension line's block holds a line other than `set` | that line's name |
 
 Codes that are no longer used, and never will be again: **E2006** (the old include path error, replaced by E3005),
 **E3002** and **E3003** (the old include loop and depth errors, replaced by E5006 and E5007). E6xxx is kept for the
@@ -584,17 +585,8 @@ By design (each language's own way):
 - Misuse by a program is TypeError in TypeScript and ValueError in Python.
 - Python has no fetch source and no writers (`save` is TypeScript only).
 
-Found while writing this page, and not yet settled (both are shown by tests; neither is in the shared conformance
-cases, so neither language's runner catches it):
-
-- **The kind of an E5012 unreadable statement.** TypeScript keeps it as `expansion` (test "allows only set lines in
-  an extension's block (E5012 at the first other line)", `ts/src/load/rules.test.ts`); Python as `extension`
-  (`test_an_extension_block_holds_only_set_lines`, `py/tests/test_load.py`). The build's decision S3-07 says
-  `extension`.
-- **An extension named like a reserved word.** TypeScript's `villanelle()` throws TypeError for an extension named
-  `set`, `snippet` or `use`, or for two extensions with one name (test "refuses an extension named like a reserved
-  word or like another extension", `ts/src/load/rules.test.ts`). Python's `Processor` has no such check; with two
-  extensions of one name, the later one is used.
+Both languages refuse an extension named `set`, `snippet` or `use`, or two extensions with one name, when the
+processor is made (TypeError in TypeScript, ValueError in Python).
 
 ## What is not tested
 

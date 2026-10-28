@@ -15,7 +15,7 @@ from villanelle.directives import Address, Argument, Directive, KeyRule, Unreada
 from villanelle.graph import DocumentGraph, DocumentNode
 from villanelle.origin import DirectiveOrigin, Place
 from villanelle.report import LocatedDiagnostic, check_program_code
-from villanelle.source import DocumentSource
+from villanelle.source import DocumentSource, LoadContext
 from villanelle.span import SourcePosition, SourceSpan
 from villanelle.syntax._recovery import message_of
 from villanelle.syntax.parse import parse
@@ -147,26 +147,29 @@ class Processor:
         extensions: Sequence[Extension] = (),
         key: KeyRule | None = None,
     ) -> None:
+        """Raises ValueError for an extension named ``set``, ``snippet`` or ``use``, or two extensions with one name
+        (S2-01: rule 1 reserves those names, and one directive name has one owner)."""
         self._source = source
-        self._extensions = {extension.directive: extension for extension in extensions}
+        self._extensions: dict[str, Extension] = {}
+        for extension in extensions:
+            name = extension.directive
+            if name in _RESERVED or name in self._extensions:
+                raise ValueError(f"extension directive name taken: {name!r}")
+            self._extensions[name] = extension
         self._key = key
 
     def load(self, path: str, *, variables: Mapping[str, str] | None = None) -> Loaded:
-        """Read the root file at ``path`` (as the source names it) and everything it splices in. Never raises for
-        anything in the text. Raises DiagnosticError E3004 placed at the root file when the source cannot read it;
+        """Read the root file at ``path`` (as the source names it) and everything it splices in. ``path`` is resolved
+        through the source first, as an included file's spec is, so the root has one path in the graph. Never raises
+        for anything in the text. Raises DiagnosticError E3004 placed at the root file when the source cannot read it;
         ValueError for a handed-in variable whose name is not letters, digits and ``_`` or whose text is not one or more
         values; whatever the key rule raises. A handed-in variable wins over every ``set`` of its name (L3)."""
         # Imported here: the expander builds ExtensionUse values, so it imports this module.
         from villanelle._expand import At, Container, Expander, Scope, Stopped, Text, read_handed
 
         handed = read_handed(variables or {})
+        path, source = self._read_root(path)
         start = SourceSpan(_START, _START)
-        try:
-            source = self._source.read(path)
-        except Exception as error:
-            code = DiagnosticCode.INCLUDE_RESOLVER_FAILED
-            message = f"{message_of(code)}: {path}: {error}"
-            raise DiagnosticError(LocatedDiagnostic(code, message, Place(path, start), ())) from error
         root = DocumentNode(path, source, parse(source))
         expander = Expander(
             source=self._source, extensions=self._extensions, handed=handed, key=self._key, nodes={path: root}
@@ -191,6 +194,27 @@ class Processor:
             graph,
         )
 
+    def _read_root(self, path: str) -> tuple[str, str]:
+        """The root file's resolved path and text. The root is resolved through the source as an included file is
+        (F1-04), so one file has one path in the graph however the caller spells it. Raises DiagnosticError E3004
+        at ``path`` when the source fails, finds no file, or finds more than one."""
+        code = DiagnosticCode.INCLUDE_RESOLVER_FAILED
+
+        def fail(reason: object) -> DiagnosticError:
+            message = f"{message_of(code)}: {path}: {reason}"
+            return DiagnosticError(LocatedDiagnostic(code, message, Place(path, SourceSpan(_START, _START)), ()))
+
+        try:
+            paths = self._source.resolve(path, LoadContext(""))
+        except Exception as error:
+            raise fail(error) from error
+        if len(paths) != 1:
+            raise fail("no such file" if not paths else f"names {len(paths)} files")
+        try:
+            return paths[0], self._source.read(paths[0])
+        except Exception as error:
+            raise fail(error) from error
+
     def diff(self, before: Loaded, after: Loaded, /) -> list[Change]:
         """What differs, by address: removed and unknown in ``before``'s walk order, then added and changed in
         ``after``'s. A directive missing from ``after`` is Unknown, not Removed, when its block in ``after`` (or the top
@@ -205,6 +229,8 @@ class Processor:
 
 
 _START = SourcePosition(0, 0, 0)
+_RESERVED = frozenset({"set", "snippet", "use"})
+"""The names reserved at a statement's start besides each registered extension's (rule 1)."""
 
 
 def _compare_before(

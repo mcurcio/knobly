@@ -13,7 +13,9 @@ import type { IDocumentSource } from "./load/source.js";
 export function createFetchSource(fetchImpl: typeof fetch): IDocumentSource {
   return {
     resolve(spec, context) {
-      return Promise.resolve(hasGlob(spec) ? [] : [new URL(spec, context.parentPath).toString()]);
+      if (hasGlob(spec)) return Promise.resolve([]);
+      // The root path has no parent: it must be a whole URL.
+      return Promise.resolve([(context.parentPath === "" ? new URL(spec) : new URL(spec, context.parentPath)).toString()]);
     },
     async read(resolvedPath) {
       const response = await fetchImpl(resolvedPath);

@@ -16,7 +16,7 @@ class LoadContext:
     """Where a spec is being resolved from."""
 
     parent_path: str
-    """Resolved path of the file holding the extension directive."""
+    """Resolved path of the file holding the extension directive; empty when the root path itself is resolved."""
 
 
 class DocumentSource(Protocol):

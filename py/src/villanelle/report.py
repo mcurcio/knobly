@@ -3,6 +3,7 @@ review finding 2; R14's report helper). Prior art: HCL's ``hcl.Diagnostics``, Po
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from types import TracebackType
@@ -110,9 +111,19 @@ def format_diagnostic(diagnostic: LocatedDiagnostic, graph: DocumentGraph | None
         source_lines = node.source.split("\n")
         if start.line < len(source_lines):
             line = source_lines[start.line].removesuffix("\r")
-            width = end.column - start.column if end.line == start.line else len(line) - start.column
+            # Columns count UTF-16 code units, as TypeScript's strings do: a character above U+FFFF counts two.
+            units = [2 if ord(c) > 0xFFFF else 1 for c in line]
+            width = end.column - start.column if end.line == start.line else sum(units) - start.column
+            # Tabs stay tabs so the caret lines up under the same characters; every other unit becomes a space.
+            pad: list[str] = []
+            column = 0
+            for char, size in zip(line, units, strict=True):
+                if column >= start.column:
+                    break
+                pad.append("\t" if char == "\t" else " " * size)
+                column += size
             lines.append(line)
-            lines.append(" " * start.column + "^" * max(1, width))
+            lines.append("".join(pad) + "^" * max(1, width))
     lines.extend(f"  via {step.kind} {step.name} at {_place(step.at)}" for step in diagnostic.via)
     return "\n".join(lines)
 
@@ -126,8 +137,11 @@ def _place(place: Place) -> str:
 _CODES = frozenset(code.value for code in DiagnosticCode)
 
 
+_PROGRAM_CODE = re.compile(r"[^/\s]+/\S+")
+"""``<namespace>/<name>``: both parts non-empty, no whitespace (S2-08, the same pattern as TypeScript's)."""
+
+
 def check_program_code(code: str) -> None:
     """Raise ValueError unless ``code`` is ``<namespace>/<name>`` (a program's own code; villanelle's are its own)."""
-    namespace, slash, name = code.partition("/")
-    if not (slash and namespace and name):
+    if not isinstance(code, str) or _PROGRAM_CODE.fullmatch(code) is None:
         raise ValueError(f'a program\'s code is "<namespace>/<name>", such as "rasl/unknown-node": {code!r}')
