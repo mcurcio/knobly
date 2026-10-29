@@ -57,8 +57,10 @@ const resolution = (r: Villanelle.IReferenceResolution): Json => ({
 function value(v: Villanelle.WrittenValue): Json {
   const out: Record<string, Json> = { id: ref(v), kind: v.kind, place: place(v.place), text: v.text };
   if (v.kind === "list") out.items = v.items.map(value);
-  if (v.kind === "slice") Object.assign(out, { start: v.start === undefined ? null : value(v.start), end: v.end === undefined ? null : value(v.end) });
-  if (v.kind === "index") out.index = value(v.index);
+  if (v.kind === "slice") {
+    Object.assign(out, { name: value(v.name), start: v.start === undefined ? null : value(v.start), end: v.end === undefined ? null : value(v.end) });
+  }
+  if (v.kind === "index") Object.assign(out, { name: value(v.name), index: value(v.index) });
   if (v.kind === "reference") Object.assign(out, { declaration: variable(v.declaration), resolutions: v.resolutions().map(resolution) });
   return out;
 }
@@ -126,19 +128,29 @@ function rendered(r: Villanelle.IRendered, rules: readonly KeyData[] | undefined
   return { id: ref(r), block: r.block.map(directive), unreadable: r.unreadable.map(unreadable), diagnostics: r.diagnostics.map(located) };
 }
 
-type ReaderResult = Villanelle.PlainValue | Villanelle.ExpandedValue | readonly ReaderResult[];
-const isList = (x: ReaderResult): x is readonly ReaderResult[] => Array.isArray(x);
+type ReaderResult = boolean | string | number | Villanelle.ISliceValue | Villanelle.IIndexValue | readonly Villanelle.ExpandedValue[];
+const isList = (x: ReaderResult): x is readonly Villanelle.ExpandedValue[] => Array.isArray(x);
 
-/** A reader's result, neutral (spec/conformance.md, `read`). */
+/** A reader's result, neutral (spec/conformance.md, `read`): a list only from the `list` reader, its items by text. */
 function result(x: ReaderResult): Json {
   if (typeof x === "boolean") return { boolean: x };
   if (typeof x === "string") return { text: x };
   if (typeof x === "number") return { number: Object.is(x, -0) ? "-0" : x };
-  if (isList(x)) return { list: x.map(result) };
-  if ("origin" in x) return { value: x.text };
+  if (isList(x)) return { list: x.map((item) => ({ value: item.text })) };
   if (x.kind === "index") return { index: [x.name, x.index] };
   return { slice: [x.name, x.start ?? null, x.end ?? null] };
 }
+
+/** The position of each edit member's config text parameter (names, such as `rename`'s, stay plain text). */
+const TEXT_PARAMETER: Readonly<Record<string, number>> = {
+  set: 0,
+  "replace with text": 0,
+  "insert statements": 1,
+  "add statements": 0,
+  "insert before": 0,
+  "insert after": 0,
+  "set override": 1,
+};
 
 const camel = (spec: string): string => spec.replace(/ ([a-z])/g, (_m, c: string) => c.toUpperCase());
 
@@ -155,13 +167,17 @@ const ops: Record<string, (p: Params) => Json | Promise<Json>> = {
   parse: (p) => syntax(vl.parse(p.text)),
   load: async (p) => {
     const processor = vl.villanelle({ source: vl.memorySource(p.files), ...(p.extensions.includes("include") ? { extensions: [include()] } : {}) });
-    return { graph: ref(await processor.load(p.root, p.overrides === undefined ? undefined : { overrides: p.overrides })) };
+    const overrides = p.overrides === undefined ? undefined : Object.fromEntries(Object.entries(p.overrides).map(([name, text]) => [name, vl.text(text)]));
+    return { graph: ref(await processor.load(p.root, overrides === undefined ? undefined : { overrides })) };
   },
   graph: (p) => graph(get(p.graph)),
   render: (p) => rendered(vl.render(get(p.graph)), p.key),
   diff: (p) => get<Villanelle.IRendered>(p.before).diff(get(p.after), keyOptions(p.key)).map((c) => ({ kind: c.kind, address: address(c.address) })),
   edit: (p): Json => {
-    const out = call(p.target, p.member, p.args.map((a) => (a === null ? undefined : a)));
+    // Every text an edit takes is config text: the driver's texts go through the binding's own `text()` (spec 6.9).
+    const textAt = TEXT_PARAMETER[p.member];
+    const args = p.args.map((a, i) => (a === null ? undefined : i === textAt && typeof a === "string" ? vl.text(a) : a));
+    const out = call(p.target, p.member, args);
     const handles = Array.isArray(out) ? (out as readonly { text: string }[]).map((h) => ({ id: ref(h), text: h.text })) : undefined;
     return handles === undefined ? {} : { handles };
   },

@@ -8,15 +8,15 @@ import { describe, expect, it } from "vitest";
 
 import { include } from "../include.js";
 import { memorySource } from "../source.js";
-import { quote } from "../text.js";
+import { type ConfigText, quote, text } from "../text.js";
 import { BadTextError, DetachedError, MisuseError } from "../errors.js";
 import type { IDocumentGraph, ISetLine, IWrittenDirective, IUseLine } from "./model.js";
 import { villanelle } from "./processor.js";
 
-const MAIN = 'set $port 80;\nsnippet s $a { x $a; }\nuse s 1;\nserver "web" [1, 2] {\n  listen $port;\n}\n';
+const MAIN = '@set $port 80;\n@snippet s $a { x $a; }\n@use s 1;\nserver "web" [1, 2] {\n  listen $port;\n}\n';
 
 async function load(): Promise<IDocumentGraph> {
-  return await villanelle({ source: memorySource({ "main.conf": MAIN }), extensions: [include()] }).load("main.conf", { overrides: { o: "1" } });
+  return await villanelle({ source: memorySource({ "main.conf": MAIN }), extensions: [include()] }).load("main.conf", { overrides: { o: text("1") } });
 }
 
 /** A value of each wrong type: a number, null, undefined and (TypeScript) an array. */
@@ -29,7 +29,7 @@ const WRONG: readonly [string, unknown][] = [
 
 /** The argument type error's exact text (spec/schema/api.json, "argument type error message"). */
 function message(member: string, parameter: string, got: string): string {
-  return `${member}(): argument "${parameter}" must be a string, not ${got}; villanelle edits take text: quote() a program string, String() a number`;
+  return `${member}(): argument "${parameter}" must be a string, not ${got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, String() a number first`;
 }
 
 /** Call `edit` with `value` where text goes, as a JavaScript caller or a cast could. */
@@ -56,9 +56,11 @@ describe("text-only edits (spec 6.9)", () => {
       ["rename", "name", misuse((v) => server.rename(v), value)],
       ["rename", "name", misuse((v) => setPort.variable.rename(v), value)],
       ["quote", "text", misuse((v) => quote(v), value)],
+      ["text", "raw", misuse((v) => text(v), value)],
+      ["set", "text", misuse((v) => server.values[0]?.set(v), value)],
     ];
     if (value !== undefined) cases.push(["setOverride", "text", misuse((v) => graph.setOverride("o", v), value)]);
-    cases.push(["setOverride", "name", misuse((v) => graph.setOverride(v, "1"), value)]);
+    cases.push(["setOverride", "name", misuse((v) => graph.setOverride(v, text("1")), value)]);
     for (const [member, parameter, call] of cases) {
       expect(call, `${member} ${parameter}`).toThrow(new TypeError(message(member, parameter, got)));
     }
@@ -75,7 +77,7 @@ describe("text-only edits (spec 6.9)", () => {
   it("refuses a load override that is not text, naming it as overrides[name]", async () => {
     for (const [got, value] of WRONG) {
       const processor = villanelle({ source: memorySource({ "main.conf": "a;\n" }) });
-      const overrides = { port: value } as unknown as Record<string, string>;
+      const overrides = { port: value } as unknown as Record<string, ConfigText>;
       await expect(processor.load("main.conf", { overrides }), got).rejects.toThrow(new TypeError(message("load", 'overrides["port"]', got)));
     }
   });
@@ -102,20 +104,20 @@ describe("the check of an override (spec 6.3): one check for load and setOverrid
     return error.diagnostics.map((d) => [d.code, d.span.start.line, d.span.start.column]);
   }
 
-  async function fromLoad(text: string): Promise<unknown> {
+  async function fromLoad(given: string): Promise<unknown> {
     const processor = villanelle({ source: memorySource({ "main.conf": "a $v;\n" }) });
     try {
-      await processor.load("main.conf", { overrides: { v: text } });
+      await processor.load("main.conf", { overrides: { v: text(given) } });
       return "ok";
     } catch (error) {
       return outcome(error);
     }
   }
 
-  async function fromSetOverride(text: string): Promise<unknown> {
+  async function fromSetOverride(given: string): Promise<unknown> {
     const graph = await villanelle({ source: memorySource({ "main.conf": "a $v;\n" }) }).load("main.conf");
     try {
-      graph.setOverride("v", text);
+      graph.setOverride("v", text(given));
       return "ok";
     } catch (error) {
       return outcome(error);
@@ -132,15 +134,15 @@ describe("the check of an override (spec 6.3): one check for load and setOverrid
     expect(await fromSetOverride("1\n2")).toEqual("ok");
   });
 
-  it.each(["1", "8080 443", '"x" [1, 2]', "", "   ", "$x", "a { b; }", '"\\q"', "c[x]", '"open', "1;", "a; b", "1\n2", "1 // c\n"])("agrees on %j", async (text) => {
-    expect(await fromLoad(text)).toEqual(await fromSetOverride(text));
+  it.each(["1", "8080 443", '"x" [1, 2]', "", "   ", "$x", "a { b; }", '"\\q"', "c[x]", '"open', "1;", "a; b", "1\n2", "1 // c\n"])("agrees on %j", async (given) => {
+    expect(await fromLoad(given)).toEqual(await fromSetOverride(given));
   });
 
   it("refuses a bad name with a MisuseError from both, as a variable's rename does (one name check)", async () => {
-    const processor = villanelle({ source: memorySource({ "main.conf": "set $a 1;\n" }) });
-    await expect(processor.load("main.conf", { overrides: { "a-b": "1" } })).rejects.toThrow(MisuseError);
+    const processor = villanelle({ source: memorySource({ "main.conf": "@set $a 1;\n" }) });
+    await expect(processor.load("main.conf", { overrides: { "a-b": text("1") } })).rejects.toThrow(MisuseError);
     const graph = await processor.load("main.conf");
-    expect(() => graph.setOverride("a-b", "1")).toThrow(MisuseError);
+    expect(() => graph.setOverride("a-b", text("1"))).toThrow(MisuseError);
     const [set] = graph.root.block.statements;
     expect(() => (set?.kind === "set" ? set.variable.rename("a-b") : undefined)).toThrow(MisuseError);
   });

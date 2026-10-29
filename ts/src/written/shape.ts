@@ -1,6 +1,6 @@
 /**
  * The text-alone shape of a statement (round 12 slices.md 2.3): which kind a directive node is, and the one
- * problem that makes a `set`, `snippet` or `use` line unreadable by its text alone. The one home of these shape
+ * problem that makes a `@set`, `@snippet` or `@use` line unreadable by its text alone. The one home of these shape
  * rules: the document classifies its statements with it, the edit checks use it, and the binding's walk reports
  * the same codes at the same places. Private to the package.
  */
@@ -26,7 +26,10 @@ export interface IShapeFault {
 /** What a directive or error node is, by its text alone, before any per-block rule. */
 export interface IShape {
   readonly kind: ShapeKind;
-  /** Why a `set`, `snippet` or `use` line is unreadable; undefined otherwise (and for a syntax error node). */
+  /**
+ * Why a `@set`, `@snippet` or `@use` line, or an `@name` no extension owns, is unreadable; undefined otherwise (and
+ * for a syntax error node).
+ */
   readonly fault: IShapeFault | undefined;
   /** A `set`'s variable name, or a snippet's name (for the one-per-block rules). */
   readonly claims: string | undefined;
@@ -38,20 +41,26 @@ export function shapeOf(tokens: readonly IToken[], node: INode, extensions: Read
   return shapeOfAnatomy(tokens, anatomyOf(tokens, node), extensions);
 }
 
-/** The shape of a directive by its anatomy, ignoring the one-per-block rules (the binding's walk asks this too). */
+/**
+ * The shape of a directive by its anatomy, ignoring the one-per-block rules (the binding's walk asks this too). The
+ * head's token kind decides (spec 2.5): a WORD is a directive whatever its text; an AT_WORD is `@set`, `@snippet`,
+ * `@use`, an extension line (`@` and a registered extension's name), or else an unreadable line (E3008, which is no
+ * text-alone rule: it depends on the registered extensions, so `isTextAlone` leaves it out).
+ */
 export function shapeOfAnatomy(tokens: readonly IToken[], anatomy: IDirectiveAnatomy, extensions: ReadonlySet<string>): IShape {
   const name = tokens[anatomy.name];
   if (name === undefined) throw new Error("a directive node has no name token");
+  if (name.kind !== "AT_WORD") return { kind: "directive", fault: undefined, claims: undefined };
   const [first, ...rest] = anatomy.values;
   const firstToken = typeof first === "number" ? tokens[first] : undefined;
   switch (name.text) {
-    case "set": {
+    case "@set": {
       if (firstToken?.kind !== "VARIABLE" || rest.length === 0 || anatomy.block !== undefined) {
         return { kind: "unreadable", fault: { code: DiagnosticCode.BadSet, span: name.span }, claims: undefined };
       }
       return { kind: "set", fault: undefined, claims: firstToken.text.slice(1) };
     }
-    case "snippet": {
+    case "@snippet": {
       const params: string[] = [];
       const bad = { kind: "unreadable", fault: { code: DiagnosticCode.BadSnippet, span: name.span }, claims: undefined } as const;
       for (const ref of rest) {
@@ -62,14 +71,20 @@ export function shapeOfAnatomy(tokens: readonly IToken[], anatomy: IDirectiveAna
       if (firstToken === undefined || !isWordKind(firstToken.kind) || anatomy.block === undefined) return bad;
       return { kind: "snippet", fault: undefined, claims: firstToken.text };
     }
-    case "use":
+    case "@use":
       if (firstToken === undefined || !isWordKind(firstToken.kind) || anatomy.block !== undefined) {
         return { kind: "unreadable", fault: { code: DiagnosticCode.BadUse, span: name.span }, claims: undefined };
       }
       return { kind: "use", fault: undefined, claims: undefined };
     default:
-      return { kind: extensions.has(name.text) ? "extension" : "directive", fault: undefined, claims: undefined };
+      if (extensions.has(name.text.slice(1))) return { kind: "extension", fault: undefined, claims: undefined };
+      return { kind: "unreadable", fault: { code: DiagnosticCode.UnknownExtension, span: name.span, detail: name.text }, claims: undefined };
   }
+}
+
+/** Whether a fault is one of the text-alone rules an edit refuses (E5002, E5005, E5009 to E5011; spec 2.8). */
+export function isTextAlone(fault: IShapeFault): boolean {
+  return fault.code !== DiagnosticCode.UnknownExtension;
 }
 
 /** A snippet line's parameter tokens (VARIABLE token indices), in order. Call only on a well-formed snippet. */

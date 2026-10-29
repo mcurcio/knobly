@@ -128,7 +128,7 @@ describe("recovery", () => {
     expect(shape('x "a""b";').codes).toEqual([["E2009", 0, 5]]);
     expect(shape('x a"b";').codes).toEqual([["E2009", 0, 3]]);
     expect(shape("x [a][b];").codes).toEqual([["E2009", 0, 5]]);
-    expect(shape("x a[0:1]b;").codes).toEqual([["E2009", 0, 8]]);
+    expect(shape("x a[0~1]b;").codes).toEqual([["E2009", 0, 8]]);
     expect(shape("x 1[0];").codes).toEqual([["E2009", 0, 3]]);
   });
 

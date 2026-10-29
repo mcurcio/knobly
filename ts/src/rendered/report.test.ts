@@ -64,7 +64,7 @@ describe("Diagnostics", () => {
   });
 
   it("places a program's error on an override at the $name that used it", async () => {
-    const loaded = await loadText("set $host h;\nouter { target $host; }\n", { overrides: { host: "given" } });
+    const loaded = await loadText("@set $host h;\nouter { target $host; }\n", { overrides: { host: "given" } });
     const arg = only(only(only(loaded.block).block).values);
     expect(problems([arg.error("unreachable", "rasl/host").diagnostic])).toEqual([["rasl/host", "main.conf:1:15"]]);
   });
@@ -72,15 +72,15 @@ describe("Diagnostics", () => {
 
 describe("formatDiagnostic", () => {
   it("prints path:line:col: code: message 1-based, the source line, a caret and one via line per step", async () => {
-    const files = { "main.conf": 'include "x.conf";\n', "x.conf": "a 1;\nport c[0:$n];\n" };
+    const files = { "main.conf": '@include "x.conf";\n', "x.conf": "a 1;\nport c[0~$n];\n" };
     const loaded = await loadFiles(files, { extensions: [include()] });
     expect(formatDiagnostic(only(loaded.diagnostics), loaded.graph)).toBe(
-      ["x.conf:2:10: E5001: unknown variable: $n", "port c[0:$n];", "         ^^", "  via extension include at main.conf:1:1"].join("\n"),
+      ["x.conf:2:10: E5001: unknown variable: $n", "port c[0~$n];", "         ^^", "  via extension include at main.conf:1:1"].join("\n"),
     );
   });
 
   it("prints the via lines for a problem reached through a use", async () => {
-    const loaded = await loadText("snippet s {\n\tx $nope;\n}\nuse s;\n");
+    const loaded = await loadText("@snippet s {\n\tx $nope;\n}\n@use s;\n");
     expect(formatDiagnostic(loaded.diagnostics[0] as ILocatedDiagnostic, loaded.graph)).toBe(
       ["main.conf:2:4: E5001: unknown variable: $nope", "\tx $nope;", "\t  ^^^^^", "  via use s at main.conf:4:1"].join("\n"),
     );

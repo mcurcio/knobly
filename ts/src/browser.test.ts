@@ -24,8 +24,8 @@ const fakeFetch = (
 describe("villanelle/browser", () => {
   it("loads specs as URLs relative to the including file", async () => {
     const { fetchImpl } = fakeFetch({
-      "https://h.test/root.conf": 'include "conf/a.conf";',
-      "https://h.test/conf/a.conf": 'include "../b.conf";',
+      "https://h.test/root.conf": '@include "conf/a.conf";',
+      "https://h.test/conf/a.conf": '@include "../b.conf";',
       "https://h.test/b.conf": "b 1;",
     });
     const loaded = await rendered(villanelle({ source: fetchSource(fetchImpl), extensions: [include()] }), "https://h.test/root.conf");

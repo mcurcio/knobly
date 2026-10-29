@@ -6,7 +6,7 @@ import { parse } from "./parse.js";
 
 describe("parse", () => {
   it("parses the tracer slice into a directive holding a slice node", () => {
-    const syntax = parse("connect hyperhdr_color[144:152];");
+    const syntax = parse("connect hyperhdr_color[144~152];");
     expect(syntax.diagnostics).toEqual([]);
     expect(syntax.tokens.map((t) => [t.kind, t.text])).toEqual([
       ["WORD", "connect"],
@@ -14,7 +14,7 @@ describe("parse", () => {
       ["WORD", "hyperhdr_color"],
       ["LBRACK", "["],
       ["INTEGER", "144"],
-      ["COLON", ":"],
+      ["TILDE", "~"],
       ["INTEGER", "152"],
       ["RBRACK", "]"],
       ["SEMI", ";"],
@@ -43,13 +43,13 @@ describe("parse", () => {
   });
 
   it("reports [:] as one located diagnostic", () => {
-    const syntax = parse("connect foo[:];");
+    const syntax = parse("connect foo[~];");
     expect(syntax.diagnostics).toHaveLength(1);
     expect(syntax.diagnostics[0]).toMatchObject({
       code: DiagnosticCode.BadSlice,
       span: { start: { offset: 13, line: 0, column: 13 }, end: { offset: 14, line: 0, column: 14 } },
     });
-    expect(textOf(syntax, syntax.root)).toBe("connect foo[:];");
+    expect(textOf(syntax, syntax.root)).toBe("connect foo[~];");
   });
 
   it("codes lexical errors by the offending token", () => {

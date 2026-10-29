@@ -4,19 +4,19 @@
  * handles (2.1). Private to the package; programs see IDocument and the statement and value interfaces.
  */
 
-import { anatomyOf, itemsOf } from "../anatomy.js";
+import { anatomyOf, itemsOf, valuesOf } from "../anatomy.js";
 import { DiagnosticCode, type IDiagnostic, makeDiagnostic, messageOf } from "../diagnostics.js";
 import { type IPlace, makePlace } from "../origin.js";
 import type { ISourcePosition, ISourceSpan } from "../span.js";
 import { type INode, type ISyntax, spanOf, type ValueRef } from "../syntax/cst.js";
 import { parse, parseEntry } from "../syntax/parse.js";
 import { type IToken } from "../syntax/tokens.js";
-import { requireText } from "../text.js";
+import { type ConfigText, requireText } from "../text.js";
 import type { IBinding } from "./bind.js";
 import { BadTextError, DetachedError } from "../errors.js";
 import type { IDocument, IDocumentEdge, IParameter, ISetVariable, IWrittenBlock, IWrittenDirective, Statement, WrittenValue } from "./model.js";
 import { checkDirectiveName, checkVariableName } from "./names.js";
-import { blockShapes, type IShape, parameterTokens, type ShapeKind, statementNodes } from "./shape.js";
+import { blockShapes, type IShape, isTextAlone, parameterTokens, type ShapeKind, statementNodes } from "./shape.js";
 import {
   ExtensionLine,
   ParameterVariable,
@@ -27,11 +27,11 @@ import {
   UseLine,
   WrittenDirective,
 } from "./statements.js";
-import { IndexValue, ListValue, Reference, SliceValue, StringValue, ValueHandle, WordValue } from "./values.js";
+import { becomeKind, IndexValue, ListValue, newValue, Reference, SliceValue, ValueHandle, type ValueRole } from "./values.js";
 
 /** What a document needs from the graph that holds it. */
 export interface IDocumentHost {
-  /** The registered extensions' directive names: a line starting with one is kind "extension". */
+  /** The registered extensions' names: a line headed `@` and one of them is kind "extension". */
   readonly extensionNames: ReadonlySet<string>;
   /** The current derivation (cached per graph version). */
   binding(): IBinding;
@@ -49,6 +49,11 @@ interface IOldEntry {
   readonly handle: Handle;
   readonly start: number;
   readonly end: number;
+}
+
+/** A reconcile key's family: `s` (statement), `v` (value) or `p` (parameter). */
+function familyOf(key: string): string {
+  return /^[a-z]+/u.exec(key)?.[0] ?? "";
 }
 
 /** Matches the handles of a new parse to the old ones (2.1). */
@@ -70,12 +75,8 @@ class Reconcile {
     let oldStart: number;
     if (newStart < range.start) oldStart = newStart;
     else if (newStart >= range.start + range.inserted) oldStart = newStart - delta;
-    else if (newStart === range.start && this.keep !== undefined) {
-      const id = `${key}@${String(range.start)}`;
-      if (this.old.get(id)?.handle !== this.keep) return undefined;
-      this.old.delete(id);
-      return this.keep;
-    } else return undefined;
+    else if (newStart === range.start) return this.atStart(key);
+    else return undefined;
     const id = `${key}@${String(oldStart)}`;
     const entry = this.old.get(id);
     if (entry === undefined) return undefined;
@@ -84,6 +85,30 @@ class Reconcile {
     if (!outside && !contains) return undefined;
     this.old.delete(id);
     return entry.handle;
+  }
+
+  /**
+   * A handle of the new parse starting where the replaced range starts (spec 6.1): an old one of the same key whose
+   * tokens hold the range and more (a slice around its replaced name), else the one the edit keeps, of its family
+   * (statement, value, parameter) whatever its kind (a value's `set` that changes its kind), else none.
+   */
+  private atStart(key: string): Handle | undefined {
+    const range = this.range;
+    if (range === undefined) return undefined;
+    const id = `${key}@${String(range.start)}`;
+    const entry = this.old.get(id);
+    if (entry !== undefined && entry.handle !== this.keep && range.end > range.start && entry.end > range.end) {
+      this.old.delete(id);
+      return entry.handle;
+    }
+    if (this.keep === undefined) return undefined;
+    for (const [oldId, old] of this.old) {
+      if (old.handle !== this.keep) continue;
+      if (familyOf(oldId) !== familyOf(key) || old.start !== range.start) return undefined;
+      this.old.delete(oldId);
+      return this.keep;
+    }
+    return undefined;
   }
 
   /** Handles left over: their tokens were replaced. */
@@ -112,7 +137,7 @@ export class Block implements IWrittenBlock {
     return this.statements.filter((s): s is IWrittenDirective => s.kind === "directive" && (name === undefined || s.name === name));
   }
 
-  insertStatements(index: number, text: string): readonly Statement[] {
+  insertStatements(index: number, text: ConfigText): readonly Statement[] {
     this.owner?.live();
     requireText(text, "insertStatements", "text");
     if (!Number.isInteger(index) || index < 0 || index > this.items.length) {
@@ -121,7 +146,7 @@ export class Block implements IWrittenBlock {
     return this.document.insertStatements(this, index, text);
   }
 
-  addStatements(text: string): readonly Statement[] {
+  addStatements(text: ConfigText): readonly Statement[] {
     this.owner?.live();
     requireText(text, "addStatements", "text");
     return this.insertStatements(this.statements.length, text);
@@ -166,7 +191,7 @@ export class Document implements IDocument {
     return this.host.binding().edgesInto(this.resolvedPath);
   }
 
-  replaceWithText(text: string): void {
+  replaceWithText(text: ConfigText): void {
     requireText(text, "replaceWithText", "text");
     const reconcile = new Reconcile(this.entries(), undefined);
     this.current = text;
@@ -296,7 +321,7 @@ export class Document implements IDocument {
     handle.detached = false;
     this.statementsByToken.set(node.start, handle);
     const anatomy = node.kind === "directive" ? anatomyOf(tokens, node) : undefined;
-    const values = (refs: readonly ValueRef[]): ValueHandle[] => refs.map((ref) => this.buildValue(ref, handle, undefined, false, reconcile));
+    const values = (refs: readonly ValueRef[]): ValueHandle[] => refs.map((ref) => this.buildValue(ref, handle, undefined, "value", reconcile));
     const block = (claimed: readonly string[]): void => {
       if (anatomy?.block === undefined) {
         handle.blockHandle = undefined;
@@ -350,7 +375,7 @@ export class Document implements IDocument {
     }
   }
 
-  private buildValue(ref: ValueRef, statement: StatementHandle, list: ListValue | undefined, bound: boolean, reconcile: Reconcile): ValueHandle {
+  private buildValue(ref: ValueRef, statement: StatementHandle, list: ListValue | undefined, role: ValueRole, reconcile: Reconcile): ValueHandle {
     const { tokens } = this.parsed;
     const index = typeof ref === "number" ? ref : ref.start;
     const kind = valueKindOf(tokens, ref);
@@ -358,28 +383,31 @@ export class Document implements IDocument {
     const kept = reconcile.take(`v:${kind}`, start);
     const handle = kept instanceof ValueHandle ? kept : newValue(this, kind);
     if (kept === undefined) reconcile.created.push(handle);
+    becomeKind(handle, kind);
     handle.ref = ref;
     handle.statementHandle = statement;
     handle.listHandle = list;
-    handle.bound = bound;
+    handle.role = role;
     handle.detached = false;
-    this.valuesByToken.set(index, handle);
+    // A slice and its name start at the same token: the index keeps the slice (its name is `slice.name`).
+    if (role !== "name") this.valuesByToken.set(index, handle);
     if (handle instanceof ListValue && typeof ref !== "number") {
-      handle.itemHandles = itemsOf(tokens, ref).map((item) => this.buildValue(item, statement, handle, false, reconcile));
+      handle.itemHandles = itemsOf(tokens, ref).map((item) => this.buildValue(item, statement, handle, "value", reconcile));
     } else if ((handle instanceof SliceValue || handle instanceof IndexValue) && typeof ref !== "number") {
+      handle.nameHandle = this.buildValue(ref.start, statement, undefined, "name", reconcile);
       const inner: number[] = [];
       for (let i = ref.start + 2; i < ref.end - 1; i++) inner.push(i);
-      const colon = inner.findIndex((i) => tokens[i]?.kind === "COLON");
+      const tilde = inner.findIndex((i) => tokens[i]?.kind === "TILDE");
       const boundAt = (i: number | undefined): ValueHandle | undefined => {
         if (i === undefined) return undefined;
         const kindOf = tokens[i]?.kind;
-        return kindOf === "INTEGER" || kindOf === "VARIABLE" ? this.buildValue(i, statement, undefined, true, reconcile) : undefined;
+        return kindOf === "INTEGER" || kindOf === "VARIABLE" ? this.buildValue(i, statement, undefined, "bound", reconcile) : undefined;
       };
       if (handle instanceof IndexValue) {
         handle.indexHandle = boundAt(inner[0]);
       } else {
-        handle.startHandle = colon === 0 ? undefined : boundAt(inner[0]);
-        handle.endHandle = colon + 1 < inner.length ? boundAt(inner[colon + 1]) : undefined;
+        handle.startHandle = tilde === 0 ? undefined : boundAt(inner[0]);
+        handle.endHandle = tilde + 1 < inner.length ? boundAt(inner[tilde + 1]) : undefined;
       }
     }
     return handle;
@@ -445,7 +473,7 @@ export class Document implements IDocument {
   }
 
   /** `replaceWithText` of a statement: zero or more statements, indented as it is. */
-  replaceStatement(statement: StatementHandle, text: string): readonly Statement[] {
+  replaceStatement(statement: StatementHandle, text: ConfigText): readonly Statement[] {
     const given = parseEntry(text, "statementsText").diagnostics;
     if (text.trim() === "") {
       if (given.length > 0) throw new BadTextError(given);
@@ -491,7 +519,7 @@ export class Document implements IDocument {
    * indentation (in an empty block: the parent's line indentation plus the document's unit), on lines of their own
    * before `statements[index]` (its owned comments stay with it), or after the last statement.
    */
-  insertStatements(block: Block, index: number, text: string): readonly Statement[] {
+  insertStatements(block: Block, index: number, text: ConfigText): readonly Statement[] {
     const given = parseEntry(text, "statementsText").diagnostics;
     if (text.trim() === "") {
       if (given.length > 0) throw new BadTextError(given);
@@ -561,11 +589,11 @@ export class Document implements IDocument {
   }
 
   /**
-   * `rename` of a directive: its name token. A bad name is a misuse error (spec 2.8: the `nameText` entry rule, the
-   * reserved words and the registered extension names). The statement keeps its handle.
+   * `rename` of a directive: its name token. A bad name is a misuse error (spec 2.8: the `nameText` entry rule, and
+   * nothing else: no directive name is reserved). The statement keeps its handle.
    */
   renameStatement(statement: WrittenDirective, name: string): void {
-    checkDirectiveName(name, this.host.extensionNames);
+    checkDirectiveName(name);
     const token = this.parsed.tokens[statement.node.start];
     if (token === undefined) throw new Error("a statement without a name token");
     this.splice(token.span.start.offset, token.span.end.offset, name, [], statement);
@@ -583,21 +611,28 @@ export class Document implements IDocument {
     this.splice(span.start.offset, span.end.offset, insertOf(name, ["$", [0, name.length]]), [], keep);
   }
 
-  /** `set` of a statement's values (2.4): first value to last; with none, after `after` (a token index). */
-  replaceValues(statement: StatementHandle, values: readonly ValueHandle[], after: number, text: string): void {
-    const given = parseEntry(text, "valuesText").diagnostics;
+  /**
+   * `set` of a statement's values (2.4): first value to last; with none, after `after` (a token index). A text that
+   * holds no value must be empty (spec 2.8, milestone 5): `set("")` clears the values, `set("# c\n")` is E2001 at 0:0.
+   */
+  replaceValues(statement: StatementHandle, values: readonly ValueHandle[], after: number, text: ConfigText): void {
+    const syntax = parseEntry(text, "valuesText");
+    const given = syntax.diagnostics;
+    if (given.length === 0 && text !== "" && valuesOf(syntax.tokens, syntax.root).length === 0) {
+      throw new BadTextError([at(text, 0, DiagnosticCode.UnexpectedToken)]);
+    }
     const { tokens } = this.parsed;
     const first = values[0];
     const last = values.at(-1);
     if (first === undefined || last === undefined) {
-      if (text.trim() === "") return;
+      if (text === "") return;
       const offset = tokens[after]?.span.end.offset ?? 0;
       this.splice(offset, offset, insertOf(text, [" ", [0, text.length]]), given);
       return;
     }
     const start = this.valueOffsets(first).start;
     const end = this.valueOffsets(last).end;
-    if (text.trim() === "") {
+    if (text === "") {
       let from = first.ref === undefined ? start : this.tokenIndexOf(first);
       while (tokens[from - 1]?.kind === "SPACE") from--;
       this.splice(tokens[from]?.span.start.offset ?? start, end, "", given);
@@ -608,13 +643,24 @@ export class Document implements IDocument {
   }
 
   /**
+   * A value's `set` (spec 6.1, 6.6): exactly one value (`valueText`; a bound `boundText`, a slice's name
+   * `sliceNameText`), in place of this one, keeping its handle, which takes the new value's kind.
+   */
+  setValue(value: ValueHandle, text: ConfigText): void {
+    const rule = value.role === "bound" ? "boundText" : value.role === "name" ? "sliceNameText" : "valueText";
+    const given = parseEntry(text, rule).diagnostics;
+    const { start, end } = this.valueOffsets(value);
+    this.splice(start, end, text, given, value);
+  }
+
+  /**
    * `replaceWithText` of a value, checked with the grammar's entry rule for where it stands (spec 2.8): `boundText`
    * for a slice bound, `itemsText` for a list item, else `valuesText`.
    */
-  replaceValue(value: ValueHandle, text: string): readonly WrittenValue[] {
-    const rule = value.bound ? "boundText" : value.listHandle !== undefined ? "itemsText" : "valuesText";
+  replaceValue(value: ValueHandle, text: ConfigText): readonly WrittenValue[] {
+    const rule = value.role === "bound" ? "boundText" : value.role === "name" ? "sliceNameText" : value.listHandle !== undefined ? "itemsText" : "valuesText";
     const given = parseEntry(text, rule).diagnostics;
-    if (value.bound && given.length > 0) throw new BadTextError(given);
+    if (value.role !== "value" && given.length > 0) throw new BadTextError(given);
     if (text.trim() === "") {
       this.removeValue(value);
       return [];
@@ -625,7 +671,7 @@ export class Document implements IDocument {
     const created = this.splice(start, end, text, given);
     return created.filter(
       (h): h is ValueHandle =>
-        h instanceof ValueHandle && h.listHandle === container && h.statementHandle === statement && h.bound === value.bound,
+        h instanceof ValueHandle && h.listHandle === container && h.statementHandle === statement && h.role === value.role,
     ) as WrittenValue[];
   }
 
@@ -747,7 +793,7 @@ export class Document implements IDocument {
 function valueKindOf(tokens: readonly IToken[], ref: ValueRef): WrittenValue["kind"] {
   if (typeof ref !== "number") {
     if (ref.kind === "list") return "list";
-    for (let i = ref.start + 2; i < ref.end - 1; i++) if (tokens[i]?.kind === "COLON") return "slice";
+    for (let i = ref.start + 2; i < ref.end - 1; i++) if (tokens[i]?.kind === "TILDE") return "slice";
     return ref.end - ref.start > 3 ? "index" : "slice";
   }
   switch (tokens[ref]?.kind) {
@@ -757,23 +803,6 @@ function valueKindOf(tokens: readonly IToken[], ref: ValueRef): WrittenValue["ki
       return "reference";
     default:
       return "word";
-  }
-}
-
-function newValue(document: Document, kind: WrittenValue["kind"]): ValueHandle {
-  switch (kind) {
-    case "word":
-      return new WordValue(document);
-    case "string":
-      return new StringValue(document);
-    case "list":
-      return new ListValue(document);
-    case "slice":
-      return new SliceValue(document);
-    case "index":
-      return new IndexValue(document);
-    case "reference":
-      return new Reference(document);
   }
 }
 
@@ -839,7 +868,7 @@ function ruleProblems(syntax: ISyntax, extensions: ReadonlySet<string>, from: nu
     const shapes = blockShapes(tokens, nodes, extensions, claimed);
     nodes.forEach((node, i) => {
       const shape = shapes[i] as IShape;
-      if (shape.fault !== undefined) {
+      if (shape.fault !== undefined && isTextAlone(shape.fault)) {
         const code = shape.fault.code;
         let involved = touches(node);
         if (!involved && (code === DiagnosticCode.VariableSetTwice || code === DiagnosticCode.SnippetDefinedTwice)) {

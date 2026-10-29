@@ -5,12 +5,13 @@ import type { IRendered } from "./model.js";
 import { render } from "./render.js";
 import { villanelle } from "../written/index.js";
 import { memorySource } from "../source.js";
+import { configTexts } from "./testing.js";
 
-const RASL = "set $pixels 2284;\ngraph {\n  node DdpSink leds { max_count $pixels; }\n}\n";
+const RASL = "@set $pixels 2284;\ngraph {\n  node DdpSink leds { max_count $pixels; }\n}\n";
 
 async function load(text: string, overrides?: Record<string, string>): Promise<IRendered> {
   const processor = villanelle({ source: memorySource({ "main.conf": text }) });
-  return render(await processor.load("main.conf", overrides === undefined ? undefined : { overrides }));
+  return render(await processor.load("main.conf", overrides === undefined ? undefined : { overrides: configTexts(overrides) }));
 }
 
 function only(directives: readonly IDirective[] | undefined): IDirective {
@@ -30,12 +31,12 @@ describe("the load tracer (set and $name)", () => {
     const [value] = maxCount.values;
     expect(maxCount.values).toHaveLength(1);
     expect(value?.text).toBe("2284");
-    expect(value?.origin.place).toMatchObject({ kind: "file", resolvedPath: "main.conf", span: { start: { line: 0, column: 12 } } });
+    expect(value?.origin.place).toMatchObject({ kind: "file", resolvedPath: "main.conf", span: { start: { line: 0, column: 13 } } });
     expect(value?.origin.via).toEqual([
       {
         kind: "variable",
         name: "pixels",
-        place: { kind: "file", resolvedPath: "main.conf", span: { start: { offset: 58, line: 2, column: 32 }, end: { offset: 65, line: 2, column: 39 } } },
+        place: { kind: "file", resolvedPath: "main.conf", span: { start: { offset: 59, line: 2, column: 32 }, end: { offset: 66, line: 2, column: 39 } } },
       },
     ]);
   });
@@ -53,7 +54,7 @@ describe("the load tracer (set and $name)", () => {
   });
 
   it("lets an override win over the file's set (L3)", async () => {
-    const loaded = await load('set $host "10.0.0.1";\ntarget $host;', { host: '"10.0.0.2"' });
+    const loaded = await load('@set $host "10.0.0.1";\ntarget $host;', { host: '"10.0.0.2"' });
     expect(loaded.diagnostics).toEqual([]);
     const [value] = only(loaded.block).values;
     expect(value?.text).toBe('"10.0.0.2"');

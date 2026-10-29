@@ -8,7 +8,7 @@
 import { LostUpdateError, SaveError } from "../errors.js";
 import { type ILocatedDiagnostic, makeLocated } from "../report.js";
 import type { IDocumentSource } from "../source.js";
-import { typeNameOf } from "../text.js";
+import { type ConfigText, typeNameOf } from "../text.js";
 import { bind, type IBindingWithNeeds, type IOverrideInput, type IOverrideValues, type IReadLedger } from "./bind.js";
 import { Document, type IDocumentHost } from "./document.js";
 import { expansionOf } from "./expansion.js";
@@ -22,7 +22,7 @@ import { OverrideVariable } from "./statements.js";
 export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger {
   readonly documents = new Map<string, Document>();
   readonly extensionNames: ReadonlySet<string>;
-  private readonly overrideTexts = new Map<string, string>();
+  private readonly overrideTexts = new Map<string, ConfigText>();
   private readonly overrideValues = new Map<string, IOverrideValues>();
   private readonly overrideVariables = new Map<string, OverrideVariable>();
   /** Per `JSON.stringify([parentPath, spec])`: the paths or the rejection. */
@@ -48,7 +48,7 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
     this.extensionNames = new Set(extensions.keys());
     for (const [name, text] of Object.entries(overrides)) {
       const values = checkOverride(name, text, { member: "load", textParameter: `overrides[${JSON.stringify(name)}]` });
-      this.putOverride(name, text as string, values);
+      this.putOverride(name, text as ConfigText, values);
     }
   }
 
@@ -57,11 +57,11 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
     return this.rootDocument;
   }
 
-  get overrides(): ReadonlyMap<string, string> {
+  get overrides(): ReadonlyMap<string, ConfigText> {
     return this.overrideTexts;
   }
 
-  setOverride(name: string, text: string | undefined): void {
+  setOverride(name: string, text: ConfigText | undefined): void {
     if (text === undefined) {
       checkOverrideName(name, "setOverride");
       if (!this.overrideTexts.has(name)) return;
@@ -76,7 +76,7 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
   }
 
   /** A changed name keeps its place in `overrides`; a new one (or one removed before) goes at the end (6.2). */
-  private putOverride(name: string, text: string, values: IOverrideValues): void {
+  private putOverride(name: string, text: ConfigText, values: IOverrideValues): void {
     this.overrideTexts.set(name, text);
     this.overrideValues.set(name, values);
     if (!this.overrideVariables.has(name)) this.overrideVariables.set(name, new OverrideVariable(name, () => this.binding()));

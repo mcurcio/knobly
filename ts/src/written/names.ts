@@ -4,7 +4,7 @@
  */
 
 import { MisuseError } from "../errors.js";
-import { RESERVED, VARIABLE_NAME } from "../gen/api/limits.js";
+import { VARIABLE_NAME } from "../gen/api/limits.js";
 import { parseEntry } from "../syntax/parse.js";
 
 /**
@@ -17,12 +17,9 @@ export function checkVariableName(name: string): void {
 
 /**
  * A directive's new name (`rename`): what the grammar's `nameText` entry rule takes (one word that does not start
- * with a digit or `-`), and not a name that would change the line's kind (a reserved word or a registered
- * extension's name). @throws MisuseError otherwise
+ * with a digit, `-` or `@`), and nothing else: no directive name is reserved (spec 2.5, milestone 5).
+ * @throws MisuseError otherwise
  */
-export function checkDirectiveName(name: string, extensionNames: ReadonlySet<string>): void {
+export function checkDirectiveName(name: string): void {
   if (parseEntry(name, "nameText").diagnostics.length > 0) throw new MisuseError(`not a directive name: ${JSON.stringify(name)}`);
-  if (RESERVED.has(name) || extensionNames.has(name)) {
-    throw new MisuseError(`a directive cannot be renamed to ${JSON.stringify(name)}: the name would change its kind`);
-  }
 }

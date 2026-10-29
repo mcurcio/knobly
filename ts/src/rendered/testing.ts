@@ -6,9 +6,15 @@
 import type { IOrigin, IPlace, IStep } from "../origin.js";
 import type { ILocatedDiagnostic } from "../report.js";
 import { type IDocumentSource, memorySource } from "../source.js";
+import { type ConfigText, text } from "../text.js";
 import { type IExtension, type IProcessor, villanelle } from "../written/index.js";
 import type { IDirective, IKeyOptions, IRendered } from "./model.js";
 import { render } from "./render.js";
+
+/** Plain test strings as config text, each through `text()` (spec 6.9). */
+export function configTexts(texts: Readonly<Record<string, string>>): Record<string, ConfigText> {
+  return Object.fromEntries(Object.entries(texts).map(([name, given]) => [name, text(given)]));
+}
 
 export interface ITestOptions {
   readonly overrides?: Readonly<Record<string, string>>;
@@ -24,14 +30,14 @@ export function processorOf(files: Readonly<Record<string, string>>, options: IT
 }
 
 /** `render(await processor.load(path, options))`. */
-export async function rendered(processor: IProcessor, path: string, options?: { readonly overrides?: Readonly<Record<string, string>> }): Promise<IRendered> {
+export async function rendered(processor: IProcessor, path: string, options?: { readonly overrides?: Readonly<Record<string, ConfigText>> }): Promise<IRendered> {
   return render(await processor.load(path, options));
 }
 
 /** Load `main.conf` (or `root`) from these files, and render it. */
 export async function loadFiles(files: Readonly<Record<string, string>>, options: ITestOptions = {}, root = "main.conf"): Promise<IRendered> {
   const processor = processorOf(files, options);
-  return render(await processor.load(root, options.overrides === undefined ? undefined : { overrides: options.overrides }));
+  return render(await processor.load(root, options.overrides === undefined ? undefined : { overrides: configTexts(options.overrides) }));
 }
 
 /** Load one text as `main.conf`, and render it. */

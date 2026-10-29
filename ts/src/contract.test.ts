@@ -24,6 +24,7 @@ import {
   VillanelleError,
 } from "./index.js";
 import { parse } from "./syntax/parse.js";
+import { text } from "./text.js";
 
 describe("the error classes (spec 2.8; spec/contract.md 4.2)", () => {
   it("put every expected outcome under VillanelleError and every program bug outside it", () => {
@@ -74,7 +75,7 @@ describe("the error classes (spec 2.8; spec/contract.md 4.2)", () => {
 describe("save (writer)", () => {
   it("refuses a writer without a write method with TypeError, before anything", async () => {
     const graph = await villanelle({ source: memorySource({ "main.conf": "a 1;\n" }) }).load("main.conf");
-    graph.root.block.directives()[0]?.set("2");
+    graph.root.block.directives()[0]?.set(text("2"));
     const write = (): Promise<void> => Promise.resolve();
     const error: unknown = await graph.save(write as unknown as Parameters<IDocumentGraph["save"]>[0]).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(TypeError);
@@ -90,7 +91,7 @@ describe("the memory adapters (spec/contract.md 5)", () => {
     const files: Record<string, string> = { "main.conf": "a 1;\n" };
     const processor = villanelle({ source: memorySource(files) });
     const graph = await processor.load("main.conf");
-    graph.root.block.directives()[0]?.set("2");
+    graph.root.block.directives()[0]?.set(text("2"));
     expect(await graph.save(memoryWriter(files))).toEqual(["main.conf"]);
     expect(files["main.conf"]).toBe("a 2;\n");
     expect((await processor.load("main.conf")).root.text).toBe("a 2;\n");
@@ -106,7 +107,7 @@ describe("the memory adapters (spec/contract.md 5)", () => {
   it("memoryWriter refuses a lost update with a LostUpdateError, raised by save as it is, writing nothing", async () => {
     const files: Record<string, string> = { "main.conf": "a 1;\n", "b.conf": "b;\n" };
     const graph = await villanelle({ source: memorySource(files) }).load("main.conf");
-    graph.root.block.directives()[0]?.set("2");
+    graph.root.block.directives()[0]?.set(text("2"));
     files["main.conf"] = "changed;\n";
     const error: unknown = await graph.save(memoryWriter(files)).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(LostUpdateError);
@@ -150,7 +151,7 @@ describe("the memory adapters (spec/contract.md 5)", () => {
 
 describe("render (graph) on the public low level (spec 7.0)", () => {
   it("takes any object with the document graph's public members", async () => {
-    const graph = await villanelle({ source: memorySource({ "main.conf": "set $a 1;\nx $a { y; }\n" }) }).load("main.conf");
+    const graph = await villanelle({ source: memorySource({ "main.conf": "@set $a 1;\nx $a { y; }\n" }) }).load("main.conf");
     const facade: IDocumentGraph = {
       get root() {
         return graph.root;
@@ -180,13 +181,13 @@ describe("render (graph) on the public low level (spec 7.0)", () => {
     expect(x?.written.name).toBe("x");
     expect(x?.values.map((v) => [v.text, v.written.text, v.definition?.text, v.chain.length])).toEqual([["1", "1", "1", 0]]);
     expect(first.diagnostics).toBe(graph.diagnostics);
-    graph.root.block.directives()[0]?.set("2");
+    graph.root.block.directives()[0]?.set(text("2"));
     expect(graph.expand()).not.toBe(first);
     expect(graph.expand().block[0]?.values[0]?.text).toBe("2");
   });
 
   it("builds the rendered directive on the expansion's own objects (spec 7.0)", async () => {
-    const graph = await villanelle({ source: memorySource({ "main.conf": "set $p [1, 2];\nx $p;\nbad $nope;\nb { c 1; }\n" }) }).load("main.conf");
+    const graph = await villanelle({ source: memorySource({ "main.conf": "@set $p [1, 2];\nx $p;\nbad $nope;\nb { c 1; }\n" }) }).load("main.conf");
     const expansion = graph.expand();
     const rendered = render(graph);
     expect(rendered.block[0]?.values).toBe(expansion.block[0]?.values);

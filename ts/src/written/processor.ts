@@ -8,6 +8,8 @@
 import { MisuseError } from "../errors.js";
 import { RESERVED } from "../gen/api/limits.js";
 import type { IDocumentSource } from "../source.js";
+import type { ConfigText } from "../text.js";
+import { parseEntry } from "../syntax/parse.js";
 import type { IExtension } from "./extension.js";
 import { DocumentGraph } from "./graph.js";
 import type { IDocumentGraph } from "./model.js";
@@ -24,7 +26,7 @@ export interface ILoadOptions {
    * `set` of its name, which acts as the default (L3). Each goes through the check of an override (spec 6.3), one by
    * one, in order, before any file is read; the first refusal rejects the load.
    */
-  readonly overrides?: Readonly<Record<string, string>>;
+  readonly overrides?: Readonly<Record<string, ConfigText>>;
 }
 
 export interface IProcessor {
@@ -40,15 +42,21 @@ export interface IProcessor {
   load(path: string, options?: ILoadOptions): Promise<IDocumentGraph>;
 }
 
-/** Make a processor once, with its document source and extensions. @throws MisuseError for a reserved or repeated extension name */
+/**
+ * Make a processor once, with its document source and extensions. An extension's name is written after `@`
+ * (`@include`), so it must be a word the grammar's `nameText` takes, and not a language statement's name.
+ * @throws MisuseError for an extension name that is reserved (`set`, `snippet`, `use`), already taken, or not a word
+ */
 export function villanelle(options: IProcessorOptions): IProcessor {
   const { source } = options;
   const extensions = new Map<string, IExtension>();
   for (const extension of options.extensions ?? []) {
-    if (RESERVED.has(extension.directive) || extensions.has(extension.directive)) {
-      throw new MisuseError(`extension directive name taken: ${JSON.stringify(extension.directive)}`);
+    const name = extension.directive;
+    if (RESERVED.has(name) || extensions.has(name)) throw new MisuseError(`extension directive name taken: ${JSON.stringify(name)}`);
+    if (typeof name !== "string" || parseEntry(name, "nameText").diagnostics.length > 0) {
+      throw new MisuseError(`not an extension name (one word, written after @): ${JSON.stringify(name)}`);
     }
-    extensions.set(extension.directive, extension);
+    extensions.set(name, extension);
   }
   return {
     async load(path, loadOptions) {

@@ -42,7 +42,7 @@ describe("readers", () => {
   });
 
   it("string: a word or a string, decoded; E4002 for a list, slice or index", async () => {
-    const [word, string, list, slice, index] = await values('w "a\\tb" [1] c[1:2] c[1]');
+    const [word, string, list, slice, index] = await values('w "a\\tb" [1] c[1~2] c[1]');
     expect(word?.string()).toBe("w");
     expect(string?.string()).toBe("a\tb");
     for (const other of [list, slice, index]) expect(thrown(() => other?.string())[0]).toBe(DiagnosticCode.WrongValueKind);
@@ -71,21 +71,21 @@ describe("readers", () => {
   });
 
   it("list: a list's items, each with its own origin, also its items property; E4002 for another kind", async () => {
-    const list = await value('[0.04, "x", [1, 2], c[0:1]]');
+    const list = await value('[0.04, "x", [1, 2], c[0~1]]');
     const items = list.list();
     expect(list.kind === "list" ? list.items : []).toEqual(items);
     expect(items.map((i) => [i.kind, i.text, originText(i.origin)])).toEqual([
       ["word", "0.04", "main.conf:0:3"],
       ["string", '"x"', "main.conf:0:9"],
       ["list", "[1, 2]", "main.conf:0:14"],
-      ["slice", "c[0:1]", "main.conf:0:22"],
+      ["slice", "c[0~1]", "main.conf:0:22"],
     ]);
     expect(items[2]?.list().map((i) => i.integer())).toEqual([1, 2]);
     expect(thrown(() => items[0]?.list())[0]).toBe(DiagnosticCode.WrongValueKind);
   });
 
   it("slice: a slice (either side may be absent) or an index, negative bounds allowed; E4002 otherwise", async () => {
-    const read = await values("hyperhdr_color[144:152] c[144:] c[:152] foo[1] foo[-3:-1] w");
+    const read = await values("hyperhdr_color[144~152] c[144~] c[~152] foo[1] foo[-3~-1] w");
     expect(read[0]?.slice()).toEqual({ kind: "slice", name: "hyperhdr_color", start: 144, end: 152 });
     expect(read[1]?.slice()).toEqual({ kind: "slice", name: "c", start: 144 });
     expect(read[2]?.slice()).toEqual({ kind: "slice", name: "c", end: 152 });
@@ -95,24 +95,9 @@ describe("readers", () => {
     expect(thrown(() => read[5]?.slice())[0]).toBe(DiagnosticCode.WrongValueKind);
   });
 
-  it("plain: one rule for every value; quoting means text", async () => {
-    const read = await values('"8080" 8080 true "true" on [1, "a", [false]] c[1:2] c[3] 20hz');
-    expect(read.map((a) => a.plain())).toEqual([
-      "8080",
-      8080,
-      true,
-      "true",
-      "on",
-      [1, "a", [false]],
-      { kind: "slice", name: "c", start: 1, end: 2 },
-      { kind: "index", name: "c", index: 3 },
-      "20hz",
-    ]);
-  });
-
   it("places a reader's error on a value from a variable at its definition, via the variable", async () => {
-    const loaded = await loadText("set $n many;\nv $n;\n");
-    expect(thrown(() => only(only(loaded.block).values).integer())).toEqual([DiagnosticCode.NotAnInteger, "main.conf:0:7 < variable n main.conf:1:2"]);
+    const loaded = await loadText("@set $n many;\nv $n;\n");
+    expect(thrown(() => only(only(loaded.block).values).integer())).toEqual([DiagnosticCode.NotAnInteger, "main.conf:0:8 < variable n main.conf:1:2"]);
   });
 
   it("places a reader's error on an override at the $name that used it", async () => {
@@ -131,7 +116,9 @@ describe("canonical text", () => {
       ['"a\\tb"', "a\tb", '"a\\tb"'],
       ['"a\\rb"', "a\rb", '"a\\rb"'],
       ['"a\\"b"', 'a"b', '"a\\"b"'],
-      ["'a\\'b'", "a'b", '"a\'b"'],
+      // A single-quoted string is raw (TOML's literal string): a backslash is itself.
+      ["'a\\b'", "a\\b", '"a\\\\b"'],
+      ["'C:\\new'", "C:\\new", '"C:\\\\new"'],
       ['"a\\\'b"', "a'b", '"a\'b"'],
       ["'a\"b'", 'a"b', '"a\\"b"'],
       ['""', "", '""'],
@@ -145,7 +132,7 @@ describe("canonical text", () => {
   });
 
   it("writes slices and indexes in decimal, either side empty when absent", async () => {
-    expect((await values("c[0:3] c[3:] c[:3] c[-1] c[0]")).map((a) => a.text)).toEqual(["c[0:3]", "c[3:]", "c[:3]", "c[-1]", "c[0]"]);
+    expect((await values("c[0~3] c[3~] c[~3] c[-1] c[0]")).map((a) => a.text)).toEqual(["c[0~3]", "c[3~]", "c[~3]", "c[-1]", "c[0]"]);
   });
 
   it("drops comments, line breaks and a trailing comma from a list", async () => {
@@ -154,18 +141,18 @@ describe("canonical text", () => {
   });
 
   it("gives a value from a variable the value's text, never $name", async () => {
-    const loaded = await loadText('set $c "x";\nv $c [$c];\n');
+    const loaded = await loadText('@set $c "x";\nv $c [$c];\n');
     expect(only(loaded.block).values.map((a) => a.text)).toEqual(['"x"', '["x"]']);
   });
 });
 
 describe("expanded value origins and kinds", () => {
   it("gives each value its kind and the place it was written", async () => {
-    const read = await values('80 "a b" foo[1:2] bar[3] [1, 2]  # trailing\n');
+    const read = await values('80 "a b" foo[1~2] bar[3] [1, 2]  # trailing\n');
     expect(read.map((a) => [a.kind, a.text, originText(a.origin)])).toEqual([
       ["word", "80", "main.conf:0:2"],
       ["string", '"a b"', "main.conf:0:5"],
-      ["slice", "foo[1:2]", "main.conf:0:11"],
+      ["slice", "foo[1~2]", "main.conf:0:11"],
       ["index", "bar[3]", "main.conf:0:20"],
       ["list", "[1, 2]", "main.conf:0:27"],
     ]);

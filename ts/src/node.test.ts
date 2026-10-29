@@ -9,6 +9,7 @@ import { include } from "./include.js";
 import { villanelle } from "./written/processor.js";
 import { rendered } from "./rendered/testing.js";
 import { fileSource, fileWriter } from "./node.js";
+import { text } from "./text.js";
 
 describe("villanelle/node", () => {
   let dir = "";
@@ -17,7 +18,7 @@ describe("villanelle/node", () => {
     dir = await mkdtemp(join(tmpdir(), "villanelle-node-"));
     await mkdir(join(dir, "conf.d"));
     await mkdir(join(dir, "conf.d", "sub.conf"));
-    await writeFile(join(dir, "root.conf"), 'include "conf.d/*.conf";\ninclude "plain.conf";\n');
+    await writeFile(join(dir, "root.conf"), '@include "conf.d/*.conf";\n@include "plain.conf";\n');
     await writeFile(join(dir, "plain.conf"), "plain 1;\n");
     for (const name of ["b.conf", "C.conf", "é.conf", "a.conf", "a.txt", "x[1].conf"]) {
       await writeFile(join(dir, "conf.d", name), `f "${name}";\n`);
@@ -40,7 +41,7 @@ describe("villanelle/node", () => {
   });
 
   it("resolves a relative root through the source, so the root has one path and is read once", async () => {
-    await writeFile(join(dir, "self.conf"), 'x "1\n;\ninclude "self.conf";\ny 1;\n');
+    await writeFile(join(dir, "self.conf"), 'x "1\n;\n@include "self.conf";\ny 1;\n');
     const loaded = await rendered(villanelle({ source: fileSource(), extensions: [include()] }), relative(process.cwd(), join(dir, "self.conf")));
     expect([...loaded.graph.documents.keys()]).toEqual([join(dir, "self.conf")]);
     expect(loaded.diagnostics.map((d) => d.code)).toEqual(["E1001", "E5006"]);
@@ -62,7 +63,7 @@ describe("villanelle/node", () => {
     await expect(source.read(join(dir, "missing.conf"))).rejects.toThrow(/ENOENT/);
     const loaded = await rendered(villanelle({ source, extensions: [include()] }), join(dir, "plain.conf"));
     expect(loaded.diagnostics).toEqual([]);
-    await writeFile(join(dir, "missing-include.conf"), 'include "missing.conf";\n');
+    await writeFile(join(dir, "missing-include.conf"), '@include "missing.conf";\n');
     const missing = await rendered(villanelle({ source, extensions: [include()] }), join(dir, "missing-include.conf"));
     expect(missing.diagnostics.map((d) => d.code)).toEqual(["E3001"]);
   });
@@ -84,17 +85,17 @@ describe("villanelle/node", () => {
   it("stages a batch beside its targets and renames it over them, updating each source (D18)", async () => {
     const directory = join(dir, "batch");
     await mkdir(directory);
-    await writeFile(join(directory, "main.conf"), 'include "part.conf";\nm 1;\n');
+    await writeFile(join(directory, "main.conf"), '@include "part.conf";\nm 1;\n');
     await writeFile(join(directory, "part.conf"), "p 1;\n");
     const graph = await villanelle({ source: fileSource(), extensions: [include()] }).load(join(directory, "main.conf"));
     const [main, part] = [...graph.documents.values()];
     const m = main?.block.statements[1];
     const p = part?.block.statements[0];
     if (m?.kind !== "directive" || p?.kind !== "directive") throw new Error("fixture");
-    m.set("2");
-    p.set("2");
+    m.set(text("2"));
+    p.set(text("2"));
     expect(await graph.save(fileWriter())).toEqual([join(directory, "main.conf"), join(directory, "part.conf")]);
-    expect(await readFile(join(directory, "main.conf"), "utf8")).toBe('include "part.conf";\nm 2;\n');
+    expect(await readFile(join(directory, "main.conf"), "utf8")).toBe('@include "part.conf";\nm 2;\n');
     expect(await readFile(join(directory, "part.conf"), "utf8")).toBe("p 2;\n");
     expect(main?.savedText).toBe(main?.text);
     expect(await temporaries(directory)).toEqual([]);
@@ -109,7 +110,7 @@ describe("villanelle/node", () => {
     const graph = await villanelle({ source: fileSource() }).load(a);
     const statement = graph.root.block.statements[0];
     if (statement?.kind !== "directive") throw new Error("fixture");
-    statement.set("2");
+    statement.set(text("2"));
     // Someone else changes b after it was read.
     await writeFile(b, "b changed;\n");
     const batch = [

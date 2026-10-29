@@ -14,6 +14,7 @@ import { render } from "../rendered/render.js";
 import { villanelle } from "./processor.js";
 import { memorySource } from "../source.js";
 import type { IDocumentGraph, IDocumentWriter, IFileWrite, IPlace } from "../index.js";
+import { quote, text } from "../text.js";
 
 const SPLIT = new URL("../../../fixtures/rasl/split/", import.meta.url);
 const FILES = { "main.conf": readFileSync(new URL("main.conf", SPLIT), "utf8"), "sink.conf": readFileSync(new URL("sink.conf", SPLIT), "utf8") };
@@ -48,7 +49,7 @@ function recorder(): IDocumentWriter & { batches: IFileWrite[][] } {
 
 async function open(): Promise<{ graph: IDocumentGraph }> {
   const config = villanelle({ source: memorySource(FILES), extensions: [include()] });
-  const graph = await config.load("main.conf", { overrides: { leds_host: '"10.0.70.1"' } });
+  const graph = await config.load("main.conf", { overrides: { leds_host: quote("10.0.70.1") } });
   return { graph };
 }
 
@@ -81,15 +82,15 @@ describe("the round 12 tracer (fixtures/rasl/split)", () => {
     const read = maxCount?.chain[0];
     const winner = read?.winner;
     if (winner?.kind !== "set") throw new Error("the winner is not a set line's variable");
-    winner.set("2400");
+    winner.set(text("2400"));
     const writer = recorder();
     expect(await graph.save(writer)).toEqual(["main.conf"]);
     expect(writer.batches).toHaveLength(1);
     const [written] = writer.batches[0] ?? [];
-    expect(written?.text).toBe(FILES["main.conf"].replace("set $pixels 2284;", "set $pixels 2400;"));
+    expect(written?.text).toBe(FILES["main.conf"].replace("@set $pixels 2284;", "@set $pixels 2400;"));
     expect(maxCounts(render(graph))).toEqual([
-      ["2400", "main.conf:4:13", 1],
-      ["2400", "main.conf:4:13", 1],
+      ["2400", "main.conf:4:14", 1],
+      ["2400", "main.conf:4:14", 1],
     ]);
     // The rendered tree from before the edit is a snapshot: it still reads 2284.
     expect(maxCount?.text).toBe("2284");
@@ -100,7 +101,7 @@ describe("the round 12 tracer (fixtures/rasl/split)", () => {
     const read = nodeNamed(render(graph), "leds").block?.find((d) => d.name === "max_count")?.values[0]?.chain[0];
     const reference = read?.reference;
     expect(reference?.text).toBe("$pixels");
-    reference?.replaceWithText("2400");
+    reference?.replaceWithText(text("2400"));
     const writer = recorder();
     expect(await graph.save(writer)).toEqual(["sink.conf"]);
     expect(writer.batches[0]?.[0]?.text).toBe(FILES["sink.conf"].replace("max_count $pixels;", "max_count 2400;"));

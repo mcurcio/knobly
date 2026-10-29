@@ -44,19 +44,27 @@ export function nestingOverflow(kinds: readonly TokenKind[]): number | undefined
   return undefined;
 }
 
+/** The tokens a slice's `[` follows (the grammar's `sliceName`). */
+const SLICE_NAMES: ReadonlySet<TokenKind> = new Set(["WORD", "AT_WORD", "VARIABLE"]);
+
 /**
  * The code for a syntax error at token `at` (`at === kinds.length` is the end of input), given the start of the
  * statement it belongs to (`from`) and whether that statement is inside a block. First match wins.
  */
+
 export function classifyError(kinds: readonly TokenKind[], at: number, from: number, inBlock: boolean): DiagnosticCode {
-  // Brackets open in this statement before `at` (true = a slice bracket, one that follows a WORD) and braces.
+  // Brackets open in this statement before `at` (true = a slice bracket, one that follows a slice name: a WORD, an
+  // AT_WORD or a VARIABLE) and braces.
   const brackets: boolean[] = [];
   let braces = 0;
   let closesValue = false; // the token right before `at` is a `]` that closed a bracket
   for (let i = from; i < at; i++) {
     const kind = kinds[i];
     closesValue = false;
-    if (kind === "LBRACK") brackets.push(i > 0 && kinds[i - 1] === "WORD");
+    if (kind === "LBRACK") {
+      const name = kinds[i - 1];
+      brackets.push(name !== undefined && SLICE_NAMES.has(name));
+    }
     else if (kind === "RBRACK") closesValue = brackets.pop() !== undefined;
     else if (kind === "LBRACE") braces++;
     else if (kind === "RBRACE" && braces > 0) braces--;

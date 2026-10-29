@@ -38,7 +38,7 @@ interface IAntlrRecognizer {
 }
 
 /** The grammar's entry rules (spec 2.8, 3.3): a text a program hands to an edit or an override, parsed on its own. */
-export type EntryRule = "statementsText" | "valuesText" | "itemsText" | "boundText" | "nameText";
+export type EntryRule = "statementsText" | "valuesText" | "valueText" | "itemsText" | "boundText" | "sliceNameText" | "nameText";
 
 type IAntlrParser = IAntlrRecognizer & Record<"document" | EntryRule, () => IAntlrTree>;
 

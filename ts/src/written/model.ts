@@ -18,6 +18,7 @@ import type { StatementKind, UnreadableReason, ValueKind, VariableKind } from ".
 import type { IDirectiveOrigin, IPlace, IStep } from "../origin.js";
 import type { ILocatedDiagnostic } from "../report.js";
 import type { IDocumentWriter } from "../source.js";
+import type { ConfigText } from "../text.js";
 import type { ISyntax } from "../syntax/cst.js";
 import type { ExpandedValue } from "./value.js";
 
@@ -34,7 +35,7 @@ export interface IDocumentGraph {
   /** Every file read, by resolvedPath, root first, then in first-read order. Never shrinks. */
   readonly documents: ReadonlyMap<string, IDocument>;
   /** The overrides by name (without `$`), each as villanelle text, in order. An input of the binding; never saved. */
-  readonly overrides: ReadonlyMap<string, string>;
+  readonly overrides: ReadonlyMap<string, ConfigText>;
   /**
    * Each document's syntax diagnostics (documents in order), then every problem the low level finds, in walk order:
    * the one list (spec 6.3), which the expansion and the rendered tree show unchanged.
@@ -48,7 +49,7 @@ export interface IDocumentGraph {
    * @throws MisuseError when `name` is not letters, digits and `_`; TypeError when `text` is neither a string nor
    * undefined
    */
-  setOverride(name: string, text: string | undefined): void;
+  setOverride(name: string, text: ConfigText | undefined): void;
   /**
    * Resolve and read what `unread()` names, through the graph's document source, repeating until nothing new is
    * named; keeps every text and every kept rejection (D12). Returns the resolvedPaths this call read, in read order.
@@ -99,7 +100,7 @@ export interface IDocument {
    * Replace the whole text (undo, a formatter). Takes any text, broken or not. Every handle into the document
    * detaches (the document's own handle stays); `savedText` is untouched. @throws TypeError when `text` is not a string
    */
-  replaceWithText(text: string): void;
+  replaceWithText(text: ConfigText): void;
 }
 
 /** One copy of an extension line, and the files it matched. */
@@ -140,13 +141,13 @@ export interface IStatementBase {
    * Replace it, and the comments it owns, with zero or more statements. This handle detaches.
    * @throws BadTextError; TypeError when `text` is not a string
    */
-  replaceWithText(text: string): readonly Statement[];
+  replaceWithText(text: ConfigText): readonly Statement[];
   /** Remove it with the comments it owns, and its line when nothing else is on it. Then it is detached. */
   remove(): void;
   /** Insert statements before this one, in its block: `block.insertStatements(indexOf(this), text)`. */
-  insertBefore(text: string): readonly Statement[];
+  insertBefore(text: ConfigText): readonly Statement[];
   /** Insert statements after this one, in its block: `block.insertStatements(indexOf(this) + 1, text)`. */
-  insertAfter(text: string): readonly Statement[];
+  insertAfter(text: ConfigText): readonly Statement[];
 }
 
 /** A directive. */
@@ -158,9 +159,9 @@ export interface IWrittenDirective extends IStatementBase {
   /** Undefined when written without one. */
   readonly block: IWrittenBlock | undefined;
   /**
-   * @throws MisuseError when the grammar's `nameText` refuses `name` (not one word, or one that starts with a digit
-   * or `-`) or it would change the line's kind (`set`, `snippet`, `use`, an extension's name); TypeError when `name`
-   * is not a string
+   * Rename it. No directive name is reserved (spec 2.5): `rename("use")` writes a plain directive named `use`.
+   * @throws MisuseError when the grammar's `nameText` refuses `name` (not one word, or one that starts with a digit,
+   * `-` or `@`); TypeError when `name` is not a string
    */
   rename(name: string): void;
   /**
@@ -168,32 +169,36 @@ export interface IWrittenDirective extends IStatementBase {
    * Not the language's `set` line: it replaces a statement's values. The text is checked with the grammar's
    * `valuesText` entry rule (spec 2.8). @throws BadTextError; TypeError when `text` is not a string
    */
-  set(text: string): void;
+  set(text: ConfigText): void;
 }
 
-/** A line whose name a registered extension owns: an include line. Its name is the extension's, so it has no `rename`. */
+/**
+ * `@name value...;` where a registered extension owns `name`: an include line (`@include "f";`). Its name is the
+ * extension's, so it has no `rename`.
+ */
 export interface IExtensionLine extends IStatementBase {
   readonly kind: "extension";
+  /** The extension's name, without `@` (`include`). */
   readonly name: string;
   /** In order. An include line: its path. */
   readonly values: readonly WrittenValue[];
   /** Undefined when written without one. An include line: its `set` lines. */
   readonly block: IWrittenBlock | undefined;
   /** Replace its values, as a directive's `set`. @throws BadTextError; TypeError when `text` is not a string */
-  set(text: string): void;
+  set(text: ConfigText): void;
 }
 
-/** `set $name value...;`. */
+/** `@set $name value...;`. */
 export interface ISetLine extends IStatementBase {
   readonly kind: "set";
   readonly variable: ISetVariable;
   /** After the `$name`; `set` never touches it. */
   readonly values: readonly WrittenValue[];
   /** Replace its values (not the `$name`). @throws BadTextError, also for an empty text (E5009); TypeError when `text` is not a string */
-  set(text: string): void;
+  set(text: ConfigText): void;
 }
 
-/** `snippet name $param... { body }`. */
+/** `@snippet name $param... { body }`. */
 export interface ISnippetLine extends IStatementBase {
   readonly kind: "snippet";
   readonly name: string;
@@ -201,7 +206,7 @@ export interface ISnippetLine extends IStatementBase {
   readonly block: IWrittenBlock;
 }
 
-/** `use name value...;`. */
+/** `@use name value...;`. */
 export interface IUseLine extends IStatementBase {
   readonly kind: "use";
   readonly snippetName: string;
@@ -212,10 +217,13 @@ export interface IUseLine extends IStatementBase {
   /** Bound to the snippet's parameters by position. */
   readonly values: readonly WrittenValue[];
   /** Replace its values. @throws BadTextError; TypeError when `text` is not a string */
-  set(text: string): void;
+  set(text: ConfigText): void;
 }
 
-/** A statement that does not parse (R6), a malformed `set`/`snippet`/`use`, or a second `set` of a name in a block. */
+/**
+ * A statement that does not parse (R6), a malformed `@set`/`@snippet`/`@use`, a second `@set` of a name in a block, or
+ * an `@name` no extension owns (E3008).
+ */
 export interface IUnreadableLine extends IStatementBase {
   readonly kind: "unreadable";
 }
@@ -231,9 +239,9 @@ export interface IWrittenBlock {
    * inner lines keep their own relative indentation. @throws BadTextError; RangeError for an index out of range;
    * TypeError when `text` is not a string
    */
-  insertStatements(index: number, text: string): readonly Statement[];
+  insertStatements(index: number, text: ConfigText): readonly Statement[];
   /** `insertStatements(statements.length, text)`. */
-  addStatements(text: string): readonly Statement[];
+  addStatements(text: ConfigText): readonly Statement[];
 }
 
 // --- Values: discriminated by `kind` ---
@@ -250,12 +258,20 @@ export interface IValueBase {
   /** The list it is an item of; undefined otherwise. */
   readonly list: IList | undefined;
   /**
+   * Replace it with exactly one value written as villanelle text, keeping this handle (spec 6.1): it stays where it is
+   * (its statement's `values`, its list's `items`, its slice's bound or name) and takes the new value's kind, so a
+   * variable narrowed on `kind` before is stale after. Its old items, bounds and name detach. Checked with the
+   * grammar's entry rule: `valueText`, `boundText` for a slice bound, `sliceNameText` for a slice's name.
+   * @throws BadTextError; TypeError when `text` is not a string
+   */
+  set(text: ConfigText): void;
+  /**
    * Replace it with values written as villanelle text: separated by spaces on a line, by commas in a list. This
    * handle detaches. Checked with the grammar's entry rule (spec 2.8): `valuesText`, `itemsText` for a list item,
    * `boundText` for a slice bound (one integer word or `$name`). @throws BadTextError; TypeError when `text` is not a
    * string
    */
-  replaceWithText(text: string): readonly WrittenValue[];
+  replaceWithText(text: ConfigText): readonly WrittenValue[];
   /** Remove it (and its separator). Then it is detached. @throws BadTextError when that breaks a rule (a `set` left with no value) */
   remove(): void;
 }
@@ -273,10 +289,11 @@ export interface IList extends IValueBase {
   readonly items: readonly WrittenValue[];
 }
 
-/** `name[start:end]`; either bound may be absent. */
+/** `name[start~end]`; either bound may be absent. */
 export interface ISlice extends IValueBase {
   readonly kind: "slice";
-  readonly name: string;
+  /** The slice name before `[`: a word, or a `$name` holding one word. */
+  readonly name: IWord | IReference;
   readonly start: IWord | IReference | undefined;
   readonly end: IWord | IReference | undefined;
 }
@@ -284,7 +301,8 @@ export interface ISlice extends IValueBase {
 /** `name[index]`. */
 export interface IIndex extends IValueBase {
   readonly kind: "index";
-  readonly name: string;
+  /** The name before `[`: a word, or a `$name` holding one word. */
+  readonly name: IWord | IReference;
   readonly index: IWord | IReference;
 }
 
@@ -332,7 +350,7 @@ export interface ISetVariable extends IVariableBase {
    */
   rename(name: string): void;
   /** Replace its `set` line's values: `line.set(text)`. @throws BadTextError; TypeError when `text` is not a string */
-  set(text: string): void;
+  set(text: ConfigText): void;
 }
 
 /** A snippet parameter's `$name`. Its value comes from each `use` line: edit those to change it. */
@@ -362,7 +380,7 @@ export interface IResolution<TDefinition> {
   readonly shadowed: readonly TDefinition[];
 }
 
-/** A `$name` at one copy. It renders to all of `values`: `set $ports 8080 443;` gives two, replaced together. */
+/** A `$name` at one copy. It renders to all of `values`: `@set $ports 8080 443;` gives two, replaced together. */
 export interface IReferenceResolution extends IResolution<Variable> {
   readonly reference: IReference;
   /** The winning `set` line's values, or for a parameter the `use` line's values bound to it; empty for an override or unbound. */

@@ -12,11 +12,12 @@ import { memorySource } from "../source.js";
 import { BadTextError, DetachedError, SaveError } from "../errors.js";
 import type { IDocumentWriter, IFileWrite } from "../source.js";
 import type { IDocumentGraph, ISetLine, IWrittenDirective } from "./model.js";
-import { quote } from "../text.js";
+import { quote, text } from "../text.js";
+import { configTexts } from "../rendered/testing.js";
 
 async function load(files: Record<string, string>, overrides?: Record<string, string>): Promise<IDocumentGraph> {
   const processor = villanelle({ source: memorySource(files), extensions: [include()] });
-  return processor.load("main.conf", overrides === undefined ? undefined : { overrides });
+  return processor.load("main.conf", overrides === undefined ? undefined : { overrides: configTexts(overrides) });
 }
 
 function recorder(): IDocumentWriter & { batches: IFileWrite[][] } {
@@ -32,32 +33,32 @@ function recorder(): IDocumentWriter & { batches: IFileWrite[][] } {
 
 describe("documents and handles", () => {
   it("keeps one handle per statement and value across an edit elsewhere in the file (===)", async () => {
-    const graph = await load({ "main.conf": "set $a 1;\nb 2 3;\nc { d 4; }\n" });
+    const graph = await load({ "main.conf": "@set $a 1;\nb 2 3;\nc { d 4; }\n" });
     const body = graph.root.block;
     const [set, b, c] = body.statements as [ISetLine, IWrittenDirective, IWrittenDirective];
     const [two, three] = b.values;
     const d = c.block?.statements[0];
-    set.set("100 200");
-    expect(graph.root.text).toBe("set $a 100 200;\nb 2 3;\nc { d 4; }\n");
+    set.set(text("100 200"));
+    expect(graph.root.text).toBe("@set $a 100 200;\nb 2 3;\nc { d 4; }\n");
     expect(body.statements[0]).toBe(set);
     expect(body.statements[1]).toBe(b);
     expect(b.values[0]).toBe(two);
     expect(b.values[1]).toBe(three);
     expect(c.block?.statements[0]).toBe(d);
-    expect([b.text, two?.text, three?.text, d?.text, set.text]).toEqual(["b 2 3;", "2", "3", "d 4;", "set $a 100 200;"]);
+    expect([b.text, two?.text, three?.text, d?.text, set.text]).toEqual(["b 2 3;", "2", "3", "d 4;", "@set $a 100 200;"]);
     expect(set.variable).toBe(graph.variables("a")[0]);
-    expect(b.place.span.start).toEqual({ offset: 16, line: 1, column: 0 });
+    expect(b.place.span.start).toEqual({ offset: 17, line: 1, column: 0 });
   });
 
   it("detaches a replaced value: every member but kind throws DetachedError", async () => {
     const graph = await load({ "main.conf": "x 1;\n" });
     const [value] = graph.root.block.directives()[0]?.values ?? [];
     if (value === undefined) throw new Error("no value");
-    const [made] = value.replaceWithText("2");
+    const [made] = value.replaceWithText(text("2"));
     expect(made?.text).toBe("2");
     expect(value.kind).toBe("word");
     expect(() => value.text).toThrow(DetachedError);
-    expect(() => value.replaceWithText("3")).toThrow(DetachedError);
+    expect(() => value.replaceWithText(text("3"))).toThrow(DetachedError);
   });
 
   it("owns the comment lines directly above a statement and its trailing comment", async () => {
@@ -70,25 +71,25 @@ describe("documents and handles", () => {
   });
 
   it("changes nothing when an edit's text is refused", async () => {
-    const graph = await load({ "main.conf": "set $a 1;\n" });
+    const graph = await load({ "main.conf": "@set $a 1;\n" });
     const [set] = graph.root.block.statements;
     if (set?.kind !== "set") throw new Error("not a set line");
-    for (const text of ["1; x", "{", "", "\"open"]) {
-      expect(() => set.set(text), text).toThrow(BadTextError);
-      expect(graph.root.text).toBe("set $a 1;\n");
+    for (const given of ["1; x", "{", "", "\"open"]) {
+      expect(() => set.set(text(given)), given).toThrow(BadTextError);
+      expect(graph.root.text).toBe("@set $a 1;\n");
     }
-    expect(set.text).toBe("set $a 1;");
+    expect(set.text).toBe("@set $a 1;");
   });
 });
 
 describe("save", () => {
   it("hands only changed files to the writer in one call, then updates source; nothing changed: no call", async () => {
-    const graph = await load({ "main.conf": 'include "p.conf";\nx 1;\n', "p.conf": "y 2;\n" });
+    const graph = await load({ "main.conf": '@include "p.conf";\nx 1;\n', "p.conf": "y 2;\n" });
     const writer = recorder();
     expect(await graph.save(writer)).toEqual([]);
     expect(writer.batches).toEqual([]);
     const p = graph.documents.get("p.conf");
-    p?.block.directives()[0]?.values[0]?.replaceWithText("3");
+    p?.block.directives()[0]?.values[0]?.replaceWithText(text("3"));
     expect(await graph.save(writer)).toEqual(["p.conf"]);
     expect(writer.batches).toEqual([[{ resolvedPath: "p.conf", text: "y 3;\n", savedText: "y 2;\n" }]]);
     expect(p?.savedText).toBe("y 3;\n");
@@ -98,7 +99,7 @@ describe("save", () => {
 
   it("throws SaveError with the paths and the cause when the writer rejects, and changes no source", async () => {
     const graph = await load({ "main.conf": "x 1;\n" });
-    graph.root.block.directives()[0]?.values[0]?.replaceWithText("2");
+    graph.root.block.directives()[0]?.values[0]?.replaceWithText(text("2"));
     const cause = new Error("disk full");
     const error: unknown = await graph.save({ write: () => Promise.reject(cause) }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(SaveError);
@@ -111,10 +112,10 @@ describe("save", () => {
   it("keeps an edit made while the writer ran unsaved", async () => {
     const graph = await load({ "main.conf": "x 1;\n" });
     const x = graph.root.block.statements[0] as IWrittenDirective;
-    x.values[0]?.replaceWithText("2");
+    x.values[0]?.replaceWithText(text("2"));
     let release: () => void = () => undefined;
     const pending = graph.save({ write: () => new Promise<void>((resolve) => (release = resolve)) });
-    x.values[0]?.replaceWithText("3");
+    x.values[0]?.replaceWithText(text("3"));
     release();
     await pending;
     expect(graph.root.savedText).toBe("x 2;\n");
@@ -138,7 +139,7 @@ describe("the binding is the one home of the lookup rule (A8)", () => {
 
   it("gives a reference the declaration the binding picks at every copy (2.5, 2.6)", async () => {
     const graph = await load({
-      "main.conf": "snippet s $a {\n    x {\n        set $a 1;\n        y $a;\n    }\n    z $a;\n}\nuse s 2;\nuse s 3;\n",
+      "main.conf": "@snippet s $a {\n    x {\n        @set $a 1;\n        y $a;\n    }\n    z $a;\n}\n@use s 2;\n@use s 3;\n",
     });
     const references = graph.variables().flatMap((v) => v.references());
     expect(references).toHaveLength(2);

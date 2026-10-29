@@ -7,15 +7,15 @@ import { type INode, type ValueRef } from "./syntax/cst.js";
 import type { IToken } from "./syntax/tokens.js";
 
 export interface IDirectiveAnatomy {
-  /** Index of the name token (`node.start`, a WORD). */
+  /** Index of the name token (`node.start`, a WORD or an AT_WORD). */
   readonly name: number;
-  /** In source order: each word (WORD, INTEGER, DIGIT_WORD), STRING or VARIABLE token directly in the directive's range, and each slice or list child. */
+  /** In source order: each word (WORD, AT_WORD, INTEGER, DIGIT_WORD), STRING or VARIABLE token directly in the directive's range, and each slice or list child. */
   readonly values: readonly ValueRef[];
   /** The block child, when there is one. */
   readonly block: INode | undefined;
 }
 
-const VALUE_TOKENS: ReadonlySet<string> = new Set(["WORD", "INTEGER", "DIGIT_WORD", "STRING", "VARIABLE"]);
+const VALUE_TOKENS: ReadonlySet<string> = new Set(["WORD", "AT_WORD", "INTEGER", "DIGIT_WORD", "STRING", "VARIABLE"]);
 const VALUE_NODES: ReadonlySet<string> = new Set(["slice", "list"]);
 
 /**

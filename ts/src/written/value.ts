@@ -22,7 +22,7 @@ import type { IReferenceResolution, WrittenValue } from "./model.js";
 export type { ValueKind };
 
 /**
- * `name[start:end]`, `name[start:]` or `name[:end]`. Bounds are integers (IntegerText, within the safe integer
+ * `name[start~end]`, `name[start~]` or `name[~end]`. Bounds are integers (IntegerText, within the safe integer
  * range); what they mean (inclusive or exclusive end, negative counting) is the program's. The value's place is in
  * its value's origin.
  */
@@ -41,12 +41,6 @@ export interface IIndexValue {
 }
 
 /**
- * A value read by villanelle's one rule. Quoting means text: `"8080"` and `"true"` are strings; only a bare word is
- * read as a number (NumberText) or as true/false (BooleanText).
- */
-export type PlainValue = number | boolean | string | ISliceValue | IIndexValue | readonly PlainValue[];
-
-/**
  * What every expanded value has: kind, canonical text, origin, its three links to the low level, and the readers.
  * Invariants (the grammar's, so readers never meet them): a string's escapes are the six of EscapeText; a slice or
  * index bound is an IntegerText.
@@ -55,7 +49,7 @@ export interface IExpandedValueBase {
   readonly kind: Exclude<ValueKind, "reference">;
   /**
    * The value's canonical text, the same in every binding: a word as written; a string as `"` + its decoded text
-   * with `\`, `"`, newline, tab and carriage return escaped + `"`; a slice `name[start:end]` (either side may be
+   * with `\`, `"`, newline, tab and carriage return escaped + `"`; a slice `name[start~end]` (either side may be
    * empty) and an index `name[i]` with decimal integers; a list `[` + its items' texts joined by `, ` + `]`.
    * Comments and line breaks are never part of it. Two values are the same exactly when their texts are equal.
    */
@@ -99,12 +93,6 @@ export interface IExpandedValueBase {
   /** A slice or an index. @throws DiagnosticError E4002 for any other kind. */
   slice(): ISliceValue | IIndexValue;
   /**
-   * Any value by the one rule: a string is its decoded text; a word is a number if `number()` would read it, a
-   * boolean if `true`/`false`, else its text (so `1e400` is text); a list is its items read the same way; a slice or
-   * an index is its value. Never throws.
-   */
-  plain(): PlainValue;
-  /**
    * A located error for the program to throw or report, placed on this value. For an override it is placed on the
    * `$name` that used it. @throws MisuseError when `code` has no "/".
    */
@@ -128,7 +116,7 @@ export interface IExpandedList extends IExpandedValueBase {
   readonly items: readonly ExpandedValue[];
 }
 
-/** `name[start:end]` after expansion. */
+/** `name[start~end]` after expansion. */
 export interface IExpandedSlice extends IExpandedValueBase {
   readonly kind: "slice";
   readonly name: string;
@@ -264,21 +252,6 @@ export class ExpandedRecord {
       ...(data.start === undefined ? {} : { start: data.start }),
       ...(data.end === undefined ? {} : { end: data.end }),
     };
-  }
-
-  plain(): PlainValue {
-    const data = this.#data;
-    switch (data.kind) {
-      case "string":
-        return data.value;
-      case "word":
-        return numberOf(data.text) ?? booleanOf(data.text) ?? data.text;
-      case "list":
-        return data.items.map((item) => item.plain());
-      case "slice":
-      case "index":
-        return this.slice();
-    }
   }
 
   error(message: string, code: ProgramCode): DiagnosticError {

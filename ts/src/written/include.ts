@@ -1,7 +1,7 @@
 /**
  * The first-party include extension (R20), as postcss-import is a PostCSS plugin; the package entry
- * "villanelle/include" exports it. `include "palettes.conf";`, or with this place's own variables (R22):
- * `include "palettes.conf" { set $hue 0.3; }`. What an included file sees, and where its own `set` and `snippet`
+ * "villanelle/include" exports it. `@include "palettes.conf";`, or with this place's own variables (R22):
+ * `@include "palettes.conf" { @set $hue 0.3; }`. What an included file sees, and where its own `set` and `snippet`
  * lines are visible, is spec/expansion.md.
  */
 

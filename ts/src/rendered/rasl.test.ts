@@ -14,6 +14,7 @@ import type { IDirective, IRendered, KeyRule } from "./model.js";
 import { villanelle, type WrittenValue } from "../written/index.js";
 import type { IDocumentSource } from "../source.js";
 import { rendered } from "./testing.js";
+import { text } from "../text.js";
 
 const FIXTURES = new URL("../../../fixtures/rasl/", import.meta.url);
 
@@ -33,7 +34,7 @@ const RASL_KEY: KeyRule = (d) => {
   return undefined;
 };
 
-/** The file source, with `set $pixels 2284;` read as `2400` once `edited` is set. */
+/** The file source, with `@set $pixels 2284;` read as `2400` once `edited` is set. */
 function source(): { source: IDocumentSource; edit: () => void } {
   const files = fileSource();
   let edited = false;
@@ -45,7 +46,7 @@ function source(): { source: IDocumentSource; edit: () => void } {
       resolve: (spec, context) => files.resolve(spec, context),
       read: async (path) => {
         const text = await files.read(path);
-        return edited ? text.replace("set $pixels 2284;", "set $pixels 2400;") : text;
+        return edited ? text.replace("@set $pixels 2284;", "@set $pixels 2400;") : text;
       },
     },
   };
@@ -59,7 +60,7 @@ function nodeIds(loaded: IRendered): string[] {
   return ids;
 }
 
-const OVERRIDES = { leds_host: '"10.0.70.1"' };
+const OVERRIDES = { leds_host: text('"10.0.70.1"') };
 
 describe("rasl's configs", () => {
   it.each(Object.keys(EXPECTED))("%s loads with the expected nodes and reload changes", async (name) => {
@@ -100,20 +101,22 @@ describe("rasl's configs", () => {
     expect(host).toBe('"10.0.60.30"');
   });
 
-  it("edits a line an included file shares between two copies once, keeping the written values already edited", async () => {
+  it("edits a line an included file shares between two copies with the natural loop: one handle, set twice", async () => {
     const processor = villanelle({ source: fileSource(), extensions: [include()] });
     const path = fileURLToPath(new URL("split/main.conf", FIXTURES));
     const loaded = await rendered(processor, path);
-    // sink.conf is included twice: both rendered `max_count`s share the one written `$pixels` of its line. Editing
-    // it twice would use a handle the first edit detached, so keep the ones already edited.
-    const edited = new Set<WrittenValue>();
+    // sink.conf is included twice: both rendered `max_count`s share the one written `$pixels` of its line, and a
+    // value's `set` keeps its handle (spec 6.1), so setting it through each copy just writes again.
+    const written: WrittenValue[] = [];
     loaded.walk((d) => {
       const arg = d.values[0];
-      if (d.name !== "max_count" || arg === undefined || edited.has(arg.written)) return;
-      edited.add(arg.written);
-      arg.written.replaceWithText("2400");
+      if (d.name !== "max_count" || arg === undefined) return;
+      written.push(arg.written);
+      arg.written.set(text("2400"));
     });
-    expect(edited.size).toBe(1);
+    expect(written).toHaveLength(2);
+    expect(written[0]).toBe(written[1]);
+    expect(written[0]?.kind).toBe("word");
     const sink = loaded.graph.documents.get(fileURLToPath(new URL("split/sink.conf", FIXTURES)));
     expect(sink?.text).toContain("    max_count 2400;\n");
   });

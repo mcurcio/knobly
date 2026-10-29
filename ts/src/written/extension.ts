@@ -15,12 +15,13 @@ export interface IExtensionUse {
 }
 
 /**
- * An extension (R20): owns one directive name and turns each use of it into specs of files to splice in its place.
- * Pure: the load resolves and reads the specs through its document source, parses each file once, applies the
- * use's block of `set` lines to the spliced files, and enforces depth, cycles and limits. While registered, the
- * name is reserved at a line's start, as `set`, `snippet` and `use` are.
+ * An extension (R20): owns one statement name, written after `@` (`@include`), and turns each use of it into specs of
+ * files to splice in its place. Pure: the load resolves and reads the specs through its document source, parses each
+ * file once, applies the use's block of `@set` lines to the spliced files, and enforces depth, cycles and limits. A
+ * plain directive of the same name (`include x;`) is the user's, not the extension's.
  */
 export interface IExtension {
+  /** Its name without `@`: a word (the `nameText` entry rule), not `set`, `snippet` or `use`. */
   readonly directive: string;
   /**
    * The specs for one use, in splice order. Throw a DiagnosticError (from a value's or the use's place) for a

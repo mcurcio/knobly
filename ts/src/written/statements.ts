@@ -9,7 +9,7 @@ import type { StatementKind } from "../gen/api/kinds.js";
 import type { IPlace } from "../origin.js";
 import type { INode } from "../syntax/cst.js";
 import { textOf } from "../syntax/cst.js";
-import { requireText } from "../text.js";
+import { type ConfigText, requireText } from "../text.js";
 import type { IBinding } from "./bind.js";
 import type { Block, Document } from "./document.js";
 import { detached } from "./document.js";
@@ -77,7 +77,7 @@ export abstract class StatementHandle {
     return this.doc.host.binding().copiesOf(this as unknown as Statement);
   }
 
-  replaceWithText(text: string): readonly Statement[] {
+  replaceWithText(text: ConfigText): readonly Statement[] {
     this.live();
     requireText(text, "replaceWithText", "text");
     return this.doc.replaceStatement(this, text);
@@ -88,14 +88,14 @@ export abstract class StatementHandle {
     this.doc.removeStatement(this);
   }
 
-  insertBefore(text: string): readonly Statement[] {
+  insertBefore(text: ConfigText): readonly Statement[] {
     this.live();
     requireText(text, "insertBefore", "text");
     const block = this.containingBlock();
     return block.insertStatements(block.items.indexOf(this), text);
   }
 
-  insertAfter(text: string): readonly Statement[] {
+  insertAfter(text: ConfigText): readonly Statement[] {
     this.live();
     requireText(text, "insertAfter", "text");
     const block = this.containingBlock();
@@ -138,7 +138,7 @@ abstract class NamedLine extends StatementHandle {
     return this.live().blockHandle;
   }
 
-  set(text: string): void {
+  set(text: ConfigText): void {
     this.live();
     requireText(text, "set", "text");
     this.doc.replaceValues(this, this.valueList, this.node.start, text);
@@ -155,9 +155,14 @@ export class WrittenDirective extends NamedLine implements IWrittenDirective {
   }
 }
 
-/** A line whose name a registered extension owns (an include line): no `rename`. */
+/** `@name` where a registered extension owns `name` (an include line): no `rename`. */
 export class ExtensionLine extends NamedLine implements IExtensionLine {
   readonly kind = "extension";
+
+  /** The extension's name: its `@name` token without the `@`. */
+  override get name(): string {
+    return this.live().nameText().slice(1);
+  }
 }
 
 export class SetLine extends StatementHandle implements ISetLine {
@@ -177,7 +182,7 @@ export class SetLine extends StatementHandle implements ISetLine {
     return this.live().valueList as readonly WrittenValue[];
   }
 
-  set(text: string): void {
+  set(text: ConfigText): void {
     this.live();
     requireText(text, "set", "text");
     this.doc.replaceValues(this, this.valueList, this.variableToken, text);
@@ -232,7 +237,7 @@ export class UseLine extends StatementHandle implements IUseLine {
     return this.live().valueList as readonly WrittenValue[];
   }
 
-  set(text: string): void {
+  set(text: ConfigText): void {
     this.live();
     requireText(text, "set", "text");
     this.doc.replaceValues(this, this.valueList, this.firstArgToken(), text);
@@ -300,7 +305,7 @@ export class SetVariable extends VariableBase implements ISetVariable {
     this.setLine.doc.renameVariable(this.setLine.variableToken, name, this.setLine);
   }
 
-  set(text: string): void {
+  set(text: ConfigText): void {
     this.setLine.set(text);
   }
 }

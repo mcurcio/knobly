@@ -35,7 +35,7 @@ export {
   memorySource,
   memoryWriter,
 } from "./source.js";
-export { quote } from "./text.js";
+export { type ConfigText, quote, text } from "./text.js";
 
 export * from "./written/index.js";
 export * from "./rendered/index.js";

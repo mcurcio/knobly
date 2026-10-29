@@ -9,6 +9,7 @@
  */
 
 import { makePlace } from "../origin.js";
+import { typeNameOf } from "../text.js";
 import type { IDirectiveExpansion, IDocumentGraph } from "../written/index.js";
 import type { IDirective, IRendered } from "./model.js";
 import { Directive, Rendered } from "./tree.js";
@@ -19,8 +20,13 @@ const START = { offset: 0, line: 0, column: 0 } as const;
  * The rendered tree of the graph's current texts and overrides. Pure and synchronous: reads no file; an unread
  * include copy is an unreadable with reason "unread" (its edge is in `graph.unread()`). Takes any object with the
  * document graph's public members.
+ * @throws TypeError (the argument type error) when `graph` has no callable `expand`, before any other work
  */
 export function render(graph: IDocumentGraph): IRendered {
+  const given: unknown = graph;
+  if (typeof (given as Partial<IDocumentGraph> | null)?.expand !== "function") {
+    throw new TypeError(`render(): argument "graph" must be a document graph (an object with an expand method), not ${typeNameOf(given)}`);
+  }
   const expansion = graph.expand();
   const block = build(expansion.block, undefined);
   const origin = { place: makePlace(graph.root.resolvedPath, { start: START, end: START }), via: [] };

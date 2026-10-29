@@ -51,6 +51,5 @@ export type {
   IExpandedWord,
   IIndexValue,
   ISliceValue,
-  PlainValue,
   ValueKind,
 } from "./value.js";

@@ -34,6 +34,7 @@ import { include } from "./include.js";
 import { render } from "./rendered/render.js";
 import { memorySource } from "./source.js";
 import { villanelle } from "./written/index.js";
+import { type ConfigText, quote, text } from "./text.js";
 
 /** True exactly when A and B are the same type. */
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
@@ -55,20 +56,28 @@ assertType<Equal<IToken["kind"], TokenKind>>();
 // The generated lists are string-literal types: a literal narrows without an import.
 assertType<Equal<StatementKind, "directive" | "extension" | "set" | "snippet" | "use" | "unreadable">>();
 assertType<Equal<IDiagnostic["code"] extends string ? true : false, true>>();
+// Milestone 5: `COLON` is gone from the token kinds (frozen-m5.md B), `~` and `@name` came.
+assertType<Equal<Extract<TokenKind, "COLON">, never>>();
+assertType<Equal<Extract<TokenKind, "TILDE" | "AT_WORD">, "TILDE" | "AT_WORD">>();
+// Config text (spec 6.9): a branded string, made by quote() and text() only; a plain string is not one.
+assertType<Equal<ConfigText extends string ? true : false, true>>();
+assertType<Equal<string extends ConfigText ? true : false, false>>();
+assertType<Equal<ReturnType<typeof quote>, ConfigText>>();
+assertType<Equal<ReturnType<typeof text>, ConfigText>>();
 
-const MAIN = `set $n 3;
-snippet s $p {
+const MAIN = `@set $n 3;
+@snippet s $p {
     y $p;
 }
-use s 1;
-include "part.conf";
-x "a" [1, 2] c[0:$n] c[$n];
+@use s 1;
+@include "part.conf";
+x "a" [1, 2] c[0~$n] c[$n];
 oops ] ;
 `;
 
 async function loaded(): Promise<{ statements: readonly Statement[]; graph: Awaited<ReturnType<ReturnType<typeof villanelle>["load"]>> }> {
   const graph = await villanelle({ source: memorySource({ "main.conf": MAIN, "part.conf": "" }), extensions: [include()] }).load("main.conf", {
-    overrides: { o: "1" },
+    overrides: { o: text("1") },
   });
   return { statements: graph.root.block.statements, graph };
 }
@@ -146,7 +155,7 @@ describe("members exist only on the variants where they can succeed (section 2)"
     const [str, list, slice, index] = kindOf(statements, "directive").values;
     if (str?.kind !== "string" || list?.kind !== "list" || slice?.kind !== "slice" || index?.kind !== "index") throw new Error("kinds");
     expect(list.items.map((v) => v.text)).toEqual(["1", "2"]);
-    expect([slice.name, index.name]).toEqual(["c", "c"]);
+    expect([slice.name.kind, slice.name.text, index.name.kind, index.name.text]).toEqual(["word", "c", "word", "c"]);
     // @ts-expect-error a string has no items
     expect(str.items).toBeUndefined();
     // @ts-expect-error a list has no name
@@ -166,5 +175,46 @@ describe("members exist only on the variants where they can succeed (section 2)"
     expect(i.start).toBeUndefined();
     const expanded: ExpandedValue = l;
     expect(expanded.kind).toBe("list");
+  });
+
+  it("every edit and override takes config text: a plain string is a type error (spec 6.9, milestone 5)", async () => {
+    const { statements, graph } = await loaded();
+    const directive = kindOf(statements, "directive");
+    // @ts-expect-error a plain string is not config text
+    expect(() => directive.set("8080")).not.toThrow();
+    directive.set(text("8080"));
+    directive.set(quote("web"));
+    const [value] = directive.values;
+    // @ts-expect-error a value's set takes config text
+    value?.set("1");
+    // @ts-expect-error a value's replaceWithText takes config text
+    value?.replaceWithText("1");
+    // @ts-expect-error insertStatements takes config text
+    graph.root.block.insertStatements(0, "a;");
+    // @ts-expect-error setOverride takes config text
+    graph.setOverride("o", "2");
+    const overrides: ReadonlyMap<string, ConfigText> = graph.overrides;
+    expect([...overrides.keys()]).toEqual(["o"]);
+  });
+
+  it("a value's set keeps the handle and changes its kind (spec 6.1, milestone 5)", async () => {
+    const graph = await villanelle({ source: memorySource({ "main.conf": "@set $p 2284;\nmax_count $p;\n" }) }).load("main.conf");
+    const directive = kindOf(graph.root.block.statements, "directive");
+    const value = directive.values[0];
+    if (value?.kind !== "reference") throw new Error("not a reference");
+    expect(value.name).toBe("p");
+    value.set(text("2400"));
+    // `value` was narrowed before the edit and is stale after it: a program reads it again and narrows again.
+    const after = directive.values[0];
+    expect(after).toBe(value);
+    expect(after?.kind).toBe("word");
+    expect(after?.text).toBe("2400");
+    expect("name" in value).toBe(false);
+    after?.set(text("[1, $p]"));
+    const list = directive.values[0];
+    expect(list).toBe(value);
+    if (list?.kind !== "list") throw new Error("not a list");
+    expect(list.items.map((item) => item.kind)).toEqual(["word", "reference"]);
+    expect(graph.root.text).toBe("@set $p 2284;\nmax_count [1, $p];\n");
   });
 });

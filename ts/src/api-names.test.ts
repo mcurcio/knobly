@@ -9,7 +9,9 @@
  * those roots, so the walk itself only uses spec names.
  *
  * It reads the schema directly (no generated copy) and fails the build when a name drifts. The reverse direction (a
- * public name the schema lacks) is a later milestone.
+ * public name the schema lacks) is a later milestone, except for the names the schema lists as removed in milestone 5:
+ * none of them may be a member of a probed object or an export (frozen-m5.md B; their types: types.test.ts). A named
+ * type (config text) has no run-time object: types.test.ts checks it.
  */
 import { readFileSync } from "node:fs";
 
@@ -35,6 +37,7 @@ interface IMember {
 interface IConcept {
   readonly name: string;
   readonly ts: string;
+  readonly nature?: string;
   readonly members?: readonly IMember[];
   readonly variants?: readonly string[];
   readonly extends?: string;
@@ -55,6 +58,7 @@ interface IErrorGroup {
 interface ISchema {
   readonly kinds: Readonly<Record<string, { readonly values?: readonly string[] }>>;
   readonly concepts: readonly IConcept[];
+  readonly "removed in milestone 5": readonly { readonly name: string }[];
   readonly "free functions": readonly IFreeFunction[];
   readonly "error groups": readonly IErrorGroup[];
 }
@@ -276,22 +280,22 @@ function port(concept: string, impl: Readonly<Record<string, unknown>>): Bag {
   return out;
 }
 
-const MAIN = `set $n 3;
-set $port 80;
-snippet twinkle $a {
+const MAIN = `@set $n 3;
+@set $port 80;
+@snippet twinkle $a {
     light $a;
 }
-use twinkle 5;
-server "web" [1, 2] c[0:$n] c[$n] $port {
+@use twinkle 5;
+server "web" [1, 2] c[0~$n] c[$n] $port {
     listen $port;
 }
 given $o;
 files {
-    include "other.conf";
-    probe 1;
+    @include "other.conf";
+    @probe 1;
 }
 gone 1;
-use missing;
+@use missing;
 oops ] ;
 `;
 
@@ -336,7 +340,7 @@ async function probe(): Promise<void> {
     const include = await callFree("include");
     const processor = await callFree("make processor", { source: recording, extensions: [include, probeExtension] });
     walk("processor", processor);
-    graph = await method(processor, "processor", "load", { path: "main.conf", overrides: { o: "9" } });
+    graph = await method(processor, "processor", "load", { path: "main.conf", overrides: { o: await callFree("text", { raw: "9" }) } });
     walk("document graph", graph);
   });
   await step("render (graph)", async () => {
@@ -351,11 +355,11 @@ async function probe(): Promise<void> {
   await step("edits, render, diff", async () => {
     const block = member(member(graph, "document graph", "root"), "document", "block");
     const statements = member(block, "written block", "statements") as readonly unknown[];
-    const setPort = statements.find((s) => member(s, "statement", "text") === "set $port 80;");
+    const setPort = statements.find((s) => member(s, "statement", "text") === "@set $port 80;");
     const gone = statements.find((s) => member(s, "statement", "text") === "gone 1;");
     method(setPort, "set line", "set", { text: "81" });
     method(gone, "statement", "remove");
-    const server = statements.find((s) => member(s, "statement", "text") === 'server "web" [1, 2] c[0:$n] c[$n] $port {\n    listen $port;\n}');
+    const server = statements.find((s) => member(s, "statement", "text") === 'server "web" [1, 2] c[0~$n] c[$n] $port {\n    listen $port;\n}');
     const listen = (member(member(server, "written directive", "block"), "written block", "statements") as readonly unknown[])[0];
     method(listen, "statement", "remove");
     method(block, "written block", "add statements", { text: "added 1;" });
@@ -417,8 +421,32 @@ function missing(concept: IConcept): string[] {
 
 beforeAll(probe);
 
+/** The names a "removed in milestone 5" entry gives ("plain (the reader), plain value"), in each casing they could have here. */
+function removedKeys(entry: { readonly name: string }): string[] {
+  const names = (entry.name.split(" (")[0] ?? "").split(", ");
+  return names.flatMap((name) => {
+    const lower = camel(name);
+    return [...new Set([name, lower, lower.charAt(0).toUpperCase() + lower.slice(1)])];
+  });
+}
+
+describe("names removed in milestone 5 are gone", () => {
+  it.each(SCHEMA["removed in milestone 5"].map((e) => [e.name, e] as const))("%s", async (_name, entry) => {
+    const keys = removedKeys(entry);
+    const exported: string[] = [];
+    for (const spec of ["villanelle", "villanelle/include", "villanelle/node", "villanelle/browser"]) {
+      const loaded = await module(spec);
+      exported.push(...keys.filter((key) => key in loaded).map((key) => `${spec} exports ${key}`));
+    }
+    const members = [...instances.entries()].flatMap(([concept, objects]) =>
+      [...objects].flatMap((o) => keys.filter((key) => key in o).map((key) => `${concept} has ${key}`)),
+    );
+    expect([...exported, ...new Set(members)]).toEqual([]);
+  });
+});
+
 describe("public names match spec/schema/api.json", () => {
-  it.each(SCHEMA.concepts.map((c) => [c.name, c] as const))("concept %s", (_name, concept) => {
+  it.each(SCHEMA.concepts.filter((c) => c.nature !== "named type").map((c) => [c.name, c] as const))("concept %s", (_name, concept) => {
     expect(missing(concept)).toEqual([]);
   });
 

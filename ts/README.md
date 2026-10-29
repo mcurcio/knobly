@@ -30,16 +30,22 @@ The core has three layers, each built on the one below:
   its only operation: `await processor.load(path, { overrides })` reads the root file and every file it includes
   and returns the document graph: the documents (`savedText`, `text`, `block`), their statements and values, the
   include copies, the variables and what each `$name` reads at each place. Overrides are values the program passes
-  in by name, as villanelle text; each wins over every `set` of its name. Every edit takes villanelle text, and
-  only text: write a program string with `quote()`, a number as its text.
+  in by name, as villanelle text; each wins over every `@set` of its name. Every edit and override takes config
+  text (`ConfigText`), its own type, made only by `quote()` (a program string, written as a villanelle string) or
+  `text()` (text already written as villanelle text): passing a plain string is a type error. A number goes through
+  `text(String(n))`.
 
   ```ts
-  const graph = await villanelle({ source: fileSource() }).load("main.conf", { overrides: { port: "8080" } });
+  const graph = await villanelle({ source: fileSource() }).load("main.conf", { overrides: { port: text("8080") } });
   const server = graph.root.block.directives("server")[0];
-  server?.set(quote("10.0.60.31")); // replaces the statement's values (not the language's `set` line)
-  graph.setOverride("port", "9090");
+  server?.set(quote("10.0.60.31")); // replaces the statement's values (not the language's `@set` line)
+  graph.setOverride("port", text("9090"));
   await graph.save(fileWriter());
   ```
+
+  The language's own statements are written behind `@` (`@set`, `@snippet`, `@use`, and an extension's `@include`),
+  so no directive name is reserved: `events { use epoll; }` is a plain directive, and an `@name` no extension owns is
+  an unreadable line (E3008).
 
   Statements, values and variables are unions narrowed by `kind` (`"directive"`, `"extension"`, `"set"`,
   `"snippet"`, `"use"`, `"unreadable"`; `"set"`, `"parameter"`, `"override"`), and each kind has only the members
@@ -47,14 +53,16 @@ The core has three layers, each built on the one below:
   variable no `place`, `rename` or `set` (use `graph.setOverride`). So narrowing needs no cast:
 
   ```ts
-  for (const s of graph.root.block.statements) if (s.kind === "set") s.variable.set("2");
+  for (const s of graph.root.block.statements) if (s.kind === "set") s.variable.set(text("2"));
   ```
 
-  `set(text)` replaces a statement's or a variable's values; `replaceWithText`, `insertStatements`,
-  `addStatements`, `insertBefore`, `insertAfter` and `rename` are the other named edits. Each text is checked by the
-  grammar's own entry rule (`valuesText`, `itemsText`, `boundText`, `nameText` in `Villanelle.g4`; spec 2.8): a
-  values text may span lines, but one that ends in a comment is refused, since the comment would swallow the `;`
-  after it. Each edit keeps comments and layout, and given anything but a string it throws a `TypeError` naming the
+  `set(text)` replaces a statement's or a variable's values (a text with no value must be empty: `set(text(""))`
+  clears them); on a written value it replaces that one value and keeps the handle, which takes the new value's kind
+  (`$pixels` set to `2400` becomes a `word`; a variable narrowed on `kind` before is stale after). `replaceWithText`,
+  `insertStatements`, `addStatements`, `insertBefore`, `insertAfter` and `rename` are the other named edits. Each
+  text is checked by the grammar's own entry rule (`statementsText`, `valuesText`, `valueText`, `itemsText`,
+  `boundText`, `sliceNameText`, `nameText` in `Villanelle.g4`; spec 2.8): a values text may span lines, but one that
+  ends in a comment is refused, since the comment would swallow the `;` after it. Each edit keeps comments and layout, and given anything but a string it throws a `TypeError` naming the
   member and the parameter; a bad name (`rename`, `setOverride`, an override of `load`) throws a `MisuseError`. `graph.setOverride(name, text)` changes an override without a
   reload, checked as `load` checks its overrides. `await graph.read()` reads files an edit added, through the
   source the graph was loaded with; `await graph.save(writer)` hands the changed files to a writer in one batch.
@@ -67,22 +75,18 @@ The core has three layers, each built on the one below:
 - **The rendered tree.** `render(graph)` builds on the low level's public objects only (`graph.expand()`; `pnpm
   lint` refuses a rendered module importing anything under `written/` but `written/index.js`): it gives the
   directives (`block`, `values`, `walk`), each value its expansion's own `ExpandedValue`, narrowed by `kind` (a list has `items`, a slice
-  `name`, `start`, `end`, an index `name`, `index`) with its readers (`word()`, `string()`, `number()`,
-  `integer()`, `boolean()`, `list()`, `slice()`, `plain()`), its origin, and `written` (the value on its own line),
+  `name`, `start`, `end`, an index `name`, `index`) with its typed readers (`word()`, `string()`, `number()`,
+  `integer()`, `boolean()`, `list()`, `slice()`: a word is untyped until the program reads it as one), its origin, and `written` (the value on its own line),
   `definition` (where it is written) and `chain` (the `$name` steps between) leading back to the low level.
   `rendered.addresses({ key })` names each directive under a key rule, and `before.diff(after, { key })` lists what
   changed between two renders. `Diagnostics` collects problems; `formatDiagnostic` prints one with its source line.
   A file included twice renders as two copies that share one written line, so an edit loop over the render meets
-  the same `written` handle twice, and the first `replaceWithText` detaches it: keep the handles already edited and
-  skip them.
+  the same `written` handle twice; a value's `set` keeps its handle, so the natural loop just writes it again:
 
   ```ts
-  const edited = new Set<WrittenValue>();
   loaded.walk((d) => {
     const arg = d.values[0];
-    if (d.name !== "max_count" || arg === undefined || edited.has(arg.written)) return;
-    edited.add(arg.written);
-    arg.written.replaceWithText("2400");
+    if (d.name === "max_count" && arg !== undefined) arg.written.set(text("2400"));
   });
   ```
 
@@ -97,8 +101,7 @@ files and extensions, 4xxx values, 5xxx expansion); a program's own codes are
 string unit, so `text.slice(start.offset, end.offset)` is the spanned text. Only a diagnostic's code and place are a
 contract, not its message. A place, an override, a step and a diagnostic print as people read them (`String(place)`
 is `main.conf:4:5`, 1-based), the same text `formatDiagnostic` starts with. Numbers follow
-[spec/contract.md](../spec/contract.md) 3: no reader returns negative zero, and `1e400` is not a number (E4004;
-`plain()` reads it as text).
+[spec/contract.md](../spec/contract.md) 3: no reader returns negative zero, and `1e400` is not a number (E4004).
 
 Errors come in the spec's two sorts (spec 2.8). Every expected outcome extends `VillanelleError`, so one `catch`
 handles them all and no bug: `DiagnosticError` (a reader's or a program's located problem), `ReadError` (`load`

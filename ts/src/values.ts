@@ -41,8 +41,12 @@ export function booleanOf(word: string): boolean | undefined {
 /** The six escapes of EscapeText and what each decodes to. */
 const ESCAPES: Readonly<Record<string, string>> = { '"': '"', "'": "'", "\\": "\\", n: "\n", t: "\t", r: "\r" };
 
-/** The text between a STRING token's quotes, escapes decoded (the grammar lets only the six through: BAD_ESCAPE). */
+/**
+ * The text between a STRING token's quotes. A single-quoted string is raw (TOML's literal string): its text, unchanged.
+ * A double-quoted one has its escapes decoded (the grammar lets only the six through: BAD_ESCAPE).
+ */
 export function decodeString(token: string): string {
+  if (token.startsWith("'")) return token.slice(1, -1);
   return token.slice(1, -1).replace(/\\(.)/gsu, (_, escaped: string) => ESCAPES[escaped] ?? escaped);
 }
 
@@ -52,11 +56,11 @@ export function canonicalString(value: string): string {
   return `"${escaped}"`;
 }
 
-/** A slice's or an index's canonical text: `name[start:end]` (either side empty when absent) or `name[i]`. */
+/** A slice's or an index's canonical text: `name[start~end]` (either side empty when absent) or `name[i]`. */
 export function canonicalSlice(name: string, bounds: { start?: number; end?: number } | { index: number }): string {
   if ("index" in bounds) return `${name}[${String(bounds.index)}]`;
   const side = (n: number | undefined): string => (n === undefined ? "" : String(n));
-  return `${name}[${side(bounds.start)}:${side(bounds.end)}]`;
+  return `${name}[${side(bounds.start)}~${side(bounds.end)}]`;
 }
 
 /** A list's canonical text: its items' texts joined by `, ` in brackets. */

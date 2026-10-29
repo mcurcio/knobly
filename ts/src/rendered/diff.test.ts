@@ -54,14 +54,14 @@ describe("address", () => {
   });
 
   it("gives a directive spliced at two places two addresses", async () => {
-    const loaded = await loadText("snippet s { x; }\na { use s; use s; }\n");
+    const loaded = await loadText("@snippet s { x; }\na { @use s; @use s; }\n");
     expect(addresses(loaded)).toEqual(["a", "a > x", "a > x #1"]);
   });
 });
 
 describe("key rule", () => {
   it("sees each rendered directive, parents first, once per call, and names only that call's addresses", async () => {
-    const loaded = await loadText("set $id leds;\ngraph {\n  node A $id { x; }\n  flag;\n}\n");
+    const loaded = await loadText("@set $id leds;\ngraph {\n  node A $id { x; }\n  flag;\n}\n");
     const seen: IDirective[] = [];
     const key: KeyRule = (d) => {
       seen.push(d);
