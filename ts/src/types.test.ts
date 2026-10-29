@@ -8,7 +8,6 @@
 import { describe, expect, it } from "vitest";
 
 import type {
-  Argument,
   Change,
   ChangeKind,
   ExpandedValue,
@@ -18,7 +17,7 @@ import type {
   IPlace,
   IStep,
   IToken,
-  IUnreadable,
+  IUnreadableExpansion,
   NodeKind,
   PlaceKind,
   Statement,
@@ -47,11 +46,10 @@ assertType<Equal<Statement["kind"], StatementKind>>();
 assertType<Equal<WrittenValue["kind"], ValueKind>>();
 assertType<Equal<Variable["kind"], VariableKind>>();
 assertType<Equal<ExpandedValue["kind"], Exclude<ValueKind, "reference">>>();
-assertType<Equal<Argument["kind"], Exclude<ValueKind, "reference">>>();
 assertType<Equal<Change["kind"], ChangeKind>>();
 assertType<Equal<IStep["kind"], StepKind>>();
 assertType<Equal<(IPlace | IOverride)["kind"], PlaceKind>>();
-assertType<Equal<IUnreadable["reason"], UnreadableReason>>();
+assertType<Equal<IUnreadableExpansion["reason"], UnreadableReason>>();
 assertType<Equal<INode["kind"], NodeKind>>();
 assertType<Equal<IToken["kind"], TokenKind>>();
 // The generated lists are string-literal types: a literal narrows without an import.
@@ -143,7 +141,7 @@ describe("members exist only on the variants where they can succeed (section 2)"
     expect(override.set).toBeUndefined();
   });
 
-  it("written values, expanded values and arguments", async () => {
+  it("written values and expanded values", async () => {
     const { statements, graph } = await loaded();
     const [str, list, slice, index] = kindOf(statements, "directive").values;
     if (str?.kind !== "string" || list?.kind !== "list" || slice?.kind !== "slice" || index?.kind !== "index") throw new Error("kinds");
@@ -156,15 +154,15 @@ describe("members exist only on the variants where they can succeed (section 2)"
 
     const x = render(graph).block.find((d) => d.name === "x");
     const [a, l, s, i] = x?.values ?? [];
-    if (a?.kind !== "string" || l?.kind !== "list" || s?.kind !== "slice" || i?.kind !== "index") throw new Error("argument kinds");
+    if (a?.kind !== "string" || l?.kind !== "list" || s?.kind !== "slice" || i?.kind !== "index") throw new Error("expanded kinds");
     expect(l.items.map((v) => v.integer())).toEqual([1, 2]);
     expect(l.items[0]?.written.text).toBe("1");
     expect([s.name, s.start, s.end, i.name, i.index]).toEqual(["c", 0, 3, "c", 3]);
-    // @ts-expect-error a string argument has no items
+    // @ts-expect-error an expanded string has no items
     expect(a.items).toBeUndefined();
-    // @ts-expect-error a slice argument has no index
+    // @ts-expect-error an expanded slice has no index
     expect(s.index).toBeUndefined();
-    // @ts-expect-error an index argument has no start
+    // @ts-expect-error an expanded index has no start
     expect(i.start).toBeUndefined();
     const expanded: ExpandedValue = l;
     expect(expanded.kind).toBe("list");

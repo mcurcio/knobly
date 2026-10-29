@@ -12,7 +12,7 @@ It is not on npm. Releases attach the `npm pack` tarball to the GitHub Release (
 
 | Import | What it has |
 |---|---|
-| `villanelle` | The core. It does no input or output; `memorySource(files)` and `memoryWriter(files)` keep texts in one object |
+| `villanelle` | The core. It does no input or output; `memorySource(files)` and `memoryWriter(files)` keep texts in one object; `checkLostUpdates(files, current)` is the one lost-update check every writer calls |
 | `villanelle/include` | `include()`: the include extension |
 | `villanelle/node` | `fileSource()` and `fileWriter()`: files on disk |
 | `villanelle/browser` | `fetchSource(fetch)` and `fetchWriter(fetch, options?)`: files over `fetch` |
@@ -23,7 +23,7 @@ object it was given at every call, so a memory writer over the same object saves
 The core has three layers, each built on the one below:
 
 - **The syntax tree.** `parse(text)` returns `{ tokens, root, diagnostics }`. It is synchronous and never
-  throws. The tree is lossless: every character of the text is in exactly one token, and
+  throws. Every statement ends with `;` or a block, and a line break is whitespace (spec 3.2). The tree is lossless: every character of the text is in exactly one token, and
   `textOf(syntax, syntax.root)` gives the text back. Node kinds are `document`, `directive`,
   `block`, `list`, `slice` and `error`.
 - **The low level: the files as written.** `villanelle({ source, extensions })` makes a processor, and `load` is
@@ -50,19 +50,23 @@ The core has three layers, each built on the one below:
   for (const s of graph.root.block.statements) if (s.kind === "set") s.variable.set("2");
   ```
 
-  `set(text)` replaces a statement's or a variable's values (a line break outside a list is refused, since it would
-  end the statement, and so is a text that ends in a comment, which would swallow the `;` after it); `replaceWithText`, `insertStatements`, `addStatements`, `insertBefore`, `insertAfter` and
-  `rename` are the other named edits. Each keeps comments and layout, and given anything but a string it throws a
-  `TypeError` naming the member and the parameter. `graph.setOverride(name, text)` changes an override without a
+  `set(text)` replaces a statement's or a variable's values; `replaceWithText`, `insertStatements`,
+  `addStatements`, `insertBefore`, `insertAfter` and `rename` are the other named edits. Each text is checked by the
+  grammar's own entry rule (`valuesText`, `itemsText`, `boundText`, `nameText` in `Villanelle.g4`; spec 2.8): a
+  values text may span lines, but one that ends in a comment is refused, since the comment would swallow the `;`
+  after it. Each edit keeps comments and layout, and given anything but a string it throws a `TypeError` naming the
+  member and the parameter; a bad name (`rename`, `setOverride`, an override of `load`) throws a `MisuseError`. `graph.setOverride(name, text)` changes an override without a
   reload, checked as `load` checks its overrides. `await graph.read()` reads files an edit added, through the
   source the graph was loaded with; `await graph.save(writer)` hands the changed files to a writer in one batch.
-  `graph.expand()` gives the expansion: each directive copy with its values expanded and what won over each
-  `$name`. A variable's `references()` are lexical: the `$name`s in its own file that it declares. A use in an
+  `graph.expand()` gives the expansion: each directive copy with its values expanded (`ExpandedValue`s, with their
+  readers and their links back to the written lines) and what won over each `$name`; an include copy not read yet
+  is an unreadable expansion with reason `unread` (E3007). `graph.diagnostics` is the one list of every problem.
+  Which definition a `$name` reaches is [spec/expansion.md](../spec/expansion.md). A variable's `references()` are lexical: the `$name`s in its own file that it declares. A use in an
   included file is resolved per copy, so it is only in `wins()` and `shadowedAt()`. The low level never imports the
   rendered tree (`pnpm lint` checks it). Reference: [docs/low-level-api.md](../docs/low-level-api.md).
 - **The rendered tree.** `render(graph)` builds on the low level's public objects only (`graph.expand()`; `pnpm
   lint` refuses a rendered module importing anything under `written/` but `written/index.js`): it gives the
-  directives (`block`, `values`, `walk`), each value an `Argument` narrowed by `kind` (a list has `items`, a slice
+  directives (`block`, `values`, `walk`), each value its expansion's own `ExpandedValue`, narrowed by `kind` (a list has `items`, a slice
   `name`, `start`, `end`, an index `name`, `index`) with its readers (`word()`, `string()`, `number()`,
   `integer()`, `boolean()`, `list()`, `slice()`, `plain()`), its origin, and `written` (the value on its own line),
   `definition` (where it is written) and `chain` (the `$name` steps between) leading back to the low level.
@@ -96,10 +100,13 @@ is `main.conf:4:5`, 1-based), the same text `formatDiagnostic` starts with. Numb
 [spec/contract.md](../spec/contract.md) 3: no reader returns negative zero, and `1e400` is not a number (E4004;
 `plain()` reads it as text).
 
-Every error class villanelle defines extends `VillanelleError`: `DiagnosticError` (a reader's or a program's
-located problem), `ReadError` (`load` cannot read the root file; `paths`, `cause`), `SaveError` (the writer
-failed; `paths`, `cause`), `EditError` and its `BadTextError` (an edit refused, nothing changed), and
-`DetachedError` (a handle whose tokens are gone). Program bugs use `TypeError` and `RangeError`.
+Errors come in the spec's two sorts (spec 2.8). Every expected outcome extends `VillanelleError`, so one `catch`
+handles them all and no bug: `DiagnosticError` (a reader's or a program's located problem), `ReadError` (`load`
+cannot read the root file; `paths`, `cause`), `BadTextError` (an edit's text refused, nothing changed; its message
+lists its diagnostics), `SaveError` (the writer failed; `paths`, `cause`) and its `LostUpdateError` (a file changed
+since it was read; `paths` are the conflicting files). Program bugs are outside it: `DetachedError` (a
+`ReferenceError`: a handle whose tokens are gone), `MisuseError` (a bad name or program code), `TypeError` (an
+argument of the wrong type) and `RangeError` (an index out of range).
 
 ## Build and test
 

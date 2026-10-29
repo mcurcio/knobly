@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { include } from "../include.js";
 import { memorySource } from "../source.js";
 import { quote } from "../text.js";
-import { BadTextError, DetachedError } from "../errors.js";
+import { BadTextError, DetachedError, MisuseError } from "../errors.js";
 import type { IDocumentGraph, ISetLine, IWrittenDirective, IUseLine } from "./model.js";
 import { villanelle } from "./processor.js";
 
@@ -127,19 +127,21 @@ describe("the check of an override (spec 6.3): one check for load and setOverrid
     expect(await fromSetOverride("1;")).toEqual([["E2001", 0, 1]]);
   });
 
-  it('refuses "1\\n2" from load as from setOverride: a line break ends the values, E2001 at the 2 (1:0)', async () => {
-    expect(await fromLoad("1\n2")).toEqual([["E2001", 1, 0]]);
-    expect(await fromSetOverride("1\n2")).toEqual([["E2001", 1, 0]]);
+  it('accepts "1\\n2" from load as from setOverride: a line break is whitespace, so it is two values', async () => {
+    expect(await fromLoad("1\n2")).toEqual("ok");
+    expect(await fromSetOverride("1\n2")).toEqual("ok");
   });
 
   it.each(["1", "8080 443", '"x" [1, 2]', "", "   ", "$x", "a { b; }", '"\\q"', "c[x]", '"open', "1;", "a; b", "1\n2", "1 // c\n"])("agrees on %j", async (text) => {
     expect(await fromLoad(text)).toEqual(await fromSetOverride(text));
   });
 
-  it("refuses a bad name with a TypeError from both", async () => {
-    const processor = villanelle({ source: memorySource({ "main.conf": "a;\n" }) });
-    await expect(processor.load("main.conf", { overrides: { "a-b": "1" } })).rejects.toThrow(TypeError);
+  it("refuses a bad name with a MisuseError from both, as a variable's rename does (one name check)", async () => {
+    const processor = villanelle({ source: memorySource({ "main.conf": "set $a 1;\n" }) });
+    await expect(processor.load("main.conf", { overrides: { "a-b": "1" } })).rejects.toThrow(MisuseError);
     const graph = await processor.load("main.conf");
-    expect(() => graph.setOverride("a-b", "1")).toThrow(TypeError);
+    expect(() => graph.setOverride("a-b", "1")).toThrow(MisuseError);
+    const [set] = graph.root.block.statements;
+    expect(() => (set?.kind === "set" ? set.variable.rename("a-b") : undefined)).toThrow(MisuseError);
   });
 });

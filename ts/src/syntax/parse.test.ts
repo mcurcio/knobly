@@ -13,9 +13,9 @@ describe("parse", () => {
       ["SPACE", " "],
       ["WORD", "hyperhdr_color"],
       ["LBRACK", "["],
-      ["WORD", "144"],
+      ["INTEGER", "144"],
       ["COLON", ":"],
-      ["WORD", "152"],
+      ["INTEGER", "152"],
       ["RBRACK", "]"],
       ["SEMI", ";"],
     ]);
@@ -53,10 +53,12 @@ describe("parse", () => {
   });
 
   it("codes lexical errors by the offending token", () => {
-    expect(parse("a \u0001").diagnostics.map((d) => d.code)).toEqual([DiagnosticCode.UnexpectedCharacter]);
+    expect(parse("a \u0001;").diagnostics.map((d) => d.code)).toEqual([DiagnosticCode.UnexpectedCharacter]);
     expect(parse('a "b').diagnostics.map((d) => d.code)).toEqual([DiagnosticCode.UnterminatedString]);
-    expect(parse("a ﻿").diagnostics.map((d) => d.code)).toEqual([DiagnosticCode.UnexpectedCharacter]);
-    expect(parse("﻿a").diagnostics).toEqual([]);
+    expect(parse("a ﻿;").diagnostics.map((d) => d.code)).toEqual([DiagnosticCode.UnexpectedCharacter]);
+    expect(parse('a "\\q";').diagnostics.map((d) => [d.code, d.span.start.column])).toEqual([[DiagnosticCode.BadEscape, 2]]);
+    expect(parse('a "\\q";').tokens.map((t) => t.kind)).toEqual(["WORD", "SPACE", "BAD_ESCAPE", "SEMI"]);
+    expect(parse("﻿a;").diagnostics).toEqual([]);
   });
 
   it("locates an unexpected end of input at the end of the text", () => {

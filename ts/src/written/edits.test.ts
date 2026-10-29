@@ -12,7 +12,7 @@ import { villanelle } from "./processor.js";
 import { memorySource } from "../source.js";
 import { render } from "../rendered/render.js";
 import { countingSource } from "../rendered/testing.js";
-import { BadTextError, DetachedError, ReadError, VillanelleError } from "../errors.js";
+import { BadTextError, DetachedError, MisuseError, ReadError, VillanelleError } from "../errors.js";
 import type { IFileWrite } from "../source.js";
 import type { IExtensionLine, ISetLine, ISnippetLine, IWrittenDirective } from "./model.js";
 
@@ -151,9 +151,10 @@ describe("setOverride", () => {
     };
     expect(refused("1;")).toEqual([["E2001", 0, 1]]);
     expect(refused("1 $b")).toEqual([["E2001", 0, 2]]);
-    expect(refused('"\\q"')).toEqual([["E4003", 0, 0]]);
+    expect(refused('"\\q"')).toEqual([["E1005", 0, 0]]);
+    expect(refused("c[x]")).toEqual([["E2007", 0, 2]]);
     expect(refused("")).toEqual([["E2001", 0, 0]]);
-    expect(() => graph.setOverride("a-b", "1")).toThrow(TypeError);
+    expect(() => graph.setOverride("a-b", "1")).toThrow(MisuseError);
     expect(graph.overrides.get("a")).toBe("1");
   });
 });
@@ -197,7 +198,7 @@ describe("rename", () => {
     expect("rename" in line).toBe(false);
     expect(() => {
       x.rename("include");
-    }).toThrow(BadTextError);
+    }).toThrow(MisuseError);
     expect(graph.root.text).toBe(graph.root.savedText);
   });
 
@@ -214,7 +215,11 @@ describe("rename", () => {
     expect([variable.name, parameter?.name]).toEqual(["b", "q"]);
     expect(() => {
       variable.rename("not-a-name");
-    }).toThrow(BadTextError);
+    }).toThrow(MisuseError);
+    expect(() => {
+      parameter?.rename("");
+    }).toThrow(MisuseError);
+    expect(graph.root.text).toBe("set $b 1;\nsnippet s $q { x $p; }\ny $a;\n");
   });
 });
 

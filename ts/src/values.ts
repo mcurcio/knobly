@@ -1,5 +1,5 @@
 /**
- * The value rules of grammar/villanelle.ebnf (NumberText, IntegerText, BooleanText, EscapeText) and the canonical text of a value
+ * The value rules of the grammar (NumberText, IntegerText, BooleanText; EscapeText is the grammar's own) and the canonical text of a value
  * (slices.md §1.3): the one home of each rule. Package-internal, shared; Python ports it as `_values.py`.
  */
 
@@ -41,15 +41,7 @@ export function booleanOf(word: string): boolean | undefined {
 /** The six escapes of EscapeText and what each decodes to. */
 const ESCAPES: Readonly<Record<string, string>> = { '"': '"', "'": "'", "\\": "\\", n: "\n", t: "\t", r: "\r" };
 
-/** Whether every backslash escape in a STRING token's text is one of the six of EscapeText. */
-export function hasOnlyKnownEscapes(token: string): boolean {
-  for (const match of token.slice(1, -1).matchAll(/\\(.)/gsu)) {
-    if (ESCAPES[match[1] ?? ""] === undefined) return false;
-  }
-  return true;
-}
-
-/** The text between a STRING token's quotes, escapes decoded. Call only after `hasOnlyKnownEscapes`. */
+/** The text between a STRING token's quotes, escapes decoded (the grammar lets only the six through: BAD_ESCAPE). */
 export function decodeString(token: string): string {
   return token.slice(1, -1).replace(/\\(.)/gsu, (_, escaped: string) => ESCAPES[escaped] ?? escaped);
 }

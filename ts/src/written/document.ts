@@ -6,16 +6,16 @@
 
 import { anatomyOf, itemsOf } from "../anatomy.js";
 import { DiagnosticCode, type IDiagnostic, makeDiagnostic, messageOf } from "../diagnostics.js";
-import { RESERVED, VARIABLE_NAME } from "../gen/api/limits.js";
 import { type IPlace, makePlace } from "../origin.js";
 import type { ISourcePosition, ISourceSpan } from "../span.js";
 import { type INode, type ISyntax, spanOf, type ValueRef } from "../syntax/cst.js";
-import { parse } from "../syntax/parse.js";
+import { parse, parseEntry } from "../syntax/parse.js";
 import { type IToken } from "../syntax/tokens.js";
 import { requireText } from "../text.js";
 import type { IBinding } from "./bind.js";
 import { BadTextError, DetachedError } from "../errors.js";
 import type { IDocument, IDocumentEdge, IParameter, ISetVariable, IWrittenBlock, IWrittenDirective, Statement, WrittenValue } from "./model.js";
+import { checkDirectiveName, checkVariableName } from "./names.js";
 import { blockShapes, type IShape, parameterTokens, type ShapeKind, statementNodes } from "./shape.js";
 import {
   ExtensionLine,
@@ -373,7 +373,7 @@ export class Document implements IDocument {
       const boundAt = (i: number | undefined): ValueHandle | undefined => {
         if (i === undefined) return undefined;
         const kindOf = tokens[i]?.kind;
-        return kindOf === "WORD" || kindOf === "VARIABLE" ? this.buildValue(i, statement, undefined, true, reconcile) : undefined;
+        return kindOf === "INTEGER" || kindOf === "VARIABLE" ? this.buildValue(i, statement, undefined, true, reconcile) : undefined;
       };
       if (handle instanceof IndexValue) {
         handle.indexHandle = boundAt(inner[0]);
@@ -393,12 +393,12 @@ export class Document implements IDocument {
    * @returns the handles made for the inserted text. @throws BadTextError, changing nothing.
    */
   splice(start: number, end: number, insert: string | IInsert, given: readonly IDiagnostic[], keep?: Handle): Handle[] {
-    if (given.length > 0) throw new BadTextError(`bad text: ${given.map((d) => d.code).join(", ")}`, given);
+    if (given.length > 0) throw new BadTextError(given);
     const spliced = typeof insert === "string" ? insertOf(insert, [[0, insert.length]]) : insert;
     const text = this.current.slice(0, start) + spliced.text + this.current.slice(end);
     const syntax = parse(text);
     const rules = ruleProblems(syntax, this.host.extensionNames, start, spliced);
-    if (rules.length > 0) throw new BadTextError(`breaks a rule: ${rules.map((d) => d.code).join(", ")}`, rules);
+    if (rules.length > 0) throw new BadTextError(rules);
     const reconcile = new Reconcile(this.entries(), { start, end, inserted: spliced.text.length }, keep);
     this.current = text;
     this.parsed = syntax;
@@ -448,7 +448,7 @@ export class Document implements IDocument {
   replaceStatement(statement: StatementHandle, text: string): readonly Statement[] {
     const given = parse(text).diagnostics;
     if (text.trim() === "") {
-      if (given.length > 0) throw new BadTextError("bad text", given);
+      if (given.length > 0) throw new BadTextError(given);
       this.removeStatement(statement);
       return [];
     }
@@ -494,7 +494,7 @@ export class Document implements IDocument {
   insertStatements(block: Block, index: number, text: string): readonly Statement[] {
     const given = parse(text).diagnostics;
     if (text.trim() === "") {
-      if (given.length > 0) throw new BadTextError("bad text", given);
+      if (given.length > 0) throw new BadTextError(given);
       return [];
     }
     const eol = this.lineBreak();
@@ -561,29 +561,23 @@ export class Document implements IDocument {
   }
 
   /**
-   * `rename` of a directive: its name token. Refused (E2001 at 0:0, D-S1-10): not one WORD; `set`, `snippet`, `use`
-   * or a registered extension's name. The statement keeps its handle.
+   * `rename` of a directive: its name token. A bad name is a misuse error (spec 2.8: the `nameText` entry rule, the
+   * reserved words and the registered extension names). The statement keeps its handle.
    */
   renameStatement(statement: WrittenDirective, name: string): void {
-    const refuse = (): BadTextError =>
-      new BadTextError(`cannot rename to ${JSON.stringify(name)}`, [at(name, 0, DiagnosticCode.UnexpectedToken)]);
-    const { tokens } = parse(name);
-    const [only] = tokens;
-    if (tokens.length !== 1 || only?.kind !== "WORD" || only.text !== name) throw refuse();
-    if (RESERVED.has(name) || this.host.extensionNames.has(name)) throw refuse();
+    checkDirectiveName(name, this.host.extensionNames);
     const token = this.parsed.tokens[statement.node.start];
     if (token === undefined) throw new Error("a statement without a name token");
     this.splice(token.span.start.offset, token.span.end.offset, name, [], statement);
   }
 
   /**
-   * `ISetVariable.rename` and `IParameter.rename`: its `$name` token only (2.3). Refused: not `[A-Za-z0-9_]+` (E2001 at 0:0); a second `set`
-   * of the name in its block (E5002), by the text-alone rules. The variable keeps its handle.
+   * `ISetVariable.rename` and `IParameter.rename`: its `$name` token only (2.3). A bad name is a misuse error (the one
+   * variable name check); a second `set` of the name in its block is E5002, by the text-alone rules. The variable
+   * keeps its handle.
    */
   renameVariable(token: number, name: string, keep: Handle): void {
-    if (!VARIABLE_NAME.test(name)) {
-      throw new BadTextError(`not a variable name: ${JSON.stringify(name)}`, [at(name, 0, DiagnosticCode.UnexpectedToken)]);
-    }
+    checkVariableName(name);
     const span = this.parsed.tokens[token]?.span;
     if (span === undefined) throw new Error("a variable without its token");
     this.splice(span.start.offset, span.end.offset, insertOf(name, ["$", [0, name.length]]), [], keep);
@@ -591,7 +585,7 @@ export class Document implements IDocument {
 
   /** `set` of a statement's values (2.4): first value to last; with none, after `after` (a token index). */
   replaceValues(statement: StatementHandle, values: readonly ValueHandle[], after: number, text: string): void {
-    const given = valuesTextProblems(text, false);
+    const given = parseEntry(text, "valuesText").diagnostics;
     const { tokens } = this.parsed;
     const first = values[0];
     const last = values.at(-1);
@@ -613,13 +607,14 @@ export class Document implements IDocument {
     this.splice(start, end, text, given);
   }
 
-  /** `replaceWithText` of a value. */
+  /**
+   * `replaceWithText` of a value, checked with the grammar's entry rule for where it stands (spec 2.8): `boundText`
+   * for a slice bound, `itemsText` for a list item, else `valuesText`.
+   */
   replaceValue(value: ValueHandle, text: string): readonly WrittenValue[] {
-    if (value.bound) {
-      const problems = boundTextProblems(text);
-      if (problems.length > 0) throw new BadTextError("a slice bound takes one word or $name", problems);
-    }
-    const given = value.bound ? [] : valuesTextProblems(text, value.listHandle !== undefined);
+    const rule = value.bound ? "boundText" : value.listHandle !== undefined ? "itemsText" : "valuesText";
+    const given = parseEntry(text, rule).diagnostics;
+    if (value.bound && given.length > 0) throw new BadTextError(given);
     if (text.trim() === "") {
       this.removeValue(value);
       return [];
@@ -629,7 +624,8 @@ export class Document implements IDocument {
     const statement = value.statementHandle;
     const created = this.splice(start, end, text, given);
     return created.filter(
-      (h): h is ValueHandle => h instanceof ValueHandle && h.listHandle === container && h.statementHandle === statement && !h.bound,
+      (h): h is ValueHandle =>
+        h instanceof ValueHandle && h.listHandle === container && h.statementHandle === statement && h.bound === value.bound,
     ) as WrittenValue[];
   }
 
@@ -789,82 +785,9 @@ export function positionIn(text: string, offset: number): ISourcePosition {
   return { offset: at, line, column: at - (before.lastIndexOf("\n") + 1) };
 }
 
-/** A diagnostic of a wrapped text, moved into the given text (which starts at `shift` of the wrapped one). */
-function shifted(given: string, shift: number, d: IDiagnostic): IDiagnostic {
-  const start = positionIn(given, d.span.start.offset - shift);
-  const end = positionIn(given, d.span.end.offset - shift);
-  return makeDiagnostic(d.code, d.message, { start, end });
-}
-
 function at(given: string, offset: number, code: DiagnosticCode): IDiagnostic {
   const position = positionIn(given, offset);
   return makeDiagnostic(code, messageOf(code), { start: position, end: position });
-}
-
-/** Tokens that may follow a line break without being values on the next line. */
-const LINE_TRIVIA: ReadonlySet<string> = new Set(["SPACE", "COMMENT", "NEWLINE"]);
-
-/**
- * 2.3's check of a values text: parsed as the values of one directive (`x <text>;`; in a list, `x [<text>];`).
- * Its syntax diagnostics, shifted to the given text; when it is more than values, one E2001 at the first such token.
- * Outside a list, a line break at list depth 0 is more than values (vil-5ya: it would end the statement there): E2001
- * at the first token after it that is not a space, comment or line break, or at the line break when only those follow.
- * A text that ends in a comment is more than values (vil-033, spec 2.8: the comment would swallow the `;`, `,` or `]`
- * after it, as it would the probe's own closer), so the probe is parsed again with a line break before the closer,
- * and the comment is refused after every earlier problem (the syntax diagnostics, the first token more than values,
- * the line break). The check of an override uses it too (one home).
- */
-export function valuesTextProblems(text: string, inList: boolean): IDiagnostic[] {
-  const prefix = inList ? "x [" : "x ";
-  const closer = inList ? "];" : ";";
-  const inside = (t: IToken): boolean => t.span.start.offset >= prefix.length && t.span.start.offset < prefix.length + text.length;
-  let syntax = parse(`${prefix}${text}${closer}`);
-  const last = syntax.tokens.filter(inside).at(-1);
-  const comment = last?.kind === "COMMENT" ? last : undefined;
-  if (comment !== undefined) syntax = parse(`${prefix}${text}\n${closer}`);
-  const given = syntax.tokens.filter(inside);
-  const refuse = (token: IToken): IDiagnostic[] => [at(text, token.span.start.offset - prefix.length, DiagnosticCode.UnexpectedToken)];
-  if (syntax.diagnostics.length > 0) return syntax.diagnostics.map((d) => shifted(text, prefix.length, d));
-  const more = moreThanValues(given, inList);
-  if (more !== undefined) return refuse(more);
-  if (!inList) {
-    let depth = 0;
-    for (const [i, token] of given.entries()) {
-      if (token.kind === "LBRACK") depth++;
-      if (token.kind === "RBRACK") depth--;
-      if (token.kind !== "NEWLINE" || depth !== 0) continue;
-      const next = given.slice(i + 1).find((t) => !LINE_TRIVIA.has(t.kind)) ?? token;
-      return refuse(next);
-    }
-  }
-  return comment === undefined ? [] : refuse(comment);
-}
-
-/** The first token of a values text that is more than values: a `;` or brace, a `,` outside a list, a `]` closing past it. */
-function moreThanValues(given: readonly IToken[], inList: boolean): IToken | undefined {
-  let depth = 0;
-  for (const token of given) {
-    if (token.kind === "LBRACK") depth++;
-    if (token.kind === "RBRACK") depth--;
-    const more =
-      token.kind === "SEMI" ||
-      token.kind === "LBRACE" ||
-      token.kind === "RBRACE" ||
-      (inList && depth < 0) ||
-      (!inList && token.kind === "COMMA" && depth === 0);
-    if (more) return token;
-  }
-  return undefined;
-}
-
-/** A slice bound's text: exactly one WORD or `$name` (E2001 otherwise). */
-function boundTextProblems(text: string): IDiagnostic[] {
-  const syntax = parse(`x ${text};`);
-  const tokens = syntax.tokens.filter((t) => t.span.start.offset >= 2 && t.span.start.offset < 2 + text.length);
-  const bad = tokens.find((t) => t.kind !== "WORD" && t.kind !== "VARIABLE");
-  if (bad !== undefined) return [at(text, bad.span.start.offset - 2, DiagnosticCode.UnexpectedToken)];
-  if (tokens.length !== 1) return [at(text, tokens[1]?.span.start.offset === undefined ? 0 : tokens[1].span.start.offset - 2, DiagnosticCode.UnexpectedToken)];
-  return [];
 }
 
 /** A piece of an insert: text the edit adds, or the range [from, to) of the caller's text it copies. */

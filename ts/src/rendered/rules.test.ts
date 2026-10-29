@@ -4,9 +4,9 @@
 
 import { describe, expect, it } from "vitest";
 
-import { BadTextError, DiagnosticError, ReadError } from "../errors.js";
+import { BadTextError, DiagnosticError, MisuseError, ReadError } from "../errors.js";
 import { include } from "../include.js";
-import type { IExtension } from "../extension.js";
+import type { IExtension } from "../written/index.js";
 import { villanelle } from "../written/index.js";
 import { memorySource } from "../source.js";
 import { addresses, countingSource, loadFiles, loadText, only, originText, problems, rendered, texts } from "./testing.js";
@@ -29,9 +29,9 @@ describe("rule 1: reserved names", () => {
   it("refuses an extension named like a reserved word or like another extension", () => {
     const source = memorySource({});
     const named = (directive: string): IExtension => ({ directive, specs: () => [] });
-    expect(() => villanelle({ source, extensions: [named("set")] })).toThrow(TypeError);
-    expect(() => villanelle({ source, extensions: [named("use")] })).toThrow(TypeError);
-    expect(() => villanelle({ source, extensions: [named("x"), named("x")] })).toThrow(TypeError);
+    expect(() => villanelle({ source, extensions: [named("set")] })).toThrow(MisuseError);
+    expect(() => villanelle({ source, extensions: [named("use")] })).toThrow(MisuseError);
+    expect(() => villanelle({ source, extensions: [named("x"), named("x")] })).toThrow(MisuseError);
   });
 });
 
@@ -101,7 +101,7 @@ describe("rule 3: overrides", () => {
       await expect(loadText("p;\n", { overrides: { v: bad } }), bad).rejects.toThrow(BadTextError);
     }
     for (const name of ["", "a-b", "$a", "a b"]) {
-      await expect(loadText("p;\n", { overrides: { [name]: "1" } }), name).rejects.toThrow(TypeError);
+      await expect(loadText("p;\n", { overrides: { [name]: "1" } }), name).rejects.toThrow(MisuseError);
     }
   });
 });
@@ -327,6 +327,23 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
     }
   });
 
+  it("refuses a port result that is not a list of texts: E3006 from an extension, E3004 or a ReadError from a source", async () => {
+    const bare: IExtension = { directive: "pull", specs: () => "dark.conf" as unknown as readonly string[] };
+    const pulled = await loadText("pull;\nok;\n", { extensions: [bare] });
+    expect(problems(pulled.diagnostics)).toEqual([["E3006", "main.conf:0:0"]]);
+    expect(pulled.diagnostics[0]?.message).toContain("string");
+    const source = (resolve: unknown, read: unknown): ReturnType<typeof memorySource> => ({
+      resolve: (spec) => Promise.resolve((spec === "main.conf" ? [spec] : resolve) as readonly string[]),
+      read: (path) => Promise.resolve((path === "main.conf" ? 'include "p.conf";\n' : read) as string),
+    });
+    for (const [resolve, read] of [["p.conf", "x;"], [["p.conf"], 42]] as const) {
+      const loaded = await rendered(villanelle({ source: source(resolve, read), extensions: [include()] }), "main.conf");
+      expect(problems(loaded.diagnostics)).toEqual([["E3004", "main.conf:0:0"]]);
+    }
+    const root: ReturnType<typeof memorySource> = { resolve: () => Promise.resolve("main.conf" as unknown as readonly string[]), read: () => Promise.resolve("") };
+    await expect(villanelle({ source: root }).load("main.conf")).rejects.toBeInstanceOf(ReadError);
+  });
+
   it("rejects the load with a ReadError (not a diagnostic, not E3004) when the source has no root file", async () => {
     const error: unknown = await loadFiles({}, {}, "missing.conf").catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ReadError);
@@ -366,7 +383,7 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
   });
 
   it("reports an included file's syntax error once and keeps an unreadable entry at each place", async () => {
-    const files = { "main.conf": 'a "open\na { include "p.conf"; }\nb { include "p.conf"; }\n', "p.conf": "x 1;\ny x\"z\";\n" };
+    const files = { "main.conf": 'a "open\n;\na { include "p.conf"; }\nb { include "p.conf"; }\n', "p.conf": "x 1;\ny x\"z\";\n" };
     const loaded = await loadFiles(files, INCLUDE);
     expect(loaded.diagnostics.map((d) => [d.code, d.place.resolvedPath])).toEqual([
       ["E1001", "main.conf"],
@@ -374,8 +391,8 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
     ]);
     expect(loaded.unreadable.map((u) => [u.reason, originText(u.origin)])).toEqual([["syntax", "main.conf:0:0"]]);
     const [a, b] = loaded.block;
-    expect(a?.unreadable.map((u) => [u.reason, originText(u.origin)])).toEqual([["syntax", "p.conf:1:0 < extension include main.conf:1:4"]]);
-    expect(b?.unreadable.map((u) => [u.reason, originText(u.origin)])).toEqual([["syntax", "p.conf:1:0 < extension include main.conf:2:4"]]);
+    expect(a?.unreadable.map((u) => [u.reason, originText(u.origin)])).toEqual([["syntax", "p.conf:1:0 < extension include main.conf:2:4"]]);
+    expect(b?.unreadable.map((u) => [u.reason, originText(u.origin)])).toEqual([["syntax", "p.conf:1:0 < extension include main.conf:3:4"]]);
   });
 });
 
@@ -438,16 +455,25 @@ describe("rule 9: limits and cycles", () => {
   });
 });
 
-describe("rule 10: value rules checked at load", () => {
-  it("keeps a directive with an unknown escape or a non-integer bound unreadable (kind value)", async () => {
+describe("rule 10: value rules", () => {
+  it("leaves an unknown escape and a literal bound that is not an integer to the grammar (reason syntax)", async () => {
     const loaded = await loadText('a "x\\qy";\nb c[1.5];\nd c[-3:-1] e[007];\nok "\\n";\n');
     expect(problems(loaded.diagnostics)).toEqual([
-      ["E4003", "main.conf:0:2"],
-      ["E4001", "main.conf:1:4"],
-      ["E4001", "main.conf:2:13"],
+      ["E1005", "main.conf:0:2"],
+      ["E2007", "main.conf:1:4"],
+      ["E2007", "main.conf:2:13"],
     ]);
-    expect(loaded.unreadable.map((u) => u.reason)).toEqual(["value", "value", "value"]);
+    expect(loaded.unreadable.map((u) => u.reason)).toEqual(["syntax", "syntax", "syntax"]);
     expect(addresses(loaded)).toEqual(["ok"]);
+  });
+
+  it("keeps a directive whose bound through a variable is not an integer unreadable (kind value)", async () => {
+    const loaded = await loadText("set $i 1.5;\nb c[$i];\nok;\n");
+    expect(problems(loaded.diagnostics)).toEqual([["E4001", "main.conf:0:7 < variable i main.conf:1:4"]]);
+    expect(loaded.unreadable.map((u) => u.reason)).toEqual(["value"]);
+    const big = await loadText("x $big;\n", { overrides: { big: "c[9007199254740993]" } });
+    expect(problems(big.diagnostics)).toEqual([["E4001", "main.conf:0:2"]]);
+    expect(big.unreadable.map((u) => u.reason)).toEqual(["value"]);
   });
 
   it("refuses a bound outside the safe integer range", async () => {

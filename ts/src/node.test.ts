@@ -4,7 +4,7 @@ import { join, relative } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { SaveError } from "./errors.js";
+import { LostUpdateError, SaveError } from "./errors.js";
 import { include } from "./include.js";
 import { villanelle } from "./written/processor.js";
 import { rendered } from "./rendered/testing.js";
@@ -40,7 +40,7 @@ describe("villanelle/node", () => {
   });
 
   it("resolves a relative root through the source, so the root has one path and is read once", async () => {
-    await writeFile(join(dir, "self.conf"), 'x "1;\ninclude "self.conf";\ny 1;\n');
+    await writeFile(join(dir, "self.conf"), 'x "1\n;\ninclude "self.conf";\ny 1;\n');
     const loaded = await rendered(villanelle({ source: fileSource(), extensions: [include()] }), relative(process.cwd(), join(dir, "self.conf")));
     expect([...loaded.graph.documents.keys()]).toEqual([join(dir, "self.conf")]);
     expect(loaded.diagnostics.map((d) => d.code)).toEqual(["E1001", "E5006"]);
@@ -116,12 +116,17 @@ describe("villanelle/node", () => {
       { resolvedPath: a, text: "a 2;\n", savedText: "a 1;\n" },
       { resolvedPath: b, text: "b 2;\n", savedText: "b 1;\n" },
     ];
-    await expect(fileWriter().write(batch)).rejects.toThrow(/lost update.*b\.conf/);
+    const lost: unknown = await fileWriter().write(batch).catch((e: unknown) => e);
+    expect(lost).toBeInstanceOf(LostUpdateError);
+    expect((lost as LostUpdateError).paths).toEqual([b]);
     expect(await readFile(a, "utf8")).toBe("a 1;\n");
     expect(await readFile(b, "utf8")).toBe("b changed;\n");
     // Through save: a changed on disk too, so SaveError, and the document keeps its unsaved text.
     await writeFile(a, "a changed;\n");
-    await expect(graph.save(fileWriter())).rejects.toBeInstanceOf(SaveError);
+    const saved: unknown = await graph.save(fileWriter()).catch((e: unknown) => e);
+    expect(saved).toBeInstanceOf(LostUpdateError);
+    expect(saved).toBeInstanceOf(SaveError);
+    expect((saved as LostUpdateError).paths).toEqual([a]);
     expect(await readFile(a, "utf8")).toBe("a changed;\n");
     expect(graph.root.text).not.toBe(graph.root.savedText);
     expect(await temporaries(directory)).toEqual([]);

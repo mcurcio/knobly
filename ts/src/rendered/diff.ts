@@ -3,7 +3,8 @@
  * `IRendered.addresses`). Package-internal; programs call `IRendered.diff`.
  */
 
-import type { Change, IAddress, IDirective, IKeyOptions, IRendered, IUnreadable } from "./model.js";
+import type { IUnreadableExpansion } from "../written/index.js";
+import type { Change, IAddress, IDirective, IKeyOptions, IRendered } from "./model.js";
 
 /** A directive's own state for "changed": its values' canonical texts and whether it has a block. */
 function sameOwn(before: IDirective, after: IDirective): boolean {
@@ -38,7 +39,7 @@ export function diff(before: IRendered, after: IRendered, options?: IKeyOptions)
   const [afterMap, afterAddresses] = byAddress(after, options);
   const changes: Change[] = [];
   /** The unreadable statements of the container a `before` directive would stand in, in `after`. */
-  const unreadableAfter = (directive: IDirective): readonly IUnreadable[] => {
+  const unreadableAfter = (directive: IDirective): readonly IUnreadableExpansion[] => {
     const parent = directive.parent;
     if (parent === undefined) return after.unreadable;
     return afterMap.get(addressOf(beforeAddresses, parent).text)?.unreadable ?? [];

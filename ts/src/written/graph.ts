@@ -5,47 +5,40 @@
  * see IDocumentGraph.
  */
 
-import { DiagnosticCode } from "../diagnostics.js";
-import type { IExtension } from "../extension.js";
-import { SaveError } from "../errors.js";
+import { LostUpdateError, SaveError } from "../errors.js";
 import { type ILocatedDiagnostic, makeLocated } from "../report.js";
 import type { IDocumentSource } from "../source.js";
 import { typeNameOf } from "../text.js";
-import { bind, type IBindingWithNeeds, type IOverrideInput, type IReadLedger } from "./bind.js";
+import { bind, type IBindingWithNeeds, type IOverrideInput, type IOverrideValues, type IReadLedger } from "./bind.js";
 import { Document, type IDocumentHost } from "./document.js";
-import type { Bound } from "./expanded.js";
 import { expansionOf } from "./expansion.js";
+import type { IExtension } from "./extension.js";
 import type { IDocumentWriter, IFileWrite } from "../source.js";
 import type { IDocumentEdge, IDocumentGraph, IExpansion, Variable } from "./model.js";
 import { checkOverride, checkOverrideName } from "./override.js";
 import { readUnread } from "./read.js";
 import { OverrideVariable } from "./statements.js";
 
-/** The codes `render` owns: the graph's `diagnostics` leaves them out, with every E4xxx code (D11). */
-const RENDER_CODES: ReadonlySet<string> = new Set([
-  DiagnosticCode.UnknownVariable,
-  DiagnosticCode.UnknownSnippet,
-  DiagnosticCode.SnippetArity,
-  DiagnosticCode.TooManyDirectives,
-]);
-
 export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger {
   readonly documents = new Map<string, Document>();
   readonly extensionNames: ReadonlySet<string>;
   private readonly overrideTexts = new Map<string, string>();
-  private readonly overrideValues = new Map<string, readonly Bound[]>();
+  private readonly overrideValues = new Map<string, IOverrideValues>();
   private readonly overrideVariables = new Map<string, OverrideVariable>();
   /** Per `JSON.stringify([parentPath, spec])`: the paths or the rejection. */
   private readonly resolutions = new Map<string, readonly string[] | Error>();
   /** Per path whose read rejected: the rejection (a read document is in `documents`). */
   private readonly failedReads = new Map<string, Error>();
   private version = 0;
-  private cache: { readonly version: number; readonly binding: IBindingWithNeeds; expansion?: IExpansion } | undefined;
+  private cache:
+    | { readonly version: number; readonly binding: IBindingWithNeeds; diagnostics?: readonly ILocatedDiagnostic[]; expansion?: IExpansion }
+    | undefined;
   private rootDocument: Document | undefined;
 
   /**
    * Each override goes through the check of an override, in order; the first refusal throws.
-   * @throws TypeError for a bad override name or a text that is not a string; BadTextError for a refused text
+   * @throws MisuseError for a bad override name; TypeError for a text that is not a string; BadTextError for a refused
+   * text
    */
   constructor(
     private readonly source: IDocumentSource,
@@ -83,7 +76,7 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
   }
 
   /** A changed name keeps its place in `overrides`; a new one (or one removed before) goes at the end (6.2). */
-  private putOverride(name: string, text: string, values: readonly Bound[]): void {
+  private putOverride(name: string, text: string, values: IOverrideValues): void {
     this.overrideTexts.set(name, text);
     this.overrideValues.set(name, values);
     if (!this.overrideVariables.has(name)) this.overrideVariables.set(name, new OverrideVariable(name, () => this.binding()));
@@ -112,6 +105,8 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
     try {
       await writer.write(files);
     } catch (error) {
+      // A lost update is already a save error, with only the conflicting files: raised as it is (spec 6.8).
+      if (error instanceof LostUpdateError) throw error;
       const message = `the writer rejected: ${error instanceof Error ? error.message : String(error)}`;
       throw new SaveError(message, files.map((file) => file.resolvedPath), { cause: error });
     }
@@ -136,16 +131,20 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
     return name === undefined ? all : all.filter((v) => v.name === name);
   }
 
+  /** The one list (spec 6.3): every syntax diagnostic, then every problem the walk found, in walk order. */
   get diagnostics(): readonly ILocatedDiagnostic[] {
-    const found = this.binding().diagnostics.filter((d) => !d.code.startsWith("E4") && !RENDER_CODES.has(d.code));
-    return [...this.syntaxDiagnostics(), ...found];
-  }
-
-  expand(): IExpansion {
     const binding = this.binding();
     const cache = this.cache;
     if (cache === undefined) throw new Error("no binding");
-    cache.expansion ??= expansionOf(binding, this.syntaxDiagnostics());
+    cache.diagnostics ??= [...this.syntaxDiagnostics(), ...binding.diagnostics];
+    return cache.diagnostics;
+  }
+
+  expand(): IExpansion {
+    const diagnostics = this.diagnostics;
+    const cache = this.cache;
+    if (cache === undefined) throw new Error("no binding");
+    cache.expansion ??= expansionOf(cache.binding, diagnostics);
     return cache.expansion;
   }
 
@@ -163,7 +162,7 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
       const overrides = new Map<string, IOverrideInput>();
       for (const [name, values] of this.overrideValues) {
         const variable = this.overrideVariables.get(name);
-        if (variable !== undefined) overrides.set(name, { variable, values });
+        if (variable !== undefined) overrides.set(name, { variable, ...values });
       }
       this.cache = { version: this.version, binding: bind({ root: this.root, extensions: this.extensions, overrides, reads: this }) };
     }

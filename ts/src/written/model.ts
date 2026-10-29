@@ -19,7 +19,7 @@ import type { IDirectiveOrigin, IPlace, IStep } from "../origin.js";
 import type { ILocatedDiagnostic } from "../report.js";
 import type { IDocumentWriter } from "../source.js";
 import type { ISyntax } from "../syntax/cst.js";
-import type { ExpandedValue } from "../value.js";
+import type { ExpandedValue } from "./value.js";
 
 export type { StatementKind, VariableKind };
 
@@ -36,8 +36,8 @@ export interface IDocumentGraph {
   /** The overrides by name (without `$`), each as villanelle text, in order. An input of the binding; never saved. */
   readonly overrides: ReadonlyMap<string, string>;
   /**
-   * Each document's syntax diagnostics (documents in order), then what the binding found, in walk order, except
-   * the codes `render` reports (E4xxx, E5001, E5003, E5004, E5008).
+   * Each document's syntax diagnostics (documents in order), then every problem the low level finds, in walk order:
+   * the one list (spec 6.3), which the expansion and the rendered tree show unchanged.
    */
   readonly diagnostics: readonly ILocatedDiagnostic[];
   /**
@@ -45,7 +45,8 @@ export interface IDocumentGraph {
    * `overrides`; a new one goes at the end. Checked by the check of an override, as `load` checks its overrides:
    * `graph.setOverride("host", quote("10.0.60.31"))`.
    * @throws BadTextError when `text` is not one or more values without a `$name` (located in `text`)
-   * @throws TypeError when `name` is not letters, digits and `_`, or `text` is neither a string nor undefined
+   * @throws MisuseError when `name` is not letters, digits and `_`; TypeError when `text` is neither a string nor
+   * undefined
    */
   setOverride(name: string, text: string | undefined): void;
   /**
@@ -58,14 +59,18 @@ export interface IDocumentGraph {
    * with none, the writer is not called. When the writer resolves, each written document's `savedText` becomes the
    * text handed over (an edit made while the writer ran stays unsaved); when it rejects, no `savedText` changes (a
    * writer that failed part way through committing: see IDocumentWriter). Returns the resolvedPaths handed over.
-   * @throws (rejects) SaveError { paths, cause } when the writer rejects; TypeError when `writer` has no `write`
-   * method (before anything is collected)
+   * @throws (rejects) LostUpdateError { paths } as the writer raised it, when a file changed since it was read;
+   * SaveError { paths, cause } when the writer rejects otherwise; TypeError when `writer` has no `write` method
+   * (before anything is collected)
    */
   save(writer: IDocumentWriter): Promise<readonly string[]>;
 
   /** Every copy of every extension line (an include line), in walk order. */
   edges(): readonly IDocumentEdge[];
-  /** The edges naming a spec not resolved or a file not read yet; non-empty means copies and a render lack them. */
+  /**
+   * The edges naming a spec not resolved or a file not read yet. Each such copy expands to an unreadable expansion
+   * with reason "unread", and E3007 is in `diagnostics` (spec 6.10).
+   */
   unread(): readonly IDocumentEdge[];
   /** Every variable (with `name`: of that name): `set` and parameters in document order, then overrides in order. */
   variables(name?: string): readonly Variable[];
@@ -153,14 +158,15 @@ export interface IWrittenDirective extends IStatementBase {
   /** Undefined when written without one. */
   readonly block: IWrittenBlock | undefined;
   /**
-   * @throws BadTextError: not one WORD, or a name that would change its kind (`set`, `snippet`, `use`, an extension's);
-   * TypeError when `name` is not a string
+   * @throws MisuseError when the grammar's `nameText` refuses `name` (not one word, or one that starts with a digit
+   * or `-`) or it would change the line's kind (`set`, `snippet`, `use`, an extension's name); TypeError when `name`
+   * is not a string
    */
   rename(name: string): void;
   /**
    * Replace its values, first to last, comments between them included, with villanelle text: `d.set(quote("web"))`.
-   * Not the language's `set` line: it replaces a statement's values. A line break outside a list is refused (it
-   * would end the statement). @throws BadTextError; TypeError when `text` is not a string
+   * Not the language's `set` line: it replaces a statement's values. The text is checked with the grammar's
+   * `valuesText` entry rule (spec 2.8). @throws BadTextError; TypeError when `text` is not a string
    */
   set(text: string): void;
 }
@@ -245,8 +251,9 @@ export interface IValueBase {
   readonly list: IList | undefined;
   /**
    * Replace it with values written as villanelle text: separated by spaces on a line, by commas in a list. This
-   * handle detaches. @throws BadTextError (a slice bound takes exactly one word or `$name`); TypeError when `text`
-   * is not a string
+   * handle detaches. Checked with the grammar's entry rule (spec 2.8): `valuesText`, `itemsText` for a list item,
+   * `boundText` for a slice bound (one integer word or `$name`). @throws BadTextError; TypeError when `text` is not a
+   * string
    */
   replaceWithText(text: string): readonly WrittenValue[];
   /** Remove it (and its separator). Then it is detached. @throws BadTextError when that breaks a rule (a `set` left with no value) */
@@ -319,7 +326,10 @@ export interface ISetVariable extends IVariableBase {
   /** Its `$name`. */
   readonly place: IPlace;
   readonly line: ISetLine;
-  /** Rename its `$name` only (name without `$`). @throws BadTextError (also E5002); TypeError when `name` is not a string */
+  /**
+   * Rename its `$name` only (name without `$`). @throws MisuseError for a bad name; BadTextError E5002 for a second
+   * `set` of the name in its block; TypeError when `name` is not a string
+   */
   rename(name: string): void;
   /** Replace its `set` line's values: `line.set(text)`. @throws BadTextError; TypeError when `text` is not a string */
   set(text: string): void;
@@ -331,7 +341,10 @@ export interface IParameter extends IVariableBase {
   /** Its `$name`. */
   readonly place: IPlace;
   readonly line: ISnippetLine;
-  /** Rename its `$name` only (name without `$`). @throws BadTextError (also E5002); TypeError when `name` is not a string */
+  /**
+   * Rename its `$name` only (name without `$`). @throws MisuseError for a bad name; BadTextError E5002 for a second
+   * `set` of the name in its block; TypeError when `name` is not a string
+   */
   rename(name: string): void;
 }
 
@@ -343,7 +356,7 @@ export interface IOverrideVariable extends IVariableBase {
 /** At one copy: what a written name reads, and what it wins over. */
 export interface IResolution<TDefinition> {
   readonly copy: ICopy;
-  /** Undefined: nothing of that name is visible there (render reports E5001 or E5003). */
+  /** Undefined: nothing of that name is visible there (the low level reports E5001 or E5003). */
   readonly winner: TDefinition | undefined;
   /** Every other definition visible there, next first (the one that would win if the winner were gone). */
   readonly shadowed: readonly TDefinition[];
@@ -358,45 +371,41 @@ export interface IReferenceResolution extends IResolution<Variable> {
 
 // --- The expansion: what `render (graph)` builds on (spec 6.10) ---
 
-/** The graph's current texts and overrides after expansion. A snapshot; its handles are live. */
+/**
+ * The graph's current texts and overrides after expansion (spec 6.10; scoping and precedence: spec/expansion.md). A
+ * snapshot; its handles are live.
+ */
 export interface IExpansion {
   /** The root document's top-level directive copies, includes and uses spliced in place. */
   readonly block: readonly IDirectiveExpansion[];
   /** The top-level statements that cannot be read, in walk order. */
   readonly unreadable: readonly IUnreadableExpansion[];
-  /** Syntax diagnostics (documents in order), then everything the expansion found in walk order, render codes included. */
+  /** The graph's `diagnostics`: the one list. */
   readonly diagnostics: readonly ILocatedDiagnostic[];
 }
 
 /** One copy of a directive, its values expanded at that copy. */
 export interface IDirectiveExpansion {
-  readonly statement: IWrittenDirective;
+  /** The written directive this is a copy of: the same object for every copy of one line. */
+  readonly written: IWrittenDirective;
   /** Its name's place, and the copy's steps. */
   readonly origin: IDirectiveOrigin;
-  readonly values: readonly IValueExpansion[];
+  /** Its values, expanded, with their links; a reference gives every value it reaches. */
+  readonly values: readonly ExpandedValue[];
   /** Its block's directive copies; undefined when written without a block. */
   readonly block: readonly IDirectiveExpansion[] | undefined;
   /** Its block's statements that cannot be read at this copy. */
   readonly unreadable: readonly IUnreadableExpansion[];
 }
 
-/** One copy of a statement that cannot be read there, and why. */
+/**
+ * One copy of a statement that cannot be read there, and why (`unread`: an extension copy whose files are not read
+ * yet). It has no name or address: what it would have been is unknown.
+ */
 export interface IUnreadableExpansion {
-  readonly statement: Statement;
   readonly reason: UnreadableReason;
+  /** The statement that could not be read here. */
+  readonly written: Statement;
   /** The statement's own tokens, and the copy's steps. */
   readonly origin: IDirectiveOrigin;
-}
-
-/** One value after expansion, with what it was written as and what won over each `$name` on the way. */
-export interface IValueExpansion {
-  readonly value: ExpandedValue;
-  /** The written value on the line it is read in: the `$name` there for a value that came through a variable. */
-  readonly written: WrittenValue;
-  /** The written value at the end of its chain; undefined for an override. */
-  readonly definition: WrittenValue | undefined;
-  /** One per variable step of `value.origin.via`, from this value's own line toward where it is written. */
-  readonly chain: readonly IReferenceResolution[];
-  /** A list's items, expanded the same way; empty for every other kind. */
-  readonly items: readonly IValueExpansion[];
 }

@@ -6,6 +6,8 @@
 
 import { ReadError } from "../errors.js";
 import type { IDocumentSource } from "../source.js";
+import { typeNameOf } from "../text.js";
+import { isTexts } from "./bind.js";
 import type { DocumentGraph } from "./graph.js";
 
 /**
@@ -19,7 +21,7 @@ export async function readRoot(graph: DocumentGraph, source: IDocumentSource, pa
   // The root is resolved through the source as an included file's spec is (F1-04), so one file has one path.
   let paths: readonly string[];
   try {
-    paths = await source.resolve(path, { parentPath: "" });
+    paths = checkedPaths(await source.resolve(path, { parentPath: "" }));
   } catch (error) {
     throw fail(reasonOf(error), error);
   }
@@ -29,7 +31,7 @@ export async function readRoot(graph: DocumentGraph, source: IDocumentSource, pa
   }
   let text: string;
   try {
-    text = await source.read(resolved);
+    text = checkedText(await source.read(resolved));
   } catch (error) {
     throw fail(reasonOf(error), error);
   }
@@ -51,7 +53,7 @@ export async function readUnread(graph: DocumentGraph, source: IDocumentSource):
         if (graph.resolved(need.parentPath, spec) !== undefined) continue;
         let paths: readonly string[] | Error;
         try {
-          paths = await source.resolve(spec, { parentPath: need.parentPath });
+          paths = checkedPaths(await source.resolve(spec, { parentPath: need.parentPath }));
         } catch (error) {
           paths = asError(error);
         }
@@ -65,7 +67,7 @@ export async function readUnread(graph: DocumentGraph, source: IDocumentSource):
       if (graph.readOf(path) !== undefined) continue;
       let text: string | Error;
       try {
-        text = await source.read(path);
+        text = checkedText(await source.read(path));
       } catch (error) {
         text = asError(error);
       }
@@ -74,6 +76,20 @@ export async function readUnread(graph: DocumentGraph, source: IDocumentSource):
       read.push(path);
     }
   }
+}
+
+/**
+ * The source's results are checked at run time (spec 4.1, vil-umh.12): `resolve` gives an array of strings and `read`
+ * a string; anything else is the source's failure. @throws Error naming the port and the type it got
+ */
+function checkedPaths(paths: unknown): readonly string[] {
+  if (!isTexts(paths)) throw new Error(`the document source's resolve returned ${typeNameOf(paths)}, not an array of strings`);
+  return paths;
+}
+
+function checkedText(text: unknown): string {
+  if (typeof text !== "string") throw new Error(`the document source's read returned ${typeNameOf(text)}, not a string`);
+  return text;
 }
 
 function asError(error: unknown): Error {

@@ -9,7 +9,7 @@ import { DiagnosticCode } from "../diagnostics.js";
 import type { StatementKind } from "../gen/api/kinds.js";
 import type { ISourceSpan } from "../span.js";
 import { type INode } from "../syntax/cst.js";
-import { type IToken } from "../syntax/tokens.js";
+import { type IToken, isWordKind } from "../syntax/tokens.js";
 import { anatomyOf, type IDirectiveAnatomy } from "../anatomy.js";
 
 /** A statement's kind by its text alone: one of the generated statement kind list. */
@@ -59,11 +59,11 @@ export function shapeOfAnatomy(tokens: readonly IToken[], anatomy: IDirectiveAna
         if (token?.kind !== "VARIABLE" || params.includes(token.text.slice(1))) return bad;
         params.push(token.text.slice(1));
       }
-      if (firstToken?.kind !== "WORD" || anatomy.block === undefined) return bad;
+      if (firstToken === undefined || !isWordKind(firstToken.kind) || anatomy.block === undefined) return bad;
       return { kind: "snippet", fault: undefined, claims: firstToken.text };
     }
     case "use":
-      if (firstToken?.kind !== "WORD" || anatomy.block !== undefined) {
+      if (firstToken === undefined || !isWordKind(firstToken.kind) || anatomy.block !== undefined) {
         return { kind: "unreadable", fault: { code: DiagnosticCode.BadUse, span: name.span }, claims: undefined };
       }
       return { kind: "use", fault: undefined, claims: undefined };

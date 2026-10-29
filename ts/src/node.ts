@@ -7,8 +7,7 @@ import { readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises
 import { basename, dirname, join, resolve } from "node:path";
 
 import { globToRegExp, hasGlob } from "./graph/glob.js";
-import type { IDocumentSource } from "./source.js";
-import type { IDocumentWriter } from "./source.js";
+import { checkLostUpdates, type IDocumentSource, type IDocumentWriter } from "./source.js";
 
 /**
  * A document source over the filesystem. `read` reads a path as given, as UTF-8; `resolve` joins a spec to the
@@ -53,8 +52,8 @@ function isMissing(error: unknown): boolean {
 }
 
 /**
- * One batch on disk (D18): reads each target first and rejects, writing nothing, when one no longer holds its
- * `savedText` (a lost update; the Error names the paths; a missing file holds ""); else writes each text, as UTF-8, to
+ * One batch on disk (D18): reads each target first and calls `checkLostUpdates` with what is there (a missing file is
+ * absent), so a lost update rejects with a LostUpdateError, writing nothing; else writes each text, as UTF-8, to
  * a temporary file beside its target (`<name>.<random>.tmp`), then renames each over its target in batch order. A
  * failure while staging removes the temporaries and rejects with nothing replaced; a failure while renaming can
  * leave earlier files replaced (stated cost) and removes the temporaries not yet renamed.
@@ -62,11 +61,9 @@ function isMissing(error: unknown): boolean {
 export function fileWriter(): IDocumentWriter {
   return {
     async write(files) {
-      const lost: string[] = [];
-      for (const file of files) {
-        if ((await readOrEmpty(file.resolvedPath)) !== file.savedText) lost.push(file.resolvedPath);
-      }
-      if (lost.length > 0) throw new Error(`lost update: changed on disk since it was read: ${lost.join(", ")}`);
+      const current: (string | undefined)[] = [];
+      for (const file of files) current.push(await readIfThere(file.resolvedPath));
+      checkLostUpdates(files, current);
       const staged: { readonly temporary: string; readonly target: string }[] = [];
       const removeLeft = async (from: number): Promise<void> => {
         await Promise.all(staged.slice(from).map(({ temporary }) => rm(temporary, { force: true })));
@@ -93,12 +90,12 @@ export function fileWriter(): IDocumentWriter {
   };
 }
 
-/** A file's text, or "" when nothing is there. Other failures reject. */
-async function readOrEmpty(path: string): Promise<string> {
+/** A file's text, or undefined when nothing is there. Other failures reject. */
+async function readIfThere(path: string): Promise<string | undefined> {
   try {
     return await readFile(path, "utf8");
   } catch (error) {
-    if (isMissing(error)) return "";
+    if (isMissing(error)) return undefined;
     throw error;
   }
 }

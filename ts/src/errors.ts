@@ -1,14 +1,17 @@
 /**
- * The package's error classes (spec/contract.md 4; spec/schema/api.json "error groups"): one base, `VillanelleError`,
- * under which every class the package defines sits, so one `catch (e) { if (e instanceof VillanelleError) ... }`
- * catches them all. Program bugs use the language's own classes and are not under it: `TypeError` for an argument of
- * the wrong type or a bad argument value, `RangeError` for an index out of range. Shared by every layer.
+ * The package's error classes on the spec's two sorts (spec 2.8; spec/contract.md 4; spec/schema/api.json "error
+ * groups"). An expected outcome, which only the input or the outside world decides, is a `VillanelleError`, and
+ * nothing else is: one `catch (e) { if (e instanceof VillanelleError) ... }` catches every outcome and no bug. A
+ * program bug, which the program could have checked first, is outside it: `DetachedError` (a `ReferenceError`),
+ * `MisuseError`, the native `TypeError` (an argument of the wrong type) and `RangeError` (an index out of range).
+ * Prior art: Joe Duffy's "bugs are not recoverable errors" (Midori); Rust's panic against `Result`. Shared by every
+ * layer.
  */
 
 import type { IDiagnostic } from "./diagnostics.js";
 import type { ILocatedDiagnostic } from "./report.js";
 
-/** The base of every error class villanelle defines. Never thrown by itself. */
+/** The base of every expected-outcome class villanelle defines. Never thrown by itself. */
 export class VillanelleError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
@@ -29,8 +32,7 @@ export class DiagnosticError extends VillanelleError {
 
 /**
  * `load` could not resolve the root path to exactly one file, or could not read it. `paths` is the root path as given
- * to `load`; `cause` is the source's rejection (absent when it resolved no file or several). No diagnostic, no code:
- * a missing root file is not an extension line's failure (E3004 stays an include line's code).
+ * to `load`; `cause` is the source's rejection (absent when it resolved no file or several). No diagnostic, no code.
  */
 export class ReadError extends VillanelleError {
   constructor(
@@ -40,6 +42,18 @@ export class ReadError extends VillanelleError {
   ) {
     super(message, options);
     this.name = "ReadError";
+  }
+}
+
+/**
+ * The text given to an edit, or an override's text, is not what it takes: its entry rule refuses it (spec 2.8), or a
+ * text-alone rule is broken (E5002, E5005, E5009-E5011). Nothing changed. `diagnostics` are located in the given text
+ * (UTF-16 code units, spec/contract.md 1); the message is built from them: `bad text: 1:2: E2001: unexpected token: ";"`.
+ */
+export class BadTextError extends VillanelleError {
+  constructor(readonly diagnostics: readonly IDiagnostic[]) {
+    super(`bad text: ${diagnostics.map(String).join("; ")}`);
+    this.name = "BadTextError";
   }
 }
 
@@ -58,36 +72,37 @@ export class SaveError extends VillanelleError {
   }
 }
 
-/** Base of the refusals of an edit. Nothing changed when one is thrown. */
-export class EditError extends VillanelleError {
-  constructor(message: string) {
-    super(message);
-    this.name = "EditError";
+/**
+ * A file the save would write changed since it was read or last saved (spec 4.2): its text in the medium now differs
+ * from its `savedText`. `paths` are only the conflicting files, in batch order; no cause. Raised by
+ * `checkLostUpdates` inside every writer; `save` raises it as it is.
+ */
+export class LostUpdateError extends SaveError {
+  constructor(paths: readonly string[]) {
+    super(`lost update: changed since read: ${paths.join(", ")}`, paths);
+    this.name = "LostUpdateError";
   }
 }
 
 /**
- * The text given to an edit, or an override's text, is not what it takes: a syntax error, values where statements go
- * (or the other way), or a text-alone rule broken (E5002, E5005, E5009-E5011). `diagnostics` are located in the given
- * text (UTF-16 code units, spec/contract.md 1), with the codes a load gives.
+ * A program bug: a member of a detached handle was used (its tokens were removed by an edit, or its document's whole
+ * text was replaced). A reference that no longer leads anywhere, so a `ReferenceError`, outside `VillanelleError`.
  */
-export class BadTextError extends EditError {
-  constructor(
-    message: string,
-    readonly diagnostics: readonly IDiagnostic[],
-  ) {
-    super(message);
-    this.name = "BadTextError";
-  }
-}
-
-/**
- * The handle's tokens were removed by an edit, or its document's whole text was replaced. Not an edit error: reading
- * a property of a detached handle throws it too.
- */
-export class DetachedError extends VillanelleError {
+export class DetachedError extends ReferenceError {
   constructor(message: string) {
     super(message);
     this.name = "DetachedError";
+  }
+}
+
+/**
+ * A program bug: a bad argument value the program could have checked (spec 2.8): every bad name, a program code
+ * without "/", a reserved or repeated extension name. Outside `VillanelleError`, and not a `TypeError`, so a misuse
+ * and an argument of the wrong type are told apart.
+ */
+export class MisuseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MisuseError";
   }
 }

@@ -11,7 +11,7 @@ import { locatedForm } from "./people.js";
 
 /**
  * A program's own code: `<namespace>/<name>`, such as "rasl/unknown-node". Never collides with villanelle's codes
- * (which start with "E"). Checked when made: `error()` and `report()` throw TypeError for a code without "/".
+ * (which start with "E"). Checked when made: `error()` and `report()` throw MisuseError for a code without "/".
  */
 export type ProgramCode = `${string}/${string}`;
 
@@ -51,7 +51,7 @@ export function makeLocated(code: DiagnosticCode | ProgramCode, message: string,
 
 /** Anything a program can place a problem on: a directive, a value, or the whole load (its root file). */
 export interface ILocatable {
-  /** A located error for the program to throw or report. @throws TypeError when `code` has no "/". */
+  /** A located error for the program to throw or report. @throws MisuseError when `code` has no "/". */
   error(message: string, code: ProgramCode): DiagnosticError;
 }
 

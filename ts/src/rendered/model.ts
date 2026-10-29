@@ -1,76 +1,17 @@
 /**
  * The rendered tree (spec 7), the middle layer: what a program walks after `render (graph)`. Directives and values
  * are expanded (variables replaced, snippets and extension files spliced in), read-only, and each carries its
- * origin. It builds on the low level (a directive names its written directive, an argument its written values); the
- * low level names nothing here. Model: PostCSS's node tree (https://postcss.org/api/), read-only.
+ * origin. It builds on the low level's own objects (spec 7.0, vil-umh.8): a directive's values are its directive
+ * expansion's expanded values, its unreadable statements are unreadable expansions, and it names its written
+ * directive; the low level names nothing here. Model: PostCSS's node tree (https://postcss.org/api/), read-only.
  */
 
 import type { DiagnosticError } from "../errors.js";
-import type { UnreadableReason } from "../gen/api/kinds.js";
 import type { IDirectiveOrigin } from "../origin.js";
 import type { ILocatedDiagnostic, ProgramCode } from "../report.js";
-import type { IExpandedIndex, IExpandedList, IExpandedSlice, IExpandedString, IExpandedWord } from "../value.js";
-import type { IDocumentGraph, IReferenceResolution, IWrittenDirective, Statement, WrittenValue } from "../written/index.js";
+import type { ExpandedValue, IDocumentGraph, IUnreadableExpansion, IWrittenDirective } from "../written/index.js";
 
 export type { ChangeKind, UnreadableReason } from "../gen/api/kinds.js";
-
-/** The three links every argument has to the low level (spec 7.3), on top of its expanded value. */
-export interface IArgumentLinks {
-  /**
-   * The written value on the same line: the line of the statement this value is read in. For a value that came
-   * through a variable it is the `$name` there (`chain[0].reference`); a list item that came through a variable
-   * shares its list's `$name`; otherwise the value itself, which is also its `definition`. Never undefined. Editing
-   * it edits that one written line, which every copy of the line shares: a file included twice has one line read in
-   * both copies (`written.statement.copies()`), so the edit shows in both. To change one copy only, edit what that
-   * copy is given instead (its include block's `set`, at the include step of `chain`).
-   */
-  readonly written: WrittenValue;
-  /**
-   * The written value at the end of its chain (for `$pixels`, the `2284` of its `set`); undefined for an override.
-   * Editing it changes every use.
-   */
-  readonly definition: WrittenValue | undefined;
-  /**
-   * One per variable step of `origin.via`, from this value's own line toward where it is written (D7): `[0]` is the
-   * `$name` written on the directive's line. Empty for a value written where it is read. A snapshot of the render's
-   * derivation; the handles in it are live.
-   */
-  readonly chain: readonly IReferenceResolution[];
-  /** A list's items, each an argument with its own origin. @throws DiagnosticError E4002 for any other kind. */
-  list(): readonly Argument[];
-}
-
-/** A bare word of a directive, after expansion. */
-export interface IWordArgument extends IExpandedWord, IArgumentLinks {
-  list(): readonly Argument[];
-}
-
-/** A string of a directive, after expansion. */
-export interface IStringArgument extends IExpandedString, IArgumentLinks {
-  list(): readonly Argument[];
-}
-
-/** A list of a directive, after expansion: its items are arguments too. */
-export interface IListArgument extends IExpandedList, IArgumentLinks {
-  readonly items: readonly Argument[];
-  list(): readonly Argument[];
-}
-
-/** A slice of a directive, after expansion. */
-export interface ISliceArgument extends IExpandedSlice, IArgumentLinks {
-  list(): readonly Argument[];
-}
-
-/** An index of a directive, after expansion. */
-export interface IIndexArgument extends IExpandedIndex, IArgumentLinks {
-  list(): readonly Argument[];
-}
-
-/**
- * One value of a directive, after expansion: an expanded value (kind, canonical text, origin, readers) with three
- * links to the low level (spec 7.3). Narrow by `kind`.
- */
-export type Argument = IWordArgument | IStringArgument | IListArgument | ISliceArgument | IIndexArgument;
 
 /** One step of an address. */
 export interface IAddressStep {
@@ -103,19 +44,6 @@ export interface IAddress {
   toString(): string;
 }
 
-/**
- * A statement of a block (or of the top level) that could not be read, kept in its place so a reader and `diff`
- * know the block is incomplete. It has no name or address: what it would have been is unknown.
- */
-export interface IUnreadable {
-  /** Why it could not be read: syntax, expansion, value or extension. */
-  readonly reason: UnreadableReason;
-  /** Where the statement was written, and the uses and includes that brought it here. */
-  readonly origin: IDirectiveOrigin;
-  /** The statement that could not be read here. */
-  readonly written: Statement;
-}
-
 /** What a walk callback may return: nothing to go on into the block, "skip" to pass over it, "stop" to end. */
 export type WalkControl = "skip" | "stop";
 
@@ -125,11 +53,12 @@ export type WalkControl = "skip" | "stop";
  */
 export interface IDirective {
   readonly name: string;
-  readonly values: readonly Argument[];
+  /** Its directive expansion's expanded values, the same objects (spec 7.3). */
+  readonly values: readonly ExpandedValue[];
   /** The block's readable directives; undefined when written without a block. */
   readonly block: readonly IDirective[] | undefined;
   /** The block's statements that could not be read; empty when there is no block or all were read. */
-  readonly unreadable: readonly IUnreadable[];
+  readonly unreadable: readonly IUnreadableExpansion[];
   /** The enclosing directive; undefined at the top level. */
   readonly parent: IDirective | undefined;
   /** Where its name was written, and the uses and includes that brought it here. */
@@ -141,7 +70,7 @@ export interface IDirective {
   walk(visit: (directive: IDirective) => WalkControl | void): void;
   /** This directive or its nearest enclosing one that matches, as the DOM's Element.closest. */
   closest(predicate: (directive: IDirective) => boolean): IDirective | undefined;
-  /** A located error placed on this directive's name. @throws TypeError when `code` has no "/". */
+  /** A located error placed on this directive's name. @throws MisuseError when `code` has no "/". */
   error(message: string, code: ProgramCode): DiagnosticError;
 }
 
@@ -150,7 +79,7 @@ export interface IDirective {
  * list `key`). Passed to `IRendered.addresses` and `IRendered.diff` (D4); called once per directive of the render,
  * parents before children, with the rendered directive (D5). What it throws propagates (a program bug, not a config
  * problem). It returns a string or undefined; anything else makes `addresses` and `diff` throw a TypeError. rasl
- * names a node by its id, a word, read with `word()` (an argument's `text` is its canonical text: a string's keeps
+ * names a node by its id, a word, read with `word()` (a value's `text` is its canonical text: a string's keeps
  * its quotes): `(d) => (d.name === "node" && d.parent?.name === "graph" ? d.values[1]?.word() : undefined)`.
  */
 export type KeyRule = (directive: IDirective) => string | undefined;
@@ -168,10 +97,10 @@ export interface IRendered {
   /** The top-level readable directives, expanded. */
   readonly block: readonly IDirective[];
   /** Top-level statements that could not be read (R6: their siblings stay). */
-  readonly unreadable: readonly IUnreadable[];
+  readonly unreadable: readonly IUnreadableExpansion[];
   /** The root file at 0:0, zero width: where a problem with no line of its own is placed. */
   readonly origin: IDirectiveOrigin;
-  /** Every file's syntax diagnostics (documents in order), then the walk's problems in walk order (D11). */
+  /** The graph's `diagnostics`: the one list (spec 7.1). */
   readonly diagnostics: readonly ILocatedDiagnostic[];
   /** The graph it was rendered from. */
   readonly graph: IDocumentGraph;

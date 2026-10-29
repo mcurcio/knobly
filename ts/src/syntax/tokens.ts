@@ -20,3 +20,8 @@ export interface IToken {
   readonly text: string;
   readonly span: ISourceSpan;
 }
+
+/** The three tokens of a bare word (spec 3.1): all three are the value kind `word`. */
+export function isWordKind(kind: TokenKind): boolean {
+  return kind === "WORD" || kind === "INTEGER" || kind === "DIGIT_WORD";
+}

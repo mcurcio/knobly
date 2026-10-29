@@ -3,9 +3,11 @@
  * root file and for every file an extension names (round 11 review finding 3), and where a save writes them
  * (`IDocumentWriter`, given `IFileWrite`s by `IDocumentGraph.save`). The core does no I/O (R16): "villanelle/node" and
  * "villanelle/browser" give file and fetch sources and writers; `memorySource` and `memoryWriter` serve and keep texts
- * the program already holds (tests, editors). Adapters are named by medium and port (spec/contract.md 5).
+ * the program already holds (tests, editors). Adapters are named by medium and port (spec/contract.md 5). Every
+ * writer refuses a lost update through the one check, `checkLostUpdates` (spec 4.2).
  */
 
+import { LostUpdateError } from "./errors.js";
 import { globToRegExp, hasGlob } from "./graph/glob.js";
 
 /** Where a spec is being resolved from. */
@@ -21,10 +23,14 @@ export interface ILoadContext {
 export interface IDocumentSource {
   /**
    * The resolvedPaths a spec names (a path, or a glob with `*` and `?` in its last segment), in any order; empty
-   * means not found (E3001). A rejection becomes E3004 at the extension directive.
+   * means not found (E3001). A rejection, or a result that is not an array of strings, becomes E3004 at the extension
+   * directive (or, for the root file, rejects the load).
    */
   resolve(spec: string, context: ILoadContext): Promise<readonly string[]>;
-  /** The text of one resolved file. A rejection becomes E3004 (or, for the root file, rejects the load). */
+  /**
+   * The text of one resolved file. A rejection, or a result that is not a string, becomes E3004 (or, for the root
+   * file, rejects the load).
+   */
   read(resolvedPath: string): Promise<string>;
 }
 
@@ -33,14 +39,15 @@ export interface IFileWrite {
   readonly resolvedPath: string;
   /** What to write. */
   readonly text: string;
-  /** The document's `savedText`: compare it with the disk to find a lost update. */
+  /** The document's `savedText`: what `checkLostUpdates` compares with the medium to find a lost update. */
   readonly savedText: string;
 }
 
 /** The program's writer. The core does no I/O. */
 export interface IDocumentWriter {
   /**
-   * One batch: stage every file, then commit them together. Rejecting while staging means nothing was committed; a
+   * One batch: call `checkLostUpdates` with each file's text in the medium now, before writing anything; then stage
+   * every file, and commit them together. Rejecting while staging means nothing was committed; a
    * writer that can fail part way through committing (the fs writer's renames, the fetch writer's requests) leaves
    * the files it committed changed on disk while their `savedText` stays the old text, so the next save refuses them as
    * lost updates until the program reloads (stated cost, D-F1-10).
@@ -75,20 +82,27 @@ export function memorySource(files: Readonly<Record<string, string>>): IDocument
 }
 
 /**
+ * The one lost-update check (spec 4.2): `current[i]` is `files[i]`'s text in the medium now, `undefined` when there
+ * is none (read as `""`). Every writer calls it before it writes anything; a program's own writer should too. Prior
+ * art: HTTP's conditional requests (RFC 9110 13.1.1) and optimistic concurrency.
+ * @throws LostUpdateError naming every file whose current text differs from its `savedText`, in batch order
+ */
+export function checkLostUpdates(files: readonly IFileWrite[], current: readonly (string | undefined)[]): void {
+  const lost = files.filter((file, i) => (current[i] ?? "") !== file.savedText).map((file) => file.resolvedPath);
+  if (lost.length > 0) throw new LostUpdateError(lost);
+}
+
+/**
  * A writer into texts held in memory, keyed by path: the writer of `memorySource`, over the same object. A batch is
- * all or nothing: it first checks that every file's text in `files` (`""` when absent) is still its `savedText`, and
- * rejects naming the lost paths, writing nothing, when one is not (a lost update, as the file writer refuses one);
- * then it sets every file's text.
+ * all or nothing: `checkLostUpdates` with each file's text in `files` first (rejects with a LostUpdateError, writing
+ * nothing), then it sets every file's text.
  */
 export function memoryWriter(files: Record<string, string>): IDocumentWriter {
   return {
-    write(batch) {
-      const lost = batch.filter((file) => (Object.hasOwn(files, file.resolvedPath) ? files[file.resolvedPath] : "") !== file.savedText);
-      if (lost.length > 0) {
-        return Promise.reject(new Error(`lost update: changed since it was read: ${lost.map((file) => file.resolvedPath).join(", ")}`));
-      }
+    // eslint-disable-next-line @typescript-eslint/require-await -- async so a lost update rejects instead of throwing
+    async write(batch) {
+      checkLostUpdates(batch, batch.map((file) => (Object.hasOwn(files, file.resolvedPath) ? files[file.resolvedPath] : undefined)));
       for (const file of batch) files[file.resolvedPath] = file.text;
-      return Promise.resolve();
     },
   };
 }

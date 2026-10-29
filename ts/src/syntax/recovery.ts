@@ -16,8 +16,7 @@ import { DiagnosticCode, messageOf } from "../diagnostics.js";
 import { MAX_NESTING } from "../gen/api/limits.js";
 import VillanelleParser from "../gen/VillanelleParser.js";
 import type { ITokenRange } from "./cst.js";
-import type { TokenKind } from "./tokens.js";
-
+import { isWordKind, type TokenKind } from "./tokens.js";
 
 /** A diagnostic located by token range; parse.ts turns the range into a source span. */
 export interface IRawDiagnostic {
@@ -65,28 +64,19 @@ export function classifyError(kinds: readonly TokenKind[], at: number, from: num
   const t = kinds[at]; // undefined at the end of input
   const inBracket = brackets.length > 0;
   const inSlice = brackets.at(-1) === true;
-
-  // The token before `at` on its line, skipping spaces and comments.
-  let prev = at - 1;
-  while (prev >= 0 && (kinds[prev] === "SPACE" || kinds[prev] === "COMMENT")) prev--;
   const before = kinds[at - 1];
 
   if (t === "BAD_CHAR" || (t === "BOM" && at > 0)) return DiagnosticCode.UnexpectedCharacter;
   if (t === "LONE_DOLLAR") return DiagnosticCode.LoneDollar;
   if (t === "UNTERMINATED_STRING") return DiagnosticCode.UnterminatedString;
+  if (t === "BAD_ESCAPE") return DiagnosticCode.BadEscape;
   if (inSlice) return DiagnosticCode.BadSlice;
   if (t === "RBRACK" || (inBracket && (t === "RBRACE" || t === undefined))) {
     return DiagnosticCode.ExpectedClosingBracket;
   }
-  if (t === "LBRACE" && (prev < 0 || kinds[prev] === "NEWLINE")) return DiagnosticCode.BraceOnOwnLine;
   if (t === undefined && (inBlock || braces > 0)) return DiagnosticCode.ExpectedClosingBrace;
-  if (
-    (t === "WORD" || t === "STRING" || t === "VARIABLE" || t === "LBRACK") &&
-    (before === "WORD" ||
-      before === "STRING" ||
-      before === "VARIABLE" ||
-      (before === "RBRACK" && closesValue))
-  ) {
+  const value = (kind: TokenKind | undefined): boolean => kind !== undefined && (isWordKind(kind) || kind === "STRING" || kind === "VARIABLE");
+  if ((value(t) || t === "LBRACK") && (value(before) || (before === "RBRACK" && closesValue))) {
     return DiagnosticCode.ValuesTouch;
   }
   return DiagnosticCode.UnexpectedToken;
@@ -163,11 +153,13 @@ function scope(p: IParser): { statements: IContext | undefined; inBlock: boolean
   return { statements: c ?? undefined, inBlock: q?.parentCtx?.ruleIndex === P.RULE_block };
 }
 
-/** The first token index of the statement being parsed in `statements` (or `current` before any). */
+/**
+ * The first token index of the statement being parsed in `statements` (or `current` before any); 0 outside any
+ * statements, in an entry rule, whose statement is the whole text (spec 2.8).
+ */
 function statementStart(statements: IContext | undefined, current: number): number {
-  const kids = (statements?.children ?? []).filter(
-    (k) => k.ruleIndex === P.RULE_directive || k.ruleIndex === P.RULE_lastDirective,
-  );
+  if (statements === undefined) return 0;
+  const kids = (statements.children ?? []).filter((k) => k.ruleIndex === P.RULE_directive);
   return kids.at(-1)?.start.tokenIndex ?? current;
 }
 
@@ -200,8 +192,9 @@ class Recovery extends DefaultErrorStrategy {
   }
 
   /**
-   * Consume to the end of the bad statement: a `;` or newline outside brackets and braces, or a whole nested
-   * block; stop before the `}` that closes the enclosing block, or at the end of input.
+   * Consume to the end of the bad statement (spec 3.2): a `;` outside brackets and braces, or the `}` that closes a
+   * block it opened; never a line break. Stop before the `}` that closes the enclosing block, or at the end of
+   * input; at the top level a stray `}` is consumed and ends the statement.
    */
   private skip(p: IParser): void {
     const { statements, inBlock } = scope(p);
@@ -222,7 +215,8 @@ class Recovery extends DefaultErrorStrategy {
       if (t === P.RBRACE && braces === 0) {
         if (inBlock) return;
         p.consume();
-        continue;
+        this.endErrorCondition(p);
+        return;
       }
       p.consume();
       if (t === P.LBRACK) brackets++;
@@ -230,7 +224,7 @@ class Recovery extends DefaultErrorStrategy {
       else if (t === P.LBRACE) braces++;
       else if (
         (t === P.RBRACE && --braces === 0 && brackets === 0) ||
-        ((t === P.NEWLINE || t === P.SEMI) && brackets === 0 && braces === 0)
+        (t === P.SEMI && brackets === 0 && braces === 0)
       ) {
         // The statement ended: the next error gets reported.
         this.endErrorCondition(p);

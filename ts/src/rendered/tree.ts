@@ -1,35 +1,15 @@
 /**
- * The objects a render builds: arguments, addresses, directives and the rendered result. Package-internal; programs
- * see them through the interfaces of model.ts.
+ * The objects a render builds: addresses, directives and the rendered result. Package-internal; programs see them
+ * through the interfaces of model.ts.
  */
 
 import type { DiagnosticError } from "../errors.js";
 import { programError } from "../locate.js";
 import type { IDirectiveOrigin } from "../origin.js";
 import type { ILocatedDiagnostic, ProgramCode } from "../report.js";
-import { dataOf, ExpandedRecord } from "../value.js";
-import type { IDocumentGraph, IReferenceResolution, IValueExpansion, IWrittenDirective, WrittenValue } from "../written/index.js";
+import type { ExpandedValue, IDocumentGraph, IUnreadableExpansion, IWrittenDirective } from "../written/index.js";
 import { diff } from "./diff.js";
-import type { Argument, Change, IAddress, IAddressStep, IDirective, IKeyOptions, IRendered, IUnreadable, WalkControl } from "./model.js";
-
-/** A rendered value: the shared expanded value and its readers, plus its links to the low level (spec 7.3). */
-class ArgumentRecord extends ExpandedRecord<Argument> {
-  readonly written: WrittenValue;
-  readonly definition: WrittenValue | undefined;
-  readonly chain: readonly IReferenceResolution[];
-
-  constructor(expansion: IValueExpansion) {
-    super(dataOf(expansion.value, expansion.items.map(argumentOf)), expansion.value.origin);
-    this.written = expansion.written;
-    this.definition = expansion.definition;
-    this.chain = expansion.chain;
-  }
-}
-
-/** The argument of one value expansion of the graph: the variant its value's kind names. */
-export function argumentOf(expansion: IValueExpansion): Argument {
-  return new ArgumentRecord(expansion) as Argument;
-}
+import type { Change, IAddress, IAddressStep, IDirective, IKeyOptions, IRendered, WalkControl } from "./model.js";
 
 export class Address implements IAddress {
   readonly steps: readonly IAddressStep[];
@@ -63,12 +43,12 @@ function walkBlock(block: readonly IDirective[], visit: (directive: IDirective) 
 export class Directive implements IDirective {
   /** Filled by the render while it builds the block; undefined when written without one. */
   readonly block: IDirective[] | undefined;
-  readonly unreadable: IUnreadable[] = [];
 
   constructor(
     readonly name: string,
-    readonly values: readonly Argument[],
+    readonly values: readonly ExpandedValue[],
     hasBlock: boolean,
+    readonly unreadable: readonly IUnreadableExpansion[],
     readonly parent: Directive | undefined,
     readonly origin: IDirectiveOrigin,
     readonly written: IWrittenDirective,
@@ -92,7 +72,7 @@ export class Directive implements IDirective {
 export class Rendered implements IRendered {
   constructor(
     readonly block: readonly IDirective[],
-    readonly unreadable: readonly IUnreadable[],
+    readonly unreadable: readonly IUnreadableExpansion[],
     readonly origin: IDirectiveOrigin,
     readonly diagnostics: readonly ILocatedDiagnostic[],
     readonly graph: IDocumentGraph,

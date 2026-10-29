@@ -4,14 +4,12 @@
  * milestone 1 they checked two ways and disagreed about "1;").
  */
 
-import { DiagnosticCode, type IDiagnostic, makeDiagnostic, messageOf } from "../diagnostics.js";
+import { DiagnosticCode, makeDiagnostic, messageOf } from "../diagnostics.js";
 import { BadTextError } from "../errors.js";
-import { VARIABLE_NAME } from "../gen/api/limits.js";
-import { parse } from "../syntax/parse.js";
+import { parseEntry } from "../syntax/parse.js";
 import { requireText } from "../text.js";
-import { readOverride } from "./bind.js";
-import { positionIn, valuesTextProblems } from "./document.js";
-import type { Bound } from "./expanded.js";
+import { type IOverrideValues, readOverride } from "./bind.js";
+import { checkVariableName } from "./names.js";
 
 /** How the caller named what it was given, for the argument type error: `setOverride` / `text`, `load` / `overrides["port"]`. */
 export interface IOverrideCaller {
@@ -19,37 +17,29 @@ export interface IOverrideCaller {
   readonly textParameter: string;
 }
 
-/** The check of an override's name alone (`setOverride(name, undefined)`). @throws TypeError unless letters, digits and `_` */
+/** The check of an override's name alone (`setOverride(name, undefined)`). @throws MisuseError for a bad name */
 export function checkOverrideName(name: unknown, member: string): asserts name is string {
   requireText(name, member, "name");
-  if (!VARIABLE_NAME.test(name)) throw new TypeError(`override name must be letters, digits and _: ${JSON.stringify(name)}`);
+  checkVariableName(name);
 }
 
 /**
- * Check one override and read its values: the name (a misuse error, TypeError, unless letters, digits and `_`), the
- * text's type (the argument type error), then the text as the values of a line `x <text>` by the check of a values
- * text (its syntax diagnostics, or E2001 at the first token that is more than values, a line break outside a list
- * included); else E2001 at a `$name`, or at 0:0 when it holds no value; else E4003
- * or E4001 at the first value the reader refuses. Every diagnostic is located in `text`.
- * @throws TypeError for a bad name or a text that is not a string; BadTextError for text the check refuses
+ * Check one override and read its values: the name (a misuse error unless it is a variable name), the text's type
+ * (the argument type error), then the text with the grammar's `valuesText` entry rule (its diagnostic); else E2001 at
+ * a `$name`, or at 0:0 when it holds no value. Every diagnostic is located in `text`.
+ * @throws MisuseError for a bad name; TypeError for a text that is not a string; BadTextError for text the check refuses
  */
-export function checkOverride(name: unknown, text: unknown, caller: IOverrideCaller): readonly Bound[] {
+export function checkOverride(name: unknown, text: unknown, caller: IOverrideCaller): IOverrideValues {
   checkOverrideName(name, caller.member);
   requireText(text, caller.member, caller.textParameter);
-  const refuse = (diagnostics: readonly IDiagnostic[]): BadTextError =>
-    new BadTextError(`not override text for $${name}: ${JSON.stringify(text)}`, diagnostics);
-  const fault = (offset: number, code: DiagnosticCode): BadTextError => {
-    const at = positionIn(text, offset);
-    return refuse([makeDiagnostic(code, messageOf(code), { start: at, end: at })]);
-  };
-  const given = valuesTextProblems(text, false);
-  if (given.length > 0) throw refuse(given);
-  const tokens = parse(`x ${text};`).tokens.filter((t) => t.span.start.offset >= 2 && t.span.start.offset < 2 + text.length);
-  const first = tokens.find((t) => t.kind !== "SPACE" && t.kind !== "NEWLINE" && t.kind !== "COMMENT");
-  if (first === undefined) throw fault(0, DiagnosticCode.UnexpectedToken);
-  const variable = tokens.find((t) => t.kind === "VARIABLE");
-  if (variable !== undefined) throw fault(variable.span.start.offset - 2, DiagnosticCode.UnexpectedToken);
-  const read = readOverride(name, text);
-  if ("problem" in read) throw fault(read.problem.span.start.offset - 2, read.problem.code);
-  return read.values;
+  const syntax = parseEntry(text, "valuesText");
+  if (syntax.diagnostics.length > 0) throw new BadTextError(syntax.diagnostics);
+  const values = syntax.tokens.filter((t) => t.kind !== "SPACE" && t.kind !== "NEWLINE" && t.kind !== "COMMENT");
+  const at = values.length === 0 ? undefined : values.find((t) => t.kind === "VARIABLE");
+  if (values.length === 0 || at !== undefined) {
+    const code = DiagnosticCode.UnexpectedToken;
+    const position = at?.span.start ?? { offset: 0, line: 0, column: 0 };
+    throw new BadTextError([makeDiagnostic(code, messageOf(code), { start: position, end: position })]);
+  }
+  return readOverride(name, syntax);
 }

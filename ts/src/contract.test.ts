@@ -9,39 +9,53 @@ import { describe, expect, it } from "vitest";
 import * as villanelleModule from "./index.js";
 import {
   BadTextError,
+  checkLostUpdates,
   DetachedError,
   DiagnosticError,
-  EditError,
   type IDocumentGraph,
+  LostUpdateError,
   memorySource,
   memoryWriter,
+  MisuseError,
   ReadError,
   render,
   SaveError,
   villanelle,
   VillanelleError,
 } from "./index.js";
+import { parse } from "./syntax/parse.js";
 
-describe("the error classes (spec/contract.md 4.2)", () => {
-  it("are one tree under VillanelleError, each named after its class", () => {
+describe("the error classes (spec 2.8; spec/contract.md 4.2)", () => {
+  it("put every expected outcome under VillanelleError and every program bug outside it", () => {
     const tree: [new (...args: never[]) => Error, new (...args: never[]) => Error][] = [
       [DiagnosticError, VillanelleError],
       [ReadError, VillanelleError],
       [SaveError, VillanelleError],
-      [EditError, VillanelleError],
-      [BadTextError, EditError],
-      [DetachedError, VillanelleError],
+      [LostUpdateError, SaveError],
+      [BadTextError, VillanelleError],
+      [DetachedError, ReferenceError],
+      [MisuseError, Error],
       [VillanelleError, Error],
     ];
     for (const [cls, parent] of tree) expect(cls.prototype instanceof parent, `${cls.name} extends ${parent.name}`).toBe(true);
-    expect(DetachedError.prototype instanceof EditError).toBe(false);
+    for (const bug of [DetachedError, MisuseError]) expect(bug.prototype instanceof VillanelleError, bug.name).toBe(false);
+    expect(MisuseError.prototype instanceof TypeError).toBe(false);
     expect(ReadError.prototype instanceof DiagnosticError).toBe(false);
     expect(new DetachedError("x").name).toBe("DetachedError");
+    expect(new MisuseError("x").name).toBe("MisuseError");
     expect(new ReadError("x", ["a"]).name).toBe("ReadError");
+    expect(new LostUpdateError(["a", "b"]).name).toBe("LostUpdateError");
     expect("NoSetLineError" in villanelleModule).toBe(false);
+    expect("EditError" in villanelleModule).toBe(false);
   });
 
-  it("a detached handle throws DetachedError, which is not an edit error", async () => {
+  it("build a bad text error's message from its diagnostics' people forms", () => {
+    const error = new BadTextError(parse("x 1;;").diagnostics.concat(parse("{").diagnostics));
+    expect(error.message).toBe(`bad text: ${error.diagnostics.map(String).join("; ")}`);
+    expect(new BadTextError(parse("x {").diagnostics).message).toMatch(/^bad text: 1:4: E2003: [^;]+$/);
+  });
+
+  it("a detached handle throws DetachedError, a program bug outside VillanelleError", async () => {
     const graph = await villanelle({ source: memorySource({ "main.conf": "a 1;\n" }) }).load("main.conf");
     const [a] = graph.root.block.statements;
     a?.remove();
@@ -52,8 +66,8 @@ describe("the error classes (spec/contract.md 4.2)", () => {
       thrown = error;
     }
     expect(thrown).toBeInstanceOf(DetachedError);
-    expect(thrown).toBeInstanceOf(VillanelleError);
-    expect(thrown).not.toBeInstanceOf(EditError);
+    expect(thrown).toBeInstanceOf(ReferenceError);
+    expect(thrown).not.toBeInstanceOf(VillanelleError);
   });
 });
 
@@ -89,17 +103,37 @@ describe("the memory adapters (spec/contract.md 5)", () => {
     expect((await processor.load("late.conf")).root.text).toBe("x;\n");
   });
 
-  it("memoryWriter refuses a lost update, naming the path and writing nothing", async () => {
+  it("memoryWriter refuses a lost update with a LostUpdateError, raised by save as it is, writing nothing", async () => {
     const files: Record<string, string> = { "main.conf": "a 1;\n", "b.conf": "b;\n" };
     const graph = await villanelle({ source: memorySource(files) }).load("main.conf");
     graph.root.block.directives()[0]?.set("2");
     files["main.conf"] = "changed;\n";
     const error: unknown = await graph.save(memoryWriter(files)).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(SaveError);
-    expect((error as SaveError).paths).toEqual(["main.conf"]);
-    expect(String((error as SaveError).cause)).toContain("main.conf");
+    expect(error).toBeInstanceOf(LostUpdateError);
+    expect((error as LostUpdateError).paths).toEqual(["main.conf"]);
+    expect((error as LostUpdateError).message).toBe("lost update: changed since read: main.conf");
+    expect((error as LostUpdateError).cause).toBeUndefined();
     expect(files["main.conf"]).toBe("changed;\n");
     expect(graph.root.savedText).toBe("a 1;\n");
+  });
+
+  it("checkLostUpdates names only the conflicting files, in batch order, an absent file read as empty", () => {
+    const batch = [
+      { resolvedPath: "a", text: "1", savedText: "x" },
+      { resolvedPath: "b", text: "2", savedText: "y" },
+      { resolvedPath: "c", text: "3", savedText: "" },
+    ];
+    expect(() => checkLostUpdates(batch, ["x", "y", undefined])).not.toThrow();
+    const error: unknown = (() => {
+      try {
+        checkLostUpdates(batch, ["z", "y", "w"]);
+      } catch (e) {
+        return e;
+      }
+      return undefined;
+    })();
+    expect(error).toBeInstanceOf(LostUpdateError);
+    expect((error as LostUpdateError).paths).toEqual(["a", "c"]);
   });
 
   it("memoryWriter treats a missing key as empty text", async () => {
@@ -138,10 +172,28 @@ describe("render (graph) on the public low level (spec 7.0)", () => {
     const first = graph.expand();
     expect(graph.expand()).toBe(first);
     const [x] = first.block;
-    expect(x?.statement.name).toBe("x");
-    expect(x?.values.map((v) => [v.value.text, v.written.text, v.definition?.text, v.chain.length, v.items.length])).toEqual([["1", "1", "1", 0, 0]]);
+    expect(x?.written.name).toBe("x");
+    expect(x?.values.map((v) => [v.text, v.written.text, v.definition?.text, v.chain.length])).toEqual([["1", "1", "1", 0]]);
+    expect(first.diagnostics).toBe(graph.diagnostics);
     graph.root.block.directives()[0]?.set("2");
     expect(graph.expand()).not.toBe(first);
-    expect(graph.expand().block[0]?.values[0]?.value.text).toBe("2");
+    expect(graph.expand().block[0]?.values[0]?.text).toBe("2");
+  });
+
+  it("builds the rendered directive on the expansion's own objects (spec 7.0)", async () => {
+    const graph = await villanelle({ source: memorySource({ "main.conf": "set $p [1, 2];\nx $p;\nbad $nope;\nb { c 1; }\n" }) }).load("main.conf");
+    const expansion = graph.expand();
+    const rendered = render(graph);
+    expect(rendered.block[0]?.values).toBe(expansion.block[0]?.values);
+    expect(rendered.block[0]?.written).toBe(expansion.block[0]?.written);
+    expect(rendered.block[0]?.origin).toBe(expansion.block[0]?.origin);
+    expect(rendered.unreadable).toBe(expansion.unreadable);
+    expect(rendered.diagnostics).toBe(graph.diagnostics);
+    expect(graph.diagnostics.map((d) => d.code)).toEqual(["E5001"]);
+    const [list] = rendered.block[0]?.values ?? [];
+    expect(list?.kind === "list" ? list.items.map((i) => [i.text, i.written.text, i.definition?.text]) : []).toEqual([
+      ["1", "$p", "1"],
+      ["2", "$p", "2"],
+    ]);
   });
 });

@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { DiagnosticError } from "../errors.js";
+import { DiagnosticError, MisuseError } from "../errors.js";
 import { include } from "../include.js";
 import { Diagnostics, type ILocatedDiagnostic, type ProgramCode } from "../report.js";
 import { formatDiagnostic } from "../written/index.js";
@@ -53,10 +53,10 @@ describe("Diagnostics", () => {
     const directive = only(loaded.block);
     const arg = only(directive.values);
     for (const code of ["E5001", "nope", "/x", "x/", "", "rasl/ bad name", "a b/c"] as ProgramCode[]) {
-      expect(() => directive.error("m", code), code).toThrow(TypeError);
-      expect(() => arg.error("m", code), code).toThrow(TypeError);
-      expect(() => loaded.error("m", code), code).toThrow(TypeError);
-      expect(() => new Diagnostics().report(directive, "m", code), code).toThrow(TypeError);
+      expect(() => directive.error("m", code), code).toThrow(MisuseError);
+      expect(() => arg.error("m", code), code).toThrow(MisuseError);
+      expect(() => loaded.error("m", code), code).toThrow(MisuseError);
+      expect(() => new Diagnostics().report(directive, "m", code), code).toThrow(MisuseError);
     }
     const error = directive.error("m", "rasl/ok");
     expect(error).toBeInstanceOf(DiagnosticError);

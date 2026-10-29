@@ -1,5 +1,5 @@
 /**
- * Value readers (Argument) and canonical text (slices.md §1.3), through the public processor. Also carries the
+ * Value readers (ExpandedValue) and canonical text (slices.md §1.3), through the public processor. Also carries the
  * value behaviour the deleted tier-1 value reader had: slices, indexes, negative bounds and string decoding.
  */
 
@@ -7,17 +7,17 @@ import { describe, expect, it } from "vitest";
 
 import { DiagnosticCode } from "../diagnostics.js";
 import { DiagnosticError } from "../errors.js";
-import type { Argument } from "./model.js";
+import type { ExpandedValue } from "../written/index.js";
 import { loadText, only, originText } from "./testing.js";
 
 /** The values of the one directive `v ...;`. */
-async function values(written: string, overrides?: Record<string, string>): Promise<readonly Argument[]> {
+async function values(written: string, overrides?: Record<string, string>): Promise<readonly ExpandedValue[]> {
   const loaded = await loadText(`v ${written};\n`, overrides === undefined ? {} : { overrides });
   expect(loaded.diagnostics).toEqual([]);
   return only(loaded.block).values;
 }
 
-async function value(written: string): Promise<Argument> {
+async function value(written: string): Promise<ExpandedValue> {
   return only(await values(written));
 }
 
@@ -159,9 +159,9 @@ describe("canonical text", () => {
   });
 });
 
-describe("argument origins and kinds", () => {
+describe("expanded value origins and kinds", () => {
   it("gives each value its kind and the place it was written", async () => {
-    const read = await values('80 "a b" foo[1:2] bar[3] [1, 2]  # trailing');
+    const read = await values('80 "a b" foo[1:2] bar[3] [1, 2]  # trailing\n');
     expect(read.map((a) => [a.kind, a.text, originText(a.origin)])).toEqual([
       ["word", "80", "main.conf:0:2"],
       ["string", '"a b"', "main.conf:0:5"],

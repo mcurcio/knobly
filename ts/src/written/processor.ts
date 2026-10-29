@@ -5,9 +5,10 @@
  * to the rendered tree is the rendered layer's `render (graph)`. It returns only low-level objects.
  */
 
-import type { IExtension } from "../extension.js";
+import { MisuseError } from "../errors.js";
 import { RESERVED } from "../gen/api/limits.js";
 import type { IDocumentSource } from "../source.js";
+import type { IExtension } from "./extension.js";
 import { DocumentGraph } from "./graph.js";
 import type { IDocumentGraph } from "./model.js";
 import { readRoot } from "./read.js";
@@ -32,19 +33,20 @@ export interface IProcessor {
    * file's spec is, so the root has one path in the graph) and every file its include lines name, once each (R21),
    * repeating until nothing new is named. Never rejects for anything in the text.
    * @throws (rejects) ReadError (`paths` = `[path]`, the source's rejection as `cause`) when the source cannot resolve
-   * the root to exactly one file or read it; TypeError for an override name that is not letters, digits and `_` or a text that is not a string;
+   * the root to exactly one file or read it; MisuseError for an override name that is not letters, digits and `_`; TypeError
+   * for a text that is not a string;
    * BadTextError for an override's text the check of an override refuses
    */
   load(path: string, options?: ILoadOptions): Promise<IDocumentGraph>;
 }
 
-/** Make a processor once, with its document source and extensions. @throws TypeError for a reserved or repeated extension name */
+/** Make a processor once, with its document source and extensions. @throws MisuseError for a reserved or repeated extension name */
 export function villanelle(options: IProcessorOptions): IProcessor {
   const { source } = options;
   const extensions = new Map<string, IExtension>();
   for (const extension of options.extensions ?? []) {
     if (RESERVED.has(extension.directive) || extensions.has(extension.directive)) {
-      throw new TypeError(`extension directive name taken: ${JSON.stringify(extension.directive)}`);
+      throw new MisuseError(`extension directive name taken: ${JSON.stringify(extension.directive)}`);
     }
     extensions.set(extension.directive, extension);
   }

@@ -3,7 +3,7 @@
  */
 
 import { type DiagnosticCode, messageOf } from "./diagnostics.js";
-import { DiagnosticError } from "./errors.js";
+import { DiagnosticError, MisuseError } from "./errors.js";
 import type { IOrigin, IPlace, IStep } from "./origin.js";
 import { PROGRAM_CODE } from "./gen/api/limits.js";
 import { makeLocated, type ProgramCode } from "./report.js";
@@ -19,17 +19,17 @@ export function locate(origin: IOrigin): { readonly place: IPlace; readonly via:
   return { place: step.place, via: rest };
 }
 
-/** A program's located error. @throws TypeError when `code` is not `<namespace>/<name>`. */
+/** A program's located error. @throws MisuseError when `code` is not `<namespace>/<name>`. */
 export function programError(origin: IOrigin, message: string, code: ProgramCode): DiagnosticError {
   checkProgramCode(code);
   const { place, via } = locate(origin);
   return new DiagnosticError(makeLocated(code, message, place, via));
 }
 
-/** @throws TypeError when `code` is not `<namespace>/<name>`: villanelle's own codes are not the program's to make. */
+/** @throws MisuseError when `code` is not `<namespace>/<name>`: villanelle's own codes are not the program's to make. */
 export function checkProgramCode(code: string): void {
   if (typeof code !== "string" || !PROGRAM_CODE.test(code)) {
-    throw new TypeError(`a program's diagnostic code is <namespace>/<name>: ${JSON.stringify(code)}`);
+    throw new MisuseError(`a program's diagnostic code is <namespace>/<name>: ${JSON.stringify(code)}`);
   }
 }
 

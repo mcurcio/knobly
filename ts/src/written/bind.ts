@@ -2,18 +2,17 @@
  * The binding (design rule 3; slices.md S1 "Internal contract: the binding"): one derivation of the graph's
  * current texts, overrides and read ledger. It walks the copies (the root, then each include and `use`
  * spliced in place), decides per copy what each `$name` and `use` reads, and expands written values for the
- * extension lines (an include's path) and for the rendered layer. It is the one home of the name-lookup rule:
- * `render (graph)` walks `items` and calls `argumentsAt`, and never looks a name up. Package-internal; pure (no I/O).
- * It names nothing of the rendered layer (spec 5, "Layer direction").
+ * extension lines (an include's path) and for the expansion. It is the one home of the name-lookup rule, which
+ * spec/expansion.md states: `graph.expand()` walks `items` and calls `valuesAt`, and never looks a name up.
+ * Package-internal; pure (no I/O). It names nothing of the rendered layer (spec 5, "Layer direction").
  *
  * The walk is PR 3's `Expander` (cb08803) moved here, unchanged in what it decides and reports (rules 1-12 of
  * round 11's slices.md §1.2), with the read ledger in place of reading files during the walk.
  */
 
-import { anatomyOf, type IDirectiveAnatomy, itemsOf } from "../anatomy.js";
+import { anatomyOf, type IDirectiveAnatomy, itemsOf, valuesOf } from "../anatomy.js";
 import { DiagnosticCode, messageOf } from "../diagnostics.js";
 import { DiagnosticError } from "../errors.js";
-import type { IExtension } from "../extension.js";
 import type { UnreadableReason } from "../gen/api/kinds.js";
 import { MAX_DEPTH, MAX_DIRECTIVES } from "../gen/api/limits.js";
 import { compareCodePoints } from "../graph/order.js";
@@ -21,10 +20,11 @@ import { type IOverride, type IPlace, type IStep, makeOverride, makePlace, makeS
 import { type ILocatedDiagnostic, makeLocated } from "../report.js";
 import type { ISourceSpan } from "../span.js";
 import { type INode, type ISyntax, spanOf, type ValueRef } from "../syntax/cst.js";
-import { parse } from "../syntax/parse.js";
-import { type IToken } from "../syntax/tokens.js";
-import { decodeString, hasOnlyKnownEscapes, integerOf } from "../values.js";
+import { type IToken, isWordKind } from "../syntax/tokens.js";
+import { typeNameOf } from "../text.js";
+import { decodeString, integerOf } from "../values.js";
 import type { Document } from "./document.js";
+import type { IExtension } from "./extension.js";
 import type {
   ICopy,
   IDocument,
@@ -38,9 +38,9 @@ import type {
   Statement,
   WrittenValue,
 } from "./model.js";
-import { Bound } from "./expanded.js";
 import { shapeOfAnatomy } from "./shape.js";
 import { SetLine, SnippetLine, type StatementHandle } from "./statements.js";
+import { ExpandedRecord } from "./value.js";
 
 /** What one container (the root's top level, or a directive's block) holds at one copy, in walk order. */
 export type BoundItem = IBoundDirective | IBoundUnreadable;
@@ -65,7 +65,7 @@ export interface IBoundUnreadable {
   readonly diagnostic: ILocatedDiagnostic | undefined;
 }
 
-/** A written value that cannot be expanded at a copy (E5001, E4001, E4003): the statement is unreadable there. */
+/** A written value that cannot be expanded at a copy (E5001, E4001): the statement is unreadable there. */
 export class BindingProblem extends Error {
   constructor(
     readonly reason: UnreadableReason,
@@ -84,10 +84,19 @@ export interface IReadLedger {
   readOf(resolvedPath: string): IDocument | Error | undefined;
 }
 
+/**
+ * An override's values, read from its checked text. `problem` is the E4001 detail of a literal bound beyond the
+ * integer range, which the grammar cannot see: the check of an override accepts it (spec 6.3), and each `$name` it
+ * reaches is unreadable.
+ */
+export interface IOverrideValues {
+  readonly values: readonly ExpandedRecord[];
+  readonly problem?: string;
+}
+
 /** An override: its variable handle and its values, already read and checked (override.ts). */
-export interface IOverrideInput {
+export interface IOverrideInput extends IOverrideValues {
   readonly variable: Variable;
-  readonly values: readonly Bound[];
 }
 
 /** The inputs of one derivation. */
@@ -120,10 +129,11 @@ export interface IBinding {
   edgesInto(resolvedPath: string): readonly IDocumentEdge[];
   /**
    * One written value at one copy of its statement, expanded with PR 3's origins: a `$name` becomes all its winner's
-   * values (each with the variable step, then the copy's steps); a list's items expand the same way.
-   * @throws BindingProblem E5001 (nothing visible), E4001 (slice bound), E4003 (escape)
+   * values (each with the variable step, then the copy's steps); a list's items expand the same way. The same
+   * objects at every call of one derivation.
+   * @throws BindingProblem E5001 (nothing visible), E4001 (slice bound)
    */
-  argumentsAt(value: WrittenValue, copy: ICopy): readonly Bound[];
+  valuesAt(value: WrittenValue, copy: ICopy): readonly ExpandedRecord[];
 }
 
 /** What an unread edge still needs from the source: specs to resolve, or paths to read. */
@@ -145,17 +155,10 @@ export function bind(input: IBindingInput): IBindingWithNeeds {
 const NO_EXTENSIONS: ReadonlySet<string> = new Set();
 
 /**
- * An override's values, read as the values of a line `x <text>` (spec 6.3, the check of an override's last step).
- * Call only with text already checked as values without a `$name` (override.ts): what is left to refuse is an
- * unknown escape (E4003) or a non-integer bound (E4001), returned with its span in `x <text>`.
+ * An override's values, from its text parsed with the `valuesText` entry rule. Call only with text the check of an
+ * override accepted (override.ts): values without a `$name`.
  */
-export function readOverride(
-  name: string,
-  text: string,
-): { readonly values: readonly Bound[] } | { readonly problem: { readonly code: DiagnosticCode; readonly span: ISourceSpan } } {
-  const syntax = parse(`x ${text}`);
-  const [node] = syntax.root.children;
-  if (node?.kind !== "directive") throw new Error("override text was not checked as values");
+export function readOverride(name: string, syntax: ISyntax): IOverrideValues {
   const overrideText: IText = {
     doc: undefined,
     syntax,
@@ -165,10 +168,10 @@ export function readOverride(
   };
   const walk = new Walk(undefined);
   try {
-    return { values: anatomyOf(syntax.tokens, node).values.flatMap((ref) => walk.value(overrideText, ref, new Scope(undefined), [], undefined)) };
+    return { values: valuesOf(syntax.tokens, syntax.root).flatMap((ref) => walk.value(overrideText, ref, new Scope(undefined), [], undefined)) };
   } catch (error) {
     if (!(error instanceof Problem) || error.diagnostic === undefined) throw error;
-    return { problem: { code: error.diagnostic.code as DiagnosticCode, span: error.diagnostic.place.span } };
+    return { values: [], problem: error.diagnostic.message };
   }
 }
 
@@ -209,14 +212,18 @@ class Problem extends Error {
   }
 }
 
-/** A problem with one of a directive's values: the directive is unreadable at that copy, and argumentsAt throws it. */
+/** A problem with one of a directive's values: the directive is unreadable at that copy, and valuesAt throws it. */
 class ValueProblem extends Problem {}
 
-/** One definition of a name: its variable, the values a reader gets (stored without the definer's steps), as written. */
+/**
+ * One definition of a name: its variable, the values a reader gets (stored without the definer's steps), as written;
+ * `problem` for an override whose values cannot be read (IOverrideValues).
+ */
 interface IDefinition {
   readonly variable: Variable;
-  readonly values: readonly Bound[];
+  readonly values: readonly ExpandedRecord[];
   readonly written: readonly WrittenValue[];
+  readonly problem?: string;
 }
 
 /** One definition visible at a place, by how PR 3's lookup treats it. */
@@ -337,9 +344,8 @@ class SpliceScope implements IBlockScope {
 }
 
 /**
- * The winner among `entries` (innermost first) and an override, by PR 3's rule: the nearest `set` or parameter; an
- * include block's `set` wins over every `set` nearer than it, but a nearer parameter wins over it; an override wins
- * over every `set` and include-block `set`, never over a parameter.
+ * The winner among `entries` (innermost first) and an override: the precedence table of spec/expansion.md, the one
+ * home of the rule (this is its code, not its statement).
  */
 function pick(entries: readonly IEntry[], override: IDefinition | undefined): IDefinition | undefined {
   let found: IEntry | undefined;
@@ -389,14 +395,16 @@ class Walk implements IBindingWithNeeds {
   private readonly byReference = new Map<IReference, IReferenceResolution[]>();
   private readonly allResolutions: IReferenceResolution[] = [];
   private readonly byUse = new Map<IUseLine, IResolution<ISnippetLine>[]>();
-  private readonly expanded = new Map<ICopy, Map<WrittenValue, readonly Bound[]> | BindingProblem>();
+  private readonly expanded = new Map<ICopy, Map<WrittenValue, readonly ExpandedRecord[]> | BindingProblem>();
   private readonly overrides: ReadonlyMap<string, IDefinition>;
   private count = 0;
   private stopped = false;
 
   constructor(private readonly input: IBindingInput | undefined) {
     const overrides = new Map<string, IDefinition>();
-    for (const [name, o] of input?.overrides ?? []) overrides.set(name, { variable: o.variable, values: o.values, written: [] });
+    for (const [name, o] of input?.overrides ?? []) {
+      overrides.set(name, { variable: o.variable, values: o.values, written: [], ...(o.problem === undefined ? {} : { problem: o.problem }) });
+    }
     this.overrides = overrides;
   }
 
@@ -440,11 +448,11 @@ class Walk implements IBindingWithNeeds {
     return this.edges.filter((edge) => edge.targets.includes(resolvedPath));
   }
 
-  argumentsAt(value: WrittenValue, copy: ICopy): readonly Bound[] {
+  valuesAt(value: WrittenValue, copy: ICopy): readonly ExpandedRecord[] {
     const found = this.expanded.get(copy);
     if (found instanceof BindingProblem) throw found;
     const values = found?.get(value);
-    if (values === undefined) throw new Error("argumentsAt: the value is not read at that copy");
+    if (values === undefined) throw new Error("valuesAt: the value is not read at that copy");
     return values;
   }
 
@@ -497,7 +505,7 @@ class Walk implements IBindingWithNeeds {
 
     const { text, scope, via } = context;
     const statement = copy.statement as unknown as StatementHandle;
-    const values = new Map<WrittenValue, readonly Bound[]>();
+    const values = new Map<WrittenValue, readonly ExpandedRecord[]>();
     for (const value of statement.valueList) {
       try {
         values.set(value as unknown as WrittenValue, this.value(text, value.ref, scope, via, copy));
@@ -536,10 +544,10 @@ class Walk implements IBindingWithNeeds {
     const line = copy.statement as unknown as StatementHandle;
     if (!(line instanceof SetLine)) throw new Error("a set line that claims its name is kind set");
     const bound = values.flatMap((ref) => this.value(text, ref, scope, via, copy));
-    // Stored without this line's own steps; a reader adds the variable step and its own (Bound.rebase).
+    // Stored without this line's own steps; a reader adds the variable step and its own (ExpandedRecord.rebase).
     scope.bind(variableName, {
       variable: line.variableHandle,
-      values: bound.map((value) => value.rebase(via.length, [])),
+      values: bound.map((value) => ExpandedRecord.rebase(value, via.length, [])),
       written: line.valueList as unknown as WrittenValue[],
     });
   }
@@ -605,7 +613,7 @@ class Walk implements IBindingWithNeeds {
       const variable = snippet.line.parameterHandles[i];
       const writtenValue = written[i];
       if (value !== undefined && variable !== undefined) {
-        body.param(param, { variable, values: [value.rebase(via.length, [])], written: writtenValue === undefined ? [] : [writtenValue] });
+        body.param(param, { variable, values: [ExpandedRecord.rebase(value, via.length, [])], written: writtenValue === undefined ? [] : [writtenValue] });
       }
     });
     const step = makeStep("use", name.text, text.place(keyword.span));
@@ -624,23 +632,28 @@ class Walk implements IBindingWithNeeds {
     const origin = { place: text.place(name.span), via };
     const fail = (code: DiagnosticCode, detail: string): Problem =>
       this.problem("extension", code, text, name.span, via, detail);
+    let given: unknown;
     try {
-      specs.push(...extension.specs({ values: values.map((value) => value.expanded()), origin }));
+      given = extension.specs({ values: values.map((record) => ExpandedRecord.asValue(record)), origin });
     } catch (error) {
-      specs.length = 0;
       if (error instanceof DiagnosticError) throw new Problem("extension", error.diagnostic);
       throw fail(DiagnosticCode.ExtensionFailed, `${name.text}: ${reasonOf(error)}`);
     }
+    // The port's result is checked at run time (spec 5, vil-umh.12): a list of texts, nothing else.
+    if (!isTexts(given)) throw fail(DiagnosticCode.ExtensionFailed, `${name.text}: specs returned ${typeNameOf(given)}, not an array of strings`);
+    specs.push(...given);
+    /** A copy whose files are not resolved or read yet: unreadable with reason `unread`, E3007 (spec 6.10). */
+    const unread = (need: ReadNeed): Problem => {
+      this.needs.set(edge, need);
+      this.unread.push(edge);
+      return this.problem("unread", DiagnosticCode.UnreadCopy, text, name.span, via, name.text);
+    };
     const reads = this.input?.reads;
     if (reads === undefined) throw new Error("no read ledger");
     const found: string[] = [];
     for (const spec of specs) {
       const paths = reads.resolved(text.resolvedPath, spec);
-      if (paths === undefined) {
-        this.needs.set(edge, { kind: "resolve", parentPath: text.resolvedPath, specs: [...specs] });
-        this.unread.push(edge);
-        return;
-      }
+      if (paths === undefined) throw unread({ kind: "resolve", parentPath: text.resolvedPath, specs: [...specs] });
       if (paths instanceof Error) throw fail(DiagnosticCode.IncludeResolverFailed, `${spec}: ${paths.message}`);
       if (paths.length === 0) throw fail(DiagnosticCode.IncludeNotFound, spec);
       found.push(...[...paths].sort(compareCodePoints));
@@ -653,11 +666,7 @@ class Walk implements IBindingWithNeeds {
     const files: Document[] = [];
     for (const path of found) {
       const doc = reads.readOf(path);
-      if (doc === undefined) {
-        this.needs.set(edge, { kind: "read", paths: found });
-        this.unread.push(edge);
-        return;
-      }
+      if (doc === undefined) throw unread({ kind: "read", paths: found });
       if (doc instanceof Error) throw fail(DiagnosticCode.IncludeResolverFailed, `${path}: ${doc.message}`);
       files.push(asDocument(doc));
     }
@@ -706,27 +715,23 @@ class Walk implements IBindingWithNeeds {
   }
 
   /** One written value, expanded: a `$name` becomes all its values (rule 4); a list's items expand the same way. */
-  value(text: IText, ref: ValueRef, scope: IScopeView, via: readonly IStep[], copy: ICopy | undefined): Bound[] {
+  value(text: IText, ref: ValueRef, scope: IScopeView, via: readonly IStep[], copy: ICopy | undefined): ExpandedRecord[] {
     const { syntax } = text;
     const origin = { place: text.written(spanOfRef(syntax, ref)), via };
     const written = text.doc?.valueOf(ref) as unknown as WrittenValue | undefined;
     if (typeof ref !== "number") {
       if (ref.kind === "list") {
         const items = itemsOf(syntax.tokens, ref).flatMap((item) => this.value(text, item, scope, via, copy));
-        return [new Bound({ kind: "list", items }, origin, written)];
+        return [new ExpandedRecord({ kind: "list", items }, origin, written)];
       }
       return [this.slice(text, ref, scope, via, copy, written)];
     }
     const token = syntax.tokens[ref];
     if (token === undefined) throw new Error(`no token ${String(ref)}`);
+    if (isWordKind(token.kind)) return [new ExpandedRecord({ kind: "word", text: token.text }, origin, written)];
     switch (token.kind) {
-      case "WORD":
-        return [new Bound({ kind: "word", text: token.text }, origin, written)];
       case "STRING":
-        if (!hasOnlyKnownEscapes(token.text)) {
-          throw this.problem("value", DiagnosticCode.BadEscape, text, token.span, via, token.text);
-        }
-        return [new Bound({ kind: "string", value: decodeString(token.text) }, origin, written)];
+        return [new ExpandedRecord({ kind: "string", value: decodeString(token.text) }, origin, written)];
       case "VARIABLE":
         return this.variable(text, ref, token, scope, via, copy);
       default:
@@ -735,7 +740,7 @@ class Walk implements IBindingWithNeeds {
   }
 
   /** `$name`'s values as read here: each with the variable step, then the reading place's steps (and a resolution). */
-  private variable(text: IText, ref: number, token: IToken, scope: IScopeView, via: readonly IStep[], copy: ICopy | undefined): Bound[] {
+  private variable(text: IText, ref: number, token: IToken, scope: IScopeView, via: readonly IStep[], copy: ICopy | undefined): ExpandedRecord[] {
     const name = token.text.slice(1);
     const entries: IEntry[] = [];
     scope.entries(name, entries);
@@ -752,11 +757,15 @@ class Walk implements IBindingWithNeeds {
     if (winner === undefined) {
       throw this.problem("expansion", DiagnosticCode.UnknownVariable, text, token.span, via, token.text);
     }
+    if (winner.problem !== undefined) {
+      // An override is written in no file: its problem is placed on the `$name` that used it.
+      throw new Problem("value", makeLocated(DiagnosticCode.NonIntegerBound, winner.problem, text.place(token.span), via));
+    }
     const step = makeStep("variable", name, text.place(token.span));
-    return winner.values.map((value) => value.rebase(0, [step, ...via], resolution));
+    return winner.values.map((value) => ExpandedRecord.rebase(value, 0, [step, ...via], resolution));
   }
 
-  /** `name[bounds]`: each bound a literal IntegerText or a variable holding exactly one (rules 4 and 10). */
+  /** `name[bounds]`: each bound a literal INTEGER or a variable holding exactly one IntegerText (rules 4 and 10). */
   private slice(
     text: IText,
     node: INode,
@@ -764,7 +773,7 @@ class Walk implements IBindingWithNeeds {
     via: readonly IStep[],
     copy: ICopy | undefined,
     written: WrittenValue | undefined,
-  ): Bound {
+  ): ExpandedRecord {
     const { tokens } = text.syntax;
     const name = tokens[node.start];
     if (name === undefined) throw new Error("a slice node has no name token");
@@ -778,27 +787,30 @@ class Walk implements IBindingWithNeeds {
     const origin = { place: text.written(spanOf(text.syntax, node)), via };
     const colon = inner.findIndex((i) => tokens[i]?.kind === "COLON");
     if (colon < 0) {
-      return new Bound({ kind: "index", name: name.text, index: bound(0) ?? 0 }, origin, written);
+      return new ExpandedRecord({ kind: "index", name: name.text, index: bound(0) ?? 0 }, origin, written);
     }
     const start = colon === 0 ? undefined : bound(0);
     const end = colon + 1 < inner.length ? bound(colon + 1) : undefined;
-    return new Bound(
+    return new ExpandedRecord(
       { kind: "slice", name: name.text, ...(start === undefined ? {} : { start }), ...(end === undefined ? {} : { end }) },
       origin,
       written,
     );
   }
 
-  /** One slice bound's integer. E4001 at the bound, or for a variable at its value's place via the variable. */
+  /**
+   * One slice bound's integer. E4001 at a literal beyond the integer range (the grammar makes every other literal an
+   * INTEGER), or for a variable at its value's place via the variable.
+   */
   private bound(text: IText, ref: number, token: IToken, scope: IScopeView, via: readonly IStep[], copy: ICopy | undefined): number {
-    if (token.kind === "WORD") {
+    if (token.kind === "INTEGER") {
       const value = integerOf(token.text);
       if (value === undefined) throw this.problem("value", DiagnosticCode.NonIntegerBound, text, token.span, via, token.text);
       return value;
     }
     const values = this.variable(text, ref, token, scope, via, copy);
     const [only] = values;
-    const word = values.length === 1 ? only?.wordText : undefined;
+    const word = values.length === 1 && only?.kind === "word" ? only.text : undefined;
     const value = word === undefined ? undefined : integerOf(word);
     if (value !== undefined) return value;
     const place = only?.origin.place;
@@ -818,6 +830,11 @@ class Walk implements IBindingWithNeeds {
 
 function spanOfRef(syntax: ISyntax, ref: ValueRef): ISourceSpan {
   return typeof ref === "number" ? spanOf(syntax, { start: ref, end: ref + 1 }) : spanOf(syntax, ref);
+}
+
+/** Whether a port's result is an array of strings (spec 4.1, 5). */
+export function isTexts(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 function reasonOf(error: unknown): string {

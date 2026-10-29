@@ -24,6 +24,8 @@ export interface IAntlrTree {
   readonly parentCtx?: unknown;
   /** Set on rule contexts: the first token the rule saw. */
   readonly start?: IAntlrToken;
+  /** Set on rule contexts: the recognition error the rule ended with, or null. */
+  readonly exception?: unknown;
   /** Present (and true) on error nodes only; antlr4's plain terminal nodes do not define it. */
   isErrorNode?(): boolean;
 }
@@ -32,7 +34,6 @@ export interface IAntlrTree {
 const CONCEPTS: Readonly<Record<string, NodeKind>> = {
   document: "document",
   directive: "directive",
-  lastDirective: "directive",
   block: "block",
   slicedWord: "slice",
   list: "list",
@@ -47,11 +48,16 @@ const CONCEPT_BY_RULE: ReadonlyMap<number, NodeKind> = new Map(
   }),
 );
 
-/** A walk item in source order: a concept node, an error terminal, or a plain terminal. */
+/**
+ * A walk item in source order: a concept node, an error run (error terminals, or a broken statement: spec 3.2), or a
+ * plain terminal.
+ */
 type Item =
   | { readonly tag: "node"; readonly node: INode }
-  | { readonly tag: "error"; readonly index: number; readonly parent: unknown }
+  | { readonly tag: "error"; readonly start: number; readonly end: number; readonly parent: unknown }
   | { readonly tag: "token"; readonly index: number };
+
+const BLOCK_RULE = VillanelleParser.ruleNames.indexOf("block");
 
 /** EOF (type -1) and tokens conjured by error recovery (tokenIndex < 0) are not source tokens. */
 function isSourceToken(token: IAntlrToken): boolean {
@@ -62,11 +68,17 @@ function items(tree: IAntlrTree): Item[] {
   if (tree.symbol !== undefined) {
     if (!isSourceToken(tree.symbol)) return [];
     const index = tree.symbol.tokenIndex;
-    return [tree.isErrorNode?.() === true ? { tag: "error", index, parent: tree.parentCtx } : { tag: "token", index }];
+    return [tree.isErrorNode?.() === true ? { tag: "error", start: index, end: index + 1, parent: tree.parentCtx } : { tag: "token", index }];
   }
   const kids = (tree.children ?? []).flatMap(items);
   const kind = tree.ruleIndex === undefined ? undefined : CONCEPT_BY_RULE.get(tree.ruleIndex);
-  return kind === undefined ? kids : [{ tag: "node", node: makeNode(kind, kids, tree) }];
+  if (kind === undefined) return kids;
+  const node = makeNode(kind, kids, tree);
+  // A directive that ended with a recognition error before any block is a broken statement: it folds into one error
+  // node with the tokens recovery skipped after it (spec 3.2). One whose block was entered keeps its node.
+  const broken =
+    kind === "directive" && tree.exception != null && !(tree.children ?? []).some((child) => child.ruleIndex === BLOCK_RULE);
+  return broken ? [{ tag: "error", start: node.start, end: node.end, parent: tree.parentCtx }] : [{ tag: "node", node }];
 }
 
 function makeNode(kind: NodeKind, kids: readonly Item[], ctx: IAntlrTree): INode {
@@ -77,15 +89,15 @@ function makeNode(kind: NodeKind, kids: readonly Item[], ctx: IAntlrTree): INode
     const kid = kids[i];
     if (kid === undefined) continue;
     if (kid.tag === "error") {
-      // A run of error terminals under one parse-tree parent becomes one error node.
+      // A run of error items under one parse-tree parent becomes one error node.
       let last = kid;
       for (let next = kids[i + 1]; next?.tag === "error" && next.parent === kid.parent; next = kids[i + 1]) {
         last = next;
         i++;
       }
-      children.push({ kind: "error", start: kid.index, end: last.index + 1, children: [] });
-      lo = Math.min(lo, kid.index);
-      hi = Math.max(hi, last.index + 1);
+      children.push({ kind: "error", start: kid.start, end: last.end, children: [] });
+      lo = Math.min(lo, kid.start);
+      hi = Math.max(hi, last.end);
     } else if (kid.tag === "token") {
       lo = Math.min(lo, kid.index);
       hi = Math.max(hi, kid.index + 1);
@@ -104,4 +116,10 @@ export function toCst(document: IAntlrTree): INode {
   const [root] = items(document);
   if (root?.tag !== "node" || root.node.kind !== "document") throw new Error("parse tree root is not a document");
   return root.node;
+}
+
+/** The CST of an entry rule's parse tree: a `document` node over all `count` tokens, its concept nodes as children. */
+export function toEntryCst(tree: IAntlrTree, count: number): INode {
+  const children = items(tree).flatMap((item) => (item.tag === "node" ? [item.node] : []));
+  return { kind: "document", start: 0, end: count, children };
 }

@@ -21,6 +21,7 @@ type Params = Record<string, unknown> & {
   readonly overrides?: Record<string, string>; readonly key?: readonly KeyData[]; readonly graph: string; readonly before: string;
   readonly after: string; readonly target: string; readonly member: string; readonly args: readonly Json[]; readonly value: string;
   readonly reader: string; readonly diagnostic: string; readonly start: number; readonly end: number;
+  readonly disk?: Record<string, string>;
 };
 
 const handles: unknown[] = [];
@@ -104,8 +105,8 @@ const address = (a: Villanelle.IAddress | undefined): Json => (a === undefined ?
 
 function rendered(r: Villanelle.IRendered, rules: readonly KeyData[] | undefined): Json {
   const addresses = r.addresses(keyOptions(rules));
-  const unreadable = (u: Villanelle.IUnreadable): Json => ({ reason: u.reason, origin: origin(u.origin) });
-  const argument = (a: Villanelle.Argument): Json => ({
+  const unreadable = (u: Villanelle.IUnreadableExpansion): Json => ({ reason: u.reason, origin: origin(u.origin) });
+  const expanded = (a: Villanelle.ExpandedValue): Json => ({
     id: ref(a),
     kind: a.kind,
     text: a.text,
@@ -118,14 +119,14 @@ function rendered(r: Villanelle.IRendered, rules: readonly KeyData[] | undefined
     name: d.name,
     address: address(addresses.get(d)),
     origin: origin(d.origin),
-    values: d.values.map(argument),
+    values: d.values.map(expanded),
     block: d.block === undefined ? null : d.block.map(directive),
     unreadable: d.unreadable.map(unreadable),
   });
   return { id: ref(r), block: r.block.map(directive), unreadable: r.unreadable.map(unreadable), diagnostics: r.diagnostics.map(located) };
 }
 
-type ReaderResult = Villanelle.PlainValue | Villanelle.Argument | readonly ReaderResult[];
+type ReaderResult = Villanelle.PlainValue | Villanelle.ExpandedValue | readonly ReaderResult[];
 const isList = (x: ReaderResult): x is readonly ReaderResult[] => Array.isArray(x);
 
 /** A reader's result, neutral (spec/conformance.md, `read`). */
@@ -145,7 +146,7 @@ const camel = (spec: string): string => spec.replace(/ ([a-z])/g, (_m, c: string
 function call(target: string, member: string, args: unknown[]): unknown {
   const object = get<Record<string, unknown>>(target);
   const fn = object[camel(member)];
-  if (typeof fn !== "function") throw new TypeError(`no member ${JSON.stringify(member)}`);
+  if (typeof fn !== "function") throw new Error(`no member ${JSON.stringify(member)}`);
   return (fn as (...a: unknown[]) => unknown).apply(object, args);
 }
 
@@ -164,7 +165,12 @@ const ops: Record<string, (p: Params) => Json | Promise<Json>> = {
     const handles = Array.isArray(out) ? (out as readonly { text: string }[]).map((h) => ({ id: ref(h), text: h.text })) : undefined;
     return handles === undefined ? {} : { handles };
   },
-  save: async (p) => {
+  save: async (p): Promise<Json> => {
+    if (p.disk !== undefined) {
+      const disk: Record<string, string> = { ...p.disk };
+      await get<Villanelle.IDocumentGraph>(p.graph).save(vl.memoryWriter(disk));
+      return { files: Object.keys(disk).sort().map((path) => [path, disk[path] ?? ""]) };
+    }
     const batches: Json[] = [];
     const write = (files: readonly Villanelle.IFileWrite[]): Promise<void> => (batches.push(files.map((f) => [f.resolvedPath, f.text])), Promise.resolve());
     await get<Villanelle.IDocumentGraph>(p.graph).save({ write });
@@ -177,11 +183,21 @@ const ops: Record<string, (p: Params) => Json | Promise<Json>> = {
   cut: (p) => p.text.slice(p.start, p.end),
 };
 
-/** The error's group by its spec name (the class name's words), with its code or diagnostics. */
-function group(error: Villanelle.VillanelleError): Json {
-  const out: Record<string, Json> = { group: error.constructor.name.replace(/(?<!^)(?=[A-Z])/g, " ").toLowerCase() };
+/** Each spec 2.8 error group's class, the most specific first (spec/conformance.md 3), by the group's spec name. */
+const GROUPS: readonly (readonly [string, abstract new (...args: never[]) => Error])[] = [
+  ["lost update error", vl.LostUpdateError], ["save error", vl.SaveError], ["read error", vl.ReadError],
+  ["bad text error", vl.BadTextError], ["diagnostic error", vl.DiagnosticError], ["detached error", vl.DetachedError],
+  ["misuse error", vl.MisuseError], ["index out of range", RangeError], ["argument type error", TypeError],
+];
+
+/** The error's group by its spec name, with its code, diagnostics or paths; undefined for any other error. */
+function group(error: unknown): Json | undefined {
+  const found = GROUPS.find(([, type]) => error instanceof type);
+  if (found === undefined) return undefined;
+  const out: Record<string, Json> = { group: found[0] };
   if (error instanceof vl.DiagnosticError) out.code = error.diagnostic.code;
   if (error instanceof vl.BadTextError) out.diagnostics = error.diagnostics.map(diagnostic);
+  if (error instanceof vl.ReadError || error instanceof vl.SaveError) out.paths = [...error.paths];
   return out;
 }
 
@@ -190,10 +206,11 @@ for await (const line of createInterface({ input: process.stdin })) {
   let response: Json;
   try {
     const handler = ops[op];
-    if (handler === undefined) throw new TypeError(`unknown op ${JSON.stringify(op)}`);
+    if (handler === undefined) throw new Error(`unknown op ${JSON.stringify(op)}`);
     response = { id, ok: await handler(params) };
   } catch (error) {
-    response = error instanceof vl.VillanelleError ? { id, thrown: group(error) } : { id, fault: String(error) };
+    const thrown = group(error);
+    response = thrown === undefined ? { id, fault: String(error) } : { id, thrown };
   }
   process.stdout.write(`${JSON.stringify(response)}\n`);
 }
