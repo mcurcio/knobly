@@ -490,3 +490,25 @@
 - **TypeScript `MAX_SAFE_INTEGER` is now generated** in `limits.ts` (equal to `Number.MAX_SAFE_INTEGER`): the
   schema's `integer range` limit had a TypeScript spelling naming the language constant, the one per-language
   spelling the casing rule could not derive.
+
+## 2026-10-29, milestone 6 (TypeScript lane)
+
+- **The generated `LoadOptions.overrides` is a `ReadonlyMap`; spec/codegen.md section 3 says a map passed in is a
+  `Readonly<Record>`** (and TypeScript has always taken `load(path, { overrides: { port: text("8080") } })`).
+  `tools/api/emit_ts.py` spells an options record's map as a result's map. The spec wins: `ts/src/written/processor.ts`
+  keeps a hand-written `LoadOptions` (a `Readonly<Record<string, ConfigText>>`) and `Processor`, exported under the
+  generated names, and `ts/src/types.test.ts` checks every free function against its generated `<Module>Functions`
+  but `villanelle`. Both go when the emitter spells an options record's map as a parameter's. frozen-m6.md section 1
+  ("the only mismatches are the block shape and `ISliceValue`") missed this one.
+- **`Diagnostics.toArray()` is a public TypeScript member the schema and spec do not have.** Kept (behaviour
+  unchanged, one test uses it); the schema should either add it or the binding drop it (`[...diagnostics]` does the
+  same).
+- **The kind rule refuses every `.kind` compared with a literal, internal unions included.** Three internal
+  discriminated unions of the binding (`ts/src/written/bind.ts`: bound items, scope entries, read needs) used `kind`
+  with values outside any generated list (`forced`, `resolve`, `read`); their discriminant is now `tag`, as
+  `ts/src/syntax/walk.ts` already named its own. No public member changed.
+- **The adapter loads `ERROR_GROUP_OF_CLASS` from the build** (`dist/gen/api/names.js`, as it loads the entry points)
+  and names a thrown error by `error.name`; before, it tested `instanceof` most specific first. The same group for
+  every class villanelle throws (each sets `name`); a program's own subclass of a group's class, which no case
+  throws, would now be a fault. `ts/conformance/tsconfig.json` gains `allowImportingTsExtensions` so the adapter can
+  import `./shapes.ts` at run time under Node's type stripping.
