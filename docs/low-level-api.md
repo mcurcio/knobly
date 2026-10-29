@@ -4,6 +4,12 @@ This page is for a program that works with villanelle config **as written**: whi
 exist, where each one is overridden, and changes to any of it written back to the files. Comments and layout are
 kept: an edit changes only the text it names.
 
+> The language-neutral rules every binding follows are in [`spec/`](../spec/README.md), which wins
+> where this page differs. This page still shows the names the bindings have today; milestone 1
+> renames several of them (`overrides` for handed-in values, `graph.read()`, `graph.save(writer)`,
+> `render(graph)` from the rendered layer, `set(text)` for `setValues`, and the words in
+> [`spec/glossary.md`](../spec/glossary.md)), and this page is rewritten when the bindings change.
+
 villanelle has three layers. Each one is built on the one below, and a program can work at any of them:
 
 | Layer | What it is | Where it is described |

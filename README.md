@@ -64,6 +64,12 @@ generates the TypeScript and Python parsers from it, so both parsers accept exac
 grammar's language. [`grammar/villanelle.ebnf`](grammar/villanelle.ebnf) is the same grammar
 in W3C EBNF, kept as a readable view.
 
+The API every language binding offers on top of the parsers is specified, language-neutrally, in
+[`spec/`](spec/README.md): the layers, one word per concept ([`spec/glossary.md`](spec/glossary.md)),
+and the machine-readable lists in [`spec/schema/`](spec/schema/). The spec wins over either
+binding's code (owner, 2026-10-27: "Within villanelle I want the spec to win over a reference
+language").
+
 The grammar is checked to be unambiguous, so every valid file has exactly one parse:
 
 ```bash

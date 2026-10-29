@@ -1,0 +1,464 @@
+{
+  "$comment": "The one home of villanelle's diagnostic codes. Extracted from ts/src/diagnostics.ts and ts/src/syntax/recovery.ts (MESSAGES) and py/src/villanelle/diagnostics.py and py/src/villanelle/syntax/_recovery.py (_MESSAGES) on 2026-10-28: both bindings agree on every code, constant name and message. 'layer' is the layer that owns the code: syntax (parse), written (the low level: the graph's diagnostics list them), rendered (only a render's diagnostics report them; the graph's diagnostics leave them out, spec 6.3), shared (the readers of an expanded value raise them, spec 2.9), include (the include extension). 'message' is the base message (a binding may append ': <detail>'); messages are for people and are not part of the contract (spec 2.3), but generated registries use these. '{nesting depth}' is the limit of that name in api.json. 'unreadable reason' is null for a code that never makes a statement unreadable (readers raise it).",
+  "version": 1,
+  "ranges": {
+    "1xxx": "lexical",
+    "2xxx": "syntax",
+    "3xxx": "files and extensions",
+    "4xxx": "values",
+    "5xxx": "expansion",
+    "6xxx": "reserved for the high level"
+  },
+  "retired": [
+    {
+      "code": "E2006",
+      "was": "include's path",
+      "now": "E3005"
+    },
+    {
+      "code": "E3002",
+      "was": "include cycle",
+      "now": "E5006"
+    },
+    {
+      "code": "E3003",
+      "was": "include depth",
+      "now": "E5007"
+    }
+  ],
+  "rules": [
+    "Codes are stable across bindings and releases and are never reused for another meaning.",
+    "Every code is an error; there are no warning codes.",
+    "A program's own codes are '<namespace>/<name>' (api.json patterns, program code) and never collide with these."
+  ],
+  "codes": [
+    {
+      "code": "E1001",
+      "name": "unterminated string",
+      "ts": "UnterminatedString",
+      "py": "UNTERMINATED_STRING",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "unterminated string",
+      "meaning": "A string reaches the end of its line or of the text without its closing quote."
+    },
+    {
+      "code": "E1003",
+      "name": "unexpected character",
+      "ts": "UnexpectedCharacter",
+      "py": "UNEXPECTED_CHARACTER",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "unexpected character",
+      "meaning": "A character no token may start with, or a byte-order mark after the first character."
+    },
+    {
+      "code": "E1004",
+      "name": "lone dollar",
+      "ts": "LoneDollar",
+      "py": "LONE_DOLLAR",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "'$' must be followed by a variable name",
+      "meaning": "A $ not followed by a variable name."
+    },
+    {
+      "code": "E2001",
+      "name": "unexpected token",
+      "ts": "UnexpectedToken",
+      "py": "UNEXPECTED_TOKEN",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "unexpected token",
+      "meaning": "A token the grammar does not allow here, when no more specific code applies. Also placed in a bad text error's diagnostics by edits and the check of an override."
+    },
+    {
+      "code": "E2003",
+      "name": "expected closing brace",
+      "ts": "ExpectedClosingBrace",
+      "py": "EXPECTED_CLOSING_BRACE",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "expected '}' to close the block",
+      "meaning": "The text ends inside a block."
+    },
+    {
+      "code": "E2004",
+      "name": "expected closing bracket",
+      "ts": "ExpectedClosingBracket",
+      "py": "EXPECTED_CLOSING_BRACKET",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "unmatched bracket",
+      "meaning": "A stray ], or a [ list with no matching ]."
+    },
+    {
+      "code": "E2007",
+      "name": "bad slice",
+      "ts": "BadSlice",
+      "py": "BAD_SLICE",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "malformed slice",
+      "meaning": "A malformed slice after a word: a[:], a[1:b c], an unclosed slice."
+    },
+    {
+      "code": "E2008",
+      "name": "brace on own line",
+      "ts": "BraceOnOwnLine",
+      "py": "BRACE_ON_OWN_LINE",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "'{' must open on its directive's line",
+      "meaning": "A { that starts its line."
+    },
+    {
+      "code": "E2009",
+      "name": "values touch",
+      "ts": "ValuesTouch",
+      "py": "VALUES_TOUCH",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "values must be separated by a space or comment",
+      "meaning": "Two values with nothing between them, such as a\"b\"."
+    },
+    {
+      "code": "E2010",
+      "name": "nesting too deep",
+      "ts": "NestingTooDeep",
+      "py": "NESTING_TOO_DEEP",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "blocks and lists nest deeper than {nesting depth} levels",
+      "meaning": "Blocks and lists nested deeper than the nesting depth limit (100)."
+    },
+    {
+      "code": "E3001",
+      "name": "include not found",
+      "ts": "IncludeNotFound",
+      "py": "INCLUDE_NOT_FOUND",
+      "layer": "written",
+      "found by": [
+        "load",
+        "read"
+      ],
+      "unreadable reason": "extension",
+      "message": "include not found",
+      "meaning": "An extension's spec matched no file. Reported by the core load for every extension, despite the name."
+    },
+    {
+      "code": "E3004",
+      "name": "include resolver failed",
+      "ts": "IncludeResolverFailed",
+      "py": "INCLUDE_RESOLVER_FAILED",
+      "layer": "written",
+      "found by": [
+        "load",
+        "read"
+      ],
+      "unreadable reason": "extension",
+      "message": "include resolver failed",
+      "meaning": "The document source rejected while resolving or reading a file. For the root file, load raises a read error carrying this code instead."
+    },
+    {
+      "code": "E3005",
+      "name": "include bad path",
+      "ts": "IncludeBadPath",
+      "py": "INCLUDE_BAD_PATH",
+      "layer": "include",
+      "found by": [
+        "include extension"
+      ],
+      "unreadable reason": "extension",
+      "message": "include takes one quoted path",
+      "meaning": "An include whose values are not exactly one quoted path."
+    },
+    {
+      "code": "E3006",
+      "name": "extension failed",
+      "ts": "ExtensionFailed",
+      "py": "EXTENSION_FAILED",
+      "layer": "written",
+      "found by": [
+        "load",
+        "read"
+      ],
+      "unreadable reason": "extension",
+      "message": "extension failed",
+      "meaning": "An extension threw something other than a diagnostic error."
+    },
+    {
+      "code": "E4001",
+      "name": "non-integer bound",
+      "ts": "NonIntegerBound",
+      "py": "NON_INTEGER_BOUND",
+      "layer": "rendered",
+      "found by": [
+        "render",
+        "load (an override's text)",
+        "set override (its text)"
+      ],
+      "unreadable reason": "value",
+      "message": "bound is not an integer",
+      "meaning": "A slice or index bound that is not an integer."
+    },
+    {
+      "code": "E4002",
+      "name": "wrong value kind",
+      "ts": "WrongValueKind",
+      "py": "WRONG_VALUE_KIND",
+      "layer": "shared",
+      "found by": [
+        "readers (expanded value, argument)"
+      ],
+      "unreadable reason": null,
+      "message": "wrong kind of value",
+      "meaning": "A reader asked for a kind the value is not."
+    },
+    {
+      "code": "E4003",
+      "name": "bad escape",
+      "ts": "BadEscape",
+      "py": "BAD_ESCAPE",
+      "layer": "rendered",
+      "found by": [
+        "render",
+        "load (an override's text)",
+        "set override (its text)"
+      ],
+      "unreadable reason": "value",
+      "message": "unknown escape",
+      "meaning": "A backslash escape other than the six the language allows."
+    },
+    {
+      "code": "E4004",
+      "name": "not a number",
+      "ts": "NotANumber",
+      "py": "NOT_A_NUMBER",
+      "layer": "shared",
+      "found by": [
+        "readers (expanded value, argument)"
+      ],
+      "unreadable reason": null,
+      "message": "not a number",
+      "meaning": "A word read as a number that is not a JSON number."
+    },
+    {
+      "code": "E4005",
+      "name": "not an integer",
+      "ts": "NotAnInteger",
+      "py": "NOT_AN_INTEGER",
+      "layer": "shared",
+      "found by": [
+        "readers (expanded value, argument)"
+      ],
+      "unreadable reason": null,
+      "message": "not an integer",
+      "meaning": "A word read as an integer that is not one."
+    },
+    {
+      "code": "E4006",
+      "name": "not a boolean",
+      "ts": "NotABoolean",
+      "py": "NOT_A_BOOLEAN",
+      "layer": "shared",
+      "found by": [
+        "readers (expanded value, argument)"
+      ],
+      "unreadable reason": null,
+      "message": "not true or false",
+      "meaning": "A word other than true or false, read as a boolean."
+    },
+    {
+      "code": "E5001",
+      "name": "unknown variable",
+      "ts": "UnknownVariable",
+      "py": "UNKNOWN_VARIABLE",
+      "layer": "rendered",
+      "found by": [
+        "render"
+      ],
+      "unreadable reason": "expansion",
+      "message": "unknown variable",
+      "meaning": "A $name with no set visible and no override."
+    },
+    {
+      "code": "E5002",
+      "name": "variable set twice",
+      "ts": "VariableSetTwice",
+      "py": "VARIABLE_SET_TWICE",
+      "layer": "written",
+      "found by": [
+        "load",
+        "edits"
+      ],
+      "unreadable reason": "expansion",
+      "message": "variable set twice in one block",
+      "meaning": "Two set lines for one name in one block."
+    },
+    {
+      "code": "E5003",
+      "name": "unknown snippet",
+      "ts": "UnknownSnippet",
+      "py": "UNKNOWN_SNIPPET",
+      "layer": "rendered",
+      "found by": [
+        "render"
+      ],
+      "unreadable reason": "expansion",
+      "message": "unknown snippet",
+      "meaning": "A use naming no visible snippet."
+    },
+    {
+      "code": "E5004",
+      "name": "snippet arity",
+      "ts": "SnippetArity",
+      "py": "SNIPPET_ARITY",
+      "layer": "rendered",
+      "found by": [
+        "render"
+      ],
+      "unreadable reason": "expansion",
+      "message": "wrong number of values for the snippet",
+      "meaning": "A use with a different number of values than its snippet's parameters."
+    },
+    {
+      "code": "E5005",
+      "name": "snippet defined twice",
+      "ts": "SnippetDefinedTwice",
+      "py": "SNIPPET_DEFINED_TWICE",
+      "layer": "written",
+      "found by": [
+        "load",
+        "edits"
+      ],
+      "unreadable reason": "expansion",
+      "message": "snippet defined twice in one block",
+      "meaning": "Two snippet lines for one name in one block."
+    },
+    {
+      "code": "E5006",
+      "name": "expansion cycle",
+      "ts": "ExpansionCycle",
+      "py": "EXPANSION_CYCLE",
+      "layer": "written",
+      "found by": [
+        "load"
+      ],
+      "unreadable reason": "expansion",
+      "message": "expansion reaches itself",
+      "meaning": "A use or extension line that reaches itself again."
+    },
+    {
+      "code": "E5007",
+      "name": "expansion too deep",
+      "ts": "ExpansionTooDeep",
+      "py": "EXPANSION_TOO_DEEP",
+      "layer": "written",
+      "found by": [
+        "load"
+      ],
+      "unreadable reason": "expansion",
+      "message": "expansion nests too deep",
+      "meaning": "use and extension lines nested deeper than the expansion depth limit (16)."
+    },
+    {
+      "code": "E5008",
+      "name": "too many directives",
+      "ts": "TooManyDirectives",
+      "py": "TOO_MANY_DIRECTIVES",
+      "layer": "rendered",
+      "found by": [
+        "render"
+      ],
+      "unreadable reason": "expansion",
+      "message": "too many directives after expansion",
+      "meaning": "More than the directives limit (100,000) after expansion."
+    },
+    {
+      "code": "E5009",
+      "name": "bad set",
+      "ts": "BadSet",
+      "py": "BAD_SET",
+      "layer": "written",
+      "found by": [
+        "load",
+        "edits"
+      ],
+      "unreadable reason": "expansion",
+      "message": "write set $name value...;",
+      "meaning": "A set that is not set $name value...;."
+    },
+    {
+      "code": "E5010",
+      "name": "bad snippet",
+      "ts": "BadSnippet",
+      "py": "BAD_SNIPPET",
+      "layer": "written",
+      "found by": [
+        "load",
+        "edits"
+      ],
+      "unreadable reason": "expansion",
+      "message": "write snippet name $param... { ... }",
+      "meaning": "A malformed snippet, or one naming a parameter twice."
+    },
+    {
+      "code": "E5011",
+      "name": "bad use",
+      "ts": "BadUse",
+      "py": "BAD_USE",
+      "layer": "written",
+      "found by": [
+        "load",
+        "edits"
+      ],
+      "unreadable reason": "expansion",
+      "message": "write use name value...;",
+      "meaning": "A use that is not use name value...;."
+    },
+    {
+      "code": "E5012",
+      "name": "extension block not set",
+      "ts": "ExtensionBlockNotSet",
+      "py": "EXTENSION_BLOCK_NOT_SET",
+      "layer": "written",
+      "found by": [
+        "load"
+      ],
+      "unreadable reason": "extension",
+      "message": "an extension's block holds only set lines",
+      "meaning": "An extension line whose block holds a line other than set."
+    }
+  ]
+}

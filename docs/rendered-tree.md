@@ -5,6 +5,12 @@ directives a program reads, with variables, snippets and included files already 
 (where it was written), and the problems found, as located diagnostics. It also covers addresses (a directive's
 identity across reloads) and the list of what changed between two renders.
 
+> The language-neutral rules every binding follows are in [`spec/`](../spec/README.md), which wins
+> where this page differs. This page still shows the names the bindings have today; milestone 1
+> renames several of them (`overrides` for handed-in values, `graph.read()`, `graph.save(writer)`,
+> `render(graph)` from the rendered layer, `set(text)` for `setValues`, and the words in
+> [`spec/glossary.md`](../spec/glossary.md)), and this page is rewritten when the bindings change.
+
 villanelle has three layers. Each one is built on the one below, and a program can work at any of them:
 
 | Layer | What it is | Where it is described |

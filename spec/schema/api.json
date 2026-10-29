@@ -1,0 +1,3158 @@
+{
+  "$comment": "The one home of villanelle's API concepts, members, kind lists, error groups, limits and reserved names (spec/spec.md is canonical for behaviour; this file is canonical for the lists). Names are spec names: lowercase words; a binding changes only the casing (spec/binding-guide.md rule 1) except where a member's 'spell' records an allowed difference. 'ts' and 'py' give each binding's spelling after milestone 1 (bead vil-fy4). Extracted from ts/ and py/ on feat/low-level-layer (PR 4) on 2026-10-28; 'disagreements' lists where they differed and what the spec picks.",
+  "version": 1,
+  "naming": {
+    "rule": "The spec names each concept once in plain lowercase words; each binding only changes the casing.",
+    "ts": {
+      "type": "PascalCase; interfaces keep an I prefix until the owner answers binding-guide rule 2",
+      "member": "camelCase",
+      "kind value": "the lowercase string itself",
+      "constant": "PascalCase key of a constant object"
+    },
+    "py": {
+      "type": "PascalCase",
+      "member": "snake_case",
+      "kind value": "StrEnum member UPPER_SNAKE_CASE whose value is the lowercase string",
+      "constant": "UPPER_SNAKE_CASE"
+    }
+  },
+  "layers": [
+    {
+      "name": "shared",
+      "holds": "positions, places, origins, diagnostics, error groups, value kinds, expanded values and their readers",
+      "may import": []
+    },
+    {
+      "name": "syntax",
+      "holds": "parse: tokens, nodes, syntax diagnostics",
+      "may import": [
+        "shared"
+      ]
+    },
+    {
+      "name": "io",
+      "holds": "the document source and writer ports, adapters, the extension port",
+      "may import": [
+        "shared"
+      ]
+    },
+    {
+      "name": "written",
+      "holds": "the low level: processor, document graph, documents, statements, values, variables",
+      "may import": [
+        "shared",
+        "syntax",
+        "io"
+      ]
+    },
+    {
+      "name": "rendered",
+      "holds": "the rendered tree: render (graph), directives, arguments, addresses, diff",
+      "may import": [
+        "shared",
+        "syntax",
+        "io",
+        "written"
+      ]
+    }
+  ],
+  "layer direction": "A layer imports only the layers in its 'may import' list. Nothing below the rendered layer imports, names or returns a rendered type (owner, 2026-10-29: \"The low level shouldn't \\\"depend on\\\" the middle layer — they should have different domain objects. The middle layer of objects can build on the lower layer domains\"). Going up a layer is the upper layer's free function: render (graph). Each binding enforces this with a check (frozen-m1.md).",
+  "kinds": {
+    "token kind": {
+      "values from": "grammar/Villanelle.g4: its token names, in the order the grammar declares them (the grammar is their one home, so they are not copied here)",
+      "ts": "TokenKind (constant object)",
+      "py": "TokenKind (StrEnum)"
+    },
+    "node kind": {
+      "values": [
+        "document",
+        "directive",
+        "block",
+        "list",
+        "slice",
+        "error"
+      ],
+      "ts": "NodeKind (constant object)",
+      "py": "NodeKind (StrEnum)"
+    },
+    "statement kind": {
+      "values": [
+        "directive",
+        "extension",
+        "set",
+        "snippet",
+        "use",
+        "unreadable"
+      ],
+      "ts": "inline literal types on each statement interface",
+      "py": "Literal strings on each statement class"
+    },
+    "value kind": {
+      "values": [
+        "word",
+        "string",
+        "list",
+        "slice",
+        "index",
+        "reference"
+      ],
+      "note": "an expanded value's (and so a rendered argument's) kind is this list without 'reference'",
+      "ts": "ValueKind (constant object; written values use inline literals and include 'reference', rendered ValueKind does not)",
+      "py": "ValueKind (StrEnum, without 'reference'); written values use Literal strings"
+    },
+    "variable kind": {
+      "values": [
+        "set",
+        "parameter",
+        "override"
+      ],
+      "renamed": {
+        "handed": "override"
+      },
+      "ts": "inline literal union on IVariable",
+      "py": "Literal on Variable.kind"
+    },
+    "step kind": {
+      "values": [
+        "variable",
+        "use",
+        "extension"
+      ],
+      "ts": "StepKind (constant object)",
+      "py": "StepKind (StrEnum)"
+    },
+    "place kind": {
+      "values": [
+        "file",
+        "override"
+      ],
+      "renamed": {
+        "handed": "override"
+      },
+      "ts": "inline literals on IPlace and IOverride",
+      "py": "none: Place and Override are told apart by class (root cause 3)"
+    },
+    "unreadable reason": {
+      "values": [
+        "syntax",
+        "expansion",
+        "value",
+        "extension"
+      ],
+      "renamed list": {
+        "unreadable kind": "unreadable reason"
+      },
+      "ts": "UnreadableReason (constant object)",
+      "py": "UnreadableReason (StrEnum)",
+      "note": "computed by the low level's binding (a statement copy it cannot expand) and shown by the rendered layer's unreadable; generated into the shared kinds module so neither layer imports the other for it"
+    },
+    "change kind": {
+      "values": [
+        "added",
+        "removed",
+        "changed",
+        "unknown"
+      ],
+      "ts": "ChangeKind (constant object)",
+      "py": "none: classes Added, Removed, Changed, Unknown without kind (root cause 3)"
+    }
+  },
+  "limits": [
+    {
+      "name": "nesting depth",
+      "value": 100,
+      "means": "blocks and lists nested at most this deep",
+      "code": "E2010",
+      "ts": "MAX_NESTING",
+      "py": "MAX_NESTING"
+    },
+    {
+      "name": "expansion depth",
+      "value": 16,
+      "means": "use and extension lines nested at most this deep",
+      "code": "E5007",
+      "ts": "MAX_DEPTH",
+      "py": "MAX_DEPTH"
+    },
+    {
+      "name": "directives",
+      "value": 100000,
+      "means": "directives after expansion, at most",
+      "code": "E5008",
+      "ts": "MAX_DIRECTIVES",
+      "py": "MAX_DIRECTIVES"
+    },
+    {
+      "name": "integer range",
+      "value": 9007199254740991,
+      "means": "integer words and slice or index bounds lie within plus or minus this (2^53-1)",
+      "code": "E4005",
+      "ts": "Number.MAX_SAFE_INTEGER",
+      "py": "MAX_SAFE_INTEGER"
+    }
+  ],
+  "reserved names": {
+    "words": [
+      "set",
+      "snippet",
+      "use"
+    ],
+    "also": "the directive name of every registered extension",
+    "ts": "RESERVED (written/bind.ts)",
+    "py": "RESERVED (written/_bind.py)"
+  },
+  "patterns": {
+    "variable name": {
+      "regex": "^[A-Za-z0-9_]+$",
+      "applies to": "a $name without its $, an override name, a variable rename",
+      "ts": "VARIABLE_NAME",
+      "py": "VARIABLE_NAME"
+    },
+    "program code": {
+      "regex": "^[^/]+/.+$",
+      "means": "<namespace>/<name>, a program's own diagnostic code; villanelle's codes start with E",
+      "ts": "ProgramCode",
+      "py": "check_program_code"
+    }
+  },
+  "error groups": [
+    {
+      "name": "diagnostic error",
+      "sort": "expected outcome",
+      "raised when": "a reader is given the wrong value, a program's error(...), or the root file cannot be read; carries one located diagnostic as 'diagnostic'",
+      "ts": "DiagnosticError",
+      "py": "DiagnosticError"
+    },
+    {
+      "name": "read error",
+      "sort": "expected outcome",
+      "parent": "diagnostic error",
+      "raised when": "load cannot resolve the root to exactly one file or read it (E3004 at the root path)",
+      "ts": "ReadError",
+      "py": "ReadError"
+    },
+    {
+      "name": "edit error",
+      "sort": "base",
+      "raised when": "base of the errors an edit raises; nothing changed",
+      "ts": "EditError",
+      "py": "EditError (subclass of ValueError)"
+    },
+    {
+      "name": "bad text error",
+      "sort": "expected outcome",
+      "parent": "edit error",
+      "raised when": "the text given to an edit, or an override's text, is not what it takes; 'diagnostics' are located in that text",
+      "ts": "BadTextError",
+      "py": "BadTextError"
+    },
+    {
+      "name": "detached error",
+      "sort": "program bug",
+      "parent": "edit error",
+      "raised when": "any member but kind of a detached handle is used",
+      "ts": "DetachedError",
+      "py": "DetachedError"
+    },
+    {
+      "name": "no set line error",
+      "sort": "program bug",
+      "parent": "edit error",
+      "raised when": "set or rename on a variable with no set line (a parameter or an override)",
+      "ts": "NoSetLineError",
+      "py": "NoSetLineError"
+    },
+    {
+      "name": "save error",
+      "sort": "expected outcome",
+      "raised when": "the writer failed; 'files' is what was handed over, the cause is the writer's failure",
+      "ts": "SaveError",
+      "py": "SaveError"
+    },
+    {
+      "name": "argument type error",
+      "sort": "program bug",
+      "raised when": "an argument of the wrong type, above all anything but text where villanelle text is taken (spec 6.9)",
+      "ts": "TypeError",
+      "py": "TypeError",
+      "new in": "milestone 1 (owner, 2026-10-29: 'A Keep text only, make misuse impossible')"
+    },
+    {
+      "name": "misuse error",
+      "sort": "program bug",
+      "raised when": "a bad argument value a program could have checked: a bad variable or override name, a program code without '/', a reserved or repeated extension name",
+      "ts": "TypeError",
+      "py": "ValueError"
+    },
+    {
+      "name": "index out of range",
+      "sort": "program bug",
+      "raised when": "an insert index outside a block; a token range outside a parse",
+      "ts": "RangeError",
+      "py": "IndexError"
+    }
+  ],
+  "argument type error message": {
+    "rule": "One helper per binding builds it (one home); every member that takes villanelle text, quote, rename, set override and each load override call it before changing anything. Messages are for people (spec 2.3); the class and the member and parameter named are the contract.",
+    "ts": "`${member}(): argument \"${parameter}\" must be a string, not ${got}; villanelle edits take text: quote() a program string, String() a number`",
+    "ts got": "value === null ? \"null\" : Array.isArray(value) ? \"array\" : typeof value",
+    "py": "f\"{member}() argument '{parameter}' must be str, not {type(value).__name__}; villanelle edits take text: quote() a program string, str() a number\"",
+    "member": "the member in the binding's casing, as the caller wrote it: set, replaceWithText / replace_with_text, insertStatements / insert_statements, addStatements / add_statements, setOverride / set_override, rename, quote, load",
+    "parameter": "text; name for rename and for set override's name; overrides[\"<name>\"] for a load override",
+    "example py": "TypeError: set() argument 'text' must be str, not int; villanelle edits take text: quote() a program string, str() a number",
+    "example ts": "TypeError: set(): argument \"text\" must be a string, not number; villanelle edits take text: quote() a program string, String() a number"
+  },
+  "free functions": [
+    {
+      "name": "parse",
+      "layer": "syntax",
+      "params": [
+        {
+          "name": "text",
+          "type": "text"
+        }
+      ],
+      "returns": "syntax"
+    },
+    {
+      "name": "span of",
+      "layer": "syntax",
+      "params": [
+        {
+          "name": "syntax",
+          "type": "syntax"
+        },
+        {
+          "name": "range",
+          "type": "token range"
+        }
+      ],
+      "returns": "source span",
+      "errors": [
+        "index out of range"
+      ],
+      "note": "a pure helper over a syntax value (spec 1, 'Where an operation lives', rule 4); stays a free function in milestone 1"
+    },
+    {
+      "name": "text of",
+      "layer": "syntax",
+      "params": [
+        {
+          "name": "syntax",
+          "type": "syntax"
+        },
+        {
+          "name": "range",
+          "type": "token range"
+        }
+      ],
+      "returns": "text",
+      "errors": [
+        "index out of range"
+      ],
+      "note": "a pure helper over a syntax value (spec 1, 'Where an operation lives', rule 4); stays a free function in milestone 1"
+    },
+    {
+      "name": "quote",
+      "layer": "shared",
+      "params": [
+        {
+          "name": "text",
+          "type": "text"
+        }
+      ],
+      "returns": "text",
+      "errors": [
+        "argument type error"
+      ]
+    },
+    {
+      "name": "render",
+      "layer": "rendered",
+      "params": [
+        {
+          "name": "graph",
+          "type": "document graph"
+        }
+      ],
+      "returns": "rendered",
+      "note": "the rendered layer's entry point: going up a layer is a free function of the upper layer (owner, 2026-10-29). Pure: reads no file. Exported by the rendered module and re-exported at each binding's top level",
+      "spell": {
+        "ts": "render(graph) from ts/src/rendered/, re-exported by \"villanelle\"",
+        "py": "render(graph) in villanelle.rendered, re-exported as villanelle.render"
+      }
+    },
+    {
+      "name": "format diagnostic",
+      "layer": "written",
+      "params": [
+        {
+          "name": "diagnostic",
+          "type": "located diagnostic"
+        },
+        {
+          "name": "graph",
+          "type": "document graph",
+          "optional": true
+        }
+      ],
+      "returns": "text",
+      "note": "takes a document graph (a written type), so it belongs to the low level, not shared; was listed as shared in the first draft of this file"
+    },
+    {
+      "name": "make processor",
+      "layer": "written",
+      "params": [
+        {
+          "name": "source",
+          "type": "document source"
+        },
+        {
+          "name": "extensions",
+          "type": "extension[]",
+          "optional": true
+        }
+      ],
+      "returns": "processor",
+      "errors": [
+        "misuse error"
+      ],
+      "spell": {
+        "ts": "villanelle({ source, extensions })",
+        "py": "Processor(source=..., extensions=...)"
+      }
+    },
+    {
+      "name": "make diagnostics",
+      "layer": "shared",
+      "params": [
+        {
+          "name": "initial",
+          "type": "located diagnostic[]",
+          "optional": true
+        }
+      ],
+      "returns": "diagnostics",
+      "spell": {
+        "ts": "new Diagnostics(initial)",
+        "py": "Diagnostics(initial)"
+      }
+    },
+    {
+      "name": "memory source",
+      "layer": "io",
+      "params": [
+        {
+          "name": "files",
+          "type": "map of text"
+        }
+      ],
+      "returns": "document source",
+      "required": "MUST",
+      "spell": {
+        "ts": "memorySource(files)",
+        "py": "memory_source(files)"
+      }
+    },
+    {
+      "name": "file source",
+      "layer": "io",
+      "returns": "document source",
+      "required": "SHOULD",
+      "spell": {
+        "ts": "createFileSource() from villanelle/node",
+        "py": "file_source() from villanelle.files"
+      },
+      "note": "factory names are root cause 4 (later)"
+    },
+    {
+      "name": "file writer",
+      "layer": "io",
+      "returns": "document writer",
+      "required": "SHOULD",
+      "spell": {
+        "ts": "createFsWriter() from villanelle/node",
+        "py": "fs_writer() from villanelle.files"
+      },
+      "note": "factory names are root cause 4 (later)"
+    },
+    {
+      "name": "fetch source",
+      "layer": "io",
+      "returns": "document source",
+      "required": "MAY",
+      "spell": {
+        "ts": "createFetchSource(fetch) from villanelle/browser",
+        "py": "absent"
+      }
+    },
+    {
+      "name": "fetch writer",
+      "layer": "io",
+      "returns": "document writer",
+      "required": "MAY",
+      "spell": {
+        "ts": "createFetchWriter(fetch, options) from villanelle/browser",
+        "py": "absent"
+      }
+    },
+    {
+      "name": "include",
+      "layer": "io",
+      "returns": "extension",
+      "spell": {
+        "ts": "include() from villanelle/include",
+        "py": "include() from villanelle.include"
+      }
+    }
+  ],
+  "removed in milestone 1": [
+    {
+      "name": "processor read (graph)",
+      "now": "document graph read ()"
+    },
+    {
+      "name": "processor render (graph)",
+      "now": "render (graph), the rendered layer's free function; the low level has no render member"
+    },
+    {
+      "name": "processor diff (before, after, key?)",
+      "now": "rendered diff (after, key?)"
+    },
+    {
+      "name": "save (graph, writer)",
+      "now": "document graph save (writer)"
+    },
+    {
+      "name": "set handed (name, text)",
+      "now": "set override (name, text)"
+    },
+    {
+      "name": "set values (text)",
+      "now": "set (text) (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\")"
+    },
+    {
+      "name": "walk (node, descend?) (Python free function)",
+      "now": "rendered walk, directive walk"
+    },
+    {
+      "name": "the processor ownership check (round 12 D27)",
+      "now": "nothing: no operation takes a graph or render back to a processor"
+    }
+  ],
+  "concepts": [
+    {
+      "name": "source position",
+      "layer": "shared",
+      "nature": "record",
+      "ts": "ISourcePosition",
+      "py": "SourcePosition",
+      "members": [
+        {
+          "name": "offset",
+          "member": "property",
+          "type": "integer"
+        },
+        {
+          "name": "line",
+          "member": "property",
+          "type": "integer"
+        },
+        {
+          "name": "column",
+          "member": "property",
+          "type": "integer"
+        }
+      ]
+    },
+    {
+      "name": "source span",
+      "layer": "shared",
+      "nature": "record",
+      "ts": "ISourceSpan",
+      "py": "SourceSpan",
+      "members": [
+        {
+          "name": "start",
+          "member": "property",
+          "type": "source position"
+        },
+        {
+          "name": "end",
+          "member": "property",
+          "type": "source position"
+        }
+      ]
+    },
+    {
+      "name": "place",
+      "layer": "shared",
+      "nature": "record",
+      "ts": "IPlace",
+      "py": "Place",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "place kind",
+          "note": "'file'; Python Place has no kind field yet (root cause 3)"
+        },
+        {
+          "name": "resolved path",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "span",
+          "member": "property",
+          "type": "source span"
+        }
+      ]
+    },
+    {
+      "name": "override",
+      "layer": "shared",
+      "nature": "record",
+      "ts": "IOverride",
+      "py": "Override",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "place kind",
+          "note": "'override'"
+        },
+        {
+          "name": "variable",
+          "member": "property",
+          "type": "text",
+          "note": "the name without $"
+        }
+      ],
+      "note": "an origin's place when the text came from an override; renamed from handed (IHanded / Handed)"
+    },
+    {
+      "name": "step",
+      "layer": "shared",
+      "nature": "record",
+      "ts": "IStep",
+      "py": "Step",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "step kind"
+        },
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        }
+      ]
+    },
+    {
+      "name": "origin",
+      "layer": "shared",
+      "nature": "record",
+      "ts": "IOrigin",
+      "py": "Origin",
+      "members": [
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place or override"
+        },
+        {
+          "name": "via",
+          "member": "property",
+          "type": "step[]",
+          "note": "innermost first"
+        }
+      ]
+    },
+    {
+      "name": "directive origin",
+      "layer": "shared",
+      "nature": "record",
+      "ts": "IDirectiveOrigin",
+      "py": "DirectiveOrigin",
+      "members": [
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "via",
+          "member": "property",
+          "type": "step[]"
+        }
+      ]
+    },
+    {
+      "name": "diagnostic",
+      "layer": "syntax",
+      "nature": "record",
+      "ts": "IDiagnostic",
+      "py": "Diagnostic",
+      "members": [
+        {
+          "name": "code",
+          "member": "property",
+          "type": "diagnostic code"
+        },
+        {
+          "name": "message",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "span",
+          "member": "property",
+          "type": "source span"
+        }
+      ]
+    },
+    {
+      "name": "located diagnostic",
+      "layer": "shared",
+      "nature": "record",
+      "ts": "ILocatedDiagnostic",
+      "py": "LocatedDiagnostic",
+      "members": [
+        {
+          "name": "code",
+          "member": "property",
+          "type": "diagnostic code or program code"
+        },
+        {
+          "name": "message",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "via",
+          "member": "property",
+          "type": "step[]"
+        }
+      ]
+    },
+    {
+      "name": "diagnostics",
+      "layer": "shared",
+      "nature": "handle",
+      "ts": "Diagnostics",
+      "py": "Diagnostics",
+      "members": [
+        {
+          "name": "add",
+          "member": "method",
+          "params": [
+            {
+              "name": "diagnostic",
+              "type": "located diagnostic"
+            }
+          ],
+          "returns": "nothing"
+        },
+        {
+          "name": "report",
+          "member": "method",
+          "params": [
+            {
+              "name": "at",
+              "type": "locatable"
+            },
+            {
+              "name": "message",
+              "type": "text"
+            },
+            {
+              "name": "code",
+              "type": "program code"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "misuse error"
+          ]
+        },
+        {
+          "name": "count",
+          "member": "property",
+          "type": "integer",
+          "spell": {
+            "ts": "length",
+            "py": "len(diagnostics)"
+          }
+        },
+        {
+          "name": "iterate",
+          "member": "method",
+          "params": [],
+          "returns": "located diagnostic[]",
+          "order": "as added",
+          "spell": {
+            "ts": "[Symbol.iterator]",
+            "py": "__iter__"
+          }
+        },
+        {
+          "name": "collect",
+          "member": "method",
+          "params": [
+            {
+              "name": "read",
+              "type": "function"
+            }
+          ],
+          "returns": "result",
+          "absent": true,
+          "note": "Python's context manager is an allowed difference (binding guide section 3)",
+          "spell": {
+            "py": "with diagnostics.collecting():"
+          }
+        }
+      ]
+    },
+    {
+      "name": "token",
+      "layer": "syntax",
+      "nature": "record",
+      "ts": "IToken",
+      "py": "Token",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "token kind"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "span",
+          "member": "property",
+          "type": "source span"
+        }
+      ]
+    },
+    {
+      "name": "node",
+      "layer": "syntax",
+      "nature": "record",
+      "ts": "INode",
+      "py": "Node",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "node kind"
+        },
+        {
+          "name": "start",
+          "member": "property",
+          "type": "integer"
+        },
+        {
+          "name": "end",
+          "member": "property",
+          "type": "integer"
+        },
+        {
+          "name": "children",
+          "member": "property",
+          "type": "node[]"
+        }
+      ]
+    },
+    {
+      "name": "syntax",
+      "layer": "syntax",
+      "nature": "record",
+      "ts": "ISyntax",
+      "py": "Syntax",
+      "members": [
+        {
+          "name": "tokens",
+          "member": "property",
+          "type": "token[]"
+        },
+        {
+          "name": "root",
+          "member": "property",
+          "type": "node"
+        },
+        {
+          "name": "diagnostics",
+          "member": "property",
+          "type": "diagnostic[]"
+        }
+      ]
+    },
+    {
+      "name": "load context",
+      "layer": "io",
+      "nature": "record",
+      "ts": "ILoadContext",
+      "py": "LoadContext",
+      "members": [
+        {
+          "name": "parent path",
+          "member": "property",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "name": "document source",
+      "layer": "io",
+      "nature": "port",
+      "ts": "IDocumentSource",
+      "py": "DocumentSource",
+      "members": [
+        {
+          "name": "resolve",
+          "member": "method",
+          "params": [
+            {
+              "name": "spec",
+              "type": "text"
+            },
+            {
+              "name": "context",
+              "type": "load context"
+            }
+          ],
+          "returns": "text[]",
+          "io": true
+        },
+        {
+          "name": "read",
+          "member": "method",
+          "params": [
+            {
+              "name": "resolved path",
+              "type": "text"
+            }
+          ],
+          "returns": "text",
+          "io": true
+        }
+      ]
+    },
+    {
+      "name": "file write",
+      "layer": "io",
+      "nature": "record",
+      "ts": "IFileWrite",
+      "py": "FileWrite",
+      "members": [
+        {
+          "name": "resolved path",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "saved text",
+          "member": "property",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "name": "document writer",
+      "layer": "io",
+      "nature": "port",
+      "ts": "IDocumentWriter",
+      "py": "DocumentWriter",
+      "members": [
+        {
+          "name": "write",
+          "member": "method",
+          "params": [
+            {
+              "name": "files",
+              "type": "file write[]"
+            }
+          ],
+          "returns": "nothing",
+          "io": true
+        }
+      ]
+    },
+    {
+      "name": "extension",
+      "layer": "io",
+      "nature": "port",
+      "ts": "IExtension",
+      "py": "Extension",
+      "members": [
+        {
+          "name": "directive",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "specs",
+          "member": "method",
+          "params": [
+            {
+              "name": "use",
+              "type": "extension use"
+            }
+          ],
+          "returns": "text[]",
+          "errors": [
+            "diagnostic error"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "extension use",
+      "layer": "io",
+      "nature": "record",
+      "ts": "IExtensionUse",
+      "py": "ExtensionUse",
+      "members": [
+        {
+          "name": "values",
+          "member": "property",
+          "type": "expanded value[]",
+          "note": "was args, typed as the rendered argument"
+        },
+        {
+          "name": "origin",
+          "member": "property",
+          "type": "directive origin"
+        }
+      ]
+    },
+    {
+      "name": "processor",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "IProcessor",
+      "py": "Processor",
+      "members": [
+        {
+          "name": "load",
+          "member": "method",
+          "params": [
+            {
+              "name": "path",
+              "type": "text"
+            },
+            {
+              "name": "overrides",
+              "type": "ordered map of text",
+              "optional": true
+            }
+          ],
+          "returns": "document graph",
+          "errors": [
+            "read error",
+            "misuse error",
+            "argument type error",
+            "bad text error"
+          ],
+          "io": true,
+          "spell": {
+            "ts": "load(path, { overrides })",
+            "py": "load(path, *, overrides=None)"
+          }
+        }
+      ],
+      "note": "the factory; load is its only operation (owner, 2026-10-29)"
+    },
+    {
+      "name": "document graph",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "IDocumentGraph",
+      "py": "DocumentGraph",
+      "members": [
+        {
+          "name": "root",
+          "member": "property",
+          "type": "document"
+        },
+        {
+          "name": "documents",
+          "member": "property",
+          "type": "ordered map of document",
+          "note": "by resolved path; root first, then first-read order"
+        },
+        {
+          "name": "overrides",
+          "member": "property",
+          "type": "ordered map of text",
+          "spell": {
+            "ts": "ReadonlyMap<string, string>",
+            "py": "Mapping[str, str] (read-only; set override changes it)"
+          }
+        },
+        {
+          "name": "set override",
+          "member": "method",
+          "params": [
+            {
+              "name": "name",
+              "type": "text"
+            },
+            {
+              "name": "text",
+              "type": "text",
+              "optional": true
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "misuse error"
+          ],
+          "spell": {
+            "ts": "setOverride(name, text | undefined)",
+            "py": "set_override(name, text | None, /)"
+          }
+        },
+        {
+          "name": "read",
+          "member": "method",
+          "params": [],
+          "returns": "text[]",
+          "io": true,
+          "order": "read order"
+        },
+        {
+          "name": "save",
+          "member": "method",
+          "params": [
+            {
+              "name": "writer",
+              "type": "document writer"
+            }
+          ],
+          "returns": "text[]",
+          "errors": [
+            "save error"
+          ],
+          "io": true,
+          "order": "documents order"
+        },
+        {
+          "name": "edges",
+          "member": "method",
+          "params": [],
+          "returns": "document edge[]",
+          "order": "walk order"
+        },
+        {
+          "name": "unread",
+          "member": "method",
+          "params": [],
+          "returns": "document edge[]",
+          "order": "walk order"
+        },
+        {
+          "name": "variables",
+          "member": "method",
+          "params": [
+            {
+              "name": "name",
+              "type": "text",
+              "optional": true
+            }
+          ],
+          "returns": "variable[]",
+          "order": "set and parameters in document order, then overrides in overrides order"
+        },
+        {
+          "name": "diagnostics",
+          "member": "property",
+          "type": "located diagnostic[]",
+          "note": "a property, as on the render; was a method"
+        }
+      ],
+      "note": "has no render member and names no rendered type (owner, 2026-10-29); keeps the document source and extensions it was loaded with"
+    },
+    {
+      "name": "document",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "IDocument",
+      "py": "Document",
+      "members": [
+        {
+          "name": "resolved path",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "saved text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "syntax",
+          "member": "property",
+          "type": "syntax"
+        },
+        {
+          "name": "block",
+          "member": "property",
+          "type": "written block"
+        },
+        {
+          "name": "included by",
+          "member": "method",
+          "params": [],
+          "returns": "document edge[]"
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "argument type error"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "document edge",
+      "layer": "written",
+      "nature": "snapshot",
+      "ts": "IDocumentEdge",
+      "py": "DocumentEdge",
+      "members": [
+        {
+          "name": "copy",
+          "member": "property",
+          "type": "copy"
+        },
+        {
+          "name": "specs",
+          "member": "property",
+          "type": "text[]"
+        },
+        {
+          "name": "targets",
+          "member": "property",
+          "type": "text[]"
+        }
+      ]
+    },
+    {
+      "name": "copy",
+      "layer": "written",
+      "nature": "snapshot",
+      "ts": "ICopy",
+      "py": "Copy",
+      "members": [
+        {
+          "name": "statement",
+          "member": "property",
+          "type": "statement"
+        },
+        {
+          "name": "via",
+          "member": "property",
+          "type": "step[]"
+        }
+      ]
+    },
+    {
+      "name": "statement",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "Statement",
+      "py": "Statement",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "statement kind"
+        },
+        {
+          "name": "document",
+          "member": "property",
+          "type": "document"
+        },
+        {
+          "name": "parent",
+          "member": "property",
+          "type": "statement",
+          "absent": true
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "copies",
+          "member": "method",
+          "params": [],
+          "returns": "copy[]",
+          "order": "walk order"
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "statement[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "remove",
+          "member": "method",
+          "params": [],
+          "returns": "nothing",
+          "errors": [
+            "detached error"
+          ]
+        }
+      ],
+      "variants": [
+        "written directive",
+        "set line",
+        "snippet line",
+        "use line",
+        "unreadable line"
+      ]
+    },
+    {
+      "name": "written directive",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "IWrittenDirective",
+      "py": "WrittenDirective",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "statement kind"
+        },
+        {
+          "name": "document",
+          "member": "property",
+          "type": "document"
+        },
+        {
+          "name": "parent",
+          "member": "property",
+          "type": "statement",
+          "absent": true
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "copies",
+          "member": "method",
+          "params": [],
+          "returns": "copy[]",
+          "order": "walk order"
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "statement[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "remove",
+          "member": "method",
+          "params": [],
+          "returns": "nothing",
+          "errors": [
+            "detached error"
+          ]
+        },
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "values",
+          "member": "property",
+          "type": "written value[]"
+        },
+        {
+          "name": "block",
+          "member": "property",
+          "type": "written block",
+          "absent": true
+        },
+        {
+          "name": "rename",
+          "member": "method",
+          "params": [
+            {
+              "name": "name",
+              "type": "text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "set",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ],
+          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword",
+          "spell": {
+            "py": "set (a method named set: inside the class body, annotate the builtin as builtins.set)"
+          }
+        }
+      ],
+      "note": "kind 'directive' or 'extension'"
+    },
+    {
+      "name": "set line",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "ISetLine",
+      "py": "SetLine",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "statement kind"
+        },
+        {
+          "name": "document",
+          "member": "property",
+          "type": "document"
+        },
+        {
+          "name": "parent",
+          "member": "property",
+          "type": "statement",
+          "absent": true
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "copies",
+          "member": "method",
+          "params": [],
+          "returns": "copy[]",
+          "order": "walk order"
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "statement[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "remove",
+          "member": "method",
+          "params": [],
+          "returns": "nothing",
+          "errors": [
+            "detached error"
+          ]
+        },
+        {
+          "name": "variable",
+          "member": "property",
+          "type": "variable"
+        },
+        {
+          "name": "values",
+          "member": "property",
+          "type": "written value[]"
+        },
+        {
+          "name": "set",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ],
+          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword",
+          "spell": {
+            "py": "set (a method named set: inside the class body, annotate the builtin as builtins.set)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "snippet line",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "ISnippetLine",
+      "py": "SnippetLine",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "statement kind"
+        },
+        {
+          "name": "document",
+          "member": "property",
+          "type": "document"
+        },
+        {
+          "name": "parent",
+          "member": "property",
+          "type": "statement",
+          "absent": true
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "copies",
+          "member": "method",
+          "params": [],
+          "returns": "copy[]",
+          "order": "walk order"
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "statement[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "remove",
+          "member": "method",
+          "params": [],
+          "returns": "nothing",
+          "errors": [
+            "detached error"
+          ]
+        },
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "parameters",
+          "member": "property",
+          "type": "variable[]"
+        },
+        {
+          "name": "block",
+          "member": "property",
+          "type": "written block"
+        }
+      ]
+    },
+    {
+      "name": "use line",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "IUseLine",
+      "py": "UseLine",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "statement kind"
+        },
+        {
+          "name": "document",
+          "member": "property",
+          "type": "document"
+        },
+        {
+          "name": "parent",
+          "member": "property",
+          "type": "statement",
+          "absent": true
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "copies",
+          "member": "method",
+          "params": [],
+          "returns": "copy[]",
+          "order": "walk order"
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "statement[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "remove",
+          "member": "method",
+          "params": [],
+          "returns": "nothing",
+          "errors": [
+            "detached error"
+          ]
+        },
+        {
+          "name": "snippet name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "snippet",
+          "member": "property",
+          "type": "snippet line",
+          "absent": true
+        },
+        {
+          "name": "snippets",
+          "member": "method",
+          "params": [],
+          "returns": "resolution[]"
+        },
+        {
+          "name": "values",
+          "member": "property",
+          "type": "written value[]"
+        },
+        {
+          "name": "set",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ],
+          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword",
+          "spell": {
+            "py": "set (a method named set: inside the class body, annotate the builtin as builtins.set)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unreadable line",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "IUnreadableLine",
+      "py": "UnreadableLine",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "statement kind"
+        },
+        {
+          "name": "document",
+          "member": "property",
+          "type": "document"
+        },
+        {
+          "name": "parent",
+          "member": "property",
+          "type": "statement",
+          "absent": true
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "copies",
+          "member": "method",
+          "params": [],
+          "returns": "copy[]",
+          "order": "walk order"
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "statement[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "remove",
+          "member": "method",
+          "params": [],
+          "returns": "nothing",
+          "errors": [
+            "detached error"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "written block",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "IWrittenBlock",
+      "py": "WrittenBlock",
+      "members": [
+        {
+          "name": "statements",
+          "member": "property",
+          "type": "statement[]",
+          "spell": {
+            "py": "the block itself is a Sequence"
+          }
+        },
+        {
+          "name": "directives",
+          "member": "method",
+          "params": [
+            {
+              "name": "name",
+              "type": "text",
+              "optional": true
+            }
+          ],
+          "returns": "written directive[]"
+        },
+        {
+          "name": "insert statements",
+          "member": "method",
+          "params": [
+            {
+              "name": "index",
+              "type": "integer"
+            },
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "statement[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "index out of range"
+          ]
+        },
+        {
+          "name": "add statements",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "statement[]",
+          "errors": [
+            "bad text error",
+            "argument type error"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "written value",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "WrittenValue",
+      "py": "WrittenValue",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "value kind"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "statement",
+          "member": "property",
+          "type": "statement"
+        },
+        {
+          "name": "list",
+          "member": "property",
+          "type": "list",
+          "absent": true
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "written value[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "remove",
+          "member": "method",
+          "params": [],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "detached error"
+          ]
+        }
+      ],
+      "variants": [
+        "word",
+        "string",
+        "list",
+        "slice",
+        "index",
+        "reference"
+      ]
+    },
+    {
+      "name": "word",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "IWord",
+      "py": "Word",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "value kind"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "statement",
+          "member": "property",
+          "type": "statement"
+        },
+        {
+          "name": "list",
+          "member": "property",
+          "type": "list",
+          "absent": true
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "written value[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "remove",
+          "member": "method",
+          "params": [],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "detached error"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "string",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "IString",
+      "py": "String",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "value kind"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "statement",
+          "member": "property",
+          "type": "statement"
+        },
+        {
+          "name": "list",
+          "member": "property",
+          "type": "list",
+          "absent": true
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "written value[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "remove",
+          "member": "method",
+          "params": [],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "detached error"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "list",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "IList",
+      "py": "List",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "value kind"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "statement",
+          "member": "property",
+          "type": "statement"
+        },
+        {
+          "name": "list",
+          "member": "property",
+          "type": "list",
+          "absent": true
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "written value[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "remove",
+          "member": "method",
+          "params": [],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "items",
+          "member": "property",
+          "type": "written value[]"
+        }
+      ]
+    },
+    {
+      "name": "slice",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "ISlice",
+      "py": "Slice",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "value kind"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "statement",
+          "member": "property",
+          "type": "statement"
+        },
+        {
+          "name": "list",
+          "member": "property",
+          "type": "list",
+          "absent": true
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "written value[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "remove",
+          "member": "method",
+          "params": [],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "start",
+          "member": "property",
+          "type": "word or reference",
+          "absent": true
+        },
+        {
+          "name": "end",
+          "member": "property",
+          "type": "word or reference",
+          "absent": true
+        }
+      ]
+    },
+    {
+      "name": "index",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "IIndex",
+      "py": "Index",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "value kind"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "statement",
+          "member": "property",
+          "type": "statement"
+        },
+        {
+          "name": "list",
+          "member": "property",
+          "type": "list",
+          "absent": true
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "written value[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "remove",
+          "member": "method",
+          "params": [],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "index",
+          "member": "property",
+          "type": "word or reference"
+        }
+      ]
+    },
+    {
+      "name": "reference",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "IReference",
+      "py": "Reference",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "value kind"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "statement",
+          "member": "property",
+          "type": "statement"
+        },
+        {
+          "name": "list",
+          "member": "property",
+          "type": "list",
+          "absent": true
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "written value[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "remove",
+          "member": "method",
+          "params": [],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "declaration",
+          "member": "property",
+          "type": "variable",
+          "absent": true
+        },
+        {
+          "name": "resolutions",
+          "member": "method",
+          "params": [],
+          "returns": "reference resolution[]",
+          "order": "walk order"
+        }
+      ]
+    },
+    {
+      "name": "variable",
+      "layer": "written",
+      "nature": "handle",
+      "ts": "IVariable",
+      "py": "Variable",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "variable kind"
+        },
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place",
+          "absent": true
+        },
+        {
+          "name": "line",
+          "member": "property",
+          "type": "set line or snippet line",
+          "absent": true
+        },
+        {
+          "name": "references",
+          "member": "method",
+          "params": [],
+          "returns": "reference[]",
+          "order": "document order"
+        },
+        {
+          "name": "wins",
+          "member": "method",
+          "params": [],
+          "returns": "reference resolution[]",
+          "order": "walk order"
+        },
+        {
+          "name": "shadowed at",
+          "member": "method",
+          "params": [],
+          "returns": "reference resolution[]",
+          "order": "walk order"
+        },
+        {
+          "name": "rename",
+          "member": "method",
+          "params": [
+            {
+              "name": "name",
+              "type": "text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "no set line error"
+          ]
+        },
+        {
+          "name": "set",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "no set line error"
+          ],
+          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword",
+          "spell": {
+            "py": "set (a method named set: inside the class body, annotate the builtin as builtins.set)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "resolution",
+      "layer": "written",
+      "nature": "snapshot",
+      "ts": "IResolution",
+      "py": "Resolution",
+      "members": [
+        {
+          "name": "copy",
+          "member": "property",
+          "type": "copy"
+        },
+        {
+          "name": "winner",
+          "member": "property",
+          "type": "definition",
+          "absent": true
+        },
+        {
+          "name": "shadowed",
+          "member": "property",
+          "type": "definition[]",
+          "note": "next first"
+        }
+      ]
+    },
+    {
+      "name": "reference resolution",
+      "layer": "written",
+      "nature": "snapshot",
+      "ts": "IReferenceResolution",
+      "py": "ReferenceResolution",
+      "members": [
+        {
+          "name": "copy",
+          "member": "property",
+          "type": "copy"
+        },
+        {
+          "name": "winner",
+          "member": "property",
+          "type": "variable",
+          "absent": true
+        },
+        {
+          "name": "shadowed",
+          "member": "property",
+          "type": "variable[]"
+        },
+        {
+          "name": "reference",
+          "member": "property",
+          "type": "reference"
+        },
+        {
+          "name": "values",
+          "member": "property",
+          "type": "written value[]"
+        }
+      ]
+    },
+    {
+      "name": "rendered",
+      "layer": "rendered",
+      "nature": "snapshot",
+      "ts": "IRendered",
+      "py": "Rendered",
+      "members": [
+        {
+          "name": "block",
+          "member": "property",
+          "type": "directive[]"
+        },
+        {
+          "name": "unreadable",
+          "member": "property",
+          "type": "unreadable[]"
+        },
+        {
+          "name": "origin",
+          "member": "property",
+          "type": "directive origin"
+        },
+        {
+          "name": "diagnostics",
+          "member": "property",
+          "type": "located diagnostic[]"
+        },
+        {
+          "name": "graph",
+          "member": "property",
+          "type": "document graph"
+        },
+        {
+          "name": "walk",
+          "member": "method",
+          "params": [
+            {
+              "name": "visit",
+              "type": "function"
+            }
+          ],
+          "returns": "nothing",
+          "spell": {
+            "ts": "walk(visit) with a callback returning \"skip\" or \"stop\"",
+            "py": "walk(*, descend=None), a generator"
+          }
+        },
+        {
+          "name": "error",
+          "member": "method",
+          "params": [
+            {
+              "name": "message",
+              "type": "text"
+            },
+            {
+              "name": "code",
+              "type": "program code"
+            }
+          ],
+          "returns": "diagnostic error",
+          "errors": [
+            "misuse error"
+          ]
+        },
+        {
+          "name": "addresses",
+          "member": "method",
+          "params": [
+            {
+              "name": "key",
+              "type": "key rule",
+              "optional": true
+            }
+          ],
+          "returns": "map of directive to address",
+          "order": "walk order"
+        },
+        {
+          "name": "diff",
+          "member": "method",
+          "params": [
+            {
+              "name": "after",
+              "type": "rendered"
+            },
+            {
+              "name": "key",
+              "type": "key rule",
+              "optional": true
+            }
+          ],
+          "returns": "change[]",
+          "order": "removed and unknown in before's walk order, then added and changed in after's",
+          "spell": {
+            "ts": "diff(after, { key })",
+            "py": "diff(after, /, *, key=None)"
+          },
+          "note": "lives on the render because it compares two renders; any two renders may be compared"
+        }
+      ],
+      "note": "made only by render (graph)"
+    },
+    {
+      "name": "directive",
+      "layer": "rendered",
+      "nature": "snapshot",
+      "ts": "IDirective",
+      "py": "Directive",
+      "members": [
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "values",
+          "member": "property",
+          "type": "argument[]"
+        },
+        {
+          "name": "block",
+          "member": "property",
+          "type": "directive[]",
+          "absent": true
+        },
+        {
+          "name": "unreadable",
+          "member": "property",
+          "type": "unreadable[]"
+        },
+        {
+          "name": "parent",
+          "member": "property",
+          "type": "directive",
+          "absent": true
+        },
+        {
+          "name": "origin",
+          "member": "property",
+          "type": "directive origin"
+        },
+        {
+          "name": "written",
+          "member": "property",
+          "type": "written directive"
+        },
+        {
+          "name": "walk",
+          "member": "method",
+          "params": [
+            {
+              "name": "visit",
+              "type": "function"
+            }
+          ],
+          "returns": "nothing",
+          "spell": {
+            "ts": "walk(visit)",
+            "py": "walk(*, descend=None), a generator"
+          }
+        },
+        {
+          "name": "closest",
+          "member": "method",
+          "params": [
+            {
+              "name": "predicate",
+              "type": "function"
+            }
+          ],
+          "returns": "directive",
+          "absent": true
+        },
+        {
+          "name": "error",
+          "member": "method",
+          "params": [
+            {
+              "name": "message",
+              "type": "text"
+            },
+            {
+              "name": "code",
+              "type": "program code"
+            }
+          ],
+          "returns": "diagnostic error",
+          "errors": [
+            "misuse error"
+          ]
+        }
+      ],
+      "note": "Python __match_args__ = (name, values, block)"
+    },
+    {
+      "name": "unreadable",
+      "layer": "rendered",
+      "nature": "record",
+      "ts": "IUnreadable",
+      "py": "Unreadable",
+      "members": [
+        {
+          "name": "reason",
+          "member": "property",
+          "type": "unreadable reason"
+        },
+        {
+          "name": "origin",
+          "member": "property",
+          "type": "directive origin"
+        },
+        {
+          "name": "written",
+          "member": "property",
+          "type": "statement"
+        }
+      ]
+    },
+    {
+      "name": "slice value",
+      "layer": "shared",
+      "nature": "record",
+      "ts": "ISliceValue",
+      "py": "SliceValue",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "value kind"
+        },
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "start",
+          "member": "property",
+          "type": "integer",
+          "absent": true
+        },
+        {
+          "name": "end",
+          "member": "property",
+          "type": "integer",
+          "absent": true
+        }
+      ]
+    },
+    {
+      "name": "index value",
+      "layer": "shared",
+      "nature": "record",
+      "ts": "IIndexValue",
+      "py": "IndexValue",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "value kind"
+        },
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "index",
+          "member": "property",
+          "type": "integer"
+        }
+      ]
+    },
+    {
+      "name": "expanded value",
+      "layer": "shared",
+      "nature": "snapshot",
+      "ts": "IExpandedValue",
+      "py": "ExpandedValue",
+      "note": "one value after expansion ($name replaced): what an extension use holds and what a rendered argument builds on (owner, 2026-10-29: the layers have different domain objects). New in milestone 1",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "value kind"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "origin",
+          "member": "property",
+          "type": "origin"
+        },
+        {
+          "name": "word",
+          "member": "method",
+          "params": [],
+          "returns": "text",
+          "errors": [
+            "diagnostic error"
+          ],
+          "spell": {
+            "py": "as_word"
+          }
+        },
+        {
+          "name": "string",
+          "member": "method",
+          "params": [],
+          "returns": "text",
+          "errors": [
+            "diagnostic error"
+          ],
+          "spell": {
+            "py": "as_str"
+          }
+        },
+        {
+          "name": "number",
+          "member": "method",
+          "params": [],
+          "returns": "number",
+          "errors": [
+            "diagnostic error"
+          ],
+          "spell": {
+            "py": "as_number"
+          }
+        },
+        {
+          "name": "integer",
+          "member": "method",
+          "params": [],
+          "returns": "integer",
+          "errors": [
+            "diagnostic error"
+          ],
+          "spell": {
+            "py": "as_int"
+          }
+        },
+        {
+          "name": "boolean",
+          "member": "method",
+          "params": [],
+          "returns": "boolean",
+          "errors": [
+            "diagnostic error"
+          ],
+          "spell": {
+            "py": "as_bool"
+          }
+        },
+        {
+          "name": "items",
+          "member": "method",
+          "params": [],
+          "returns": "expanded value[]",
+          "errors": [
+            "diagnostic error"
+          ],
+          "spell": {
+            "py": "as_list"
+          }
+        },
+        {
+          "name": "slice",
+          "member": "method",
+          "params": [],
+          "returns": "slice value or index value",
+          "errors": [
+            "diagnostic error"
+          ],
+          "spell": {
+            "py": "as_slice"
+          }
+        },
+        {
+          "name": "plain",
+          "member": "method",
+          "params": [],
+          "returns": "plain value"
+        },
+        {
+          "name": "error",
+          "member": "method",
+          "params": [
+            {
+              "name": "message",
+              "type": "text"
+            },
+            {
+              "name": "code",
+              "type": "program code"
+            }
+          ],
+          "returns": "diagnostic error",
+          "errors": [
+            "misuse error"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "argument",
+      "layer": "rendered",
+      "nature": "snapshot",
+      "ts": "IArgument",
+      "py": "Argument",
+      "members": [
+        {
+          "name": "written",
+          "member": "property",
+          "type": "written value",
+          "note": "the same line: chain[0].reference when the value came through a variable, else the value itself; never absent"
+        },
+        {
+          "name": "definition",
+          "member": "property",
+          "type": "written value",
+          "absent": true,
+          "note": "the end of the chain; absent for an override"
+        },
+        {
+          "name": "chain",
+          "member": "property",
+          "type": "reference resolution[]",
+          "note": "own line first"
+        },
+        {
+          "name": "items",
+          "member": "method",
+          "params": [],
+          "returns": "argument[]",
+          "errors": [
+            "diagnostic error"
+          ],
+          "spell": {
+            "py": "as_list"
+          },
+          "note": "narrowed: each item is an argument"
+        }
+      ],
+      "note": "builds on expanded value: adds written, definition and chain, and items returns arguments. Python reader names: today every reader carries as_; the binding guide's proposal keeps as_ only where the bare name shadows a built-in (root cause 4, later)",
+      "extends": "expanded value"
+    },
+    {
+      "name": "address step",
+      "layer": "rendered",
+      "nature": "record",
+      "ts": "IAddressStep",
+      "py": "AddressStep",
+      "members": [
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "key",
+          "member": "property",
+          "type": "text",
+          "absent": true
+        },
+        {
+          "name": "occurrence",
+          "member": "property",
+          "type": "integer"
+        }
+      ]
+    },
+    {
+      "name": "address",
+      "layer": "rendered",
+      "nature": "record",
+      "ts": "IAddress",
+      "py": "Address",
+      "members": [
+        {
+          "name": "steps",
+          "member": "property",
+          "type": "address step[]"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "parent",
+          "member": "property",
+          "type": "address",
+          "absent": true
+        },
+        {
+          "name": "people form",
+          "member": "method",
+          "params": [],
+          "returns": "text",
+          "spell": {
+            "ts": "toString()",
+            "py": "str(address)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "change",
+      "layer": "rendered",
+      "nature": "record",
+      "ts": "Change",
+      "py": "Change",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "change kind",
+          "note": "Python classes carry no kind yet (root cause 3)"
+        },
+        {
+          "name": "address",
+          "member": "property",
+          "type": "address"
+        },
+        {
+          "name": "before",
+          "member": "property",
+          "type": "directive",
+          "absent": true
+        },
+        {
+          "name": "after",
+          "member": "property",
+          "type": "directive",
+          "absent": true
+        }
+      ],
+      "variants": [
+        "added",
+        "removed",
+        "changed",
+        "unknown"
+      ]
+    }
+  ],
+  "disagreements": [
+    {
+      "what": "the check of an override's text",
+      "ts": "load used readHanded (written/bind.ts): accepts \"1;\", throws TypeError without a position; setHanded used handedValues (written/graph.ts): refuses \"1;\" with a located BadTextError",
+      "py": "the same split: _bind.read_handed (ValueError) against _graph.set_handed (BadTextError)",
+      "spec picks": "one check (spec 6.3), the set handed behaviour: \"1;\" refused with BadTextError E2001 at 0:1, from load and set override alike"
+    },
+    {
+      "what": "a non-text argument to an edit",
+      "ts": "not checked at run time: the type checker refuses a number, but a JavaScript caller or a cast passes it on to the parser",
+      "py": "not checked: set_values(2400) fails inside the library (written/model.py)",
+      "spec picks": "argument type error (TypeError in both) with the message above (owner, 2026-10-29: \"A Keep text only, make misuse impossible\")"
+    },
+    {
+      "what": "misuse error class",
+      "ts": "TypeError",
+      "py": "ValueError",
+      "spec picks": "an allowed difference (binding guide section 3); not a defect"
+    },
+    {
+      "what": "walk",
+      "ts": "a method on IRendered and IDirective, taking a callback",
+      "py": "a free function walk(node, descend=...)",
+      "spec picks": "a method in both (root cause 2: every later operation is a method on the object held); callback against generator stays an allowed difference until the walk proposal (spec 7.5) is answered"
+    },
+    {
+      "what": "place kind",
+      "ts": "IPlace.kind 'file', IHanded.kind 'handed'",
+      "py": "Place and Handed have no kind field",
+      "spec picks": "kind on both (spec 2.2); Python adds it with root cause 3, later"
+    },
+    {
+      "what": "change kind",
+      "ts": "Change has kind",
+      "py": "Added, Removed, Changed, Unknown have no kind",
+      "spec picks": "kind on every variant (root cause 3, later)"
+    },
+    {
+      "what": "a written value's kind list",
+      "ts": "rendered ValueKind lacks 'reference'; written values use inline literals including it",
+      "py": "the same",
+      "spec picks": "one value kind list with 'reference'; a rendered argument never has it (root cause 3 unifies the spelling)"
+    },
+    {
+      "what": "save error message",
+      "ts": "\"the writer rejected: ...\"",
+      "py": "\"the writer raised: ...\"",
+      "spec picks": "messages are not part of the contract; no change"
+    },
+    {
+      "what": "-0 and a lone carriage return",
+      "ts": "integer('-0') is -0",
+      "py": "as_int('-0') is 0",
+      "spec picks": "known gap (spec 7.3, 2.1); root cause 4, later"
+    },
+    {
+      "what": "the type of an extension use's values",
+      "ts": "IArgument (a rendered type, imported by the low level and the include extension)",
+      "py": "Argument (the same)",
+      "spec picks": "expanded value, a shared type the rendered argument builds on (spec 2.9, 5; owner, 2026-10-29)"
+    }
+  ],
+  "layer check": {
+    "rule": "no module outside the rendered layer and the package entry point imports the rendered layer, type-only imports included (owner, 2026-10-29)",
+    "ts": "ESLint core no-restricted-imports in ts/eslint.config.js: files src/**/*.ts, ignores src/rendered/**, src/index.ts, src/**/*.test.ts; pattern group **/rendered and **/rendered/**",
+    "py": "py/tests/test_layers.py: ast scan of every module under src/villanelle/ except villanelle/rendered/** and villanelle/__init__.py; fails on import villanelle.rendered[...], from villanelle.rendered[...] import, from villanelle import rendered, or the relative equivalents, TYPE_CHECKING blocks included"
+  }
+}

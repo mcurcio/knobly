@@ -24,7 +24,7 @@ One JSON object with exactly these keys, in this order:
 - `cst`: the root node, as `[kind, start, end, children]`. `kind` is a CST node kind (`document`,
   `directive`, `block`, `list`, `slice`, `error`). `start` and `end` are the token range: indices
   into `tokens`, half-open. `children` is an array of nodes in the same 4-element form.
-- `diagnostics`: `[code, line, column]` per diagnostic, in source order (`docs/bindings/spec.md` 3.3). `line` and `column`
+- `diagnostics`: `[code, line, column]` per diagnostic, in source order (`spec/spec.md` 3.3). `line` and `column`
   are the 0-based start of the diagnostic's span. The column counts UTF-16 code units. The message
   is not part of the contract.
 
@@ -48,4 +48,4 @@ above U+FFFF to its surrogate pair before escaping. Check the library against th
 invalid UTF-8 must not become U+FFFD; `\b` and `\f` must be the short escapes; hex digits must be
 lowercase; and no newline may follow the value except the one at the end. Reading the case files
 has the mirror trap: three syntax cases (`surrogate-*` in `extra.json`) hold lone surrogates, which
-a decoder for UTF-8 strings replaces (see `docs/bindings/spec.md` 2.1).
+a decoder for UTF-8 strings replaces (see `spec/spec.md` 2.1).
