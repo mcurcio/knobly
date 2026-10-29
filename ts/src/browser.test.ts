@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createFetchSource, createFetchWriter } from "./browser.js";
+import { fetchSource, fetchWriter } from "./browser.js";
 import { include } from "./include.js";
 import { villanelle } from "./written/processor.js";
 import { rendered } from "./rendered/testing.js";
@@ -27,7 +27,7 @@ describe("villanelle/browser", () => {
       "https://h.test/conf/a.conf": 'include "../b.conf";',
       "https://h.test/b.conf": "b 1;",
     });
-    const loaded = await rendered(villanelle({ source: createFetchSource(fetchImpl), extensions: [include()] }), "https://h.test/root.conf");
+    const loaded = await rendered(villanelle({ source: fetchSource(fetchImpl), extensions: [include()] }), "https://h.test/root.conf");
     expect(loaded.diagnostics).toEqual([]);
     expect([...loaded.graph.documents.keys()]).toEqual(["https://h.test/root.conf", "https://h.test/conf/a.conf", "https://h.test/b.conf"]);
     expect(loaded.block.map((d) => d.name)).toEqual(["b"]);
@@ -35,7 +35,7 @@ describe("villanelle/browser", () => {
 
   it("resolves without fetching, resolves a glob to nothing, and rejects a non-2xx read", async () => {
     const { calls, fetchImpl } = fakeFetch({});
-    const source = createFetchSource(fetchImpl);
+    const source = fetchSource(fetchImpl);
     const context = { parentPath: "https://h.test/root.conf" };
     expect(await source.resolve("missing.conf", context)).toEqual(["https://h.test/missing.conf"]);
     expect(await source.resolve("*.conf", context)).toEqual([]);
@@ -46,11 +46,11 @@ describe("villanelle/browser", () => {
 
   it("writes with PUT text/plain by default, or the given method and content type, one request per file", async () => {
     const { calls, fetchImpl } = fakeFetch({});
-    await createFetchWriter(fetchImpl).write([
+    await fetchWriter(fetchImpl).write([
       { resolvedPath: "https://h.test/a", text: "a;", savedText: "" },
       { resolvedPath: "https://h.test/c", text: "c;", savedText: "" },
     ]);
-    await createFetchWriter(fetchImpl, { method: "POST", contentType: "text/x-conf" }).write([{ resolvedPath: "https://h.test/b", text: "b;", savedText: "" }]);
+    await fetchWriter(fetchImpl, { method: "POST", contentType: "text/x-conf" }).write([{ resolvedPath: "https://h.test/b", text: "b;", savedText: "" }]);
     expect(calls).toEqual([
       ["https://h.test/a", { method: "PUT", headers: { "content-type": "text/plain" }, body: "a;" }],
       ["https://h.test/c", { method: "PUT", headers: { "content-type": "text/plain" }, body: "c;" }],
@@ -65,7 +65,7 @@ describe("villanelle/browser", () => {
       calls.push(url);
       return Promise.resolve(new Response("no", { status: url.endsWith("/a") ? 500 : 200 }));
     };
-    const writer = createFetchWriter(fetchImpl);
+    const writer = fetchWriter(fetchImpl);
     const files = ["a", "b"].map((n) => ({ resolvedPath: `https://h.test/${n}`, text: `${n};`, savedText: "" }));
     await expect(writer.write(files)).rejects.toThrow(/500/);
     expect(calls).toEqual(["https://h.test/a"]);

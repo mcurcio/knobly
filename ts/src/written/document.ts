@@ -5,19 +5,20 @@
  */
 
 import { anatomyOf, itemsOf } from "../anatomy.js";
-import { DiagnosticCode, type IDiagnostic, messageOf } from "../diagnostics.js";
+import { DiagnosticCode, type IDiagnostic, makeDiagnostic, messageOf } from "../diagnostics.js";
 import { RESERVED, VARIABLE_NAME } from "../gen/api/limits.js";
-import type { IPlace } from "../origin.js";
+import { type IPlace, makePlace } from "../origin.js";
 import type { ISourcePosition, ISourceSpan } from "../span.js";
 import { type INode, type ISyntax, spanOf, type ValueRef } from "../syntax/cst.js";
 import { parse } from "../syntax/parse.js";
 import { type IToken } from "../syntax/tokens.js";
 import { requireText } from "../text.js";
 import type { IBinding } from "./bind.js";
-import { BadTextError, DetachedError } from "./errors.js";
-import type { IDocument, IDocumentEdge, IVariable, IWrittenBlock, IWrittenDirective, Statement, WrittenValue } from "./model.js";
+import { BadTextError, DetachedError } from "../errors.js";
+import type { IDocument, IDocumentEdge, IParameter, ISetVariable, IWrittenBlock, IWrittenDirective, Statement, WrittenValue } from "./model.js";
 import { blockShapes, type IShape, parameterTokens, type ShapeKind, statementNodes } from "./shape.js";
 import {
+  ExtensionLine,
   ParameterVariable,
   SetLine,
   SnippetLine,
@@ -104,7 +105,7 @@ export class Block implements IWrittenBlock {
 
   get statements(): readonly Statement[] {
     this.owner?.live();
-    return this.items as unknown as readonly Statement[];
+    return this.items as readonly Statement[];
   }
 
   directives(name?: string): readonly IWrittenDirective[] {
@@ -198,7 +199,7 @@ export class Document implements IDocument {
 
   /** A place in this document. */
   place(span: ISourceSpan): IPlace {
-    return { kind: "file", resolvedPath: this.resolvedPath, span };
+    return makePlace(this.resolvedPath, span);
   }
 
   /** The span of a token range of the current parse. */
@@ -304,7 +305,7 @@ export class Document implements IDocument {
       handle.blockHandle ??= new Block(this, handle);
       handle.blockHandle.items = this.buildBlock(anatomy.block, handle, claimed, reconcile);
     };
-    if (handle instanceof WrittenDirective) {
+    if (handle instanceof WrittenDirective || handle instanceof ExtensionLine) {
       handle.valueList = values(anatomy?.values ?? []);
       block([]);
     } else if (handle instanceof SetLine) {
@@ -335,8 +336,9 @@ export class Document implements IDocument {
   private newStatement(kind: ShapeKind): StatementHandle {
     switch (kind) {
       case "directive":
+        return new WrittenDirective(this);
       case "extension":
-        return new WrittenDirective(this, kind);
+        return new ExtensionLine(this);
       case "set":
         return new SetLine(this);
       case "snippet":
@@ -454,7 +456,7 @@ export class Document implements IDocument {
     const insert = insertOf(text, this.reindent(text, this.indentationAt(start)));
     const owner = statement.parentHandle;
     const created = this.splice(start, end, insert, given);
-    return created.filter((h): h is StatementHandle => h instanceof StatementHandle && h.parentHandle === owner) as unknown as Statement[];
+    return created.filter((h): h is StatementHandle => h instanceof StatementHandle && h.parentHandle === owner) as Statement[];
   }
 
   /**
@@ -537,7 +539,7 @@ export class Document implements IDocument {
       if (/^[ \t\r\n]*$/u.test(this.current.slice(open, close))) {
         // `{}` (or only whitespace between): `{`, the lines, the parent's indentation, `}`.
         const created = this.splice(open, close, insertOf(text, [eol, ...lines(indentation), eol, parentIndentation]), given);
-        return created.filter((h): h is StatementHandle => h instanceof StatementHandle && h.parentHandle === block.owner) as unknown as Statement[];
+        return created.filter((h): h is StatementHandle => h instanceof StatementHandle && h.parentHandle === block.owner) as Statement[];
       }
       // Only comments inside: the lines go before the `}` line.
       const lineStart = this.current.lastIndexOf("\n", close - 1) + 1;
@@ -550,7 +552,7 @@ export class Document implements IDocument {
       }
     }
     const created = this.splice(at, at, insertOf(text, insert), given);
-    return created.filter((h): h is StatementHandle => h instanceof StatementHandle && h.parentHandle === block.owner) as unknown as Statement[];
+    return created.filter((h): h is StatementHandle => h instanceof StatementHandle && h.parentHandle === block.owner) as Statement[];
   }
 
   /** The document's indentation unit: the leading whitespace of its first indented line, else four spaces (D14). */
@@ -560,12 +562,11 @@ export class Document implements IDocument {
 
   /**
    * `rename` of a directive: its name token. Refused (E2001 at 0:0, D-S1-10): not one WORD; `set`, `snippet`, `use`
-   * or a registered extension's name; or the line is an extension line. The statement keeps its handle.
+   * or a registered extension's name. The statement keeps its handle.
    */
-  renameStatement(statement: StatementHandle, name: string): void {
+  renameStatement(statement: WrittenDirective, name: string): void {
     const refuse = (): BadTextError =>
       new BadTextError(`cannot rename to ${JSON.stringify(name)}`, [at(name, 0, DiagnosticCode.UnexpectedToken)]);
-    if (statement.kind !== "directive") throw refuse();
     const { tokens } = parse(name);
     const [only] = tokens;
     if (tokens.length !== 1 || only?.kind !== "WORD" || only.text !== name) throw refuse();
@@ -629,7 +630,7 @@ export class Document implements IDocument {
     const created = this.splice(start, end, text, given);
     return created.filter(
       (h): h is ValueHandle => h instanceof ValueHandle && h.listHandle === container && h.statementHandle === statement && !h.bound,
-    ) as unknown as WrittenValue[];
+    ) as WrittenValue[];
   }
 
   /**
@@ -689,7 +690,7 @@ export class Document implements IDocument {
    * picks (2.5): block by block outward, the `set` lines above in that block, then the parameters of the snippet
    * whose body it is (D-F1-8).
    */
-  declarationOf(reference: Reference): IVariable | undefined {
+  declarationOf(reference: Reference): ISetVariable | IParameter | undefined {
     const name = reference.name;
     for (let s: StatementHandle | undefined = reference.statementHandle; s !== undefined; s = s.parentHandle) {
       const parent = s.parentHandle;
@@ -735,8 +736,8 @@ export class Document implements IDocument {
   }
 
   /** Every `set` and snippet line's variables, in text order. */
-  variables(): IVariable[] {
-    const out: IVariable[] = [];
+  variables(): (ISetVariable | IParameter)[] {
+    const out: (ISetVariable | IParameter)[] = [];
     const statement = (s: StatementHandle): void => {
       if (s instanceof SetLine) out.push(s.variableHandle);
       if (s instanceof SnippetLine) out.push(...s.parameterHandles);
@@ -792,12 +793,12 @@ export function positionIn(text: string, offset: number): ISourcePosition {
 function shifted(given: string, shift: number, d: IDiagnostic): IDiagnostic {
   const start = positionIn(given, d.span.start.offset - shift);
   const end = positionIn(given, d.span.end.offset - shift);
-  return { code: d.code, message: d.message, span: { start, end } };
+  return makeDiagnostic(d.code, d.message, { start, end });
 }
 
 function at(given: string, offset: number, code: DiagnosticCode): IDiagnostic {
   const position = positionIn(given, offset);
-  return { code, message: messageOf(code), span: { start: position, end: position } };
+  return makeDiagnostic(code, messageOf(code), { start: position, end: position });
 }
 
 /** Tokens that may follow a line break without being values on the next line. */

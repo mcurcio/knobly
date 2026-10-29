@@ -14,11 +14,14 @@
  * snapshots of one derivation, not handles. The only other state is which files were read.
  */
 
-import type { IPlace, IStep } from "../origin.js";
+import type { StatementKind, UnreadableReason, ValueKind, VariableKind } from "../gen/api/kinds.js";
+import type { IDirectiveOrigin, IPlace, IStep } from "../origin.js";
 import type { ILocatedDiagnostic } from "../report.js";
 import type { IDocumentWriter } from "../source.js";
-import type { VariableKind } from "../gen/api/kinds.js";
 import type { ISyntax } from "../syntax/cst.js";
+import type { ExpandedValue } from "../value.js";
+
+export type { StatementKind, VariableKind };
 
 // --- Files ---
 
@@ -55,7 +58,8 @@ export interface IDocumentGraph {
    * with none, the writer is not called. When the writer resolves, each written document's `savedText` becomes the
    * text handed over (an edit made while the writer ran stays unsaved); when it rejects, no `savedText` changes (a
    * writer that failed part way through committing: see IDocumentWriter). Returns the resolvedPaths handed over.
-   * @throws (rejects) SaveError { files, cause } when the writer rejects
+   * @throws (rejects) SaveError { paths, cause } when the writer rejects; TypeError when `writer` has no `write`
+   * method (before anything is collected)
    */
   save(writer: IDocumentWriter): Promise<readonly string[]>;
 
@@ -64,7 +68,13 @@ export interface IDocumentGraph {
   /** The edges naming a spec not resolved or a file not read yet; non-empty means copies and a render lack them. */
   unread(): readonly IDocumentEdge[];
   /** Every variable (with `name`: of that name): `set` and parameters in document order, then overrides in order. */
-  variables(name?: string): readonly IVariable[];
+  variables(name?: string): readonly Variable[];
+  /**
+   * The current texts and overrides after expansion (spec 6.10): each directive copy with its values expanded, and
+   * what wins over each `$name` there. Pure: reads no file. A snapshot of one working-out of the graph; edit, then
+   * call it again for a new one. `render (graph)` builds the rendered tree from it alone.
+   */
+  expand(): IExpansion;
 }
 
 /** One file as written. */
@@ -106,13 +116,15 @@ export interface ICopy {
 
 // --- What is written: discriminated by `kind` ---
 
-export type Statement = IWrittenDirective | ISetLine | ISnippetLine | IUseLine | IUnreadableLine;
+/** One statement as written. Narrow by `kind` (spec 6.5); each kind has only the members that can succeed on it. */
+export type Statement = IWrittenDirective | IExtensionLine | ISetLine | ISnippetLine | IUseLine | IUnreadableLine;
 
 /** What every statement has. */
 export interface IStatementBase {
+  readonly kind: StatementKind;
   readonly document: IDocument;
   /** The statement whose block holds it; undefined at a document's top level. */
-  readonly parent: Statement | undefined;
+  readonly parent: IWrittenDirective | IExtensionLine | ISnippetLine | undefined;
   /** From its first owned token to its last (slices.md S1, "Comment ownership"). */
   readonly place: IPlace;
   /** Exact, with the comments it owns; without the indentation before it and the line break after it. */
@@ -126,15 +138,19 @@ export interface IStatementBase {
   replaceWithText(text: string): readonly Statement[];
   /** Remove it with the comments it owns, and its line when nothing else is on it. Then it is detached. */
   remove(): void;
+  /** Insert statements before this one, in its block: `block.insertStatements(indexOf(this), text)`. */
+  insertBefore(text: string): readonly Statement[];
+  /** Insert statements after this one, in its block: `block.insertStatements(indexOf(this) + 1, text)`. */
+  insertAfter(text: string): readonly Statement[];
 }
 
-/** A directive, or (kind "extension") a line whose name a registered extension owns: an include line. */
+/** A directive. */
 export interface IWrittenDirective extends IStatementBase {
-  readonly kind: "directive" | "extension";
+  readonly kind: "directive";
   readonly name: string;
-  /** In order. An include line: its path. */
+  /** In order. */
   readonly values: readonly WrittenValue[];
-  /** Undefined when written without one. An include line: its `set` lines. */
+  /** Undefined when written without one. */
   readonly block: IWrittenBlock | undefined;
   /**
    * @throws BadTextError: not one WORD, or a name that would change its kind (`set`, `snippet`, `use`, an extension's);
@@ -143,16 +159,28 @@ export interface IWrittenDirective extends IStatementBase {
   rename(name: string): void;
   /**
    * Replace its values, first to last, comments between them included, with villanelle text: `d.set(quote("web"))`.
-   * Not the language's `set` line: it replaces a statement's values. @throws BadTextError; TypeError when `text` is
-   * not a string
+   * Not the language's `set` line: it replaces a statement's values. A line break outside a list is refused (it
+   * would end the statement). @throws BadTextError; TypeError when `text` is not a string
    */
+  set(text: string): void;
+}
+
+/** A line whose name a registered extension owns: an include line. Its name is the extension's, so it has no `rename`. */
+export interface IExtensionLine extends IStatementBase {
+  readonly kind: "extension";
+  readonly name: string;
+  /** In order. An include line: its path. */
+  readonly values: readonly WrittenValue[];
+  /** Undefined when written without one. An include line: its `set` lines. */
+  readonly block: IWrittenBlock | undefined;
+  /** Replace its values, as a directive's `set`. @throws BadTextError; TypeError when `text` is not a string */
   set(text: string): void;
 }
 
 /** `set $name value...;`. */
 export interface ISetLine extends IStatementBase {
   readonly kind: "set";
-  readonly variable: IVariable;
+  readonly variable: ISetVariable;
   /** After the `$name`; `set` never touches it. */
   readonly values: readonly WrittenValue[];
   /** Replace its values (not the `$name`). @throws BadTextError, also for an empty text (E5009); TypeError when `text` is not a string */
@@ -163,7 +191,7 @@ export interface ISetLine extends IStatementBase {
 export interface ISnippetLine extends IStatementBase {
   readonly kind: "snippet";
   readonly name: string;
-  readonly parameters: readonly IVariable[];
+  readonly parameters: readonly IParameter[];
   readonly block: IWrittenBlock;
 }
 
@@ -190,7 +218,7 @@ export interface IUnreadableLine extends IStatementBase {
 export interface IWrittenBlock {
   /** In order. */
   readonly statements: readonly Statement[];
-  /** Its directive statements (kind "directive"), with `name`: of that name. */
+  /** Its directive statements (kind "directive" only), with `name`: of that name. */
   directives(name?: string): readonly IWrittenDirective[];
   /**
    * Insert statements before `statements[index]` (`index === statements.length` appends), indented as siblings;
@@ -208,6 +236,7 @@ export type WrittenValue = IWord | IString | IList | ISlice | IIndex | IReferenc
 
 /** What every written value has. */
 export interface IValueBase {
+  readonly kind: ValueKind;
   /** Its exact source text. */
   readonly text: string;
   readonly place: IPlace;
@@ -260,34 +289,51 @@ export interface IReference extends IValueBase {
   /** Without `$`. */
   readonly name: string;
   /** By where written: the nearest `set` above it in its file, or its snippet's parameter; undefined when free. */
-  readonly declaration: IVariable | undefined;
+  readonly declaration: ISetVariable | IParameter | undefined;
   /** One per copy of its statement, in walk order. */
   resolutions(): readonly IReferenceResolution[];
 }
 
-/** A `set` line's `$name`, a snippet parameter, or an override. */
-export interface IVariable {
+/** A variable: a `set` line's `$name`, a snippet parameter, or an override. Narrow by `kind` (spec 6.7). */
+export type Variable = ISetVariable | IParameter | IOverrideVariable;
+
+/** What every variable has. */
+export interface IVariableBase {
   readonly kind: VariableKind;
   readonly name: string;
-  /** Its `$name`; undefined for an override. */
-  readonly place: IPlace | undefined;
-  readonly line: ISetLine | ISnippetLine | undefined;
   /** The references whose `declaration` it is, reached or not, in document order. */
   references(): readonly IReference[];
   /** The resolutions in which it wins, in walk order. */
   wins(): readonly IReferenceResolution[];
   /** The resolutions in which it is shadowed (another wins), in walk order. */
   shadowedAt(): readonly IReferenceResolution[];
-  /**
-   * Rename its `$name` only (name without `$`). @throws BadTextError (also E5002); NoSetLineError for an override;
-   * TypeError when `name` is not a string
-   */
+}
+
+/** A `set` line's `$name`: the same object as that line's `variable`. */
+export interface ISetVariable extends IVariableBase {
+  readonly kind: "set";
+  /** Its `$name`. */
+  readonly place: IPlace;
+  readonly line: ISetLine;
+  /** Rename its `$name` only (name without `$`). @throws BadTextError (also E5002); TypeError when `name` is not a string */
   rename(name: string): void;
-  /**
-   * Replace its `set` line's values. @throws NoSetLineError for a parameter or an override (use `setOverride`);
-   * BadTextError; TypeError when `text` is not a string
-   */
+  /** Replace its `set` line's values: `line.set(text)`. @throws BadTextError; TypeError when `text` is not a string */
   set(text: string): void;
+}
+
+/** A snippet parameter's `$name`. Its value comes from each `use` line: edit those to change it. */
+export interface IParameter extends IVariableBase {
+  readonly kind: "parameter";
+  /** Its `$name`. */
+  readonly place: IPlace;
+  readonly line: ISnippetLine;
+  /** Rename its `$name` only (name without `$`). @throws BadTextError (also E5002); TypeError when `name` is not a string */
+  rename(name: string): void;
+}
+
+/** An override: written in no file, so it has no place, line, rename or set (change it with `graph.setOverride`). */
+export interface IOverrideVariable extends IVariableBase {
+  readonly kind: "override";
 }
 
 /** At one copy: what a written name reads, and what it wins over. */
@@ -300,8 +346,53 @@ export interface IResolution<TDefinition> {
 }
 
 /** A `$name` at one copy. It renders to all of `values`: `set $ports 8080 443;` gives two, replaced together. */
-export interface IReferenceResolution extends IResolution<IVariable> {
+export interface IReferenceResolution extends IResolution<Variable> {
   readonly reference: IReference;
   /** The winning `set` line's values, or for a parameter the `use` line's values bound to it; empty for an override or unbound. */
   readonly values: readonly WrittenValue[];
+}
+
+// --- The expansion: what `render (graph)` builds on (spec 6.10) ---
+
+/** The graph's current texts and overrides after expansion. A snapshot; its handles are live. */
+export interface IExpansion {
+  /** The root document's top-level directive copies, includes and uses spliced in place. */
+  readonly block: readonly IDirectiveExpansion[];
+  /** The top-level statements that cannot be read, in walk order. */
+  readonly unreadable: readonly IUnreadableExpansion[];
+  /** Syntax diagnostics (documents in order), then everything the expansion found in walk order, render codes included. */
+  readonly diagnostics: readonly ILocatedDiagnostic[];
+}
+
+/** One copy of a directive, its values expanded at that copy. */
+export interface IDirectiveExpansion {
+  readonly statement: IWrittenDirective;
+  /** Its name's place, and the copy's steps. */
+  readonly origin: IDirectiveOrigin;
+  readonly values: readonly IValueExpansion[];
+  /** Its block's directive copies; undefined when written without a block. */
+  readonly block: readonly IDirectiveExpansion[] | undefined;
+  /** Its block's statements that cannot be read at this copy. */
+  readonly unreadable: readonly IUnreadableExpansion[];
+}
+
+/** One copy of a statement that cannot be read there, and why. */
+export interface IUnreadableExpansion {
+  readonly statement: Statement;
+  readonly reason: UnreadableReason;
+  /** The statement's own tokens, and the copy's steps. */
+  readonly origin: IDirectiveOrigin;
+}
+
+/** One value after expansion, with what it was written as and what won over each `$name` on the way. */
+export interface IValueExpansion {
+  readonly value: ExpandedValue;
+  /** The written value on the line it is read in: the `$name` there for a value that came through a variable. */
+  readonly written: WrittenValue;
+  /** The written value at the end of its chain; undefined for an override. */
+  readonly definition: WrittenValue | undefined;
+  /** One per variable step of `value.origin.via`, from this value's own line toward where it is written. */
+  readonly chain: readonly IReferenceResolution[];
+  /** A list's items, expanded the same way; empty for every other kind. */
+  readonly items: readonly IValueExpansion[];
 }

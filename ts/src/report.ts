@@ -4,8 +4,10 @@
  * HCL's `hcl.Diagnostics`.
  */
 
-import { type DiagnosticCode, DiagnosticError } from "./diagnostics.js";
+import type { DiagnosticCode } from "./diagnostics.js";
+import { DiagnosticError } from "./errors.js";
 import type { IPlace, IStep } from "./origin.js";
+import { locatedForm } from "./people.js";
 
 /**
  * A program's own code: `<namespace>/<name>`, such as "rasl/unknown-node". Never collides with villanelle's codes
@@ -25,6 +27,26 @@ export interface ILocatedDiagnostic {
   readonly place: IPlace;
   /** The variables, uses and extension directives that brought the text to `place`'s reader; innermost first. */
   readonly via: readonly IStep[];
+  /** `path:line:col: code: message`, 1-based: `main.conf:7:15: E5001: unknown variable: $pixels`. */
+  toString(): string;
+}
+
+class LocatedDiagnostic implements ILocatedDiagnostic {
+  constructor(
+    readonly code: DiagnosticCode | ProgramCode,
+    readonly message: string,
+    readonly place: IPlace,
+    readonly via: readonly IStep[],
+  ) {}
+
+  toString(): string {
+    return locatedForm(this);
+  }
+}
+
+/** One located diagnostic. Package-internal. */
+export function makeLocated(code: DiagnosticCode | ProgramCode, message: string, place: IPlace, via: readonly IStep[]): ILocatedDiagnostic {
+  return new LocatedDiagnostic(code, message, place, via);
 }
 
 /** Anything a program can place a problem on: a directive, a value, or the whole load (its root file). */

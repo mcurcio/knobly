@@ -4,10 +4,12 @@
  * An included file's top-level `set` and `snippet` are visible after the include line in the including block (L2).
  */
 
-import { DiagnosticCode, DiagnosticError, messageOf } from "./diagnostics.js";
+import { DiagnosticCode, messageOf } from "./diagnostics.js";
+import { DiagnosticError } from "./errors.js";
 import type { IExtension } from "./extension.js";
 import { codeError } from "./locate.js";
-import { type IExpandedValue } from "./value.js";
+import { makeLocated } from "./report.js";
+import type { ExpandedValue } from "./value.js";
 
 /**
  * The include extension. Its one value must be a quoted path or glob (E3005 otherwise, placed on the value);
@@ -20,9 +22,9 @@ export function include(): IExtension {
       const [path, extra] = values;
       if (path === undefined) {
         const code = DiagnosticCode.IncludeBadPath;
-        throw new DiagnosticError({ code, message: messageOf(code), place: origin.place, via: origin.via });
+        throw new DiagnosticError(makeLocated(code, messageOf(code), origin.place, origin.via));
       }
-      const bad: IExpandedValue | undefined = path.kind !== "string" ? path : extra;
+      const bad: ExpandedValue | undefined = path.kind !== "string" ? path : extra;
       if (bad !== undefined) throw codeError(bad.origin, DiagnosticCode.IncludeBadPath, bad.text);
       return [path.string()];
     },

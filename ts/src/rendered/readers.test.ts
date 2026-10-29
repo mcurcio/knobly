@@ -1,22 +1,23 @@
 /**
- * Value readers (IArgument) and canonical text (slices.md §1.3), through the public processor. Also carries the
+ * Value readers (Argument) and canonical text (slices.md §1.3), through the public processor. Also carries the
  * value behaviour the deleted tier-1 value reader had: slices, indexes, negative bounds and string decoding.
  */
 
 import { describe, expect, it } from "vitest";
 
-import { DiagnosticCode, DiagnosticError } from "../diagnostics.js";
-import type { IArgument } from "./model.js";
+import { DiagnosticCode } from "../diagnostics.js";
+import { DiagnosticError } from "../errors.js";
+import type { Argument } from "./model.js";
 import { loadText, only, originText } from "./testing.js";
 
 /** The values of the one directive `v ...;`. */
-async function values(written: string, overrides?: Record<string, string>): Promise<readonly IArgument[]> {
+async function values(written: string, overrides?: Record<string, string>): Promise<readonly Argument[]> {
   const loaded = await loadText(`v ${written};\n`, overrides === undefined ? {} : { overrides });
   expect(loaded.diagnostics).toEqual([]);
   return only(loaded.block).values;
 }
 
-async function value(written: string): Promise<IArgument> {
+async function value(written: string): Promise<Argument> {
   return only(await values(written));
 }
 
@@ -69,17 +70,18 @@ describe("readers", () => {
     expect(thrown(() => read[4]?.boolean())[0]).toBe(DiagnosticCode.WrongValueKind);
   });
 
-  it("items: a list's items, each with its own origin; E4002 for another kind", async () => {
+  it("list: a list's items, each with its own origin, also its items property; E4002 for another kind", async () => {
     const list = await value('[0.04, "x", [1, 2], c[0:1]]');
-    const items = list.items();
+    const items = list.list();
+    expect(list.kind === "list" ? list.items : []).toEqual(items);
     expect(items.map((i) => [i.kind, i.text, originText(i.origin)])).toEqual([
       ["word", "0.04", "main.conf:0:3"],
       ["string", '"x"', "main.conf:0:9"],
       ["list", "[1, 2]", "main.conf:0:14"],
       ["slice", "c[0:1]", "main.conf:0:22"],
     ]);
-    expect(items[2]?.items().map((i) => i.integer())).toEqual([1, 2]);
-    expect(thrown(() => items[0]?.items())[0]).toBe(DiagnosticCode.WrongValueKind);
+    expect(items[2]?.list().map((i) => i.integer())).toEqual([1, 2]);
+    expect(thrown(() => items[0]?.list())[0]).toBe(DiagnosticCode.WrongValueKind);
   });
 
   it("slice: a slice (either side may be absent) or an index, negative bounds allowed; E4002 otherwise", async () => {

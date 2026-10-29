@@ -10,7 +10,7 @@ import type { IDocumentWriter } from "./source.js";
  * A document source over fetch. `resolve` resolves a spec as a URL against `context.parentPath` and returns it
  * without fetching; globs resolve to no paths. `read` fetches the URL and rejects on a non-2xx response.
  */
-export function createFetchSource(fetchImpl: typeof fetch): IDocumentSource {
+export function fetchSource(fetchImpl: typeof fetch): IDocumentSource {
   return {
     resolve(spec, context) {
       if (hasGlob(spec)) return Promise.resolve([]);
@@ -25,7 +25,7 @@ export function createFetchSource(fetchImpl: typeof fetch): IDocumentSource {
   };
 }
 
-/** Options for createFetchWriter. */
+/** Options for fetchWriter. */
 export interface IFetchWriterOptions {
   /** HTTP method. Default "PUT". */
   readonly method?: string;
@@ -38,7 +38,7 @@ export interface IFetchWriterOptions {
  * rejects on the first failure (a non-2xx response or a rejected fetch), so it is not all-or-nothing: files sent
  * before the failure stay written.
  */
-export function createFetchWriter(fetchImpl: typeof fetch, options?: IFetchWriterOptions): IDocumentWriter {
+export function fetchWriter(fetchImpl: typeof fetch, options?: IFetchWriterOptions): IDocumentWriter {
   const method = options?.method ?? "PUT";
   const contentType = options?.contentType ?? "text/plain";
   return {

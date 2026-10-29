@@ -11,13 +11,14 @@
  */
 
 import { anatomyOf, type IDirectiveAnatomy, itemsOf } from "../anatomy.js";
-import { DiagnosticCode, DiagnosticError, messageOf } from "../diagnostics.js";
+import { DiagnosticCode, messageOf } from "../diagnostics.js";
+import { DiagnosticError } from "../errors.js";
 import type { IExtension } from "../extension.js";
 import type { UnreadableReason } from "../gen/api/kinds.js";
 import { MAX_DEPTH, MAX_DIRECTIVES } from "../gen/api/limits.js";
 import { compareCodePoints } from "../graph/order.js";
-import { type IOverride, type IPlace, type IStep } from "../origin.js";
-import type { ILocatedDiagnostic } from "../report.js";
+import { type IOverride, type IPlace, type IStep, makeOverride, makePlace, makeStep } from "../origin.js";
+import { type ILocatedDiagnostic, makeLocated } from "../report.js";
 import type { ISourceSpan } from "../span.js";
 import { type INode, type ISyntax, spanOf, type ValueRef } from "../syntax/cst.js";
 import { parse } from "../syntax/parse.js";
@@ -33,7 +34,7 @@ import type {
   IResolution,
   ISnippetLine,
   IUseLine,
-  IVariable,
+  Variable,
   Statement,
   WrittenValue,
 } from "./model.js";
@@ -85,7 +86,7 @@ export interface IReadLedger {
 
 /** An override: its variable handle and its values, already read and checked (override.ts). */
 export interface IOverrideInput {
-  readonly variable: IVariable;
+  readonly variable: Variable;
   readonly values: readonly Bound[];
 }
 
@@ -111,7 +112,7 @@ export interface IBinding {
   copiesOf(statement: Statement): readonly ICopy[];
   /** One per copy of the reference's statement, in walk order. */
   resolutionsOf(reference: IReference): readonly IReferenceResolution[];
-  /** Every resolution, in walk order: what `IVariable.wins()` and `shadowedAt()` filter. */
+  /** Every resolution, in walk order: what `Variable.wins()` and `shadowedAt()` filter. */
   resolutions(): readonly IReferenceResolution[];
   /** One per copy of the `use` line, in walk order. */
   snippetsOf(use: IUseLine): readonly IResolution<ISnippetLine>[];
@@ -159,8 +160,8 @@ export function readOverride(
     doc: undefined,
     syntax,
     resolvedPath: "",
-    written: () => ({ kind: "override", variable: name }),
-    place: (span) => ({ kind: "file", resolvedPath: "", span }),
+    written: () => makeOverride(name),
+    place: (span) => makePlace("", span),
   };
   const walk = new Walk(undefined);
   try {
@@ -190,7 +191,7 @@ interface IText {
 }
 
 function documentText(doc: Document): IText {
-  const place = (span: ISourceSpan): IPlace => ({ kind: "file", resolvedPath: doc.resolvedPath, span });
+  const place = (span: ISourceSpan): IPlace => makePlace(doc.resolvedPath, span);
   return { doc, syntax: doc.syntax, resolvedPath: doc.resolvedPath, written: place, place };
 }
 
@@ -213,7 +214,7 @@ class ValueProblem extends Problem {}
 
 /** One definition of a name: its variable, the values a reader gets (stored without the definer's steps), as written. */
 interface IDefinition {
-  readonly variable: IVariable;
+  readonly variable: Variable;
   readonly values: readonly Bound[];
   readonly written: readonly WrittenValue[];
 }
@@ -607,7 +608,7 @@ class Walk implements IBindingWithNeeds {
         body.param(param, { variable, values: [value.rebase(via.length, [])], written: writtenValue === undefined ? [] : [writtenValue] });
       }
     });
-    const step: IStep = { kind: "use", name: name.text, place: text.place(keyword.span) };
+    const step = makeStep("use", name.text, text.place(keyword.span));
     this.statements(snippet.block, { ...context, text: snippet.text, scope: body, via: [step, ...via], open: [...open, snippet] });
   }
 
@@ -661,7 +662,7 @@ class Walk implements IBindingWithNeeds {
       files.push(asDocument(doc));
     }
     targets.push(...found);
-    const step: IStep = { kind: "extension", name: name.text, place: text.place(name.span) };
+    const step = makeStep("extension", name.text, text.place(name.span));
     const spliced = new SpliceScope(scope, forced);
     for (const file of files) {
       this.statements(file.syntax.root, {
@@ -751,7 +752,7 @@ class Walk implements IBindingWithNeeds {
     if (winner === undefined) {
       throw this.problem("expansion", DiagnosticCode.UnknownVariable, text, token.span, via, token.text);
     }
-    const step: IStep = { kind: "variable", name, place: text.place(token.span) };
+    const step = makeStep("variable", name, text.place(token.span));
     return winner.values.map((value) => value.rebase(0, [step, ...via], resolution));
   }
 
@@ -805,17 +806,13 @@ class Walk implements IBindingWithNeeds {
       // An override is written in no file: the problem is placed on the `$name` that used it.
       throw this.problem("value", DiagnosticCode.NonIntegerBound, text, token.span, via, token.text);
     }
-    throw new Problem("value", {
-      code: DiagnosticCode.NonIntegerBound,
-      message: `${messageOf(DiagnosticCode.NonIntegerBound)}: ${token.text} is ${only?.text ?? ""}`,
-      place,
-      via: only?.origin.via ?? [],
-    });
+    const message = `${messageOf(DiagnosticCode.NonIntegerBound)}: ${token.text} is ${only?.text ?? ""}`;
+    throw new Problem("value", makeLocated(DiagnosticCode.NonIntegerBound, message, place, only?.origin.via ?? []));
   }
 
   private problem(reason: UnreadableReason, code: DiagnosticCode, text: IText, span: ISourceSpan, via: readonly IStep[], detail?: string): Problem {
     const message = detail === undefined ? messageOf(code) : `${messageOf(code)}: ${detail}`;
-    return new Problem(reason, { code, message, place: text.place(span), via });
+    return new Problem(reason, makeLocated(code, message, text.place(span), via));
   }
 }
 

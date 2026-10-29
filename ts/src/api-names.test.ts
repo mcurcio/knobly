@@ -1,10 +1,12 @@
 /**
- * The public-name check (spec/codegen.md, "Milestone 1"): every member spec/schema/api.json lists for a concept
- * exists, under this binding's casing (camelCase) or the member's "spell", on a real object of that concept, as a
- * property or a method as the schema says. It also checks the free functions and the error classes the schema
- * names. Interfaces do not exist at run time, so the objects come from a probe: a memory-source graph loaded with an
- * override, two renders, a diff, a save, and the ports' calls. Which object is which concept follows the schema's
- * member types from those roots, so the walk itself only uses spec names.
+ * The public-name check (spec/codegen.md, "Milestone 1" and "Milestone 2"): every member spec/schema/api.json lists
+ * for a concept exists, under this binding's casing (camelCase) or the member's "spell", on a real object of that
+ * concept, as a property or a method as the schema says. A variant has its union's members and its own, and those of
+ * the concept it `extends`; its `kind` is the schema's. It also checks the free functions and the error classes the
+ * schema names, with each group's `parent` as the class it extends. Nothing is skipped. Interfaces do not exist at
+ * run time, so the objects come from a probe: a memory-source graph loaded with an override, an expansion, two
+ * renders, a diff, a save, and the ports' calls. Which object is which concept follows the schema's member types from
+ * those roots, so the walk itself only uses spec names.
  *
  * It reads the schema directly (no generated copy) and fails the build when a name drifts. The reverse direction (a
  * public name the schema lacks) is a later milestone.
@@ -29,8 +31,6 @@ interface IMember {
   readonly params?: readonly IParam[];
   readonly io?: boolean;
   readonly spell?: ISpell;
-  /** Bindings that add this member in a later milestone (binding: milestone); the check skips it there. */
-  readonly later?: Readonly<Partial<Record<keyof ISpell, string>>>;
 }
 interface IConcept {
   readonly name: string;
@@ -38,6 +38,8 @@ interface IConcept {
   readonly members?: readonly IMember[];
   readonly variants?: readonly string[];
   readonly extends?: string;
+  readonly "variant of"?: string;
+  readonly kind?: string;
 }
 interface IFreeFunction {
   readonly name: string;
@@ -353,6 +355,9 @@ async function probe(): Promise<void> {
     const gone = statements.find((s) => member(s, "statement", "text") === "gone 1;");
     method(setPort, "set line", "set", { text: "81" });
     method(gone, "statement", "remove");
+    const server = statements.find((s) => member(s, "statement", "text") === 'server "web" [1, 2] c[0:$n] c[$n] $port {\n    listen $port;\n}');
+    const listen = (member(member(server, "written directive", "block"), "written block", "statements") as readonly unknown[])[0];
+    method(listen, "statement", "remove");
     method(block, "written block", "add statements", { text: "added 1;" });
     const after = await callFree("render", { graph });
     walk("rendered", after);
@@ -374,14 +379,27 @@ async function probe(): Promise<void> {
 
 // --- the checks ----------------------------------------------------------------------------------------------------
 
+/** A concept's own members, then its union's (`variant of`) and its lower layer's (`extends`), recursively. */
+function membersOf(concept: IConcept): IMember[] {
+  const out = [...(concept.members ?? [])];
+  for (const other of [concept["variant of"], concept.extends]) {
+    const c = other === undefined ? undefined : CONCEPTS.get(other);
+    if (c !== undefined) out.push(...membersOf(c).filter((m) => !out.some((o) => o.name === m.name)));
+  }
+  return out;
+}
+
 function missing(concept: IConcept): string[] {
   const objects = [...(instances.get(concept.name) ?? [])];
   if (objects.length === 0) {
     return [`no ${concept.name} object was reached from the probe${problems.length > 0 ? ` (probe problems: ${problems.join("; ")})` : ""}`];
   }
   const out: string[] = [];
-  for (const m of concept.members ?? []) {
-    if (m.later?.ts !== undefined) continue; // the schema defers this member here to a later milestone
+  if (concept.kind !== undefined) {
+    const kinds = [...new Set(objects.map((o) => get(o, "kind")))];
+    if (kinds.length !== 1 || kinds[0] !== concept.kind) out.push(`kind: ${JSON.stringify(kinds)}, the schema says ${JSON.stringify(concept.kind)}`);
+  }
+  for (const m of membersOf(concept)) {
     const key = keyOf(m);
     const present = objects.filter((o) => key in o).map((o) => get(o, key));
     // Object.prototype's own members (toString) do not count: the concept must define the member.

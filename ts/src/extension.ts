@@ -4,12 +4,12 @@
  */
 
 import type { IDirectiveOrigin } from "./origin.js";
-import type { IExpandedValue } from "./value.js";
+import type { ExpandedValue } from "./value.js";
 
 /** One use of an extension directive, as the extension sees it. */
 export interface IExtensionUse {
   /** The directive's values, expanded. */
-  readonly values: readonly IExpandedValue[];
+  readonly values: readonly ExpandedValue[];
   readonly origin: IDirectiveOrigin;
 }
 

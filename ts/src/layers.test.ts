@@ -1,7 +1,9 @@
 /**
- * The layer check bites (frozen-m1.md section 4): ts/eslint.config.js applies the core rule no-restricted-imports to
- * every module but the rendered layer, the package entry and tests, and that rule refuses a planted type-only import
- * of the rendered layer from the low level. `pnpm lint` runs the rule over the real tree.
+ * The layer checks bite (frozen-m1.md section 4, frozen-m2.md section 4.3). Down: ts/eslint.config.js applies the
+ * core rule no-restricted-imports to every module but the rendered layer, the package entry and tests, and that rule
+ * refuses a planted type-only import of the rendered layer from the low level. Public: in the rendered layer it
+ * refuses an import of a low-level module other than written/index.js, and no-restricted-syntax refuses a cast
+ * through unknown and a double cast. `pnpm lint` runs the rules over the real tree.
  */
 import { ESLint, Linter } from "eslint";
 import tseslint from "typescript-eslint";
@@ -9,16 +11,16 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 
-/** The no-restricted-imports setting ESLint uses for a file of this package. */
-async function ruleFor(path: string): Promise<Linter.RuleEntry | undefined> {
+/** The setting of `rule` (default no-restricted-imports) ESLint uses for a file of this package. */
+async function ruleFor(path: string, rule = "no-restricted-imports"): Promise<Linter.RuleEntry | undefined> {
   const config = (await new ESLint({ cwd: ROOT }).calculateConfigForFile(path)) as Linter.Config;
-  return config.rules?.["no-restricted-imports"];
+  return config.rules?.[rule];
 }
 
-/** What the rule reports for `code` as a TypeScript file of src/written/. */
-function lint(code: string, rule: Linter.RuleEntry): (string | null)[] {
-  const config: Linter.Config = { files: ["**/*.ts"], languageOptions: { parser: tseslint.parser }, rules: { "no-restricted-imports": rule } };
-  return new Linter().verify(code, [config], "src/written/planted.ts").map((m) => m.ruleId);
+/** What the rules report for `code` as a TypeScript file at `path`. */
+function lint(code: string, rule: Linter.RuleEntry, path = "src/written/planted.ts", name = "no-restricted-imports"): (string | null)[] {
+  const config: Linter.Config = { files: ["**/*.ts"], languageOptions: { parser: tseslint.parser }, rules: { [name]: rule } };
+  return new Linter().verify(code, [config], path).map((m) => m.ruleId);
 }
 
 const PLANTED = 'import type { IRendered } from "../rendered/model.js";\nexport type Leak = IRendered;\n';
@@ -28,7 +30,9 @@ describe("layer direction (spec 5)", () => {
     for (const path of ["src/written/graph.ts", "src/value.ts", "src/include.ts", "src/written/planted.ts"]) {
       expect(await ruleFor(path), path).toBeDefined();
     }
-    for (const path of ["src/rendered/render.ts", "src/index.ts"]) expect(await ruleFor(path), path).toBeUndefined();
+    expect(await ruleFor("src/index.ts")).toBeUndefined();
+    // The rendered layer has its own import rule (below), which does not refuse the rendered layer itself.
+    expect(JSON.stringify(await ruleFor("src/rendered/render.ts"))).not.toContain("**/rendered");
   });
 
   it("refuses a planted type-only import of the rendered layer from src/written/", async () => {
@@ -37,5 +41,40 @@ describe("layer direction (spec 5)", () => {
     expect(lint(PLANTED, rule)).toEqual(["no-restricted-imports"]);
     expect(lint('export type { IRendered } from "../rendered/index.js";\n', rule)).toEqual(["no-restricted-imports"]);
     expect(lint('import type { IDocumentGraph } from "./model.js";\nexport type Fine = IDocumentGraph;\n', rule)).toEqual([]);
+  });
+});
+
+describe("the rendered layer on the low level's public API (spec 7.0)", () => {
+  const PLANTED_PATH = "src/rendered/planted.ts";
+
+  it("applies the import rule and the cast rule to the rendered layer, testing helpers included, not to its tests", async () => {
+    for (const path of ["src/rendered/render.ts", "src/rendered/testing.ts", PLANTED_PATH]) {
+      expect(await ruleFor(path), path).toBeDefined();
+      expect(await ruleFor(path, "no-restricted-syntax"), path).toBeDefined();
+    }
+    expect(await ruleFor("src/rendered/rules.test.ts", "no-restricted-syntax")).toBeUndefined();
+  });
+
+  it("refuses a planted import of a low-level module other than its public entry", async () => {
+    const rule = await ruleFor(PLANTED_PATH);
+    if (rule === undefined) throw new Error("no import rule for src/rendered/");
+    expect(lint('import { bind } from "../written/bind.js";\nexport const leak = bind;\n', rule, PLANTED_PATH)).toEqual(["no-restricted-imports"]);
+    expect(lint('import type { Bound } from "../written/expanded.js";\nexport type Leak = Bound;\n', rule, PLANTED_PATH)).toEqual([
+      "no-restricted-imports",
+    ]);
+    expect(lint('import type { IDocumentGraph } from "../written/index.js";\nexport type Fine = IDocumentGraph;\n', rule, PLANTED_PATH)).toEqual([]);
+  });
+
+  it("refuses a planted cast through unknown and a planted double cast", async () => {
+    const rule = await ruleFor(PLANTED_PATH, "no-restricted-syntax");
+    if (rule === undefined) throw new Error("no cast rule for src/rendered/");
+    const check = (code: string): (string | null)[] => lint(code, rule, PLANTED_PATH, "no-restricted-syntax");
+    expect(check("declare const graph: object;\nexport const g: unknown = graph as unknown;\n")).toEqual(["no-restricted-syntax"]);
+    expect(check("declare const graph: object;\nexport const g = graph as unknown as { binding(): void };\n")).toEqual([
+      "no-restricted-syntax",
+      "no-restricted-syntax",
+    ]);
+    expect(check("declare const x: object;\nexport const y = (x as { a: 1 }) as { a: 1; b: 2 };\n")).toEqual(["no-restricted-syntax"]);
+    expect(check("declare const x: object;\nexport const y = x as { a: 1 };\n")).toEqual([]);
   });
 });

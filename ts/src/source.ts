@@ -2,8 +2,8 @@
  * The I/O ports (spec/schema/api.json, layer io): where files come from, the one port the load reads through for the
  * root file and for every file an extension names (round 11 review finding 3), and where a save writes them
  * (`IDocumentWriter`, given `IFileWrite`s by `IDocumentGraph.save`). The core does no I/O (R16): "villanelle/node" and
- * "villanelle/browser" give file and fetch sources and writers; `memorySource` serves texts the program already holds
- * (tests, editors).
+ * "villanelle/browser" give file and fetch sources and writers; `memorySource` and `memoryWriter` serve and keep texts
+ * the program already holds (tests, editors). Adapters are named by medium and port (spec/contract.md 5).
  */
 
 import { globToRegExp, hasGlob } from "./graph/glob.js";
@@ -49,26 +49,46 @@ export interface IDocumentWriter {
 }
 
 /**
- * A source over texts held in memory, keyed by path. `resolve` joins the spec to the directory of `parentPath` with
- * POSIX rules (`/` separators; `.` and `..` segments removed; a spec starting with `/` is taken as is) and returns
- * the path when it is a key; a glob in the last segment returns every key in that directory it matches. `read` of
- * a path that is not a key rejects. Pure: no I/O.
+ * A source over texts held in memory, keyed by path. It reads `files` itself at every call, never a copy made when it
+ * was created, so what a `memoryWriter` over the same object writes, a later load or read sees. `resolve` joins the
+ * spec to the directory of `parentPath` with POSIX rules (`/` separators; `.` and `..` segments removed; a spec
+ * starting with `/` is taken as is) and returns the path when it is a key; a glob in the last segment returns every
+ * key in that directory it matches. `read` of a path that is not a key rejects. Pure: no I/O.
  */
 export function memorySource(files: Readonly<Record<string, string>>): IDocumentSource {
-  const texts = new Map(Object.entries(files));
+  const has = (path: string): boolean => Object.hasOwn(files, path);
   return {
     resolve(spec, context) {
       const path = spec.startsWith("/") ? normalize(spec) : normalize(`${directoryOf(context.parentPath)}${spec}`);
-      if (!hasGlob(path)) return Promise.resolve(texts.has(path) ? [path] : []);
+      if (!hasGlob(path)) return Promise.resolve(has(path) ? [path] : []);
       const directory = directoryOf(path);
       const pattern = globToRegExp(path.slice(directory.length));
       return Promise.resolve(
-        [...texts.keys()].filter((key) => directoryOf(key) === directory && pattern.test(key.slice(directory.length))),
+        Object.keys(files).filter((key) => directoryOf(key) === directory && pattern.test(key.slice(directory.length))),
       );
     },
     read(resolvedPath) {
-      const text = texts.get(resolvedPath);
+      const text = has(resolvedPath) ? files[resolvedPath] : undefined;
       return text === undefined ? Promise.reject(new Error(`no such file: ${resolvedPath}`)) : Promise.resolve(text);
+    },
+  };
+}
+
+/**
+ * A writer into texts held in memory, keyed by path: the writer of `memorySource`, over the same object. A batch is
+ * all or nothing: it first checks that every file's text in `files` (`""` when absent) is still its `savedText`, and
+ * rejects naming the lost paths, writing nothing, when one is not (a lost update, as the file writer refuses one);
+ * then it sets every file's text.
+ */
+export function memoryWriter(files: Record<string, string>): IDocumentWriter {
+  return {
+    write(batch) {
+      const lost = batch.filter((file) => (Object.hasOwn(files, file.resolvedPath) ? files[file.resolvedPath] : "") !== file.savedText);
+      if (lost.length > 0) {
+        return Promise.reject(new Error(`lost update: changed since it was read: ${lost.map((file) => file.resolvedPath).join(", ")}`));
+      }
+      for (const file of batch) files[file.resolvedPath] = file.text;
+      return Promise.resolve();
     },
   };
 }

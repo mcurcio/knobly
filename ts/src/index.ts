@@ -9,64 +9,38 @@
  */
 
 export type { ISourcePosition, ISourceSpan } from "./span.js";
-export { DiagnosticCode, DiagnosticError, type IDiagnostic } from "./diagnostics.js";
+export { DiagnosticCode, type IDiagnostic } from "./diagnostics.js";
+export { BadTextError, DetachedError, DiagnosticError, EditError, ReadError, SaveError, VillanelleError } from "./errors.js";
 
-export { type IToken, type TokenKind } from "./syntax/tokens.js";
+export type { IToken, TokenKind } from "./syntax/tokens.js";
 export { type INode, type ISyntax, type ITokenRange, type NodeKind, spanOf, textOf, type ValueRef } from "./syntax/cst.js";
 export { parse } from "./syntax/parse.js";
-export { type IExpandedValue, type IIndexValue, type ISliceValue, type PlainValue, type ValueKind } from "./value.js";
+export type {
+  ExpandedValue,
+  IExpandedIndex,
+  IExpandedList,
+  IExpandedSlice,
+  IExpandedString,
+  IExpandedValueBase,
+  IExpandedWord,
+  IIndexValue,
+  ISliceValue,
+  PlainValue,
+  ValueKind,
+} from "./value.js";
 
-export { type IDirectiveOrigin, type IOrigin, type IOverride, type IPlace, type IStep, type StepKind } from "./origin.js";
+export type { IDirectiveOrigin, IOrigin, IOverride, IPlace, IStep, PlaceKind, StepKind } from "./origin.js";
 export { Diagnostics, type ILocatable, type ILocatedDiagnostic, type ProgramCode } from "./report.js";
-export { type IDocumentSource, type IDocumentWriter, type IFileWrite, type ILoadContext, memorySource } from "./source.js";
+export {
+  type IDocumentSource,
+  type IDocumentWriter,
+  type IFileWrite,
+  type ILoadContext,
+  memorySource,
+  memoryWriter,
+} from "./source.js";
 export type { IExtension, IExtensionUse } from "./extension.js";
 export { quote } from "./text.js";
 
-export { formatDiagnostic } from "./written/format.js";
-export { type ILoadOptions, type IProcessor, type IProcessorOptions, villanelle } from "./written/processor.js";
-export type {
-  ICopy,
-  IDocument,
-  IDocumentEdge,
-  IDocumentGraph,
-  IIndex,
-  IList,
-  IReference,
-  IReferenceResolution,
-  IResolution,
-  ISetLine,
-  ISlice,
-  ISnippetLine,
-  IStatementBase,
-  IString,
-  IUnreadableLine,
-  IUseLine,
-  IValueBase,
-  IVariable,
-  IWord,
-  IWrittenBlock,
-  IWrittenDirective,
-  Statement,
-  WrittenValue,
-} from "./written/model.js";
-export { BadTextError, DetachedError, EditError, NoSetLineError, ReadError, SaveError } from "./written/errors.js";
-
-export {
-  type Change,
-  type ChangeKind,
-  type IAdded,
-  type IAddress,
-  type IAddressStep,
-  type IArgument,
-  type IChanged,
-  type IDirective,
-  type IKeyOptions,
-  type IRemoved,
-  type IRendered,
-  type IUnknown,
-  type IUnreadable,
-  type KeyRule,
-  render,
-  type UnreadableReason,
-  type WalkControl,
-} from "./rendered/index.js";
+export * from "./written/index.js";
+export * from "./rendered/index.js";

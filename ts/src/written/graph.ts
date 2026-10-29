@@ -7,14 +7,16 @@
 
 import { DiagnosticCode } from "../diagnostics.js";
 import type { IExtension } from "../extension.js";
-import type { ILocatedDiagnostic } from "../report.js";
+import { SaveError } from "../errors.js";
+import { type ILocatedDiagnostic, makeLocated } from "../report.js";
 import type { IDocumentSource } from "../source.js";
+import { typeNameOf } from "../text.js";
 import { bind, type IBindingWithNeeds, type IOverrideInput, type IReadLedger } from "./bind.js";
 import { Document, type IDocumentHost } from "./document.js";
-import { SaveError } from "./errors.js";
 import type { Bound } from "./expanded.js";
+import { expansionOf } from "./expansion.js";
 import type { IDocumentWriter, IFileWrite } from "../source.js";
-import type { IDocumentEdge, IDocumentGraph, IVariable } from "./model.js";
+import type { IDocumentEdge, IDocumentGraph, IExpansion, Variable } from "./model.js";
 import { checkOverride, checkOverrideName } from "./override.js";
 import { readUnread } from "./read.js";
 import { OverrideVariable } from "./statements.js";
@@ -38,7 +40,7 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
   /** Per path whose read rejected: the rejection (a read document is in `documents`). */
   private readonly failedReads = new Map<string, Error>();
   private version = 0;
-  private cache: { readonly version: number; readonly binding: IBindingWithNeeds } | undefined;
+  private cache: { readonly version: number; readonly binding: IBindingWithNeeds; expansion?: IExpansion } | undefined;
   private rootDocument: Document | undefined;
 
   /**
@@ -97,6 +99,11 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
    * text handed over (an edit made while the writer ran stays unsaved); when it rejects, no `savedText` changes.
    */
   async save(writer: IDocumentWriter): Promise<readonly string[]> {
+    if (typeof (writer as Partial<IDocumentWriter> | null)?.write !== "function") {
+      throw new TypeError(
+        `save(): argument "writer" must be a document writer (an object with a write method), not ${typeNameOf(writer)}`,
+      );
+    }
     const files: IFileWrite[] = [];
     for (const doc of this.documents.values()) {
       if (doc.text !== doc.savedText) files.push({ resolvedPath: doc.resolvedPath, text: doc.text, savedText: doc.savedText });
@@ -105,7 +112,8 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
     try {
       await writer.write(files);
     } catch (error) {
-      throw new SaveError(`the writer rejected: ${error instanceof Error ? error.message : String(error)}`, files, error);
+      const message = `the writer rejected: ${error instanceof Error ? error.message : String(error)}`;
+      throw new SaveError(message, files.map((file) => file.resolvedPath), { cause: error });
     }
     for (const file of files) this.documents.get(file.resolvedPath)?.markSaved(file.text);
     return files.map((file) => file.resolvedPath);
@@ -119,8 +127,8 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
     return this.binding().unread;
   }
 
-  variables(name?: string): readonly IVariable[] {
-    const all: IVariable[] = [...this.documents.values()].flatMap((doc) => doc.variables());
+  variables(name?: string): readonly Variable[] {
+    const all: Variable[] = [...this.documents.values()].flatMap((doc) => doc.variables());
     for (const override of this.overrideTexts.keys()) {
       const variable = this.overrideVariables.get(override);
       if (variable !== undefined) all.push(variable);
@@ -133,10 +141,18 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
     return [...this.syntaxDiagnostics(), ...found];
   }
 
+  expand(): IExpansion {
+    const binding = this.binding();
+    const cache = this.cache;
+    if (cache === undefined) throw new Error("no binding");
+    cache.expansion ??= expansionOf(binding, this.syntaxDiagnostics());
+    return cache.expansion;
+  }
+
   /** Each document's syntax diagnostics, documents in order, located. */
-  syntaxDiagnostics(): ILocatedDiagnostic[] {
+  private syntaxDiagnostics(): ILocatedDiagnostic[] {
     return [...this.documents.values()].flatMap((doc) =>
-      doc.syntax.diagnostics.map((d) => ({ code: d.code, message: d.message, place: doc.place(d.span), via: [] })),
+      doc.syntax.diagnostics.map((d) => makeLocated(d.code, d.message, doc.place(d.span), [])),
     );
   }
 

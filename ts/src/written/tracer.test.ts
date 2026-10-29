@@ -62,7 +62,7 @@ describe("the round 12 tracer (fixtures/rasl/split)", () => {
     const table = graph.variables().map((v) => [
       v.name,
       v.kind,
-      v.place === undefined ? "an override" : lineOf(v.place),
+      v.kind === "override" ? "an override" : lineOf(v.place),
       v.wins().map((r) => lineOf(r.reference.place)),
       v.shadowedAt().map((r) => [lineOf(r.reference.place), r.winner?.kind]),
     ]);
@@ -79,8 +79,9 @@ describe("the round 12 tracer (fixtures/rasl/split)", () => {
     const rendered = render(graph);
     const maxCount = nodeNamed(rendered, "leds").block?.find((d) => d.name === "max_count")?.values[0];
     const read = maxCount?.chain[0];
-    expect(read?.winner?.kind).toBe("set");
-    read?.winner?.set("2400");
+    const winner = read?.winner;
+    if (winner?.kind !== "set") throw new Error("the winner is not a set line's variable");
+    winner.set("2400");
     const writer = recorder();
     expect(await graph.save(writer)).toEqual(["main.conf"]);
     expect(writer.batches).toHaveLength(1);

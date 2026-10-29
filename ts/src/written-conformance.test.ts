@@ -13,11 +13,11 @@ import { render } from "./rendered/render.js";
 import { originText, placeText } from "./rendered/testing.js";
 import { type IDocumentWriter, type IFileWrite, memorySource } from "./source.js";
 import { quote } from "./text.js";
-import { BadTextError, EditError } from "./written/errors.js";
+import { BadTextError, VillanelleError } from "./errors.js";
 import type {
   IDocument,
   IDocumentGraph,
-  IVariable,
+  Variable,
   IWrittenBlock,
   Statement,
   WrittenValue,
@@ -77,9 +77,9 @@ function copyText(place: IPlace, via: readonly IStep[]): string {
   return originText({ place, via });
 }
 
-function variableText(variable: IVariable | undefined): string | null {
+function variableText(variable: Variable | undefined): string | null {
   if (variable === undefined) return null;
-  return variable.place === undefined ? `override ${variable.name}` : placeText(variable.place);
+  return variable.kind === "override" ? `override ${variable.name}` : placeText(variable.place);
 }
 
 function origin(o: IOrigin): string {
@@ -166,7 +166,9 @@ class Runner {
         return found;
       }
       case "variable":
-        return this.graph.variables().find((v) => v.place !== undefined && v.place.resolvedPath === rest[0] && at(v.place, rest[1] as number, rest[2] as number));
+        return this.graph
+          .variables()
+          .find((v) => v.kind !== "override" && v.place.resolvedPath === rest[0] && at(v.place, rest[1] as number, rest[2] as number));
       case "override":
         return this.graph.variables().find((v) => v.kind === "override" && v.name === rest[0]);
       case "graph":
@@ -203,7 +205,7 @@ class Runner {
       }
       return ["ok"];
     } catch (error) {
-      if (!(error instanceof EditError)) throw error;
+      if (!(error instanceof VillanelleError)) throw error;
       const diagnostics = error instanceof BadTextError ? error.diagnostics.map((d) => [d.code, d.span.start.line, d.span.start.column]) : [];
       return ["error", error.name, diagnostics];
     }
@@ -219,7 +221,7 @@ class Runner {
         .map((v) => [
           v.name,
           v.kind,
-          v.place === undefined ? "override" : placeText(v.place),
+          v.kind === "override" ? "override" : placeText(v.place),
           v.wins().map((r) => copyText(r.reference.place, r.copy.via)),
           v.shadowedAt().map((r) => [copyText(r.reference.place, r.copy.via), variableText(r.winner)]),
         ]),

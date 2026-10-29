@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { IDirective } from "./model.js";
 import type { IRendered } from "./model.js";
 import { render } from "./render.js";
-import { villanelle } from "../written/processor.js";
+import { villanelle } from "../written/index.js";
 import { memorySource } from "../source.js";
 
 const RASL = "set $pixels 2284;\ngraph {\n  node DdpSink leds { max_count $pixels; }\n}\n";

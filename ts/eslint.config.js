@@ -9,6 +9,18 @@ export const LAYER_RULE = {
   message: "Only the rendered layer and the package entry import the rendered layer (spec 5, Layer direction).",
 };
 
+/** The rendered layer reaches the low level only through its public entry; exported for src/layers.test.ts. */
+export const PUBLIC_RULE = {
+  group: ["**/written/*", "!**/written/index.js"],
+  message: "The rendered layer builds only on the low level's public API: import ../written/index.js (spec 7.0).",
+};
+
+/** No cast that could reach past the low level's public types; exported for src/layers.test.ts. */
+export const NO_CAST_RULE = [
+  { selector: "TSAsExpression[typeAnnotation.type='TSUnknownKeyword']", message: "No cast through unknown in the rendered layer (spec 7.0)." },
+  { selector: "TSAsExpression > TSAsExpression", message: "No double cast in the rendered layer (spec 7.0)." },
+];
+
 export default defineConfig(
   { ignores: ["dist/", "src/gen/", "node_modules/"] },
   { linterOptions: { reportUnusedDisableDirectives: "error" } },
@@ -36,6 +48,17 @@ export default defineConfig(
     ignores: ["src/rendered/**", "src/index.ts", "src/**/*.test.ts"],
     rules: {
       "no-restricted-imports": ["error", { patterns: [LAYER_RULE] }],
+    },
+  },
+  // The rendered layer builds only on the low level's public objects (owner, 2026-10-29: "The middle layer of objects
+  // can build on the lower layer domains"): it imports ../written/index.js and nothing else under written/, and casts
+  // nothing through unknown. src/layers.test.ts plants each pattern to show the rules bite.
+  {
+    files: ["src/rendered/**/*.ts"],
+    ignores: ["src/**/*.test.ts"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [PUBLIC_RULE] }],
+      "no-restricted-syntax": ["error", ...NO_CAST_RULE],
     },
   },
 );

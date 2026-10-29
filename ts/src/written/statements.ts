@@ -5,6 +5,7 @@
  */
 
 import { anatomyOf } from "../anatomy.js";
+import type { StatementKind } from "../gen/api/kinds.js";
 import type { IPlace } from "../origin.js";
 import type { INode } from "../syntax/cst.js";
 import { textOf } from "../syntax/cst.js";
@@ -12,25 +13,31 @@ import { requireText } from "../text.js";
 import type { IBinding } from "./bind.js";
 import type { Block, Document } from "./document.js";
 import { detached } from "./document.js";
-import { NoSetLineError } from "./errors.js";
 import type {
   ICopy,
   IDocument,
+  IExtensionLine,
+  IOverrideVariable,
+  IParameter,
   IReference,
   IReferenceResolution,
   IResolution,
   ISetLine,
+  ISetVariable,
   ISnippetLine,
-  IVariable,
+  IUnreadableLine,
+  IUseLine,
   IWrittenBlock,
+  IWrittenDirective,
   Statement,
+  Variable,
   WrittenValue,
 } from "./model.js";
 import type { ValueHandle } from "./values.js";
 
 /** What every statement handle has. */
 export abstract class StatementHandle {
-  abstract readonly kind: Statement["kind"];
+  abstract readonly kind: StatementKind;
   /** Its directive or error node in the document's current parse; set by every build. */
   node!: INode;
   parentHandle: StatementHandle | undefined;
@@ -51,8 +58,8 @@ export abstract class StatementHandle {
     return this.live().doc;
   }
 
-  get parent(): Statement | undefined {
-    return this.live().parentHandle as Statement | undefined;
+  get parent(): IWrittenDirective | IExtensionLine | ISnippetLine | undefined {
+    return this.live().parentHandle as IWrittenDirective | IExtensionLine | ISnippetLine | undefined;
   }
 
   get place(): IPlace {
@@ -81,6 +88,25 @@ export abstract class StatementHandle {
     this.doc.removeStatement(this);
   }
 
+  insertBefore(text: string): readonly Statement[] {
+    this.live();
+    requireText(text, "insertBefore", "text");
+    const block = this.containingBlock();
+    return block.insertStatements(block.items.indexOf(this), text);
+  }
+
+  insertAfter(text: string): readonly Statement[] {
+    this.live();
+    requireText(text, "insertAfter", "text");
+    const block = this.containingBlock();
+    return block.insertStatements(block.items.indexOf(this) + 1, text);
+  }
+
+  /** The block that holds it: its parent's, or its document's top level. */
+  private containingBlock(): Block {
+    return this.parentHandle?.blockHandle ?? this.doc.block;
+  }
+
   /** The value handles of this statement (for the reconcile and the document's walks). */
   valueHandles(): readonly ValueHandle[] {
     return this.valueList;
@@ -98,30 +124,18 @@ export abstract class StatementHandle {
   }
 }
 
-export class WrittenDirective extends StatementHandle {
-  constructor(
-    doc: Document,
-    readonly kind: "directive" | "extension",
-  ) {
-    super(doc);
-  }
-
+/** What a directive and an extension line share: a name, values and an optional block. */
+abstract class NamedLine extends StatementHandle {
   get name(): string {
     return this.live().nameText();
   }
 
   get values(): readonly WrittenValue[] {
-    return this.live().valueList as unknown as readonly WrittenValue[];
+    return this.live().valueList as readonly WrittenValue[];
   }
 
   get block(): IWrittenBlock | undefined {
     return this.live().blockHandle;
-  }
-
-  rename(name: string): void {
-    this.live();
-    requireText(name, "rename", "name");
-    this.doc.renameStatement(this, name);
   }
 
   set(text: string): void {
@@ -131,8 +145,23 @@ export class WrittenDirective extends StatementHandle {
   }
 }
 
-export class SetLine extends StatementHandle {
-  readonly kind = "set" as const;
+export class WrittenDirective extends NamedLine implements IWrittenDirective {
+  readonly kind = "directive";
+
+  rename(name: string): void {
+    this.live();
+    requireText(name, "rename", "name");
+    this.doc.renameStatement(this, name);
+  }
+}
+
+/** A line whose name a registered extension owns (an include line): no `rename`. */
+export class ExtensionLine extends NamedLine implements IExtensionLine {
+  readonly kind = "extension";
+}
+
+export class SetLine extends StatementHandle implements ISetLine {
+  readonly kind = "set";
   readonly variableHandle: SetVariable;
 
   constructor(doc: Document) {
@@ -140,12 +169,12 @@ export class SetLine extends StatementHandle {
     this.variableHandle = new SetVariable(this);
   }
 
-  get variable(): IVariable {
+  get variable(): ISetVariable {
     return this.live().variableHandle;
   }
 
   get values(): readonly WrittenValue[] {
-    return this.live().valueList as unknown as readonly WrittenValue[];
+    return this.live().valueList as readonly WrittenValue[];
   }
 
   set(text: string): void {
@@ -160,8 +189,8 @@ export class SetLine extends StatementHandle {
   }
 }
 
-export class SnippetLine extends StatementHandle {
-  readonly kind = "snippet" as const;
+export class SnippetLine extends StatementHandle implements ISnippetLine {
+  readonly kind = "snippet";
   parameterHandles: ParameterVariable[] = [];
 
   get name(): string {
@@ -169,7 +198,7 @@ export class SnippetLine extends StatementHandle {
     return this.doc.syntax.tokens[this.firstArgToken()]?.text ?? "";
   }
 
-  get parameters(): readonly IVariable[] {
+  get parameters(): readonly IParameter[] {
     return this.live().parameterHandles;
   }
 
@@ -180,8 +209,8 @@ export class SnippetLine extends StatementHandle {
   }
 }
 
-export class UseLine extends StatementHandle {
-  readonly kind = "use" as const;
+export class UseLine extends StatementHandle implements IUseLine {
+  readonly kind = "use";
 
   get snippetName(): string {
     this.live();
@@ -200,7 +229,7 @@ export class UseLine extends StatementHandle {
   }
 
   get values(): readonly WrittenValue[] {
-    return this.live().valueList as unknown as readonly WrittenValue[];
+    return this.live().valueList as readonly WrittenValue[];
   }
 
   set(text: string): void {
@@ -210,34 +239,32 @@ export class UseLine extends StatementHandle {
   }
 }
 
-export class UnreadableLine extends StatementHandle {
-  readonly kind = "unreadable" as const;
+export class UnreadableLine extends StatementHandle implements IUnreadableLine {
+  readonly kind = "unreadable";
 }
 
 // --- Variables ---
 
 /** What `wins()` and `shadowedAt()` share. */
 abstract class VariableBase {
-  abstract readonly kind: IVariable["kind"];
-  abstract readonly name: string;
   protected abstract graphBinding(): IBinding;
 
   wins(): readonly IReferenceResolution[] {
     return this.graphBinding()
       .resolutions()
-      .filter((r) => r.winner === (this as unknown as IVariable));
+      .filter((r) => r.winner === (this as unknown));
   }
 
   shadowedAt(): readonly IReferenceResolution[] {
     return this.graphBinding()
       .resolutions()
-      .filter((r) => r.shadowed.includes(this as unknown as IVariable));
+      .filter((r) => r.shadowed.includes(this as unknown as Variable));
   }
 }
 
 /** A `set` line's `$name`: the same object as that line's `variable`. */
-export class SetVariable extends VariableBase implements IVariable {
-  readonly kind = "set" as const;
+export class SetVariable extends VariableBase implements ISetVariable {
+  readonly kind = "set";
 
   constructor(private readonly setLine: SetLine) {
     super();
@@ -279,8 +306,8 @@ export class SetVariable extends VariableBase implements IVariable {
 }
 
 /** A snippet parameter's `$name`. */
-export class ParameterVariable extends VariableBase implements IVariable {
-  readonly kind = "parameter" as const;
+export class ParameterVariable extends VariableBase implements IParameter {
+  readonly kind = "parameter";
   /** Its VARIABLE token index in the current parse; set by every build. */
   token = 0;
   detached = false;
@@ -320,19 +347,11 @@ export class ParameterVariable extends VariableBase implements IVariable {
     requireText(name, "rename", "name");
     line.doc.renameVariable(this.token, name, this);
   }
-
-  set(text: string): void {
-    this.alive();
-    requireText(text, "set", "text");
-    throw new NoSetLineError(`$${this.name} is a snippet parameter: edit the use line's values`);
-  }
 }
 
-/** An override: one per name for the graph's life (D28). */
-export class OverrideVariable extends VariableBase implements IVariable {
-  readonly kind = "override" as const;
-  readonly place = undefined;
-  readonly line = undefined;
+/** An override: one per name for the graph's life (D28). Written in no file: no place, line, rename or set. */
+export class OverrideVariable extends VariableBase implements IOverrideVariable {
+  readonly kind = "override";
 
   constructor(
     readonly name: string,
@@ -348,17 +367,10 @@ export class OverrideVariable extends VariableBase implements IVariable {
   references(): readonly IReference[] {
     return [];
   }
-
-  rename(name: string): void {
-    requireText(name, "rename", "name");
-    throw new NoSetLineError(`$${this.name} is an override: use setOverride`);
-  }
-
-  set(text: string): void {
-    requireText(text, "set", "text");
-    throw new NoSetLineError(`$${this.name} is an override: use setOverride`);
-  }
 }
+
+/** Any variable handle. */
+export type VariableHandle = SetVariable | ParameterVariable | OverrideVariable;
 
 /** Every reference of the graph a document belongs to, documents in order. */
 function allReferences(doc: Document): IReference[] {

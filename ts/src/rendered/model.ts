@@ -5,20 +5,17 @@
  * low level names nothing here. Model: PostCSS's node tree (https://postcss.org/api/), read-only.
  */
 
-import type { DiagnosticError } from "../diagnostics.js";
+import type { DiagnosticError } from "../errors.js";
 import type { UnreadableReason } from "../gen/api/kinds.js";
 import type { IDirectiveOrigin } from "../origin.js";
 import type { ILocatedDiagnostic, ProgramCode } from "../report.js";
-import type { IExpandedValue } from "../value.js";
-import type { IDocumentGraph, IReferenceResolution, IWrittenDirective, Statement, WrittenValue } from "../written/model.js";
+import type { IExpandedIndex, IExpandedList, IExpandedSlice, IExpandedString, IExpandedWord } from "../value.js";
+import type { IDocumentGraph, IReferenceResolution, IWrittenDirective, Statement, WrittenValue } from "../written/index.js";
 
 export type { ChangeKind, UnreadableReason } from "../gen/api/kinds.js";
 
-/**
- * One value of a directive, after expansion: an expanded value (kind, canonical text, origin, readers) with three
- * links to the low level (spec 7.3).
- */
-export interface IArgument extends IExpandedValue {
+/** The three links every argument has to the low level (spec 7.3), on top of its expanded value. */
+export interface IArgumentLinks {
   /**
    * The written value on the same line: the line of the statement this value is read in. For a value that came
    * through a variable it is the `$name` there (`chain[0].reference`); a list item that came through a variable
@@ -40,8 +37,40 @@ export interface IArgument extends IExpandedValue {
    */
   readonly chain: readonly IReferenceResolution[];
   /** A list's items, each an argument with its own origin. @throws DiagnosticError E4002 for any other kind. */
-  items(): readonly IArgument[];
+  list(): readonly Argument[];
 }
+
+/** A bare word of a directive, after expansion. */
+export interface IWordArgument extends IExpandedWord, IArgumentLinks {
+  list(): readonly Argument[];
+}
+
+/** A string of a directive, after expansion. */
+export interface IStringArgument extends IExpandedString, IArgumentLinks {
+  list(): readonly Argument[];
+}
+
+/** A list of a directive, after expansion: its items are arguments too. */
+export interface IListArgument extends IExpandedList, IArgumentLinks {
+  readonly items: readonly Argument[];
+  list(): readonly Argument[];
+}
+
+/** A slice of a directive, after expansion. */
+export interface ISliceArgument extends IExpandedSlice, IArgumentLinks {
+  list(): readonly Argument[];
+}
+
+/** An index of a directive, after expansion. */
+export interface IIndexArgument extends IExpandedIndex, IArgumentLinks {
+  list(): readonly Argument[];
+}
+
+/**
+ * One value of a directive, after expansion: an expanded value (kind, canonical text, origin, readers) with three
+ * links to the low level (spec 7.3). Narrow by `kind`.
+ */
+export type Argument = IWordArgument | IStringArgument | IListArgument | ISliceArgument | IIndexArgument;
 
 /** One step of an address. */
 export interface IAddressStep {
@@ -96,7 +125,7 @@ export type WalkControl = "skip" | "stop";
  */
 export interface IDirective {
   readonly name: string;
-  readonly values: readonly IArgument[];
+  readonly values: readonly Argument[];
   /** The block's readable directives; undefined when written without a block. */
   readonly block: readonly IDirective[] | undefined;
   /** The block's statements that could not be read; empty when there is no block or all were read. */

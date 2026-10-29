@@ -1,56 +1,46 @@
 /**
- * `render (graph)` (spec 7.0): the rendered layer's entry point, and the one home of the render algorithm. It walks
- * the graph's binding (`binding.items`, package-internal, so the low level's work is not done twice) and builds each
- * directive with its arguments from `argumentsAt`. It never looks a name up (design rule 3: the binding is the one
- * home of that rule), reads no file, and names nothing: addresses come from `IRendered.addresses` under the
- * caller's key rule (D4). The low level never calls in here (spec 5, "Layer direction").
+ * `render (graph)` (spec 7.0): the rendered layer's entry point, and the one home of the render algorithm. It builds
+ * on the low level's public objects only (owner, 2026-10-29: "The middle layer of objects can build on the lower
+ * layer domains"): `graph.expand()`, the graph's own expansion, and `graph.root.resolvedPath`. Each directive
+ * expansion becomes a directive with its arguments; it never looks a name up (the low level is the one home of that
+ * rule), reads no file, and names nothing: addresses come from `IRendered.addresses` under the caller's key rule
+ * (D4). The low level never calls in here (spec 5, "Layer direction").
  */
 
-import { asDocument, type BoundItem } from "../written/bind.js";
-import { DocumentGraph } from "../written/graph.js";
-import type { IDocumentGraph, IWrittenDirective } from "../written/model.js";
-import type { StatementHandle } from "../written/statements.js";
+import { makePlace } from "../origin.js";
+import type { IDirectiveExpansion, IDocumentGraph, IUnreadableExpansion } from "../written/index.js";
 import type { IDirective, IRendered, IUnreadable } from "./model.js";
-import type { IDirectiveOrigin } from "../origin.js";
-import { Argument, Directive, Rendered } from "./tree.js";
+import { argumentOf, Directive, Rendered } from "./tree.js";
 
 const START = { offset: 0, line: 0, column: 0 } as const;
 
 /**
  * The rendered tree of the graph's current texts and overrides. Pure and synchronous: reads no file; an unread
- * include copy renders as nothing (its edge is in `graph.unread()`).
- * @throws TypeError for a graph this package did not make
+ * include copy renders as nothing (its edge is in `graph.unread()`). Takes any object with the document graph's
+ * public members.
  */
 export function render(graph: IDocumentGraph): IRendered {
-  if (!(graph instanceof DocumentGraph)) throw new TypeError("render takes a document graph from a processor's load");
-  const binding = graph.binding();
+  const expansion = graph.expand();
   const block: IDirective[] = [];
   const unreadable: IUnreadable[] = [];
+  build(expansion.block, expansion.unreadable, undefined, { block, unreadable });
+  const origin = { place: makePlace(graph.root.resolvedPath, { start: START, end: START }), via: [] };
+  return new Rendered(block, unreadable, origin, expansion.diagnostics, graph);
+}
 
-  const build = (items: readonly BoundItem[], parent: Directive | undefined, into: { block: IDirective[]; unreadable: IUnreadable[] }): void => {
-    for (const item of items) {
-      const statement = item.copy.statement as unknown as StatementHandle;
-      const doc = asDocument(statement.doc);
-      if (item.kind === "unreadable") {
-        const place = doc.place(doc.spanOf(statement.node));
-        into.unreadable.push({ reason: item.reason, origin: { place, via: item.copy.via }, written: item.copy.statement });
-        continue;
-      }
-      const values = statement.valueList.flatMap((value) =>
-        binding.argumentsAt(value as unknown as Parameters<typeof binding.argumentsAt>[0], item.copy).map((bound) => new Argument(bound)),
-      );
-      const nameToken = doc.syntax.tokens[statement.node.start];
-      if (nameToken === undefined) throw new Error("a directive node has no name token");
-      const origin: IDirectiveOrigin = { place: doc.place(nameToken.span), via: item.copy.via };
-      const directive = new Directive(nameToken.text, values, item.children !== undefined, parent, origin, item.copy.statement as IWrittenDirective);
-      into.block.push(directive);
-      if (item.children !== undefined && directive.block !== undefined) {
-        build(item.children, directive, { block: directive.block, unreadable: directive.unreadable });
-      }
+function build(
+  directives: readonly IDirectiveExpansion[],
+  unreadables: readonly IUnreadableExpansion[],
+  parent: Directive | undefined,
+  into: { readonly block: IDirective[]; readonly unreadable: IUnreadable[] },
+): void {
+  for (const item of unreadables) into.unreadable.push({ reason: item.reason, origin: item.origin, written: item.statement });
+  for (const item of directives) {
+    const values = item.values.map(argumentOf);
+    const directive = new Directive(item.statement.name, values, item.block !== undefined, parent, item.origin, item.statement);
+    into.block.push(directive);
+    if (item.block !== undefined && directive.block !== undefined) {
+      build(item.block, item.unreadable, directive, { block: directive.block, unreadable: directive.unreadable });
     }
-  };
-
-  build(binding.items, undefined, { block, unreadable });
-  const origin: IDirectiveOrigin = { place: graph.root.place({ start: START, end: START }), via: [] };
-  return new Rendered(block, unreadable, origin, [...graph.syntaxDiagnostics(), ...binding.diagnostics], graph);
+  }
 }

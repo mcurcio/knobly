@@ -7,21 +7,28 @@
 const INTEGER_TEXT = /^-?(?:0|[1-9][0-9]*)$/;
 
 /**
- * The integer a word spells, or undefined when it is not an IntegerText or lies outside the safe integer range
- * (so both languages read the same number).
+ * The integer a word spells, or undefined when it is not an IntegerText or lies outside plus or minus 2^53-1 (so
+ * every binding reads the same number). `-0` is `0` (spec/contract.md 3: zero has one sign).
  */
 export function integerOf(word: string): number | undefined {
   if (!INTEGER_TEXT.test(word)) return undefined;
   const value = Number(word);
-  return Number.isSafeInteger(value) ? value : undefined;
+  if (!Number.isSafeInteger(value)) return undefined;
+  return value === 0 ? 0 : value;
 }
 
 /** NumberText: a JSON number (RFC 8259 section 6), `'-'? Digits Fraction? Exponent?`. */
 const NUMBER_TEXT = /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?$/;
 
-/** The number a word spells, or undefined when it is not a NumberText. */
+/**
+ * The number a word spells, rounded to the nearest double; undefined when it is not a NumberText or its value lies
+ * beyond the double range (`1e400`). Never negative zero: `-0`, `-0.0` and `-1e-400` read as `0` (spec/contract.md 3).
+ */
 export function numberOf(word: string): number | undefined {
-  return NUMBER_TEXT.test(word) ? Number(word) : undefined;
+  if (!NUMBER_TEXT.test(word)) return undefined;
+  const value = Number(word);
+  if (!Number.isFinite(value)) return undefined;
+  return value === 0 ? 0 : value;
 }
 
 /** BooleanText: the word `true` or `false`; undefined for any other word. */

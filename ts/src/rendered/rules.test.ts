@@ -4,11 +4,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { DiagnosticCode, DiagnosticError } from "../diagnostics.js";
-import { BadTextError } from "../written/errors.js";
+import { BadTextError, DiagnosticError, ReadError } from "../errors.js";
 import { include } from "../include.js";
 import type { IExtension } from "../extension.js";
-import { villanelle } from "../written/processor.js";
+import { villanelle } from "../written/index.js";
 import { memorySource } from "../source.js";
 import { addresses, countingSource, loadFiles, loadText, only, originText, problems, rendered, texts } from "./testing.js";
 
@@ -113,7 +112,7 @@ describe("rule 4: $name as a value", () => {
     const [port, allow] = loaded.block;
     expect(texts(port)).toEqual(["8080", "443", "dev"]);
     expect(texts(allow)).toEqual(["[8080, 443, 1]"]);
-    expect(allow?.values[0]?.items()).toHaveLength(3);
+    expect(allow?.values[0]?.list()).toHaveLength(3);
   });
 
   it("can be a whole slice bound holding one IntegerText word", async () => {
@@ -328,13 +327,11 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
     }
   });
 
-  it("rejects the load with a DiagnosticError E3004 at the root file when the source cannot read it", async () => {
+  it("rejects the load with a ReadError (not a diagnostic, not E3004) when the source has no root file", async () => {
     const error: unknown = await loadFiles({}, {}, "missing.conf").catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(DiagnosticError);
-    const { diagnostic } = error as DiagnosticError;
-    expect(diagnostic.code).toBe(DiagnosticCode.IncludeResolverFailed);
-    expect(diagnostic.place).toEqual({ kind: "file", resolvedPath: "missing.conf", span: { start: { offset: 0, line: 0, column: 0 }, end: { offset: 0, line: 0, column: 0 } } });
-    expect(diagnostic.via).toEqual([]);
+    expect(error).toBeInstanceOf(ReadError);
+    expect(error).not.toBeInstanceOf(DiagnosticError);
+    expect((error as ReadError).paths).toEqual(["missing.conf"]);
   });
 
   it("gives E3005 when include does not have exactly one quoted path, on the bad value or the name", async () => {

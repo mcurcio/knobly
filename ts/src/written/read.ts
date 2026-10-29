@@ -4,40 +4,34 @@
  * PR 3's expansion read them (depth first), each path once (R21), and a rejection is kept, never retried.
  */
 
-import { DiagnosticCode, messageOf } from "../diagnostics.js";
+import { ReadError } from "../errors.js";
 import type { IDocumentSource } from "../source.js";
-import { ReadError } from "./errors.js";
 import type { DocumentGraph } from "./graph.js";
-
-const START = { offset: 0, line: 0, column: 0 } as const;
 
 /**
  * Read the root file at `path` (resolved through the source, as an included file's spec is) into an empty graph,
- * then every file its include lines name. @throws (rejects) ReadError (E3004 at the root path, D25) when the source
- * cannot resolve or read it
+ * then every file its include lines name. @throws (rejects) ReadError, `paths` = `[path]`, when the source cannot
+ * resolve it to exactly one file (no cause) or rejects resolving or reading it (its rejection as the cause)
  */
 export async function readRoot(graph: DocumentGraph, source: IDocumentSource, path: string): Promise<void> {
-  const fail = (reason: string): ReadError => {
-    const code = DiagnosticCode.IncludeResolverFailed;
-    const place = { kind: "file", resolvedPath: path, span: { start: START, end: START } } as const;
-    return new ReadError({ code, message: `${messageOf(code)}: ${path}: ${reason}`, place, via: [] });
-  };
+  const fail = (reason: string, cause?: unknown): ReadError =>
+    new ReadError(`cannot read the root file ${path}: ${reason}`, [path], cause === undefined ? undefined : { cause });
   // The root is resolved through the source as an included file's spec is (F1-04), so one file has one path.
   let paths: readonly string[];
   try {
     paths = await source.resolve(path, { parentPath: "" });
   } catch (error) {
-    throw fail(reasonOf(error));
+    throw fail(reasonOf(error), error);
   }
   const [resolved] = paths;
   if (resolved === undefined || paths.length > 1) {
-    throw fail(paths.length === 0 ? "no such file" : `names ${String(paths.length)} files`);
+    throw fail(paths.length === 0 ? "the source resolved no file" : `the source resolved ${String(paths.length)} files`);
   }
   let text: string;
   try {
     text = await source.read(resolved);
   } catch (error) {
-    throw fail(reasonOf(error));
+    throw fail(reasonOf(error), error);
   }
   graph.recordRead(resolved, text);
   await readUnread(graph, source);

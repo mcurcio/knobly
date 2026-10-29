@@ -8,11 +8,24 @@ import { textOf, type ValueRef } from "../syntax/cst.js";
 import { requireText } from "../text.js";
 import type { Document } from "./document.js";
 import { detached } from "./document.js";
-import type { IList, IReference, IReferenceResolution, IVariable, IWord, Statement, WrittenValue } from "./model.js";
+import type { ValueKind } from "../gen/api/kinds.js";
+import type {
+  IIndex,
+  IList,
+  IParameter,
+  IReference,
+  IReferenceResolution,
+  ISetVariable,
+  ISlice,
+  IString,
+  IWord,
+  Statement,
+  WrittenValue,
+} from "./model.js";
 import type { StatementHandle } from "./statements.js";
 
 export abstract class ValueHandle {
-  abstract readonly kind: WrittenValue["kind"];
+  abstract readonly kind: ValueKind;
   /** Its token or node in the current parse; set by every build. */
   ref!: ValueRef;
   statementHandle!: StatementHandle;
@@ -39,7 +52,7 @@ export abstract class ValueHandle {
   }
 
   get statement(): Statement {
-    return this.live().statementHandle as unknown as Statement;
+    return this.live().statementHandle as Statement;
   }
 
   get list(): IList | undefined {
@@ -68,20 +81,20 @@ export abstract class ValueHandle {
   }
 }
 
-export class WordValue extends ValueHandle {
-  readonly kind = "word" as const;
+export class WordValue extends ValueHandle implements IWord {
+  readonly kind = "word";
 }
 
-export class StringValue extends ValueHandle {
-  readonly kind = "string" as const;
+export class StringValue extends ValueHandle implements IString {
+  readonly kind = "string";
 }
 
-export class ListValue extends ValueHandle {
-  readonly kind = "list" as const;
+export class ListValue extends ValueHandle implements IList {
+  readonly kind = "list";
   itemHandles: ValueHandle[] = [];
 
   get items(): readonly WrittenValue[] {
-    return this.live().itemHandles as unknown as readonly WrittenValue[];
+    return this.live().itemHandles as readonly WrittenValue[];
   }
 
   override innerHandles(): readonly ValueHandle[] {
@@ -96,8 +109,8 @@ function sliceName(value: ValueHandle): string {
   return typeof ref === "number" ? "" : (value.doc.syntax.tokens[ref.start]?.text ?? "");
 }
 
-export class SliceValue extends ValueHandle {
-  readonly kind = "slice" as const;
+export class SliceValue extends ValueHandle implements ISlice {
+  readonly kind = "slice";
   startHandle: ValueHandle | undefined;
   endHandle: ValueHandle | undefined;
 
@@ -118,8 +131,8 @@ export class SliceValue extends ValueHandle {
   }
 }
 
-export class IndexValue extends ValueHandle {
-  readonly kind = "index" as const;
+export class IndexValue extends ValueHandle implements IIndex {
+  readonly kind = "index";
   indexHandle: ValueHandle | undefined;
 
   get name(): string {
@@ -137,14 +150,14 @@ export class IndexValue extends ValueHandle {
   }
 }
 
-export class Reference extends ValueHandle {
-  readonly kind = "reference" as const;
+export class Reference extends ValueHandle implements IReference {
+  readonly kind = "reference";
 
   get name(): string {
     return this.text.slice(1);
   }
 
-  get declaration(): IVariable | undefined {
+  get declaration(): ISetVariable | IParameter | undefined {
     this.live();
     return this.doc.declarationOf(this);
   }

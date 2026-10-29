@@ -9,9 +9,9 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { include } from "../include.js";
-import { createFileSource } from "../node.js";
+import { fileSource } from "../node.js";
 import type { IDirective, IRendered, KeyRule } from "./model.js";
-import { villanelle } from "../written/processor.js";
+import { villanelle } from "../written/index.js";
 import type { IDocumentSource } from "../source.js";
 import { rendered } from "./testing.js";
 
@@ -35,7 +35,7 @@ const RASL_KEY: KeyRule = (d) => {
 
 /** The file source, with `set $pixels 2284;` read as `2400` once `edited` is set. */
 function source(): { source: IDocumentSource; edit: () => void } {
-  const files = createFileSource();
+  const files = fileSource();
   let edited = false;
   return {
     edit: () => {
@@ -77,7 +77,7 @@ describe("rasl's configs", () => {
   });
 
   it("splits one sink file over two places, each with its own include-block values and the override host", async () => {
-    const processor = villanelle({ source: createFileSource(), extensions: [include()] });
+    const processor = villanelle({ source: fileSource(), extensions: [include()] });
     const path = fileURLToPath(new URL("split/main.conf", FIXTURES));
     const loaded = await rendered(processor, path, { overrides: OVERRIDES });
     const targets: [string, string][] = [];

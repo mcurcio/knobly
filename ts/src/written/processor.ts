@@ -31,8 +31,8 @@ export interface IProcessor {
    * The processor's only operation. Read the root file at `path` (resolved through the source, as an included
    * file's spec is, so the root has one path in the graph) and every file its include lines name, once each (R21),
    * repeating until nothing new is named. Never rejects for anything in the text.
-   * @throws (rejects) ReadError (a DiagnosticError: E3004 at the root path) when the source cannot resolve or read
-   * the root; TypeError for an override name that is not letters, digits and `_` or a text that is not a string;
+   * @throws (rejects) ReadError (`paths` = `[path]`, the source's rejection as `cause`) when the source cannot resolve
+   * the root to exactly one file or read it; TypeError for an override name that is not letters, digits and `_` or a text that is not a string;
    * BadTextError for an override's text the check of an override refuses
    */
   load(path: string, options?: ILoadOptions): Promise<IDocumentGraph>;

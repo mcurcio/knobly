@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { include } from "../include.js";
 import { villanelle } from "./processor.js";
 import { memorySource } from "../source.js";
-import { BadTextError, DetachedError, SaveError } from "./errors.js";
+import { BadTextError, DetachedError, SaveError } from "../errors.js";
 import type { IDocumentWriter, IFileWrite } from "../source.js";
 import type { IDocumentGraph, ISetLine, IWrittenDirective } from "./model.js";
 import { quote } from "../text.js";
@@ -95,13 +95,13 @@ describe("save", () => {
     expect(writer.batches).toHaveLength(1);
   });
 
-  it("throws SaveError with the files and the cause when the writer rejects, and changes no source", async () => {
+  it("throws SaveError with the paths and the cause when the writer rejects, and changes no source", async () => {
     const graph = await load({ "main.conf": "x 1;\n" });
     (graph.root.block.statements[0] as IWrittenDirective).values[0]?.replaceWithText("2");
     const cause = new Error("disk full");
     const error: unknown = await graph.save({ write: () => Promise.reject(cause) }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(SaveError);
-    expect((error as SaveError).files.map((f) => f.resolvedPath)).toEqual(["main.conf"]);
+    expect((error as SaveError).paths).toEqual(["main.conf"]);
     expect((error as SaveError).cause).toBe(cause);
     expect(graph.root.savedText).toBe("x 1;\n");
     expect(graph.root.text).not.toBe(graph.root.savedText);

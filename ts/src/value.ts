@@ -1,10 +1,16 @@
 /**
  * The expanded value and its readers (spec 2.9): one value after expansion, with kind, canonical text, origin and
- * readers. Shared, below the low level and the rendered layer: an extension use holds expanded values, and a
- * rendered argument builds on one. Plain data: it holds no low-level handle.
+ * readers. Shared, below the low level and the rendered layer: an extension use and the graph's expansion hold
+ * expanded values, and a rendered argument builds on one. Plain data: it holds no low-level handle.
+ *
+ * `ExpandedValue` is a union over the value kind list less `reference` (spec 2.10): each variant is its own type,
+ * narrowed by `kind`, and only a list has `items`, only a slice `name`/`start`/`end`, only an index `name`/`index`.
+ * The readers are on every variant by design: a value of the wrong kind is a problem in the config text, which the
+ * program learns as a located E4002.
  */
 
-import { DiagnosticCode, type DiagnosticError } from "./diagnostics.js";
+import { DiagnosticCode } from "./diagnostics.js";
+import type { DiagnosticError } from "./errors.js";
 import type { ValueKind } from "./gen/api/kinds.js";
 import { codeError, programError } from "./locate.js";
 import type { IOrigin } from "./origin.js";
@@ -39,11 +45,10 @@ export interface IIndexValue {
 export type PlainValue = number | boolean | string | ISliceValue | IIndexValue | readonly PlainValue[];
 
 /**
- * One value after expansion: a `$name` has already become its value(s).
- * Invariants (checked at load, so readers never meet them): a string's escapes are the six of EscapeText; a slice or
- * index bound is an IntegerText.
+ * What every expanded value has: kind, canonical text, origin, and the readers. Invariants (checked at load, so
+ * readers never meet them): a string's escapes are the six of EscapeText; a slice or index bound is an IntegerText.
  */
-export interface IExpandedValue {
+export interface IExpandedValueBase {
   readonly kind: Exclude<ValueKind, "reference">;
   /**
    * The value's canonical text, the same in every binding: a word as written; a string as `"` + its decoded text
@@ -58,20 +63,23 @@ export interface IExpandedValue {
   word(): string;
   /** A word or a string, decoded. @throws DiagnosticError E4002 for a list, slice or index. */
   string(): string;
-  /** A word spelling a NumberText (JSON number: 8080, 0.5, -0.0176515; not 20hz). @throws E4002, E4004. */
+  /**
+   * A word spelling a NumberText (JSON number: 8080, 0.5, -0.0176515; not 20hz), as a double; never negative zero
+   * (spec/contract.md 3). @throws DiagnosticError E4002; E4004, also beyond the double range (`1e400`).
+   */
   number(): number;
-  /** A word spelling an IntegerText. @throws DiagnosticError E4002, E4005. */
+  /** A word spelling an IntegerText within plus or minus 2^53-1; never negative zero. @throws DiagnosticError E4002, E4005. */
   integer(): number;
   /** The word `true` or `false`. @throws DiagnosticError E4002, E4006. */
   boolean(): boolean;
   /** A list's items, each with its own origin. @throws DiagnosticError E4002 for any other kind. */
-  items(): readonly IExpandedValue[];
+  list(): readonly ExpandedValue[];
   /** A slice or an index. @throws DiagnosticError E4002 for any other kind. */
   slice(): ISliceValue | IIndexValue;
   /**
-   * Any value by the one rule: a string is its decoded text; a word is a number if it spells a NumberText, a boolean
-   * if `true`/`false`, else its text; a list is its items read the same way; a slice or an index is its value.
-   * Never throws.
+   * Any value by the one rule: a string is its decoded text; a word is a number if `number()` would read it, a
+   * boolean if `true`/`false`, else its text (so `1e400` is text); a list is its items read the same way; a slice or
+   * an index is its value. Never throws.
    */
   plain(): PlainValue;
   /**
@@ -80,6 +88,41 @@ export interface IExpandedValue {
    */
   error(message: string, code: ProgramCode): DiagnosticError;
 }
+
+/** A bare word after expansion. */
+export interface IExpandedWord extends IExpandedValueBase {
+  readonly kind: "word";
+}
+
+/** A string after expansion. */
+export interface IExpandedString extends IExpandedValueBase {
+  readonly kind: "string";
+}
+
+/** A list after expansion. */
+export interface IExpandedList extends IExpandedValueBase {
+  readonly kind: "list";
+  /** Its items, each with its own origin (the same as `list()`). */
+  readonly items: readonly ExpandedValue[];
+}
+
+/** `name[start:end]` after expansion. */
+export interface IExpandedSlice extends IExpandedValueBase {
+  readonly kind: "slice";
+  readonly name: string;
+  readonly start: number | undefined;
+  readonly end: number | undefined;
+}
+
+/** `name[index]` after expansion. */
+export interface IExpandedIndex extends IExpandedValueBase {
+  readonly kind: "index";
+  readonly name: string;
+  readonly index: number;
+}
+
+/** One value after expansion: a `$name` has already become its value(s). Narrow by `kind`. */
+export type ExpandedValue = IExpandedWord | IExpandedString | IExpandedList | IExpandedSlice | IExpandedIndex;
 
 /** What an expanded value holds, by kind; a list holds its items (`TItem`). Package-internal. */
 export type ExpandedData<TItem> =
@@ -106,12 +149,42 @@ export function canonicalTextOf(data: ExpandedData<{ readonly text: string }>): 
 }
 
 /**
- * The one home of the readers (spec 2.9). Package-internal: the low level makes these for an extension use, and the
- * rendered layer's argument extends it with its links to the low level (`TItem` is then the argument).
+ * The data of an expanded value, read through its public members only, with a list's items as `items` (what the
+ * rendered layer builds an argument from: spec 7.0). Package-internal.
  */
-export class ExpandedValue<TItem extends IExpandedValue = IExpandedValue> implements IExpandedValue {
+export function dataOf<TItem>(value: ExpandedValue, items: readonly TItem[]): ExpandedData<TItem> {
+  switch (value.kind) {
+    case "word":
+      return { kind: "word", text: value.text };
+    case "string":
+      return { kind: "string", value: value.string() };
+    case "list":
+      return { kind: "list", items };
+    case "slice":
+      return {
+        kind: "slice",
+        name: value.name,
+        ...(value.start === undefined ? {} : { start: value.start }),
+        ...(value.end === undefined ? {} : { end: value.end }),
+      };
+    case "index":
+      return { kind: "index", name: value.name, index: value.index };
+  }
+}
+
+/**
+ * The one home of the readers (spec 2.9). Package-internal: `expandedValue` makes the shared variants from it, and
+ * the rendered layer's arguments extend it with their links to the low level (`TItem` is then the argument). A
+ * member a kind does not have (`items` on a word) is not set on the object at all.
+ */
+export class ExpandedRecord<TItem extends ExpandedValue = ExpandedValue> {
   readonly kind: Exclude<ValueKind, "reference">;
   readonly text: string;
+  declare readonly items?: readonly TItem[];
+  declare readonly name?: string;
+  declare readonly start?: number | undefined;
+  declare readonly end?: number | undefined;
+  declare readonly index?: number;
   readonly #data: ExpandedData<TItem>;
 
   constructor(
@@ -121,6 +194,22 @@ export class ExpandedValue<TItem extends IExpandedValue = IExpandedValue> implem
     this.#data = data;
     this.kind = data.kind;
     this.text = canonicalTextOf(data);
+    switch (data.kind) {
+      case "list":
+        this.items = data.items;
+        break;
+      case "slice":
+        this.name = data.name;
+        this.start = data.start;
+        this.end = data.end;
+        break;
+      case "index":
+        this.name = data.name;
+        this.index = data.index;
+        break;
+      default:
+        break;
+    }
   }
 
   word(): string {
@@ -152,7 +241,7 @@ export class ExpandedValue<TItem extends IExpandedValue = IExpandedValue> implem
     return value;
   }
 
-  items(): readonly TItem[] {
+  list(): readonly TItem[] {
     if (this.#data.kind !== "list") throw this.wrongKind("a list");
     return this.#data.items;
   }
@@ -191,4 +280,9 @@ export class ExpandedValue<TItem extends IExpandedValue = IExpandedValue> implem
   private wrongKind(wanted: string): DiagnosticError {
     return codeError(this.origin, DiagnosticCode.WrongValueKind, `wanted ${wanted}, found a ${this.kind}: ${this.text}`);
   }
+}
+
+/** The shared expanded value of this data: the variant its kind names. Package-internal. */
+export function expandedValue(data: ExpandedData<ExpandedValue>, origin: IOrigin): ExpandedValue {
+  return new ExpandedRecord(data, origin) as ExpandedValue;
 }

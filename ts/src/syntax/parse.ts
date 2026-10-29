@@ -5,7 +5,7 @@
 
 import { CharStreams, CommonTokenStream } from "antlr4";
 
-import { DiagnosticCode, type IDiagnostic, messageOf } from "../diagnostics.js";
+import { DiagnosticCode, type IDiagnostic, makeDiagnostic, messageOf } from "../diagnostics.js";
 import VillanelleLexer from "../gen/VillanelleLexer.js";
 import VillanelleParser from "../gen/VillanelleParser.js";
 import type { ISourcePosition } from "../span.js";
@@ -105,6 +105,6 @@ export function parse(text: string): ISyntax {
 /** The syntax result, with each token-range diagnostic turned into a source span (the one place that does). */
 function located(tokens: readonly IToken[], root: INode, raw: readonly IRawDiagnostic[]): ISyntax {
   const unlocated: ISyntax = { tokens, root, diagnostics: [] };
-  const diagnostics: IDiagnostic[] = raw.map((d) => ({ code: d.code, message: d.message, span: spanOf(unlocated, d.range) }));
+  const diagnostics: IDiagnostic[] = raw.map((d) => makeDiagnostic(d.code, d.message, spanOf(unlocated, d.range)));
   return { tokens, root, diagnostics };
 }

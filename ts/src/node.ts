@@ -15,7 +15,7 @@ import type { IDocumentWriter } from "./source.js";
  * directory of `context.parentPath`; a glob (`*` and `?` in the last path segment only) lists that directory and
  * returns every matching file. A missing file resolves to no paths (E3001).
  */
-export function createFileSource(): IDocumentSource {
+export function fileSource(): IDocumentSource {
   return {
     async resolve(spec, context) {
       const path = resolve(dirname(context.parentPath), spec);
@@ -59,7 +59,7 @@ function isMissing(error: unknown): boolean {
  * failure while staging removes the temporaries and rejects with nothing replaced; a failure while renaming can
  * leave earlier files replaced (stated cost) and removes the temporaries not yet renamed.
  */
-export function createFsWriter(): IDocumentWriter {
+export function fileWriter(): IDocumentWriter {
   return {
     async write(files) {
       const lost: string[] = [];

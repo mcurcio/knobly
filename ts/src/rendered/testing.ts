@@ -7,7 +7,7 @@ import type { IExtension } from "../extension.js";
 import type { IOrigin, IPlace, IStep } from "../origin.js";
 import type { ILocatedDiagnostic } from "../report.js";
 import { type IDocumentSource, memorySource } from "../source.js";
-import { type IProcessor, villanelle } from "../written/processor.js";
+import { type IProcessor, villanelle } from "../written/index.js";
 import type { IDirective, IKeyOptions, IRendered } from "./model.js";
 import { render } from "./render.js";
 

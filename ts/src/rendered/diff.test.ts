@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { IDirective, KeyRule } from "./model.js";
-import { type IProcessor, villanelle } from "../written/processor.js";
+import { type IProcessor, villanelle } from "../written/index.js";
 import { type IDocumentSource, memorySource } from "../source.js";
 import { addresses, loadText, only, processorOf, rendered } from "./testing.js";
 

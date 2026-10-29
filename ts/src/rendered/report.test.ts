@@ -4,10 +4,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { DiagnosticError } from "../diagnostics.js";
+import { DiagnosticError } from "../errors.js";
 import { include } from "../include.js";
 import { Diagnostics, type ILocatedDiagnostic, type ProgramCode } from "../report.js";
-import { formatDiagnostic } from "../written/format.js";
+import { formatDiagnostic } from "../written/index.js";
 import { loadFiles, loadText, only, problems } from "./testing.js";
 
 describe("Diagnostics", () => {
@@ -87,8 +87,17 @@ describe("formatDiagnostic", () => {
   });
 
   it("prints only the first line without the file in the graph", async () => {
-    const error: unknown = await loadFiles({}, {}, "gone.conf").catch((e: unknown) => e);
-    const { diagnostic } = error as DiagnosticError;
-    expect(formatDiagnostic(diagnostic)).toMatch(/^gone\.conf:1:1: E3004: include resolver failed: gone\.conf: [^\n]+$/);
+    const loaded = await loadText("x $nope;\n");
+    expect(formatDiagnostic(loaded.diagnostics[0] as ILocatedDiagnostic)).toBe("main.conf:1:3: E5001: unknown variable: $nope");
+  });
+
+  it("keeps a lone carriage return in the source line (spec/contract.md 1)", async () => {
+    const loaded = await loadText("x $nope; # a\rb\n");
+    const unknown = loaded.diagnostics.find((d) => d.code === "E5001");
+    expect(formatDiagnostic(unknown as ILocatedDiagnostic, loaded.graph).split("\n")).toEqual([
+      "main.conf:1:3: E5001: unknown variable: $nope",
+      "x $nope; # a\rb",
+      "  ^^^^^",
+    ]);
   });
 });

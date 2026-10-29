@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { include } from "../include.js";
 import { memorySource } from "../source.js";
 import { quote } from "../text.js";
-import { BadTextError, DetachedError } from "./errors.js";
+import { BadTextError, DetachedError } from "../errors.js";
 import type { IDocumentGraph, ISetLine, IWrittenDirective, IUseLine } from "./model.js";
 import { villanelle } from "./processor.js";
 

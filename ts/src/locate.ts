@@ -2,9 +2,10 @@
  * Where a problem about a value or a directive is placed (spec 2.2). Package-internal, shared.
  */
 
-import { type DiagnosticCode, DiagnosticError, messageOf } from "./diagnostics.js";
+import { type DiagnosticCode, messageOf } from "./diagnostics.js";
+import { DiagnosticError } from "./errors.js";
 import type { IOrigin, IPlace, IStep } from "./origin.js";
-import type { ProgramCode } from "./report.js";
+import { makeLocated, type ProgramCode } from "./report.js";
 
 /**
  * The file place and steps of an origin. An override is written in no file: it is placed on the `$name` that used
@@ -22,7 +23,8 @@ const PROGRAM_CODE = /^[^/\s]+\/\S+$/;
 /** A program's located error. @throws TypeError when `code` is not `<namespace>/<name>`. */
 export function programError(origin: IOrigin, message: string, code: ProgramCode): DiagnosticError {
   checkProgramCode(code);
-  return new DiagnosticError({ code, message, ...locate(origin) });
+  const { place, via } = locate(origin);
+  return new DiagnosticError(makeLocated(code, message, place, via));
 }
 
 /** @throws TypeError when `code` is not `<namespace>/<name>`: villanelle's own codes are not the program's to make. */
@@ -35,5 +37,6 @@ export function checkProgramCode(code: string): void {
 /** villanelle's own located error for a value or directive, with the code's message and an optional detail. */
 export function codeError(origin: IOrigin, code: DiagnosticCode, detail?: string): DiagnosticError {
   const message = detail === undefined ? messageOf(code) : `${messageOf(code)}: ${detail}`;
-  return new DiagnosticError({ code, message, ...locate(origin) });
+  const { place, via } = locate(origin);
+  return new DiagnosticError(makeLocated(code, message, place, via));
 }

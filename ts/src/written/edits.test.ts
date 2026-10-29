@@ -6,15 +6,15 @@
 
 import { describe, expect, it } from "vitest";
 
-import { DiagnosticError } from "../diagnostics.js";
+import { DiagnosticError } from "../errors.js";
 import { include } from "../include.js";
 import { villanelle } from "./processor.js";
 import { memorySource } from "../source.js";
 import { render } from "../rendered/render.js";
 import { countingSource } from "../rendered/testing.js";
-import { BadTextError, DetachedError, NoSetLineError, ReadError } from "./errors.js";
+import { BadTextError, DetachedError, ReadError, VillanelleError } from "../errors.js";
 import type { IFileWrite } from "../source.js";
-import type { ISetLine, ISnippetLine, IWrittenDirective } from "./model.js";
+import type { IExtensionLine, ISetLine, ISnippetLine, IWrittenDirective } from "./model.js";
 
 const MAIN = "a;\n";
 
@@ -78,13 +78,24 @@ describe("read(graph)", () => {
 });
 
 describe("load's root failure", () => {
-  it("rejects with ReadError, a DiagnosticError E3004 at the root path (B10)", async () => {
+  it("rejects with ReadError, paths the root path and no diagnostic, when the source resolves no file (B10)", async () => {
     const processor = villanelle({ source: memorySource({}) });
     const error: unknown = await processor.load("nope.conf").catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ReadError);
-    expect(error).toBeInstanceOf(DiagnosticError);
-    expect((error as ReadError).diagnostic.code).toBe("E3004");
-    expect((error as ReadError).diagnostic.place).toMatchObject({ kind: "file", resolvedPath: "nope.conf" });
+    expect(error).toBeInstanceOf(VillanelleError);
+    expect(error).not.toBeInstanceOf(DiagnosticError);
+    expect((error as ReadError).paths).toEqual(["nope.conf"]);
+    expect((error as ReadError).cause).toBeUndefined();
+    expect("diagnostic" in (error as object)).toBe(false);
+  });
+
+  it("chains the source's rejection as the cause", async () => {
+    const cause = new Error("disk gone");
+    const source = { resolve: () => Promise.resolve(["main.conf"]), read: () => Promise.reject(cause) };
+    const error: unknown = await villanelle({ source }).load("main.conf").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ReadError);
+    expect((error as ReadError).paths).toEqual(["main.conf"]);
+    expect((error as ReadError).cause).toBe(cause);
   });
 });
 
@@ -178,13 +189,12 @@ describe("rename", () => {
     }).not.toThrow();
   });
 
-  it("refuses renaming an extension line, or to a registered extension's name", async () => {
+  it("has no rename on an extension line, and refuses renaming to a registered extension's name", async () => {
     const processor = villanelle({ source: memorySource({ "main.conf": 'include "p.conf";\nx;\n', "p.conf": "" }), extensions: [include()] });
     const graph = await processor.load("main.conf");
-    const [line, x] = graph.root.block.statements as [IWrittenDirective, IWrittenDirective];
-    expect(() => {
-      line.rename("other");
-    }).toThrow(BadTextError);
+    const [line, x] = graph.root.block.statements as [IExtensionLine, IWrittenDirective];
+    expect(line.kind).toBe("extension");
+    expect("rename" in line).toBe(false);
     expect(() => {
       x.rename("include");
     }).toThrow(BadTextError);
@@ -205,8 +215,6 @@ describe("rename", () => {
     expect(() => {
       variable.rename("not-a-name");
     }).toThrow(BadTextError);
-    const override = (await villanelle({ source: memorySource({ "main.conf": "x;\n" }) }).load("main.conf", { overrides: { h: "1" } })).variables("h")[0];
-    expect(() => override?.rename("g")).toThrow(NoSetLineError);
   });
 });
 

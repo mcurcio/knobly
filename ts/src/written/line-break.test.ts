@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import { memorySource } from "../source.js";
-import { BadTextError } from "./errors.js";
+import { BadTextError } from "../errors.js";
 import { villanelle } from "./processor.js";
 
 async function load(text: string): Promise<Awaited<ReturnType<ReturnType<typeof villanelle>["load"]>>> {

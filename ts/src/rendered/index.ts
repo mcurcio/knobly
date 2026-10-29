@@ -1,24 +1,30 @@
 /**
- * The rendered layer (spec 7): `render (graph)` and the rendered tree's types. It builds on the low level; nothing
- * below it imports this module (spec 5, "Layer direction"; checked by ts/eslint.config.js).
+ * The rendered layer (spec 7): `render (graph)` and the rendered tree's types. It builds on the low level's public
+ * API; nothing below it imports this module (spec 5, "Layer direction"; checked by ts/eslint.config.js).
  */
 
 export { render } from "./render.js";
-export {
-  type Change,
-  type ChangeKind,
-  type IAdded,
-  type IAddress,
-  type IAddressStep,
-  type IArgument,
-  type IChanged,
-  type IDirective,
-  type IKeyOptions,
-  type IRemoved,
-  type IRendered,
-  type IUnknown,
-  type IUnreadable,
-  type KeyRule,
-  type UnreadableReason,
-  type WalkControl,
+export type {
+  Argument,
+  Change,
+  ChangeKind,
+  IAdded,
+  IAddress,
+  IAddressStep,
+  IArgumentLinks,
+  IChanged,
+  IDirective,
+  IIndexArgument,
+  IKeyOptions,
+  IListArgument,
+  IRemoved,
+  IRendered,
+  ISliceArgument,
+  IStringArgument,
+  IUnknown,
+  IUnreadable,
+  IWordArgument,
+  KeyRule,
+  UnreadableReason,
+  WalkControl,
 } from "./model.js";

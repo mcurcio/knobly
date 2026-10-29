@@ -1,13 +1,13 @@
 /**
  * A value as the binding expands it: the shared expanded value's data and origin, plus the low-level facts the
  * rendered layer adds to an argument (its definition and its chain of reference resolutions). Package-internal: an
- * extension use gets the plain `expanded()` value, which holds no handle; `render (graph)` builds its arguments
- * from these (spec 7.0, 7.3).
+ * extension use gets the plain `expanded()` value, which holds no handle; `graph.expand()` gives `expansion()`, the
+ * public snapshot `render (graph)` builds its arguments from (spec 6.10, 7.0, 7.3).
  */
 
 import type { IOrigin, IStep } from "../origin.js";
-import { type ExpandedData, ExpandedValue } from "../value.js";
-import type { IReferenceResolution, WrittenValue } from "./model.js";
+import { type ExpandedData, type ExpandedValue, expandedValue } from "../value.js";
+import type { IReferenceResolution, IValueExpansion, WrittenValue } from "./model.js";
 
 export class Bound {
   #expanded: ExpandedValue | undefined;
@@ -48,8 +48,19 @@ export class Bound {
 
   /** The shared expanded value: what an extension use holds. */
   expanded(): ExpandedValue {
-    this.#expanded ??= new ExpandedValue(this.dataWith((item) => item.expanded()), this.origin);
+    this.#expanded ??= expandedValue(this.dataWith((item) => item.expanded()), this.origin);
     return this.#expanded;
+  }
+
+  /** The public snapshot of this value: what `graph.expand()` gives, and the rendered layer builds an argument from. */
+  expansion(): IValueExpansion {
+    return {
+      value: this.expanded(),
+      written: this.written,
+      definition: this.definition,
+      chain: this.chain,
+      items: this.data.kind === "list" ? this.data.items.map((item) => item.expansion()) : [],
+    };
   }
 
   /**

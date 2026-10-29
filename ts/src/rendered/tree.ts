@@ -3,32 +3,32 @@
  * see them through the interfaces of model.ts.
  */
 
-import type { DiagnosticError } from "../diagnostics.js";
+import type { DiagnosticError } from "../errors.js";
 import { programError } from "../locate.js";
 import type { IDirectiveOrigin } from "../origin.js";
 import type { ILocatedDiagnostic, ProgramCode } from "../report.js";
-import { ExpandedValue } from "../value.js";
-import type { Bound } from "../written/expanded.js";
-import type { IDocumentGraph, IReferenceResolution, IWrittenDirective, WrittenValue } from "../written/model.js";
+import { dataOf, ExpandedRecord } from "../value.js";
+import type { IDocumentGraph, IReferenceResolution, IValueExpansion, IWrittenDirective, WrittenValue } from "../written/index.js";
 import { diff } from "./diff.js";
-import type { Change, IAddress, IAddressStep, IArgument, IDirective, IKeyOptions, IRendered, IUnreadable, WalkControl } from "./model.js";
+import type { Argument, Change, IAddress, IAddressStep, IDirective, IKeyOptions, IRendered, IUnreadable, WalkControl } from "./model.js";
 
 /** A rendered value: the shared expanded value and its readers, plus its links to the low level (spec 7.3). */
-export class Argument extends ExpandedValue<Argument> implements IArgument {
+class ArgumentRecord extends ExpandedRecord<Argument> {
   readonly written: WrittenValue;
   readonly definition: WrittenValue | undefined;
   readonly chain: readonly IReferenceResolution[];
 
-  /** The argument of one value the low level's binding expanded. */
-  constructor(bound: Bound) {
-    super(
-      bound.dataWith((item) => new Argument(item)),
-      bound.origin,
-    );
-    this.written = bound.written;
-    this.definition = bound.definition;
-    this.chain = bound.chain;
+  constructor(expansion: IValueExpansion) {
+    super(dataOf(expansion.value, expansion.items.map(argumentOf)), expansion.value.origin);
+    this.written = expansion.written;
+    this.definition = expansion.definition;
+    this.chain = expansion.chain;
   }
+}
+
+/** The argument of one value expansion of the graph: the variant its value's kind names. */
+export function argumentOf(expansion: IValueExpansion): Argument {
+  return new ArgumentRecord(expansion) as Argument;
 }
 
 export class Address implements IAddress {
@@ -67,7 +67,7 @@ export class Directive implements IDirective {
 
   constructor(
     readonly name: string,
-    readonly values: readonly IArgument[],
+    readonly values: readonly Argument[],
     hasBlock: boolean,
     readonly parent: Directive | undefined,
     readonly origin: IDirectiveOrigin,

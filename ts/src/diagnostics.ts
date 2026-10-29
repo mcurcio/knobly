@@ -1,5 +1,6 @@
 /**
- * Stable diagnostic codes and the diagnostic shape every layer reports.
+ * Stable diagnostic codes and the diagnostic shape every layer reports. The error a reader throws is DiagnosticError
+ * (errors.ts).
  *
  * The codes and their messages are generated from spec/schema/diagnostics.json (tools/gen-api.py), the one registry
  * every binding reads. Codes are stable across languages and releases: a code is never reused for a different
@@ -8,7 +9,7 @@
  */
 
 import { type DiagnosticCode, MESSAGES } from "./gen/api/codes.js";
-import type { ILocatedDiagnostic } from "./report.js";
+import { diagnosticForm } from "./people.js";
 import type { ISourceSpan } from "./span.js";
 
 export { DiagnosticCode } from "./gen/api/codes.js";
@@ -25,18 +26,23 @@ export interface IDiagnostic {
   readonly message: string;
   /** Where the problem is; a zero-width span at the end of the text for "unexpected end of input". */
   readonly span: ISourceSpan;
+  /** `line:col: code: message`, 1-based, at the span's start: `1:3: E2004: expected closing bracket`. */
+  toString(): string;
 }
 
-/**
- * Thrown by operations whose contract a user's input breaks (STYLE 11.6), carrying the located diagnostic: a value
- * reader given the wrong kind of value, `error()` on a directive or value, or a load whose root file cannot be read.
- */
-export class DiagnosticError extends Error {
-  readonly diagnostic: ILocatedDiagnostic;
+class Diagnostic implements IDiagnostic {
+  constructor(
+    readonly code: DiagnosticCode,
+    readonly message: string,
+    readonly span: ISourceSpan,
+  ) {}
 
-  constructor(diagnostic: ILocatedDiagnostic) {
-    super(diagnostic.message);
-    this.name = "DiagnosticError";
-    this.diagnostic = diagnostic;
+  toString(): string {
+    return diagnosticForm(this);
   }
+}
+
+/** One diagnostic of a text. Package-internal. */
+export function makeDiagnostic(code: DiagnosticCode, message: string, span: ISourceSpan): IDiagnostic {
+  return new Diagnostic(code, message, span);
 }

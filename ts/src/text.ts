@@ -14,10 +14,14 @@ import { canonicalString } from "./values.js";
  */
 export function requireText(value: unknown, member: string, parameter: string): asserts value is string {
   if (typeof value === "string") return;
-  const got = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
   throw new TypeError(
-    `${member}(): argument "${parameter}" must be a string, not ${got}; villanelle edits take text: quote() a program string, String() a number`,
+    `${member}(): argument "${parameter}" must be a string, not ${typeNameOf(value)}; villanelle edits take text: quote() a program string, String() a number`,
   );
+}
+
+/** What an argument type error says a value is: `null`, `array`, or its `typeof`. */
+export function typeNameOf(value: unknown): string {
+  return value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
 }
 
 /**
