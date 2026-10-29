@@ -8,14 +8,15 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
-from villanelle._text import ConfigText, port_text, port_texts
-from villanelle.errors import ReadError
-from villanelle.source import DocumentSource, LoadContext
+from villanelle._api.errors import ReadError
+from villanelle._api.io import DocumentSource, LoadContext
+from villanelle._api.shared import ConfigText
+from villanelle._text import port_text, port_texts
 from villanelle.written import _bind, _graph
 from villanelle.written.model import DocumentGraph
 
 if TYPE_CHECKING:
-    from villanelle.written.extension import Extension
+    from villanelle._api.written import Extension
 
 
 def load_graph(

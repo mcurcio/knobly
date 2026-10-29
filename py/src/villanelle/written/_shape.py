@@ -13,18 +13,14 @@ from dataclasses import dataclass
 from typing import TypeAlias
 
 from villanelle._anatomy import Anatomy, anatomy_of
-from villanelle._api.kinds import StatementKind
-from villanelle.diagnostics import DiagnosticCode
-from villanelle.syntax.cst import Node, NodeKind
-from villanelle.syntax.tokens import Token, TokenKind
+from villanelle._api.codes import DiagnosticCode
+from villanelle._api.kinds import NodeKind, StatementKind, TokenKind, statement_of_keyword
+from villanelle._api.syntax import Node, Token
 
 ShapeKind: TypeAlias = StatementKind
 
 _WORDS = frozenset({TokenKind.WORD, TokenKind.AT_WORD, TokenKind.INTEGER, TokenKind.DIGIT_WORD})
 """The bare-word tokens: a ``@snippet``'s or ``@use``'s snippet name is any of them."""
-
-SET, SNIPPET, USE = "@set", "@snippet", "@use"
-"""The language statements' heads (spec 2.5): an AT_WORD of these texts."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,11 +59,12 @@ def shape_of_anatomy(tokens: tuple[Token, ...], anatomy: Anatomy, extensions: fr
     args = anatomy.args
     first = tokens[args[0]] if args and isinstance(args[0], int) else None
     rest = args[1:]
-    if name.text == SET:
+    keyword = statement_of_keyword(name.text[1:])
+    if keyword is StatementKind.SET:
         if first is None or first.kind is not TokenKind.VARIABLE or not rest or anatomy.block is not None:
             return Shape(StatementKind.UNREADABLE, Fault(DiagnosticCode.BAD_SET, anatomy.name))
         return Shape(StatementKind.SET, None, first.text[1:])
-    if name.text == SNIPPET:
+    if keyword is StatementKind.SNIPPET:
         bad = Shape(StatementKind.UNREADABLE, Fault(DiagnosticCode.BAD_SNIPPET, anatomy.name))
         params: list[str] = []
         for ref in rest:
@@ -78,7 +75,7 @@ def shape_of_anatomy(tokens: tuple[Token, ...], anatomy: Anatomy, extensions: fr
         if first is None or first.kind not in _WORDS or anatomy.block is None:
             return bad
         return Shape(StatementKind.SNIPPET, None, first.text)
-    if name.text == USE:
+    if keyword is StatementKind.USE:
         if first is None or first.kind not in _WORDS or anatomy.block is not None:
             return Shape(StatementKind.UNREADABLE, Fault(DiagnosticCode.BAD_USE, anatomy.name))
         return Shape(StatementKind.USE)
@@ -102,14 +99,14 @@ def block_shapes(
     for node in nodes:
         shape = shape_of(tokens, node, extensions)
         claims = shape.claims
-        if shape.kind == "set" and claims is not None:
+        if shape.kind is StatementKind.SET and claims is not None:
             if claims in sets:
                 at = anatomy_of(tokens, node).args[0]
                 assert isinstance(at, int)
                 shape = Shape(StatementKind.UNREADABLE, Fault(DiagnosticCode.VARIABLE_SET_TWICE, at, tokens[at].text))
             else:
                 sets.add(claims)
-        elif shape.kind == "snippet" and claims is not None:
+        elif shape.kind is StatementKind.SNIPPET and claims is not None:
             if claims in snippets:
                 at = anatomy_of(tokens, node).args[0]
                 assert isinstance(at, int)

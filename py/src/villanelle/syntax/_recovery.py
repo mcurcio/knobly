@@ -22,11 +22,10 @@ from antlr4 import Token as AntlrToken
 from antlr4.error.Errors import InputMismatchException
 from antlr4.error.ErrorStrategy import DefaultErrorStrategy
 
-from villanelle._api.codes import MESSAGES
+from villanelle._api.codes import DiagnosticCode, describe
+from villanelle._api.kinds import TokenKind
 from villanelle._api.limits import MAX_NESTING
 from villanelle._gen.VillanelleParser import VillanelleParser
-from villanelle.diagnostics import DiagnosticCode
-from villanelle.syntax.tokens import TokenKind
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,11 +110,6 @@ def classify_error(kinds: Sequence[TokenKind], at: int, start: int, in_block: bo
     return DiagnosticCode.UNEXPECTED_TOKEN
 
 
-def message_of(code: DiagnosticCode) -> str:
-    """The message for a code; not part of the cross-language contract."""
-    return MESSAGES[code]
-
-
 # --- the ANTLR strategy -------------------------------------------------------------------------------------------
 
 P = VillanelleParser
@@ -179,7 +173,7 @@ class _Recovery(DefaultErrorStrategy):  # type: ignore[misc]
         statements, in_block = _scope(p)
         code = classify_error(kinds, at, _statement_start(statements, p._input.index), in_block)
         what = "end of input" if offending.type == _EOF else json.dumps(offending.text)
-        self._report(RawDiagnostic(code, at, min(at + 1, len(kinds)), f"{message_of(code)}: {what}"))
+        self._report(RawDiagnostic(code, at, min(at + 1, len(kinds)), describe(code, what).message))
 
     def _skip(self, p: Any) -> None:
         """Consume to the end of the bad statement (spec 3.2): a ``;`` outside brackets and braces, or a whole block it

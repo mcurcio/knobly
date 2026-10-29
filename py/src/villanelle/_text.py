@@ -2,30 +2,25 @@
 program hands to an edit or an override, made only by ``quote`` (a program string written as a villanelle string) or
 ``text`` (a text already written as villanelle text). A ``typing.NewType`` (PEP 484): a str at run time, so a type
 checker refuses a plain str where an edit takes config text, and the run-time check stays ``require_text``. Also the
-one home of the argument type error and its message (spec/schema/api.json, "argument type error message"). Shared
+one raise site of the argument type error (its message is generated: ``argument_type_message``). ``ConfigText`` itself
+is generated (``villanelle._api.shared``). Shared
 (spec/schema/api.json: ``quote`` and ``text`` are in the shared layer, as TypeScript's ``ts/src/text.ts``);
 ``ConfigText``, ``quote`` and ``text`` are public through ``villanelle``, the checks are private to the package."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import NewType
 
+from villanelle._api.errors import argument_type_message
+from villanelle._api.shared import ConfigText
 from villanelle._values import canonical_string
-
-ConfigText = NewType("ConfigText", str)
-"""Villanelle text for an edit or an override: made only by ``quote`` or ``text``. A str at run time."""
 
 
 def require_text(value: object, *, member: str, parameter: str) -> str:
     """``value`` when it is a str; else TypeError naming ``member`` (as the caller wrote it) and ``parameter``."""
     if isinstance(value, str):
         return value
-    raise TypeError(
-        f"{member}() argument '{parameter}' must be str, not {type(value).__name__}; "
-        "villanelle edits take config text: quote() a program string, text() one already written as villanelle text, "
-        "str() a number first"
-    )
+    raise TypeError(argument_type_message(member, parameter, type(value).__name__))
 
 
 def port_texts(result: object, *, port: str) -> tuple[str, ...]:

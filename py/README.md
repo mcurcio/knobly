@@ -15,13 +15,28 @@ own style: `Processor` for `villanelle()`, `walk()` as a generator, `match` on o
 `snake_case` names. The core does no input or output. The concepts and their names come from
 [`spec/`](../spec/README.md); each binding only changes the casing.
 
+Every public signature is generated from [`spec/schema/api.json`](../spec/schema/api.json) into
+`src/villanelle/_api/` (spec/codegen.md): the records (`SourceSpan`, `Token`, `Copy`, `Expansion`,
+`SliceValue`, `Added` ... as frozen dataclasses), the kind lists (`StrEnum`s), the diagnostic codes, the error
+tree, the rules module (`MAX_NESTING`, `RESERVED`, `VARIABLE_NAME` ...) and a `Protocol` for every handle, which
+each hand-written class here subclasses, so mypy checks each member against the schema. Each module's `__all__`
+equals the generated `PUBLIC_NAMES` (tests/test_api_names.py). Inside the package a `kind`, `reason` or `code` is
+compared with an enum member, never a string (tests/test_kind_lint.py runs `tools/lint/kind_lint.py`).
+
+One namespace per layer (binding guide rule 9):
+
 | Import | What it has |
 |---|---|
-| `villanelle` | The core: `parse`, `Processor`, `render`, `ConfigText`, `quote`, `text`, `memory_source`, `memory_writer`, `check_lost_updates`, `Diagnostics`, `format_diagnostic`, the error classes, the kind lists (`StatementKind`, `ValueKind`, ...) and the types they use |
-| `villanelle.written` | The low level on its own: `Processor`, `DocumentGraph`, the written types, the expansion and its expanded values (`ExpandedWord` ... `ExpandedIndex`), the extension port (`Extension`, `ExtensionUse`), and the only home of the written values `Word`, `String`, `List`, `Slice`, `Index` and `Reference` (so `from villanelle import *` never replaces `typing.List`). It never imports the rendered layer |
-| `villanelle.rendered` | The rendered layer on its own: `render`, `Rendered`, `Directive`, addresses and the change classes. It reaches the low level only through `villanelle.written`'s public names |
+| `villanelle` | The shared and io layers: `ConfigText`, `quote`, `text`, positions, places, origins and steps, `Diagnostic`, `LocatedDiagnostic`, `Diagnostics`, `DiagnosticCode`, the error classes, `PROGRAM_CODE`, the document source and writer ports, `memory_source`, `memory_writer`, `check_lost_updates` |
+| `villanelle.syntax` | The syntax tree: `parse`, `Syntax`, `Token`, `Node`, `TokenRange`, `span_of`, `text_of`, `TokenKind`, `NodeKind`, `MAX_NESTING` |
+| `villanelle.written` | The low level: `Processor`, `DocumentGraph`, the written types, the expansion and its expanded values (`ExpandedWord` ... `ExpandedIndex`), the extension port (`Extension`, `ExtensionUse`), its kind lists and limits, `format_diagnostic`, and the written values `Word`, `String`, `List`, `Slice`, `Index` and `Reference` (import the module, `from villanelle import written`, so `written.List` never replaces `typing.List`). It never imports the rendered layer |
+| `villanelle.rendered` | The rendered layer: `render`, `Rendered`, `RenderedBlock`, `Directive`, addresses, `KeyRule` and the change classes. It reaches the low level only through `villanelle.written`'s public names |
 | `villanelle.include` | `include()`: the include extension |
 | `villanelle.files` | `file_source()` and `file_writer()`: files on disk |
+
+Every block has one shape (spec 2.11): a written block (statements), an expansion block (directive expansions) and
+a rendered block (directives) are each a `Sequence` (iterate, `len`, `block[i]`, `IndexError` out of range) with
+`directives(name)` and `walk(descend=...)`, a generator over every item at any depth.
 
 - **The syntax tree.** `parse(text)` returns a `Syntax` with `tokens`, `root` and `diagnostics`. It never
   raises. The tree is lossless: `text_of(syntax, syntax.root)` gives the text back.
@@ -43,7 +58,8 @@ own style: `Processor` for `villanelle()`, `walk()` as a generator, `match` on o
   `str` there, and at run time anything but a `str` raises `TypeError`. Write a number with `text(str(n))`.
 
   ```python
-  from villanelle import Processor, memory_source, quote, render, text
+  from villanelle import memory_source, quote, text
+  from villanelle.written import Processor
 
   graph = Processor(source=memory_source({"main.conf": "host a;\nport 80;\n"})).load("main.conf")
   host, port = graph.root.block
@@ -70,13 +86,13 @@ own style: `Processor` for `villanelle()`, `walk()` as a generator, `match` on o
   lexical: the `$name`s in its own file that it declares. A use in an included file is resolved per copy, so it is
   only in `wins()` and `shadowed_at()`. Reference: [docs/low-level-api.md](../docs/low-level-api.md).
 - **The rendered tree.** `render(graph)` builds on the low level: it expands variables, snippets and included
-  files into directives (`block`, `rendered.walk()`). A directive's values are the low level's expanded values,
+  files into directives (`block`, `tree.block.walk()`). A directive's values are the low level's expanded values,
   the same objects its directive expansion holds, one class per kind (`ExpandedWord`, `ExpandedString`,
   `ExpandedList` with its `items`, `ExpandedSlice`, `ExpandedIndex`; the union `ExpandedValue`), equal when their
   canonical texts are (`==`, `hash`), with its readers (`word()`, `string()`, `number()`, `integer()`, `boolean()`,
   `list()`, `slice()`: a word stays untyped until the program reads it as one of these), its
   origin, and `written` (the value on the same line), `definition` (where it is written) and `chain` (each `$name`
-  it went through) leading back to the low level. `rendered.addresses(key=...)` names each directive under a key rule,
+  it went through) leading back to the low level. `tree.addresses(key=...)` names each directive under a key rule,
   and `before.diff(after, key=...)` lists what changed, as `Added`, `Removed`, `Changed` and `Unknown`. Matching a
   `ExpandedString` by position gives its canonical `text`, quotes included; read `string()` for the decoded text.
   A file included twice renders as two copies that share one written line, so an edit loop over the render meets
@@ -84,10 +100,12 @@ own style: `Processor` for `villanelle()`, `walk()` as a generator, `match` on o
   the line again.
 
   ```python
-  for d in vl.render(graph).walk():
+  from villanelle import rendered, text
+
+  for d in rendered.render(graph).block.walk():
       match d:
-          case vl.Directive("max_count", [value]):
-              value.written.set(vl.text("2400"))
+          case rendered.Directive("max_count", [value]):
+              value.written.set(text("2400"))
   ```
 
   Reference: [docs/rendered-tree.md](../docs/rendered-tree.md).
@@ -124,7 +142,8 @@ python3 ../conformance/driver/run.py -- uv run --locked python conformance/adapt
 whether the claimed level holds.
 
 `tests/conftest.py` first runs `bash ../tools/gen.sh py`, which regenerates the parser into
-`src/villanelle/_gen/` and the API lists (diagnostic codes and messages, kind lists, limits, from
-`spec/schema/`) into `src/villanelle/_api/` (both ignored by git, never committed). That needs Java 11+; the ANTLR jar is
+`src/villanelle/_gen/` and the API declarations (records, Protocols, kind lists, codes, errors, rules, names,
+from `spec/schema/`) into `src/villanelle/_api/`, and the adapter's message shapes into `conformance/shapes.py`
+(all ignored by git, never committed). That needs Java 11+; the ANTLR jar is
 cached in `$ANTLR_JAR_DIR` (default `~/.cache/antlr`). Run `gen.sh` before `uv build` too:
 `pyproject.toml` forces the ignored `_gen/` and `_api/` files into the wheel and sdist, so they must exist.

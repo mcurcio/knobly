@@ -13,32 +13,38 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
+from enum import Enum
+from typing import TYPE_CHECKING, Protocol, TypeAlias
 
 from villanelle import _values
 from villanelle._anatomy import Anatomy, anatomy_of, items_of, values_of
-from villanelle._api.kinds import UnreadableReason, ValueKind
+from villanelle._api import shared
+from villanelle._api import written as api
+from villanelle._api.codes import DiagnosticCode, describe
+from villanelle._api.errors import DiagnosticError
+from villanelle._api.kinds import (
+    NodeKind,
+    StatementKind,
+    StepKind,
+    TokenKind,
+    UnreadableReason,
+    ValueKind,
+    statement_of_keyword,
+)
 from villanelle._api.limits import MAX_DEPTH, MAX_DIRECTIVES
+from villanelle._api.shared import DirectiveOrigin, Origin, SourceSpan
+from villanelle._api.syntax import Node, Syntax, Token, TokenRange
+from villanelle._api.written import Copy, DocumentEdge, ExtensionUse, ReferenceResolution, Resolution
 from villanelle._text import port_texts
-from villanelle.diagnostics import DiagnosticCode
-from villanelle.errors import DiagnosticError
-from villanelle.origin import DirectiveOrigin, Origin, Override, Place, Step, StepKind
+from villanelle.origin import Override, Place, Step
 from villanelle.report import LocatedDiagnostic
-from villanelle.span import SourceSpan
-from villanelle.syntax._recovery import message_of
-from villanelle.syntax.cst import Node, NodeKind, Syntax, ValueRef, span_of
+from villanelle.syntax.cst import ValueRef, span_of
 from villanelle.syntax.parse import parse_entry
-from villanelle.syntax.tokens import Token, TokenKind
-from villanelle.written._shape import SET, SNIPPET, USE, shape_of_anatomy
-from villanelle.written.extension import ExtensionUse
+from villanelle.written._shape import shape_of_anatomy
 from villanelle.written.model import (
-    Copy,
     Document,
-    DocumentEdge,
     Index,
     Reference,
-    ReferenceResolution,
-    Resolution,
     SetLine,
     Slice,
     SnippetLine,
@@ -46,6 +52,7 @@ from villanelle.written.model import (
     UseLine,
     Variable,
     WrittenValue,
+    own,
 )
 from villanelle.written.value import (
     ExpandedIndex,
@@ -57,7 +64,7 @@ from villanelle.written.value import (
 )
 
 if TYPE_CHECKING:
-    from villanelle.written.extension import Extension
+    from villanelle._api.written import Extension
 
 
 def _names_a_slice(word: str) -> bool:
@@ -80,7 +87,7 @@ class BoundUnreadable:
 
     copy: Copy
     reason: UnreadableReason
-    diagnostic: LocatedDiagnostic | None
+    diagnostic: shared.LocatedDiagnostic | None
     """None when the problem is already one of a document's syntax diagnostics."""
 
 
@@ -90,7 +97,7 @@ BoundItem: TypeAlias = BoundDirective | BoundUnreadable
 class BindingProblem(Exception):
     """A written value that cannot be expanded at a copy (E5001, E4001): the statement is unreadable there."""
 
-    def __init__(self, reason: UnreadableReason, diagnostic: LocatedDiagnostic) -> None:
+    def __init__(self, reason: UnreadableReason, diagnostic: shared.LocatedDiagnostic) -> None:
         super().__init__(diagnostic.message)
         self.reason = reason
         self.diagnostic = diagnostic
@@ -192,7 +199,7 @@ def _document_text(doc: Document) -> _Text:
 class _Problem(Exception):
     """A statement that cannot be read: raised inside a statement, caught where it is kept unreadable."""
 
-    def __init__(self, reason: UnreadableReason, diagnostic: LocatedDiagnostic | None) -> None:
+    def __init__(self, reason: UnreadableReason, diagnostic: shared.LocatedDiagnostic | None) -> None:
         super().__init__(reason if diagnostic is None else diagnostic.message)
         self.reason = reason
         self.diagnostic = diagnostic
@@ -213,12 +220,20 @@ class _Definition:
     """An override's literal bound beyond the integer range (``OverrideValues``): reading it is E4001."""
 
 
+class _Precedence(Enum):
+    """What kind of definition an entry is, for ``_pick``: a snippet parameter, a ``set``, or an include block's
+    ``set`` (forced: it wins over every ``set`` of the spliced files)."""
+
+    PARAMETER = "parameter"
+    SET = "set"
+    FORCED = "forced"
+
+
 @dataclass(frozen=True, slots=True)
 class _Entry:
-    """A snippet parameter, a ``set``, or an include block's ``set`` ("forced": it wins over every ``set`` of the
-    spliced files)."""
+    """One visible definition of a name, and its precedence."""
 
-    kind: Literal["parameter", "set", "forced"]
+    kind: _Precedence
     definition: _Definition
 
 
@@ -266,9 +281,9 @@ class _Scope:
 
     def entries(self, name: str, out: list[_Entry]) -> None:
         if name in self._params:
-            out.append(_Entry("parameter", self._params[name]))
+            out.append(_Entry(_Precedence.PARAMETER, self._params[name]))
         if name in self._vars:
-            out.append(_Entry("set", self._vars[name]))
+            out.append(_Entry(_Precedence.SET, self._vars[name]))
         if self._outer is not None:
             self._outer.entries(name, out)
 
@@ -316,7 +331,7 @@ class _SpliceScope:
 
     def entries(self, name: str, out: list[_Entry]) -> None:
         if name in self._overrides:
-            out.append(_Entry("forced", self._overrides[name]))
+            out.append(_Entry(_Precedence.FORCED, self._overrides[name]))
         self._target.entries(name, out)
 
     def snippets(self, name: str, out: list[_Snippet]) -> None:
@@ -337,11 +352,11 @@ def _pick(entries: Sequence[_Entry], override: _Definition | None) -> _Definitio
     (the one statement of the rule; this is its code)."""
     found: _Entry | None = None
     for entry in entries:
-        if entry.kind == "parameter" and found is None:
+        if entry.kind is _Precedence.PARAMETER and found is None:
             return entry.definition
-        if entry.kind == "set" and found is None:
+        if entry.kind is _Precedence.SET and found is None:
             found = entry
-        if entry.kind == "forced":
+        if entry.kind is _Precedence.FORCED:
             found = entry
             break
     if override is not None:
@@ -387,13 +402,7 @@ class _EdgeDraft:
 
 
 def _span_of_ref(syntax: Syntax, ref: ValueRef) -> SourceSpan:
-    return span_of(syntax, ref if isinstance(ref, Node) else _TokenRange(ref, ref + 1))
-
-
-@dataclass(frozen=True, slots=True)
-class _TokenRange:
-    start: int
-    end: int
+    return span_of(syntax, ref if isinstance(ref, Node) else TokenRange(ref, ref + 1))
 
 
 class Binding:
@@ -412,7 +421,7 @@ class Binding:
         self.edges: tuple[DocumentEdge, ...] = ()
         """Every copy of every extension line, in walk order (a failed or unread one included)."""
         self.unread: tuple[DocumentEdge, ...] = ()
-        self.diagnostics: list[LocatedDiagnostic] = []
+        self.diagnostics: list[shared.LocatedDiagnostic] = []
         """Every diagnostic the walk found, in walk order: the second half of the graph's one list."""
         self.resolutions: list[ReferenceResolution] = []
         """Every resolution, in walk order."""
@@ -420,7 +429,7 @@ class Binding:
         self._needs: dict[DocumentEdge, Need] = {}
         self._copies: dict[Statement, list[Copy]] = {}
         self._by_reference: dict[Reference, list[ReferenceResolution]] = {}
-        self._by_use: dict[UseLine, list[Resolution[SnippetLine]]] = {}
+        self._by_use: dict[UseLine, list[Resolution[api.SnippetLine]]] = {}
         self._args: dict[Copy, dict[WrittenValue, tuple[ExpandedValue, ...]] | BindingProblem] = {}
         self._count = 0
         self._stopped = False
@@ -436,7 +445,7 @@ class Binding:
     def resolutions_of(self, reference: Reference) -> tuple[ReferenceResolution, ...]:
         return tuple(self._by_reference.get(reference, ()))
 
-    def snippets_of(self, use: UseLine) -> tuple[Resolution[SnippetLine], ...]:
+    def snippets_of(self, use: UseLine) -> tuple[Resolution[api.SnippetLine], ...]:
         return tuple(self._by_use.get(use, ()))
 
     def arguments_at(self, value: WrittenValue, copy: Copy) -> tuple[ExpandedValue, ...]:
@@ -499,19 +508,20 @@ class Binding:
         anatomy = anatomy_of(tokens, node)
         name = tokens[anatomy.name]
         if name.kind is TokenKind.AT_WORD:
-            if name.text == SET:
+            keyword = statement_of_keyword(name.text[1:])
+            if keyword is StatementKind.SET:
                 self._set(anatomy, copy, text, scope, via)
-            elif name.text == SNIPPET:
+            elif keyword is StatementKind.SNIPPET:
                 self._snippet(anatomy, copy, context)
-            elif name.text == USE:
+            elif keyword is StatementKind.USE:
                 self._use(anatomy, name, copy, context)
             elif (extension := self._extensions.get(name.text[1:])) is not None:
                 self._extension(extension, anatomy, name, copy, context)
             else:
                 code = DiagnosticCode.UNKNOWN_EXTENSION
-                raise self._problem(UnreadableReason.EXTENSION, code, text, name.span, via, name.text)
+                raise self._problem(code, text, name.span, via, name.text)
             return
-        statement = copy.statement
+        statement = own(copy.statement)
         values: dict[WrittenValue, tuple[ExpandedValue, ...]] = {}
         for value in statement._value_list:
             try:
@@ -525,7 +535,6 @@ class Binding:
         if self._count > MAX_DIRECTIVES:
             self._stopped = True
             raise self._problem(
-                UnreadableReason.EXPANSION,
                 DiagnosticCode.TOO_MANY_DIRECTIVES,
                 text,
                 name.span,
@@ -543,7 +552,7 @@ class Binding:
         fault = shape_of_anatomy(text.syntax.tokens, anatomy, frozenset()).fault
         if fault is not None:
             span = text.syntax.tokens[fault.token].span
-            raise self._problem(UnreadableReason.EXPANSION, fault.code, text, span, via)
+            raise self._problem(fault.code, text, span, via)
 
     def _set(self, anatomy: Anatomy, copy: Copy, text: _Text, scope: _BlockScope, via: tuple[Step, ...]) -> None:
         """``@set $name value...;`` (rule 2): binds from this line to the end of the enclosing block."""
@@ -554,9 +563,7 @@ class Binding:
         variable = tokens[args[0]]
         variable_name = variable.text[1:]
         if not scope.claim(variable_name):
-            raise self._problem(
-                UnreadableReason.EXPANSION, DiagnosticCode.VARIABLE_SET_TWICE, text, variable.span, via, variable.text
-            )
+            raise self._problem(DiagnosticCode.VARIABLE_SET_TWICE, text, variable.span, via, variable.text)
         line = copy.statement
         assert isinstance(line, SetLine), "a set line that claims its name is kind set"
         bound = [argument for ref in args[1:] for argument in self.value(text, ref, scope, via, copy)]
@@ -580,9 +587,7 @@ class Binding:
             _Snippet(name.text, tuple(params), anatomy.block, text, scope, line)
         )
         if not defined:
-            raise self._problem(
-                UnreadableReason.EXPANSION, DiagnosticCode.SNIPPET_DEFINED_TWICE, text, name.span, via, name.text
-            )
+            raise self._problem(DiagnosticCode.SNIPPET_DEFINED_TWICE, text, name.span, via, name.text)
 
     def _use(self, anatomy: Anatomy, keyword: Token, copy: Copy, context: _Context) -> None:
         """``@use name value...;`` (rule 6): the snippet's body, spliced in place with its parameters bound."""
@@ -596,14 +601,12 @@ class Binding:
         scope.snippets(name.text, visible)
         use = copy.statement
         assert isinstance(use, UseLine)
-        resolution: Resolution[SnippetLine] = Resolution(
+        resolution: Resolution[api.SnippetLine] = Resolution(
             copy, visible[0].line if visible else None, tuple(s.line for s in visible[1:])
         )
         self._by_use.setdefault(use, []).append(resolution)
         if not visible:
-            raise self._problem(
-                UnreadableReason.EXPANSION, DiagnosticCode.UNKNOWN_SNIPPET, text, name.span, via, name.text
-            )
+            raise self._problem(DiagnosticCode.UNKNOWN_SNIPPET, text, name.span, via, name.text)
         snippet = visible[0]
         written: list[WrittenValue] = []
         values: list[ExpandedValue] = []
@@ -617,11 +620,9 @@ class Binding:
         if len(values) != len(snippet.params):
             detail = f"{name.text} takes {len(snippet.params)}, given {len(values)}"
             code = DiagnosticCode.SNIPPET_ARITY
-            raise self._problem(UnreadableReason.EXPANSION, code, text, keyword.span, via, detail)
+            raise self._problem(code, text, keyword.span, via, detail)
         if snippet in open_:
-            raise self._problem(
-                UnreadableReason.EXPANSION, DiagnosticCode.EXPANSION_CYCLE, text, keyword.span, via, name.text
-            )
+            raise self._problem(DiagnosticCode.EXPANSION_CYCLE, text, keyword.span, via, name.text)
         self._check_depth(open_, text, keyword, via)
         # Parameters are the body block's own bindings (a `set` of one there is E5002, S3-03), stored without the
         # use line's steps, as a `set` stores its values.
@@ -650,7 +651,7 @@ class Binding:
         origin = DirectiveOrigin(text.place(name.span), via)
 
         def fail(code: DiagnosticCode, detail: str) -> _Problem:
-            return self._problem(UnreadableReason.EXTENSION, code, text, name.span, via, detail)
+            return self._problem(code, text, name.span, via, detail)
 
         try:
             draft.specs.extend(port_texts(extension.specs(ExtensionUse(args, origin)), port="specs()"))
@@ -675,7 +676,7 @@ class Binding:
             found.extend(sorted(paths))
         cycle = next((path for path in found if path in open_), None)
         if cycle is not None:
-            raise self._problem(UnreadableReason.EXPANSION, DiagnosticCode.EXPANSION_CYCLE, text, name.span, via, cycle)
+            raise self._problem(DiagnosticCode.EXPANSION_CYCLE, text, name.span, via, cycle)
         self._check_depth(open_, text, name, via)
         files: list[Document] = []
         for path in found:
@@ -698,7 +699,7 @@ class Binding:
     def _unread(self, text: _Text, name: Token, via: tuple[Step, ...]) -> _Problem:
         """An extension copy not read yet (its edge is in ``unread()``): unreadable with reason ``unread``, and E3007
         on the extension line's name (spec 6.10), so a render shows it and ``diff`` reports what it held as unknown."""
-        return self._problem(UnreadableReason.UNREAD, DiagnosticCode.UNREAD_COPY, text, name.span, via)
+        return self._problem(DiagnosticCode.UNREAD_COPY, text, name.span, via)
 
     def _extension_block(
         self, block: Node | None, text: _Text, scope: _BlockScope, via: tuple[Step, ...]
@@ -717,10 +718,8 @@ class Binding:
                 continue
             anatomy = anatomy_of(tokens, node)
             name = tokens[anatomy.name]
-            if name.kind is not TokenKind.AT_WORD or name.text != SET:
-                raise self._problem(
-                    UnreadableReason.EXTENSION, DiagnosticCode.EXTENSION_BLOCK_NOT_SET, text, name.span, via
-                )
+            if name.kind is not TokenKind.AT_WORD or statement_of_keyword(name.text[1:]) is not StatementKind.SET:
+                raise self._problem(DiagnosticCode.EXTENSION_BLOCK_NOT_SET, text, name.span, via)
             self._set(anatomy, self._copy_of(doc._statements[node.start], via), text, own, via)
         return own.own()
 
@@ -728,7 +727,6 @@ class Binding:
         """Rule 9's depth, after the cycle check (S3-10): a ``use`` or extension directive 17 places deep is E5007."""
         if len(open_) > MAX_DEPTH:
             raise self._problem(
-                UnreadableReason.EXPANSION,
                 DiagnosticCode.EXPANSION_TOO_DEEP,
                 text,
                 name.span,
@@ -796,12 +794,10 @@ class Binding:
             self.resolutions.append(resolution)
             self._by_reference.setdefault(reference, []).append(resolution)
         if winner is None:
-            raise self._problem(
-                UnreadableReason.EXPANSION, DiagnosticCode.UNKNOWN_VARIABLE, text, token.span, via, token.text
-            )
+            raise self._problem(DiagnosticCode.UNKNOWN_VARIABLE, text, token.span, via, token.text)
         if winner.long_bound:
             code = DiagnosticCode.NON_INTEGER_BOUND
-            raise self._problem(UnreadableReason.VALUE, code, text, token.span, via, f"{token.text} (override)")
+            raise self._problem(code, text, token.span, via, f"{token.text} (override)")
         step = Step(StepKind.VARIABLE, name, text.place(token.span))
         return [value._moved(0, (step, *via), resolution) for value in winner.values]
 
@@ -864,9 +860,7 @@ class Binding:
         if token.kind is TokenKind.INTEGER:
             value = _values.integer_of(token.text)
             if value is None:
-                raise self._problem(
-                    UnreadableReason.VALUE, DiagnosticCode.NON_INTEGER_BOUND, text, token.span, via, token.text
-                )
+                raise self._problem(DiagnosticCode.NON_INTEGER_BOUND, text, token.span, via, token.text)
             return value
         values = self._variable(text, ref, token, scope, via, copy)
         only = values[0] if values else None
@@ -884,18 +878,16 @@ class Binding:
         at = None if only is None else only.origin.place
         if only is None or not isinstance(at, Place):
             # An override is written in no file: the problem is placed on the `$name` that used it.
-            return self._problem(UnreadableReason.VALUE, code, text, token.span, via, token.text)
-        message = f"{message_of(code)}: {token.text} is {only.text}"
-        return _Problem(UnreadableReason.VALUE, LocatedDiagnostic(code, message, at, only.origin.via))
+            return self._problem(code, text, token.span, via, token.text)
+        described = describe(code, f"{token.text} is {only.text}")
+        assert described.reason is not None
+        return _Problem(described.reason, LocatedDiagnostic(code, described.message, at, only.origin.via))
 
     def _problem(
-        self,
-        reason: UnreadableReason,
-        code: DiagnosticCode,
-        text: _Text,
-        span: SourceSpan,
-        via: tuple[Step, ...],
-        detail: str = "",
+        self, code: DiagnosticCode, text: _Text, span: SourceSpan, via: tuple[Step, ...], detail: str | None = None
     ) -> _Problem:
-        message = message_of(code) if detail == "" else f"{message_of(code)}: {detail}"
-        return _Problem(reason, LocatedDiagnostic(code, message, text.place(span), via))
+        """A statement this copy cannot read, for ``code`` at ``span``: its message and its unreadable reason come
+        from the registry (``describe``), so they cannot disagree with it."""
+        described = describe(code, detail)
+        assert described.reason is not None, f"{code} makes a statement unreadable"
+        return _Problem(described.reason, LocatedDiagnostic(code, described.message, text.place(span), via))

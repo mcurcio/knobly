@@ -2,23 +2,25 @@
 extensions (as ``jinja2.Environment`` is made with its loader and extensions); ``load`` reads a root file and
 everything it includes into a document graph (the files as written), synchronously. Loading is its only operation:
 every later one is a method on what it returned (``graph.read()``, ``graph.save(writer)``), and the rendered layer
-builds on the graph (``villanelle.render(graph)``)."""
+builds on the graph (``villanelle.rendered.render(graph)``)."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from typing import final
 
+from villanelle._api import written as api
+from villanelle._api.io import DocumentSource
 from villanelle._api.limits import RESERVED
-from villanelle._text import ConfigText, require_text
-from villanelle.source import DocumentSource
+from villanelle._api.shared import ConfigText
+from villanelle._api.written import Extension
+from villanelle._text import require_text
 from villanelle.written import _names
-from villanelle.written.extension import Extension
 from villanelle.written.model import DocumentGraph
 
 
 @final
-class Processor:
+class Processor(api.Processor):
     """Made once with the document source and extensions; loads."""
 
     __slots__ = ("_extensions", "_source")

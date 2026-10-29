@@ -20,23 +20,33 @@ a type checker refuses a plain str; at run time anything but a str raises TypeEr
 from __future__ import annotations
 
 import builtins
-from collections.abc import Iterator, Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Generic, Literal, TypeAlias, TypeVar, cast, final, overload
+from typing import TYPE_CHECKING, Literal, TypeAlias, cast, final
 
-from villanelle._api.kinds import StatementKind, UnreadableReason, ValueKind, VariableKind
-from villanelle._text import ConfigText, require_text
-from villanelle.errors import DetachedError
-from villanelle.origin import DirectiveOrigin, Place, Step
-from villanelle.report import LocatedDiagnostic
-from villanelle.syntax.cst import Node, Syntax, ValueRef
+from villanelle._api import shared
+from villanelle._api import written as api
+from villanelle._api.errors import DetachedError
+from villanelle._api.kinds import StatementKind, ValueKind, VariableKind
+from villanelle._api.shared import ConfigText
+from villanelle._api.syntax import Node, Syntax
+from villanelle._api.written import Copy, DirectiveExpansion, DocumentEdge, Expansion, ReferenceResolution, Resolution
+from villanelle._block import BlockBase
+from villanelle._text import require_text
+from villanelle.origin import Place
+from villanelle.syntax.cst import ValueRef
 
 if TYPE_CHECKING:
-    from villanelle.source import DocumentSource, DocumentWriter
+    from villanelle._api.io import DocumentSource, DocumentWriter
+    from villanelle._api.written import Extension
     from villanelle.written._bind import Binding, OverrideValues
-    from villanelle.written.extension import Extension
-    from villanelle.written.value import ExpandedValue
+
+
+def own(statement: api.Statement) -> Statement:
+    """A statement a generated record holds (``Copy.statement``, ``UnreadableExpansion.written``) as the class this
+    binding made it with: every statement is one of the six classes below."""
+    assert isinstance(statement, _Statement), "every statement is this binding's"
+    return cast("Statement", statement)
 
 
 def _detached(what: str) -> DetachedError:
@@ -47,7 +57,7 @@ def _detached(what: str) -> DetachedError:
 
 
 @final
-class DocumentGraph:
+class DocumentGraph(api.DocumentGraph):
     """The files one load read, and the overrides the program passed in. It keeps the document source it was loaded
     through, so ``read`` needs nothing else (the core still does no I/O: the source does)."""
 
@@ -105,7 +115,7 @@ class DocumentGraph:
         return MappingProxyType(self._override_texts)
 
     @property
-    def diagnostics(self) -> tuple[LocatedDiagnostic, ...]:
+    def diagnostics(self) -> tuple[shared.LocatedDiagnostic, ...]:
         """The one list (spec 6.3): each document's syntax diagnostics (documents in order), then every problem the
         low level finds, in walk order. The expansion's and the render's ``diagnostics`` are this same list."""
         from villanelle.written import _graph
@@ -123,22 +133,22 @@ class DocumentGraph:
 
         _graph.set_override(self, name, text)
 
-    def read(self) -> list[str]:
+    def read(self) -> tuple[str, ...]:
         """Resolve and read what ``unread()`` names through the graph's document source, repeating until nothing new
         is named; keeps every text and every kept rejection (D12). Returns the resolved paths read, in read order."""
         from villanelle.written import _read
 
-        return _read.read_unread(self)
+        return tuple(_read.read_unread(self))
 
-    def save(self, writer: DocumentWriter, /) -> list[str]:
+    def save(self, writer: DocumentWriter, /) -> tuple[str, ...]:
         """Hand every document whose ``text`` differs from its ``saved_text`` to ``writer`` in one batch, in
         ``documents`` order; with none, the writer is not called. When the writer returns, each written document's
         ``saved_text`` becomes the text given to it; when it raises, nothing changes: a ``LostUpdateError`` (the
         writer's ``check_lost_updates``) is raised as it is, anything else as a ``SaveError`` (its ``paths`` the
         batch's resolved paths) from it. Returns the resolved paths given to the writer. Raises TypeError first when
         ``writer`` is not a document writer (no callable ``write``)."""
-        from villanelle.errors import LostUpdateError, SaveError
-        from villanelle.source import FileWrite
+        from villanelle._api.errors import LostUpdateError, SaveError
+        from villanelle._api.io import FileWrite
 
         if not callable(getattr(writer, "write", None)):
             raise TypeError(
@@ -149,8 +159,8 @@ class DocumentGraph:
             FileWrite(doc._path, doc._text, doc._saved) for doc in self._documents.values() if doc._text != doc._saved
         ]
         if not batch:
-            return []
-        paths = [file.resolved_path for file in batch]
+            return ()
+        paths = tuple(file.resolved_path for file in batch)
         try:
             writer.write(tuple(batch))
         except LostUpdateError:
@@ -193,7 +203,7 @@ class DocumentGraph:
 
 
 @final
-class Document:
+class Document(api.Document):
     """One file as written."""
 
     __slots__ = ("_block", "_graph", "_path", "_saved", "_starts", "_statements", "_syntax", "_text", "_values")
@@ -256,26 +266,6 @@ class Document:
         from villanelle.written import _document
 
         _document.replace_document(self, require_text(text, member="replace_with_text", parameter="text"))
-
-
-@final
-@dataclass(frozen=True, slots=True, eq=False)
-class Copy:
-    """One place a statement is read."""
-
-    statement: Statement
-    via: tuple[Step, ...]
-    """The include and ``use`` steps, innermost first; empty at the root."""
-
-
-@final
-@dataclass(frozen=True, slots=True, eq=False)
-class DocumentEdge:
-    """One copy of an extension line, and the files it matched."""
-
-    copy: Copy
-    specs: tuple[str, ...]
-    targets: tuple[str, ...]
 
 
 # --- Statements ---
@@ -414,7 +404,7 @@ class _NamedLine(_Statement):
 
 
 @final
-class WrittenDirective(_NamedLine):
+class WrittenDirective(_NamedLine, api.WrittenDirective):
     """A directive as written (``port 8080;``, ``node { ... }``, ``use epoll;``): a statement headed by a word, whatever
     its text; ``@set``, ``@snippet``, ``@use`` and extension lines are headed by ``@`` (spec 2.5)."""
 
@@ -436,7 +426,7 @@ class WrittenDirective(_NamedLine):
 
 
 @final
-class ExtensionLine(_NamedLine):
+class ExtensionLine(_NamedLine, api.ExtensionLine):
     """A line headed by ``@`` and a registered extension's name (``@include "sink.conf";``): its values are the
     extension's, its block holds ``@set`` lines. No ``rename``: a new name would change its kind."""
 
@@ -454,7 +444,7 @@ class ExtensionLine(_NamedLine):
 
 
 @final
-class SetLine(_Statement):
+class SetLine(_Statement, api.SetLine):
     """``@set $name values;``."""
 
     __match_args__ = ("variable", "values")
@@ -491,7 +481,7 @@ class SetLine(_Statement):
 
 
 @final
-class SnippetLine(_Statement):
+class SnippetLine(_Statement, api.SnippetLine):
     """``@snippet name $param... { body }``."""
 
     __match_args__ = ("name", "parameters", "block")
@@ -527,7 +517,7 @@ class SnippetLine(_Statement):
 
 
 @final
-class UseLine(_Statement):
+class UseLine(_Statement, api.UseLine):
     """``@use name values;``."""
 
     __match_args__ = ("snippet_name", "values")
@@ -553,7 +543,7 @@ class UseLine(_Statement):
         found = _document.above(self, lambda s: isinstance(s, SnippetLine) and s.name == name)
         return found if isinstance(found, SnippetLine) else None
 
-    def snippets(self) -> tuple[Resolution[SnippetLine], ...]:
+    def snippets(self) -> tuple[Resolution[api.SnippetLine], ...]:
         """Per copy."""
         self._live()
         return self._doc._graph._binding().snippets_of(self)
@@ -573,7 +563,7 @@ class UseLine(_Statement):
 
 
 @final
-class UnreadableLine(_Statement):
+class UnreadableLine(_Statement, api.UnreadableLine):
     """A statement that cannot be read by its text alone: a syntax error, a malformed ``@set``, ``@snippet`` or
     ``@use`` line, or an ``@name`` no extension owns (E3008)."""
 
@@ -590,8 +580,10 @@ Statement: TypeAlias = WrittenDirective | ExtensionLine | SetLine | SnippetLine 
 
 
 @final
-class WrittenBlock(Sequence["Statement"]):
-    """The statements of a document or a block: iterate, index, ``len``, ``in``."""
+class WrittenBlock(BlockBase["Statement", "WrittenDirective"], api.WrittenBlock):
+    """The statements of a document or a block (spec 2.11): iterate, index, ``len``, ``in``, ``directives(name)``
+    (written directives only: extension lines are not listed) and ``walk`` (every statement at any depth, through
+    written directives', extension lines' and snippet lines' blocks)."""
 
     __slots__ = ("_doc", "_items", "_owner")
 
@@ -609,28 +601,17 @@ class WrittenBlock(Sequence["Statement"]):
             self._owner._live()
         return self._items
 
-    @overload
-    def __getitem__(self, index: int, /) -> Statement: ...
+    def _members(self) -> list[Statement]:
+        return self._live()
 
-    @overload
-    def __getitem__(self, index: slice, /) -> Sequence[Statement]: ...
+    def _directive(self, item: Statement, /) -> WrittenDirective | None:
+        return item if isinstance(item, WrittenDirective) else None
 
-    def __getitem__(self, index: int | slice, /) -> Statement | Sequence[Statement]:
-        items = self._live()
-        return items[index] if isinstance(index, int) else tuple(items[index])
+    def _name(self, directive: WrittenDirective, /) -> str:
+        return directive.name
 
-    def __len__(self) -> int:
-        return len(self._live())
-
-    def __iter__(self) -> Iterator[Statement]:
-        return iter(tuple(self._live()))
-
-    def __repr__(self) -> str:
-        return f"WrittenBlock({list(self._live())!r})"
-
-    def directives(self, name: str | None = None) -> tuple[WrittenDirective, ...]:
-        """The written directives (kind ``directive`` only: extension lines are not listed), by ``name`` if given."""
-        return tuple(s for s in self._live() if isinstance(s, WrittenDirective) and (name is None or s.name == name))
+    def _inner(self, item: Statement, /) -> WrittenBlock | None:
+        return item._block
 
     def insert_statements(self, index: int, text: ConfigText, /) -> tuple[Statement, ...]:
         """Raises TypeError for a ``text`` that is not a str; BadTextError for one that is not statements; IndexError
@@ -781,7 +762,7 @@ class _Value:
 
 
 @final
-class Word(_Value):
+class Word(_Value, api.Word):
     __match_args__ = ("text",)
     __slots__ = ()
 
@@ -791,7 +772,7 @@ class Word(_Value):
 
 
 @final
-class String(_Value):
+class String(_Value, api.String):
     __match_args__ = ("text",)
     __slots__ = ()
 
@@ -801,7 +782,7 @@ class String(_Value):
 
 
 @final
-class List(_Value):
+class List(_Value, api.List):
     __match_args__ = ("items",)
     __slots__ = ()
 
@@ -816,7 +797,7 @@ class List(_Value):
 
 
 @final
-class Slice(_Value):
+class Slice(_Value, api.Slice):
     """``name[start~end]``: its name and bounds are written values (a word or a ``$name`` each)."""
 
     __match_args__ = ("name", "start", "end")
@@ -845,7 +826,7 @@ class Slice(_Value):
 
 
 @final
-class Index(_Value):
+class Index(_Value, api.Index):
     """``name[index]``: its name and bound are written values (a word or a ``$name`` each)."""
 
     __match_args__ = ("name", "index")
@@ -870,7 +851,7 @@ class Index(_Value):
 
 
 @final
-class Reference(_Value):
+class Reference(_Value, api.Reference):
     """One ``$name`` written as a value."""
 
     __match_args__ = ("name",)
@@ -928,19 +909,22 @@ class _Variable:
         from villanelle.written import _document
 
         graph = self._graph_of()
-        return tuple(r for doc in graph._documents.values() for r in _document.references(doc) if r.declaration is self)
+        me: object = self
+        return tuple(r for doc in graph._documents.values() for r in _document.references(doc) if r.declaration is me)
 
     def wins(self) -> tuple[ReferenceResolution, ...]:
         """The resolutions it wins: every ``$name`` at a copy that reads it."""
-        return tuple(r for r in self._graph_of()._binding().resolutions if r.winner is self)
+        me: object = self
+        return tuple(r for r in self._graph_of()._binding().resolutions if r.winner is me)
 
     def shadowed_at(self) -> tuple[ReferenceResolution, ...]:
         """The resolutions where it is visible but another definition wins."""
-        return tuple(r for r in self._graph_of()._binding().resolutions if any(v is self for v in r.shadowed))
+        me: object = self
+        return tuple(r for r in self._graph_of()._binding().resolutions if any(v is me for v in r.shadowed))
 
 
 @final
-class SetVariable(_Variable):
+class SetVariable(_Variable, api.SetVariable):
     """A ``set`` line's ``$name``. It detaches with its line."""
 
     __match_args__ = ("name",)
@@ -1005,7 +989,7 @@ class SetVariable(_Variable):
 
 
 @final
-class Parameter(_Variable):
+class Parameter(_Variable, api.Parameter):
     """A snippet line's ``$param``: no ``set`` (edit a use line's values instead)."""
 
     __match_args__ = ("name",)
@@ -1068,7 +1052,7 @@ class Parameter(_Variable):
 
 
 @final
-class OverrideVariable(_Variable):
+class OverrideVariable(_Variable, api.OverrideVariable):
     """An override as a variable: no place, no line, no ``rename``, no ``set`` (``DocumentGraph.set_override``
     changes it). One per name for the graph's life; never detached."""
 
@@ -1105,107 +1089,31 @@ class OverrideVariable(_Variable):
 Variable: TypeAlias = SetVariable | Parameter | OverrideVariable
 """A variable, by kind. Match it by class: ``case SetVariable(name):``."""
 
-T = TypeVar("T")
-
-
-@dataclass(frozen=True, slots=True, eq=False)
-class Resolution(Generic[T]):
-    """At one copy: what a written name reads, and what it shadows (next first)."""
-
-    copy: Copy
-    winner: T | None
-    shadowed: tuple[T, ...]
+# --- The expansion (spec 6.10): the records are generated (``Expansion``, ``DirectiveExpansion``,
+# ``UnreadableExpansion``); its block is this one ---
 
 
 @final
-@dataclass(frozen=True, slots=True, eq=False)
-class ReferenceResolution(Resolution[Variable]):
-    """A ``$name`` at one copy; it renders to all of ``values``."""
+class ExpansionBlock(BlockBase[DirectiveExpansion, DirectiveExpansion], api.ExpansionBlock):
+    """The readable directive copies of one block of one copy, in walk order (includes and uses spliced in place):
+    the top level's is ``Expansion.block``, a directive expansion's its ``block``. A snapshot."""
 
-    reference: Reference
-    values: tuple[WrittenValue, ...]
+    __slots__ = ("_items",)
 
+    def __init__(self, items: tuple[DirectiveExpansion, ...]) -> None:
+        """Made by the expansion only."""
+        self._items = items
 
-# --- The expansion (spec 6.10) ---
+    def _members(self) -> tuple[DirectiveExpansion, ...]:
+        return self._items
 
+    def _directive(self, item: DirectiveExpansion, /) -> DirectiveExpansion:
+        return item
 
-@final
-@dataclass(frozen=True, slots=True)
-class Expansion:
-    """What ``DocumentGraph.expand()`` returns: the low level's account of every copy as read."""
+    def _name(self, directive: DirectiveExpansion, /) -> str:
+        return directive.written.name
 
-    block: tuple[DirectiveExpansion, ...]
-    """The top-level readable directive copies, in walk order (includes and uses spliced in place)."""
-    unreadable: tuple[UnreadableExpansion, ...]
-    """The top-level copies that could not be read."""
-    diagnostics: tuple[LocatedDiagnostic, ...]
-    """The graph's ``diagnostics``: the one list (spec 6.3), what ``rendered.diagnostics`` is too."""
-
-
-@final
-@dataclass(frozen=True, slots=True, match_args=False)
-class DirectiveExpansion:
-    """One copy of a written directive, as read."""
-
-    __match_args__ = ("written", "values", "block")
-
-    written: WrittenDirective
-    """The written directive this is a copy of: the same handle for every copy of one line."""
-    origin: DirectiveOrigin
-    """Its name's place and the copy's via."""
-    values: tuple[ExpandedValue, ...]
-    """Its values, expanded, with their links (spec 2.9), in order; a ``$name`` gives every value it reaches. A
-    rendered directive's ``values`` are these same objects."""
-    block: tuple[DirectiveExpansion, ...] | None
-    """None when written without a block."""
-    unreadable: tuple[UnreadableExpansion, ...]
-    """Its block's copies that could not be read."""
-
-
-@final
-@dataclass(frozen=True, slots=True, match_args=False)
-class UnreadableExpansion:
-    """One copy of a statement that could not be read there, kept in its place so a reader and ``diff`` know the
-    block is incomplete. The rendered tree lists these same objects."""
-
-    __match_args__ = ("reason", "written")
-
-    reason: UnreadableReason
-    """``syntax``, ``expansion``, ``value``, ``extension``, or ``unread`` for an extension copy not read yet (E3007)."""
-    written: Statement
-    """The statement that could not be read: an unreadable line, or a directive, ``use`` or extension line this copy
-    could not expand or has not read."""
-    origin: DirectiveOrigin
-    """The statement's own tokens (owned comments left out) and the copy's via."""
-
-
-__all__ = [
-    "Copy",
-    "DirectiveExpansion",
-    "Document",
-    "DocumentEdge",
-    "DocumentGraph",
-    "Expansion",
-    "ExtensionLine",
-    "Index",
-    "List",
-    "OverrideVariable",
-    "Parameter",
-    "Reference",
-    "ReferenceResolution",
-    "Resolution",
-    "SetLine",
-    "SetVariable",
-    "Slice",
-    "SnippetLine",
-    "Statement",
-    "String",
-    "UnreadableExpansion",
-    "UnreadableLine",
-    "UseLine",
-    "Variable",
-    "Word",
-    "WrittenBlock",
-    "WrittenDirective",
-    "WrittenValue",
-]
+    def _inner(self, item: DirectiveExpansion, /) -> ExpansionBlock | None:
+        block = item.block
+        assert block is None or isinstance(block, ExpansionBlock)
+        return block

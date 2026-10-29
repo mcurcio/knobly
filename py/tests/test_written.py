@@ -11,12 +11,14 @@ import pytest
 from conftest import REPO
 
 import villanelle as vl
-from villanelle import written
+from villanelle import rendered, syntax, written
 from villanelle.include import include
 
 
-def load(files: Mapping[str, str], overrides: Mapping[str, vl.ConfigText] | None = None) -> vl.DocumentGraph:
-    return vl.Processor(source=vl.memory_source(files), extensions=[include()]).load("main.conf", overrides=overrides)
+def load(files: Mapping[str, str], overrides: Mapping[str, vl.ConfigText] | None = None) -> written.DocumentGraph:
+    return written.Processor(source=vl.memory_source(files), extensions=[include()]).load(
+        "main.conf", overrides=overrides
+    )
 
 
 class Recorder:
@@ -42,8 +44,8 @@ class Counting:
         return self.inner.read(resolved_path)
 
 
-def directive(statement: vl.Statement) -> vl.WrittenDirective:
-    assert isinstance(statement, vl.WrittenDirective)
+def directive(statement: written.Statement) -> written.WrittenDirective:
+    assert isinstance(statement, written.WrittenDirective)
     return statement
 
 
@@ -54,7 +56,7 @@ def test_keeps_one_handle_per_statement_and_value_across_an_edit_elsewhere_in_th
     graph = load({"main.conf": "@set $a 1;\nb 2 3;\nc { d 4; }\n"})
     body = graph.root.block
     set_line, b, c = body
-    assert isinstance(set_line, vl.SetLine)
+    assert isinstance(set_line, written.SetLine)
     two, three = directive(b).values
     c_block = directive(c).block
     assert c_block is not None
@@ -102,7 +104,7 @@ def test_owns_the_comment_lines_directly_above_a_statement_and_its_trailing_comm
 def test_changes_nothing_when_an_edit_is_refused() -> None:
     graph = load({"main.conf": "@set $a 1;\nx [1];\n"})
     set_line = graph.root.block[0]
-    assert isinstance(set_line, vl.SetLine)
+    assert isinstance(set_line, written.SetLine)
     for text in ["1; x", "{", "", '"open']:
         with pytest.raises(vl.BadTextError):
             set_line.set(vl.text(text))
@@ -116,15 +118,15 @@ def test_changes_nothing_when_an_edit_is_refused() -> None:
 
 
 ABSENT: dict[type, tuple[str, ...]] = {
-    vl.WrittenDirective: ("variable", "parameters", "snippet_name", "snippet", "snippets"),
-    vl.ExtensionLine: ("rename", "variable", "parameters", "snippet_name", "snippet", "snippets"),
-    vl.SetLine: ("name", "block", "rename", "parameters", "snippet_name", "snippet", "snippets"),
-    vl.SnippetLine: ("values", "rename", "set", "variable", "snippet_name", "snippet", "snippets"),
-    vl.UseLine: ("name", "block", "rename", "variable", "parameters"),
-    vl.UnreadableLine: ("name", "values", "block", "rename", "set", "variable", "parameters", "snippet_name"),
-    vl.SetVariable: (),
-    vl.Parameter: ("set",),
-    vl.OverrideVariable: ("place", "line", "rename", "set"),
+    written.WrittenDirective: ("variable", "parameters", "snippet_name", "snippet", "snippets"),
+    written.ExtensionLine: ("rename", "variable", "parameters", "snippet_name", "snippet", "snippets"),
+    written.SetLine: ("name", "block", "rename", "parameters", "snippet_name", "snippet", "snippets"),
+    written.SnippetLine: ("values", "rename", "set", "variable", "snippet_name", "snippet", "snippets"),
+    written.UseLine: ("name", "block", "rename", "variable", "parameters"),
+    written.UnreadableLine: ("name", "values", "block", "rename", "set", "variable", "parameters", "snippet_name"),
+    written.SetVariable: (),
+    written.Parameter: ("set",),
+    written.OverrideVariable: ("place", "line", "rename", "set"),
     written.Word: ("items", "name", "start", "end", "index", "declaration", "resolutions"),
     written.String: ("items", "name", "start", "end", "index", "declaration", "resolutions"),
     written.List: ("name", "start", "end", "index", "declaration", "resolutions"),
@@ -144,8 +146,8 @@ def test_an_operation_exists_only_on_the_variants_where_it_can_succeed(cls: type
 def test_set_and_rename_on_a_parameter_or_an_override_are_attribute_errors() -> None:
     graph = load({"main.conf": "@snippet s $p { x $p; }\n@use s 1;\n"}, {"h": vl.text("1")})
     parameter, override = graph.variables()
-    assert isinstance(parameter, vl.Parameter) and isinstance(override, vl.OverrideVariable)
-    assert (parameter.kind, override.kind) == (vl.VariableKind.PARAMETER, vl.VariableKind.OVERRIDE)
+    assert isinstance(parameter, written.Parameter) and isinstance(override, written.OverrideVariable)
+    assert (parameter.kind, override.kind) == (written.VariableKind.PARAMETER, written.VariableKind.OVERRIDE)
     with pytest.raises(AttributeError):
         parameter.set("2")  # type: ignore[attr-defined]
     with pytest.raises(AttributeError):
@@ -156,7 +158,7 @@ def test_set_and_rename_on_a_parameter_or_an_override_are_attribute_errors() -> 
 def test_an_include_line_is_an_extension_line_without_rename() -> None:
     graph = load({"main.conf": '@include "p.conf";\nx 1;\n', "p.conf": ""})
     line, x = graph.root.block
-    assert isinstance(line, vl.ExtensionLine) and not isinstance(line, vl.WrittenDirective)
+    assert isinstance(line, written.ExtensionLine) and not isinstance(line, written.WrittenDirective)
     assert (line.kind, line.name, [v.text for v in line.values]) == ("extension", "include", ['"p.conf"'])
     assert graph.root.block.directives() == (x,)
     line.set(vl.text('"q.conf"'))
@@ -166,25 +168,25 @@ def test_an_include_line_is_an_extension_line_without_rename() -> None:
 # --- Python idioms (C4) ---
 
 
-def describe(statement: vl.Statement) -> str:
+def describe(statement: written.Statement) -> str:
     match statement:
-        case vl.WrittenDirective(name, values, block):
+        case written.WrittenDirective(name, values, block):
             return f"directive {name} {len(values)} {block is not None}"
-        case vl.ExtensionLine(name, values, _):
+        case written.ExtensionLine(name, values, _):
             return f"extension {name} {values[0].text}"
-        case vl.SetLine(variable, values):
+        case written.SetLine(variable, values):
             return f"set ${variable.name} {len(values)}"
-        case vl.SnippetLine(name, parameters, block):
+        case written.SnippetLine(name, parameters, block):
             return f"snippet {name} {len(parameters)} {len(block)}"
-        case vl.UseLine(snippet_name, values):
+        case written.UseLine(snippet_name, values):
             return f"use {snippet_name} {len(values)}"
-        case vl.UnreadableLine(text):
+        case written.UnreadableLine(text):
             return f"unreadable {text}"
         case _:
             assert_never(statement)
 
 
-def value_kind(value: vl.WrittenValue) -> str:
+def value_kind(value: written.WrittenValue) -> str:
     match value:
         case written.Word(text) | written.String(text):
             return f"{value.kind} {text}"
@@ -221,8 +223,8 @@ def test_match_narrows_every_kind_and_a_block_is_a_sequence_of_the_same_handles(
         "index c[0]",
         "reference a",
     ]
-    assert isinstance(body[0], vl.Statement) and isinstance(x.values[0], vl.WrittenValue)
-    assert all(isinstance(v, vl.Variable) for v in graph.variables())
+    assert isinstance(body[0], written.Statement) and isinstance(x.values[0], written.WrittenValue)
+    assert all(isinstance(v, written.Variable) for v in graph.variables())
     assert body[0] is body[0]
     assert len(body) == 6
     assert x in body
@@ -267,21 +269,21 @@ def test_replacing_a_documents_text_keeps_saved_text_and_save_writes_the_new_tex
     with pytest.raises(vl.DetachedError):
         _ = a.text
     writer = Recorder()
-    assert graph.save(writer) == ["main.conf"]
+    assert graph.save(writer) == ("main.conf",)
     assert writer.batches == [[vl.FileWrite("main.conf", "b 2;\n", "a 1;\n")]]
 
 
 def test_save_hands_only_changed_files_to_the_writer_in_one_call_then_updates_saved_text() -> None:
     graph = load({"main.conf": '@include "p.conf";\nx 1;\n', "p.conf": "y 2;\n"})
     writer = Recorder()
-    assert graph.save(writer) == []
+    assert graph.save(writer) == ()
     assert writer.batches == []
     p = graph.documents["p.conf"]
     directive(p.block[0]).values[0].replace_with_text(vl.text("3"))
-    assert graph.save(writer) == ["p.conf"]
+    assert graph.save(writer) == ("p.conf",)
     assert writer.batches == [[vl.FileWrite("p.conf", "y 3;\n", "y 2;\n")]]
     assert p.saved_text == "y 3;\n"
-    assert graph.save(writer) == []
+    assert graph.save(writer) == ()
     assert len(writer.batches) == 1
 
 
@@ -303,7 +305,7 @@ def test_save_raises_save_error_from_the_writers_error_and_changes_no_saved_text
 
 
 def test_the_readme_example_sets_values_from_program_data_as_text() -> None:
-    graph = vl.Processor(source=vl.memory_source({"main.conf": "host a;\nport 80;\n"})).load("main.conf")
+    graph = written.Processor(source=vl.memory_source({"main.conf": "host a;\nport 80;\n"})).load("main.conf")
     host, port = graph.root.block
     host.set(vl.quote("10.0.60.31"))  # type: ignore[union-attr]
     port.set(vl.text(str(8080)))  # type: ignore[union-attr]
@@ -319,36 +321,36 @@ def test_quote_writes_a_plain_string_as_the_canonical_villanelle_string() -> Non
 
 def test_an_added_include_stays_unread_until_read_which_reads_it_once_and_keeps_every_other_text() -> None:
     source = Counting({"main.conf": "a 1;\n", "part.conf": "p 1;\n"})
-    graph = vl.Processor(source=source, extensions=[include()]).load("main.conf")
+    graph = written.Processor(source=source, extensions=[include()]).load("main.conf")
     directive(graph.root.block[0]).values[0].replace_with_text(vl.text("2"))
     [added] = graph.root.block.add_statements(vl.text('@include "part.conf";'))
     assert [e.copy.statement for e in graph.unread()] == [added]
-    unread = vl.render(graph)
+    unread = rendered.render(graph)
     assert [d.name for d in unread.block] == ["a"]
     match unread.unreadable:
-        case (vl.UnreadableExpansion(vl.UnreadableReason.UNREAD, line),):
+        case (written.UnreadableExpansion(written.UnreadableReason.UNREAD, line),):
             assert line is added
         case _:
             pytest.fail("no unread copy")
     assert [(str(d.code), str(d.place)) for d in graph.diagnostics] == [("E3007", "main.conf:2:1")]
     assert unread.diagnostics == graph.diagnostics
-    assert graph.read() == ["part.conf"]
-    assert graph.read() == []
+    assert graph.read() == ("part.conf",)
+    assert graph.read() == ()
     assert source.reads == ["main.conf", "part.conf"]
     assert graph.unread() == ()
     assert graph.diagnostics == ()
     assert graph.root.text == 'a 2;\n@include "part.conf";\n'
-    assert [(d.name, d.values[0].text) for d in vl.render(graph).block] == [("a", "2"), ("p", "1")]
+    assert [(d.name, d.values[0].text) for d in rendered.render(graph).block] == [("a", "2"), ("p", "1")]
 
 
 def test_set_override_changes_the_render_without_a_reload() -> None:
     source = Counting({"main.conf": "@set $a 1;\nx $a;\n"})
-    graph = vl.Processor(source=source).load("main.conf")
+    graph = written.Processor(source=source).load("main.conf")
     graph.set_override("a", vl.text("2 3"))
     override = graph.variables("a")[1]
-    assert [a.text for a in vl.render(graph).block[0].values] == ["2", "3"]
+    assert [a.text for a in rendered.render(graph).block[0].values] == ["2", "3"]
     graph.set_override("a", None)
-    assert [a.text for a in vl.render(graph).block[0].values] == ["1"]
+    assert [a.text for a in rendered.render(graph).block[0].values] == ["1"]
     graph.set_override("a", vl.text("4"))
     assert graph.variables("a")[1] is override  # D28: one variable per name for the graph's life
     assert dict(graph.overrides) == {"a": "4"}
@@ -362,37 +364,37 @@ def test_set_override_changes_the_render_without_a_reload() -> None:
 
 def test_a_rendered_directive_is_a_copy_of_one_written_directive_handle() -> None:
     files = {"main.conf": 'a { @include "p.conf"; }\nb { @include "p.conf"; }\n', "p.conf": "x 1;\n"}
-    graph = vl.Processor(source=vl.memory_source(files), extensions=[include()]).load("main.conf")
-    rendered = vl.render(graph)
-    x1, x2 = (d for d in rendered.walk() if d.name == "x")
+    graph = written.Processor(source=vl.memory_source(files), extensions=[include()]).load("main.conf")
+    tree = rendered.render(graph)
+    x1, x2 = (d for d in tree.block.walk() if d.name == "x")
     assert x1.written is x2.written is graph.documents["p.conf"].block[0]
     assert len(x1.written.copies()) == 2
 
 
 def test_an_unreadable_names_the_statement_that_could_not_be_read() -> None:
-    graph = vl.Processor(source=vl.memory_source({"main.conf": "a $nope;\n"})).load("main.conf")
-    [unreadable] = vl.render(graph).unreadable
+    graph = written.Processor(source=vl.memory_source({"main.conf": "a $nope;\n"})).load("main.conf")
+    [unreadable] = rendered.render(graph).unreadable
     assert unreadable.written is graph.root.block[0]
 
 
 def test_load_of_an_unreadable_root_raises_read_error_with_its_path_and_no_diagnostic() -> None:
     with pytest.raises(vl.ReadError) as raised:
-        vl.Processor(source=vl.memory_source({})).load("missing.conf")
+        written.Processor(source=vl.memory_source({})).load("missing.conf")
     assert not isinstance(raised.value, vl.DiagnosticError)
     assert raised.value.paths == ("missing.conf",)
     assert not hasattr(raised.value, "diagnostic")
 
 
 def test_format_diagnostic_prints_the_documents_current_text() -> None:
-    graph = vl.Processor(source=vl.memory_source({"main.conf": "a $x;\n"})).load("main.conf")
+    graph = written.Processor(source=vl.memory_source({"main.conf": "a $x;\n"})).load("main.conf")
     graph.root.block.insert_statements(0, vl.text("b;"))
-    [d] = vl.render(graph).diagnostics
-    assert vl.format_diagnostic(d, graph).split("\n")[1:] == ["a $x;", "  ^^"]
+    [d] = rendered.render(graph).diagnostics
+    assert written.format_diagnostic(d, graph).split("\n")[1:] == ["a $x;", "  ^^"]
 
 
 def test_an_expanded_value_links_its_line_its_definition_and_its_chain() -> None:
     graph = load({"main.conf": "@set $l [1, 2];\nx $l 3;\ny $h;\n"}, {"h": vl.text("4")})
-    x, y = vl.render(graph).block
+    x, y = rendered.render(graph).block
     listed, three = x.values
     reference = directive(graph.root.block[1]).values[0]
     assert listed.written is reference and listed.chain[0].reference is reference
@@ -438,7 +440,11 @@ NOT_TEXT = [2400, None, ["1"]]
 def test_every_edit_that_takes_text_raises_type_error_for_anything_else_and_changes_nothing(value: object) -> None:
     graph = load({"main.conf": "@set $a 1;\nx 1 { y; }\n@use s 1;\n"})
     set_line, x, use = graph.root.block
-    assert isinstance(set_line, vl.SetLine) and isinstance(x, vl.WrittenDirective) and isinstance(use, vl.UseLine)
+    assert (
+        isinstance(set_line, written.SetLine)
+        and isinstance(x, written.WrittenDirective)
+        and isinstance(use, written.UseLine)
+    )
     block = x.block
     assert block is not None
     calls: dict[str, list[Callable[[], object]]] = {
@@ -506,7 +512,7 @@ def test_set_writes_a_values_text_with_a_line_break_as_one_statement() -> None:
 
 def test_an_override_with_a_line_break_is_two_values() -> None:
     graph = load({"main.conf": "x $a;\n"}, {"a": vl.text("1\n2")})
-    assert [v.text for v in vl.render(graph).block[0].values] == ["1", "2"]
+    assert [v.text for v in rendered.render(graph).block[0].values] == ["1", "2"]
 
 
 # --- the error classes (spec/contract.md 4) ---
@@ -544,7 +550,7 @@ def test_a_detached_error_is_a_program_bug_and_reading_a_property_raises_it() ->
         _ = x.name
     assert isinstance(raised.value, ReferenceError)
     assert not isinstance(raised.value, vl.VillanelleError | ValueError)
-    assert x.kind is vl.StatementKind.DIRECTIVE
+    assert x.kind is written.StatementKind.DIRECTIVE
 
 
 def test_a_bad_text_errors_message_is_built_from_its_diagnostics() -> None:
@@ -563,7 +569,7 @@ def test_a_bad_text_errors_message_is_built_from_its_diagnostics() -> None:
 def test_every_bad_variable_name_is_a_value_error_from_load_set_override_and_rename(name: str) -> None:
     graph = load({"main.conf": "@set $a 1;\n@snippet s $p { x $p; }\nx $a;\n"})
     set_line, snippet = graph.root.block[0], graph.root.block[1]
-    assert isinstance(set_line, vl.SetLine) and isinstance(snippet, vl.SnippetLine)
+    assert isinstance(set_line, written.SetLine) and isinstance(snippet, written.SnippetLine)
     calls: list[Callable[[], object]] = [
         lambda: load({"main.conf": "x $a;\n"}, {name: vl.text("1")}),
         lambda: graph.set_override(name, vl.text("1")),
@@ -592,13 +598,13 @@ def test_no_directive_name_is_reserved_so_a_rename_to_a_keyword_word_keeps_it_a_
     rate = directive(graph.root.block[0])
     rate.rename(name)
     assert graph.root.text == f"{name} 20;\n"
-    assert graph.root.block[0] is rate and isinstance(rate, vl.WrittenDirective)
+    assert graph.root.block[0] is rate and isinstance(rate, written.WrittenDirective)
 
 
 def test_a_variable_rename_that_collides_with_a_set_stays_a_bad_text_error() -> None:
     graph = load({"main.conf": "@set $a 1;\n@set $b 2;\n"})
     second = graph.root.block[1]
-    assert isinstance(second, vl.SetLine)
+    assert isinstance(second, written.SetLine)
     with pytest.raises(vl.BadTextError) as raised:
         second.variable.rename("a")
     assert [d.code for d in raised.value.diagnostics] == ["E5002"]
@@ -621,10 +627,10 @@ def test_save_raises_type_error_for_anything_but_a_document_writer_before_anythi
 
 def test_a_memory_writer_saves_into_the_map_a_memory_source_reads() -> None:
     files = {"main.conf": "x 1;\n"}
-    processor = vl.Processor(source=vl.memory_source(files))
+    processor = written.Processor(source=vl.memory_source(files))
     graph = processor.load("main.conf")
     directive(graph.root.block[0]).set(vl.text("2"))
-    assert graph.save(vl.memory_writer(files)) == ["main.conf"]
+    assert graph.save(vl.memory_writer(files)) == ("main.conf",)
     assert files == {"main.conf": "x 2;\n"}
     assert graph.root.saved_text == "x 2;\n"
     assert processor.load("main.conf").root.text == "x 2;\n"
@@ -674,7 +680,7 @@ def test_save_raises_a_program_writers_lost_update_error_as_it_is() -> None:
 
 def test_a_memory_source_reads_its_map_at_every_call() -> None:
     files = {"main.conf": "x 1;\n"}
-    processor = vl.Processor(source=vl.memory_source(files))
+    processor = written.Processor(source=vl.memory_source(files))
     files["main.conf"] = "x 2;\n"
     assert processor.load("main.conf").root.text == "x 2;\n"
 
@@ -703,9 +709,9 @@ def test_expand_gives_every_copy_with_its_values_links_and_what_could_not_be_rea
     expansion = graph.expand()
     [x] = expansion.block
     match x:
-        case vl.DirectiveExpansion(statement, [value], block):
+        case written.DirectiveExpansion(statement, [value], block):
             assert statement is graph.root.block[1]
-            assert value.text == "[1, 2]" and isinstance(value, vl.ExpandedList)
+            assert value.text == "[1, 2]" and isinstance(value, written.ExpandedList)
             assert [i.text for i in value.items] == ["1", "2"]
             assert value.written.text == "$l" and value.definition is not None and value.definition.text == "[1, 2]"
             assert [r.reference.text for r in value.chain] == ["$l"]
@@ -714,35 +720,36 @@ def test_expand_gives_every_copy_with_its_values_links_and_what_could_not_be_rea
             pytest.fail("no match")
     assert [(u.reason, u.written.text) for u in x.unreadable] == [("syntax", "$bad;")]
     match expansion.unreadable:
-        case (vl.UnreadableExpansion(reason, line),):
+        case (written.UnreadableExpansion(reason, line),):
             assert (reason, line.text) == ("expansion", "z $nope;")
         case _:
             pytest.fail("no match")
-    assert expansion.diagnostics == vl.render(graph).diagnostics == graph.diagnostics
+    assert expansion.diagnostics == rendered.render(graph).diagnostics == graph.diagnostics
     assert "E5001" in [str(d.code) for d in graph.diagnostics]
 
 
 def test_a_rendered_directive_holds_its_expansions_own_values_and_unreadables() -> None:
     graph = load({"main.conf": "x 1 [2] { $bad; }\n"})
     [expanded] = graph.expand().block
-    [rendered] = vl.render(graph).block
-    assert rendered.written is expanded.written
-    assert [v.text for v in rendered.values] == [v.text for v in expanded.values]
-    assert [type(v) for v in rendered.values] == [vl.ExpandedWord, vl.ExpandedList]
-    assert [(u.reason, u.written) for u in rendered.unreadable] == [(u.reason, u.written) for u in expanded.unreadable]
-    assert all(isinstance(u, vl.UnreadableExpansion) for u in rendered.unreadable)
+    [made] = rendered.render(graph).block
+    assert made.written is expanded.written
+    assert [v.text for v in made.values] == [v.text for v in expanded.values]
+    assert [type(v) for v in made.values] == [written.ExpandedWord, written.ExpandedList]
+    assert [(u.reason, u.written) for u in made.unreadable] == [(u.reason, u.written) for u in expanded.unreadable]
+    assert all(isinstance(u, written.UnreadableExpansion) for u in made.unreadable)
 
 
 def test_expanded_values_are_equal_by_text_across_renders_and_written_values_by_identity() -> None:
     files = {"main.conf": 'port 8080;\nhost 8080;\nname "8080";\n'}
     graph = load(files)
-    first, second = vl.render(graph), vl.render(load(files))
+    first, second = rendered.render(graph), rendered.render(load(files))
     a, b = first.block[0].values[0], second.block[0].values[0]
     assert a is not b and a == b and hash(a) == hash(b)
     assert first.block[1].values[0] == a  # the same text from another line
     assert first.block[2].values[0] != a  # "8080" is a string: its text has the quotes
     assert len({a, b}) == 1
-    assert a != "8080"  # an expanded value is never equal to a str
+    text: object = "8080"
+    assert a != text  # an expanded value is never equal to a str
     w1, w2 = (directive(s).values[0] for s in graph.root.block[:2])
     assert w1 != w2 and w1.text == w2.text
 
@@ -750,12 +757,12 @@ def test_expanded_values_are_equal_by_text_across_renders_and_written_values_by_
 def test_list_items_have_one_shape_in_both_layers() -> None:
     graph = load({"main.conf": "x [1, [2]];\n"})
     written_list = directive(graph.root.block[0]).values[0]
-    expanded = vl.render(graph).block[0].values[0]
-    assert isinstance(written_list, written.List) and isinstance(expanded, vl.ExpandedList)
+    expanded = rendered.render(graph).block[0].values[0]
+    assert isinstance(written_list, written.List) and isinstance(expanded, written.ExpandedList)
     assert isinstance(written_list.items, tuple) and isinstance(expanded.items, tuple)
     assert [i.text for i in written_list.items] == [i.text for i in expanded.items] == ["1", "[2]"]
     assert expanded.list() == expanded.items
-    assert [type(i) for i in expanded.items] == [vl.ExpandedWord, vl.ExpandedList]
+    assert [type(i) for i in expanded.items] == [written.ExpandedWord, written.ExpandedList]
 
 
 # --- kinds, match and the union aliases (frozen-m2.md 1, 13) ---
@@ -766,26 +773,26 @@ def test_match_works_on_every_variable_variant_and_each_union_alias_is_an_isinst
     names = []
     for variable in graph.variables():
         match variable:
-            case vl.SetVariable(name) | vl.Parameter(name) | vl.OverrideVariable(name):
+            case written.SetVariable(name) | written.Parameter(name) | written.OverrideVariable(name):
                 names.append((variable.kind.value, name))
     assert names == [("set", "a"), ("parameter", "p"), ("override", "h")]
-    rendered = vl.render(graph)
-    value = rendered.block[0].values[0]
-    assert isinstance(value, vl.ExpandedWord)
+    tree = rendered.render(graph)
+    value = tree.block[0].values[0]
+    assert isinstance(value, written.ExpandedWord)
     assert isinstance(value.origin.place, vl.Place) and value.origin.place.kind is vl.PlaceKind.FILE
     assert vl.Override("h").kind is vl.PlaceKind.OVERRIDE
-    after = vl.render(load({"main.conf": "@set $a 1;\n@snippet s $p { x $p; y; }\n@use s $a;\n"}))
-    [change] = rendered.diff(after)
-    assert isinstance(change, vl.Change) and change.kind is vl.ChangeKind.ADDED
+    after = rendered.render(load({"main.conf": "@set $a 1;\n@snippet s $p { x $p; y; }\n@use s $a;\n"}))
+    [change] = tree.diff(after)
+    assert isinstance(change, rendered.Change) and change.kind is rendered.ChangeKind.ADDED
     match change:
-        case vl.Added(address, directive_after):
+        case rendered.Added(address, directive_after):
             assert (str(address), directive_after.name) == ("y", "y")
         case _:
             pytest.fail("no match")
 
 
 def test_a_diagnostic_prints_its_people_form() -> None:
-    [d] = vl.parse("x ]\n").diagnostics
+    [d] = syntax.parse("x ]\n").diagnostics
     assert str(d) == f"1:3: E2004: {d.message}"
 
 
@@ -844,7 +851,7 @@ def test_a_value_set_takes_exactly_one_value_and_each_part_its_entry_rule() -> N
 def test_two_rendered_copies_of_one_line_share_the_written_value_and_both_can_set_it() -> None:
     files = {"main.conf": 'a { @include "p.conf"; }\nb { @include "p.conf"; }\n', "p.conf": "@set $v 1;\nn $v;\n"}
     graph = load(files)
-    values = [d.values[0] for d in vl.render(graph).walk() if d.name == "n"]
+    values = [d.values[0] for d in rendered.render(graph).block.walk() if d.name == "n"]
     assert len(values) == 2 and values[0].written is values[1].written
     for value in values:
         value.written.set(vl.text("2"))
@@ -891,7 +898,7 @@ def test_config_text_is_made_by_quote_or_text_and_a_plain_str_is_a_type_error() 
 def test_a_statement_set_with_a_text_that_holds_no_value_must_be_given_empty_text(text: str) -> None:
     graph = load({"main.conf": "a 1;\n@set $v 2;\n"})
     a, set_line = graph.root.block
-    assert isinstance(set_line, vl.SetLine)
+    assert isinstance(set_line, written.SetLine)
     for statement in (directive(a), set_line):
         with pytest.raises(vl.BadTextError) as raised:
             statement.set(vl.text(text))
@@ -907,7 +914,42 @@ def test_render_of_anything_but_a_document_graph_is_the_argument_type_error() ->
     graph = load({"main.conf": "a 1;\n"})
     for given, got in [(graph.root, "Document"), (graph.root.block[0], "WrittenDirective"), (None, "NoneType")]:
         with pytest.raises(TypeError) as raised:
-            vl.render(given)  # type: ignore[arg-type]
+            rendered.render(given)  # type: ignore[arg-type]
         assert str(raised.value) == (
             f"render() argument 'graph' must be a document graph (an object with an expand method), not {got}"
         )
+
+
+# --- the one block shape (spec 2.11; owner, 2026-10-29: "Yes, rename now") ---
+
+BLOCKS = '@set $v 1;\na 1 { b; @snippet s $p { c; } }\n@include "p.conf" { @set $w 2; }\nd;\n'
+
+
+def test_a_written_block_is_a_sequence_with_directives_and_a_walk_over_every_statement() -> None:
+    graph = load({"main.conf": BLOCKS, "p.conf": "e;\n"})
+    block = graph.root.block
+    assert len(block) == 4 and block[0] is next(iter(block)) and block[-1].text == "d;"
+    with pytest.raises(IndexError):
+        _ = block[4]
+    assert [d.name for d in block.directives()] == ["a", "d"]  # an extension line is no written directive
+    assert [d.name for d in block.directives("d")] == ["d"]
+    walked = [s.text.split(" ")[0].rstrip(";") for s in block.walk()]
+    assert walked == ["@set", "a", "b", "@snippet", "c", "@include", "@set", "d"]
+    pruned = [
+        s.text.split(" ")[0].rstrip(";")
+        for s in block.walk(descend=lambda s: s.kind is not written.StatementKind.SNIPPET)
+    ]
+    assert pruned == ["@set", "a", "b", "@snippet", "@include", "@set", "d"]
+
+
+def test_the_expansion_block_and_the_rendered_block_have_the_same_shape() -> None:
+    graph = load({"main.conf": BLOCKS, "p.conf": "e;\n"})
+    expansion = graph.expand().block
+    tree = rendered.render(graph).block
+    assert isinstance(expansion, written.ExpansionBlock) and isinstance(tree, rendered.RenderedBlock)
+    assert [x.written.name for x in expansion] == [d.name for d in tree] == ["a", "e", "d"]
+    assert [x.written.name for x in expansion.walk()] == [d.name for d in tree.walk()] == ["a", "b", "e", "d"]
+    assert [d.name for d in tree.directives("e")] == ["e"] and expansion.directives("e")[0] is expansion[1]
+    assert [d.name for d in tree.walk(descend=lambda d: d.name != "a")] == ["a", "e", "d"]
+    with pytest.raises(IndexError):
+        _ = tree[3]

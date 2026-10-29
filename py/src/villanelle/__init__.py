@@ -1,26 +1,17 @@
-"""villanelle: a configuration language defined by one grammar (grammar/Villanelle.g4), with a lossless syntax tree
-(``parse``), the config as written (the low level, ``villanelle.written``: ``Processor.load`` returns a
-``DocumentGraph`` of editable documents, read further with ``graph.read()`` and saved back with ``graph.save(writer)``),
-and the rendered tree (``villanelle.rendered``, ``render(graph)``: variables, snippets and included files expanded into
-directives a program reads). The core does no I/O: ``villanelle.files`` gives a filesystem source and writer.
+"""villanelle: a configuration language defined by one grammar (grammar/Villanelle.g4). One namespace per layer
+(binding guide rule 9): this package root holds the shared and io names (positions, places, origins, diagnostics,
+the error tree, config text, the document source and writer ports and the in-memory adapters);
+``villanelle.syntax`` the lossless syntax tree (``parse``); ``villanelle.written`` the config as written (the low
+level: ``Processor.load`` returns a ``DocumentGraph`` of editable documents, read further with ``graph.read()`` and
+saved back with ``graph.save(writer)``); ``villanelle.rendered`` the rendered tree (``render(graph)``: variables,
+snippets and included files expanded into directives a program reads). The core does no I/O: ``villanelle.files``
+gives a filesystem source and writer, ``villanelle.include`` the include extension.
 
-Every name is exported here but the written values ``Word``, ``String``, ``List``, ``Slice``, ``Index`` and
-``Reference``, which ``villanelle.written`` exports (so ``from villanelle import *`` never replaces ``typing.List``)."""
+Every public signature is generated from spec/schema/api.json (``villanelle._api``); each module's ``__all__`` equals
+the generated ``PUBLIC_NAMES`` for it (tests/test_api_names.py)."""
 
-from villanelle._api.kinds import (
-    ChangeKind,
-    NodeKind,
-    PlaceKind,
-    StatementKind,
-    StepKind,
-    TokenKind,
-    UnreadableReason,
-    ValueKind,
-    VariableKind,
-)
-from villanelle._text import ConfigText, quote, text
-from villanelle.diagnostics import Diagnostic, DiagnosticCode
-from villanelle.errors import (
+from villanelle._api.codes import DiagnosticCode
+from villanelle._api.errors import (
     BadTextError,
     DetachedError,
     DiagnosticError,
@@ -29,162 +20,57 @@ from villanelle.errors import (
     SaveError,
     VillanelleError,
 )
-from villanelle.origin import DirectiveOrigin, Origin, Override, Place, Step
-from villanelle.rendered import (
-    Added,
-    Address,
-    AddressStep,
-    Change,
-    Changed,
-    Directive,
-    KeyRule,
-    Removed,
-    Rendered,
-    Unknown,
-    render,
+from villanelle._api.io import DocumentSource, DocumentWriter, FileWrite, LoadContext
+from villanelle._api.kinds import PlaceKind, StepKind
+from villanelle._api.limits import PROGRAM_CODE
+from villanelle._api.shared import (
+    ConfigText,
+    DirectiveOrigin,
+    Locatable,
+    Origin,
+    ProgramCode,
+    SourcePosition,
+    SourceSpan,
 )
-from villanelle.report import Collecting, Diagnostics, Locatable, LocatedDiagnostic
-from villanelle.source import (
-    DocumentSource,
-    DocumentWriter,
-    FileWrite,
-    LoadContext,
-    check_lost_updates,
-    memory_source,
-    memory_writer,
-)
-from villanelle.span import SourcePosition, SourceSpan
-from villanelle.syntax.cst import Node, Syntax, TokenRange, ValueRef, span_of, text_of
-from villanelle.syntax.parse import parse
-from villanelle.syntax.tokens import Token
-from villanelle.written import (
-    Copy,
-    DirectiveExpansion,
-    Document,
-    DocumentEdge,
-    DocumentGraph,
-    ExpandedIndex,
-    ExpandedList,
-    ExpandedSlice,
-    ExpandedString,
-    ExpandedValue,
-    ExpandedWord,
-    Expansion,
-    Extension,
-    ExtensionLine,
-    ExtensionUse,
-    IndexValue,
-    OverrideVariable,
-    Parameter,
-    Processor,
-    ReferenceResolution,
-    Resolution,
-    SetLine,
-    SetVariable,
-    SliceValue,
-    SnippetLine,
-    Statement,
-    UnreadableExpansion,
-    UnreadableLine,
-    UseLine,
-    Variable,
-    WrittenBlock,
-    WrittenDirective,
-    WrittenValue,
-    format_diagnostic,
-)
+from villanelle._text import quote, text
+from villanelle.diagnostics import Diagnostic
+from villanelle.origin import Override, Place, Step
+from villanelle.report import Collecting, Diagnostics, LocatedDiagnostic
+from villanelle.source import check_lost_updates, memory_source, memory_writer
 
 __all__ = [
-    "Added",
-    "Address",
-    "AddressStep",
+    "PROGRAM_CODE",
     "BadTextError",
-    "Change",
-    "ChangeKind",
-    "Changed",
     "Collecting",
     "ConfigText",
-    "Copy",
     "DetachedError",
     "Diagnostic",
     "DiagnosticCode",
     "DiagnosticError",
     "Diagnostics",
-    "Directive",
-    "DirectiveExpansion",
     "DirectiveOrigin",
-    "Document",
-    "DocumentEdge",
-    "DocumentGraph",
     "DocumentSource",
     "DocumentWriter",
-    "ExpandedIndex",
-    "ExpandedList",
-    "ExpandedSlice",
-    "ExpandedString",
-    "ExpandedValue",
-    "ExpandedWord",
-    "Expansion",
-    "Extension",
-    "ExtensionLine",
-    "ExtensionUse",
     "FileWrite",
-    "IndexValue",
-    "KeyRule",
     "LoadContext",
     "Locatable",
     "LocatedDiagnostic",
     "LostUpdateError",
-    "Node",
-    "NodeKind",
     "Origin",
     "Override",
-    "OverrideVariable",
-    "Parameter",
     "Place",
     "PlaceKind",
-    "Processor",
+    "ProgramCode",
     "ReadError",
-    "ReferenceResolution",
-    "Removed",
-    "Rendered",
-    "Resolution",
     "SaveError",
-    "SetLine",
-    "SetVariable",
-    "SliceValue",
-    "SnippetLine",
     "SourcePosition",
     "SourceSpan",
-    "Statement",
-    "StatementKind",
     "Step",
     "StepKind",
-    "Syntax",
-    "Token",
-    "TokenKind",
-    "TokenRange",
-    "Unknown",
-    "UnreadableExpansion",
-    "UnreadableLine",
-    "UnreadableReason",
-    "UseLine",
-    "ValueKind",
-    "ValueRef",
-    "Variable",
-    "VariableKind",
     "VillanelleError",
-    "WrittenBlock",
-    "WrittenDirective",
-    "WrittenValue",
     "check_lost_updates",
-    "format_diagnostic",
     "memory_source",
     "memory_writer",
-    "parse",
     "quote",
-    "render",
-    "span_of",
     "text",
-    "text_of",
 ]

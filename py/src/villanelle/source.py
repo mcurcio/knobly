@@ -3,64 +3,18 @@ root file and for every file an extension names (round 11 review finding 3), and
 (``DocumentWriter``, given ``FileWrite``s by ``DocumentGraph.save``). The core does no I/O (R16):
 ``villanelle.files`` gives a filesystem source and writer (``file_source``, ``file_writer``); ``memory_source`` and
 ``memory_writer`` serve and keep texts the program holds in one map (tests, editors). Each adapter is named after its
-medium and the port it fills (spec/contract.md 5)."""
+medium and the port it fills (spec/contract.md 5). The ports and their records are generated
+(``villanelle._api.io``): a source raises from ``resolve`` for a failure (E3004 at the extension line, ``ReadError``
+for the root) and returns no path for a missing file (E3001); ``load`` reads each resolved path at most once (R21);
+a writer calls ``check_lost_updates`` first, then stages and commits the batch together."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, MutableMapping, Sequence
-from dataclasses import dataclass
-from typing import Protocol
 
+from villanelle._api.errors import LostUpdateError
+from villanelle._api.io import DocumentSource, DocumentWriter, FileWrite, LoadContext
 from villanelle._glob import glob_pattern, has_glob
-from villanelle.errors import LostUpdateError
-
-
-@dataclass(frozen=True, slots=True)
-class LoadContext:
-    """Where a spec is being resolved from."""
-
-    parent_path: str
-    """Resolved path of the file holding the extension directive; empty when the root path itself is resolved."""
-
-
-class DocumentSource(Protocol):
-    """The document source. The load calls ``read`` at most once per resolved path, however many places splice the
-    file in (R21: "Obviously the file only needs to be read once")."""
-
-    def resolve(self, spec: str, context: LoadContext, /) -> tuple[str, ...]:
-        """The resolved paths a spec names (a path, or a glob with ``*`` and ``?`` in its last segment), in any order;
-        empty means not found (E3001). An exception becomes E3004 at the extension directive (for the root file,
-        ``load`` raises ReadError). Checked at run time (spec 4.1): anything but a sequence of str, a bare ``str``
-        included, is the source's failure."""
-        ...
-
-    def read(self, resolved_path: str, /) -> str:
-        """The text of one resolved file. An exception, or anything but a ``str``, becomes E3004 at the extension
-        line (for the root file, ``load`` raises ReadError)."""
-        ...
-
-
-@dataclass(frozen=True, slots=True)
-class FileWrite:
-    """One file a save hands to the writer."""
-
-    resolved_path: str
-    text: str
-    """What to write."""
-    saved_text: str
-    """The document's ``saved_text``: what ``check_lost_updates`` compares with the medium's text now."""
-
-
-class DocumentWriter(Protocol):
-    """The program's writer."""
-
-    def write(self, files: Sequence[FileWrite], /) -> None:
-        """One batch: ``check_lost_updates`` with each file's text in the medium now, then stage every file and
-        commit them together. Raising while staging means nothing was committed; a writer that can fail part way
-        through committing (the fs writer's renames) leaves the files it committed changed on disk while their
-        ``saved_text`` stays the old text, so the next save refuses them as lost updates until the program reloads
-        (stated cost, D-F1-10)."""
-        ...
 
 
 def check_lost_updates(files: Sequence[FileWrite], current: Sequence[str | None], /) -> None:

@@ -6,44 +6,43 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from villanelle.origin import DirectiveOrigin, Place
+from villanelle._api.shared import DirectiveOrigin
+from villanelle._api.written import DirectiveExpansion, Expansion, UnreadableExpansion
+from villanelle.origin import Place
 from villanelle.written import _document, _graph
 from villanelle.written._bind import Binding, BoundDirective, BoundItem
-from villanelle.written.model import (
-    DirectiveExpansion,
-    DocumentGraph,
-    Expansion,
-    UnreadableExpansion,
-    WrittenDirective,
-)
+from villanelle.written.model import DocumentGraph, ExpansionBlock, WrittenDirective, own
 
 
 def expand(graph: DocumentGraph) -> Expansion:
     """The current derivation as an expansion: the top level, then the graph's one diagnostics list."""
     binding = _graph.binding(graph)
     block, unreadable = _items(binding, binding.items)
-    return Expansion(block, unreadable, _graph.diagnostics(graph))
+    return Expansion(block=block, unreadable=unreadable, diagnostics=_graph.diagnostics(graph))
 
 
-def _items(
-    binding: Binding, items: Sequence[BoundItem]
-) -> tuple[tuple[DirectiveExpansion, ...], tuple[UnreadableExpansion, ...]]:
+def _items(binding: Binding, items: Sequence[BoundItem]) -> tuple[ExpansionBlock, tuple[UnreadableExpansion, ...]]:
     block: list[DirectiveExpansion] = []
     unreadable: list[UnreadableExpansion] = []
     for item in items:
-        statement = item.copy.statement
+        statement = own(item.copy.statement)
         doc, node = statement._doc, statement._node
         if not isinstance(item, BoundDirective):
             place = _document.place(doc, (node.start, node.end))
-            unreadable.append(UnreadableExpansion(item.reason, statement, DirectiveOrigin(place, item.copy.via)))
+            origin = DirectiveOrigin(place, item.copy.via)
+            unreadable.append(UnreadableExpansion(reason=item.reason, written=statement, origin=origin))
             continue
         assert isinstance(statement, WrittenDirective), "a readable copy is a written directive's"
         values = tuple(value for written in statement._value_list for value in binding.arguments_at(written, item.copy))
         name = doc._syntax.tokens[node.start]
         origin = DirectiveOrigin(Place(doc._path, name.span), item.copy.via)
-        inner: tuple[DirectiveExpansion, ...] | None = None
+        inner: ExpansionBlock | None = None
         inner_unreadable: tuple[UnreadableExpansion, ...] = ()
         if item.children is not None:
             inner, inner_unreadable = _items(binding, item.children)
-        block.append(DirectiveExpansion(statement, origin, values, inner, inner_unreadable))
-    return tuple(block), tuple(unreadable)
+        block.append(
+            DirectiveExpansion(
+                written=statement, values=values, block=inner, origin=origin, unreadable=inner_unreadable
+            )
+        )
+    return ExpansionBlock(tuple(block)), tuple(unreadable)

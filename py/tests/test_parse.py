@@ -2,17 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from villanelle import (
-    DiagnosticCode,
-    Node,
-    NodeKind,
-    SourcePosition,
-    SourceSpan,
-    TokenKind,
-    parse,
-    span_of,
-    text_of,
-)
+from villanelle import DiagnosticCode, SourcePosition, SourceSpan
+from villanelle.syntax import Node, NodeKind, TokenKind, parse, span_of, text_of
 
 
 def pos(offset: int, line: int, column: int) -> SourcePosition:
@@ -34,14 +25,24 @@ def test_parses_the_tracer_slice_into_a_directive_holding_a_slice_node() -> None
         ("SEMI", ";"),
     ]
     assert syntax.root == Node(
-        NodeKind.DOCUMENT, 0, 9, (Node(NodeKind.DIRECTIVE, 0, 9, (Node(NodeKind.SLICE, 2, 8, ()),)),)
+        kind=NodeKind.DOCUMENT,
+        start=0,
+        end=9,
+        children=(
+            Node(
+                kind=NodeKind.DIRECTIVE,
+                start=0,
+                end=9,
+                children=(Node(kind=NodeKind.SLICE, start=2, end=8, children=()),),
+            ),
+        ),
     )
 
 
 def test_parses_the_index_form() -> None:
     syntax = parse("connect foo[1];")
     assert syntax.diagnostics == ()
-    assert syntax.root.children[0].children[0] == Node(NodeKind.SLICE, 2, 6, ())
+    assert syntax.root.children[0].children[0] == Node(kind=NodeKind.SLICE, start=2, end=6, children=())
 
 
 def test_document_node_covers_leading_and_trailing_whitespace() -> None:
@@ -121,20 +122,24 @@ class TestSpanOfAndTextOf:
     syntax = parse("a b\nc")
 
     def test_give_the_span_and_text_of_a_token_range(self) -> None:
-        assert text_of(self.syntax, Node(NodeKind.ERROR, 1, 4, ())) == " b\n"
-        assert span_of(self.syntax, Node(NodeKind.ERROR, 2, 5, ())) == SourceSpan(pos(2, 0, 2), pos(5, 1, 1))
+        assert text_of(self.syntax, Node(kind=NodeKind.ERROR, start=1, end=4, children=())) == " b\n"
+        assert span_of(self.syntax, Node(kind=NodeKind.ERROR, start=2, end=5, children=())) == SourceSpan(
+            pos(2, 0, 2), pos(5, 1, 1)
+        )
 
     def test_give_a_zero_width_span_at_a_token_start_or_the_end_of_the_text(self) -> None:
-        assert span_of(self.syntax, Node(NodeKind.ERROR, 2, 2, ())) == SourceSpan(pos(2, 0, 2), pos(2, 0, 2))
+        assert span_of(self.syntax, Node(kind=NodeKind.ERROR, start=2, end=2, children=())) == SourceSpan(
+            pos(2, 0, 2), pos(2, 0, 2)
+        )
         end = pos(5, 1, 1)
-        assert span_of(self.syntax, Node(NodeKind.ERROR, 5, 5, ())) == SourceSpan(end, end)
-        assert text_of(self.syntax, Node(NodeKind.ERROR, 5, 5, ())) == ""
+        assert span_of(self.syntax, Node(kind=NodeKind.ERROR, start=5, end=5, children=())) == SourceSpan(end, end)
+        assert text_of(self.syntax, Node(kind=NodeKind.ERROR, start=5, end=5, children=())) == ""
         empty = parse("")
         assert span_of(empty, empty.root) == SourceSpan(pos(0, 0, 0), pos(0, 0, 0))
 
     @pytest.mark.parametrize(("start", "end"), [(-1, 0), (0, 6), (3, 2)])
     def test_raise_index_error_outside_the_tokens_or_when_start_exceeds_end(self, start: int, end: int) -> None:
-        rng = Node(NodeKind.ERROR, start, end, ())
+        rng = Node(kind=NodeKind.ERROR, start=start, end=end, children=())
         with pytest.raises(IndexError):
             span_of(self.syntax, rng)
         with pytest.raises(IndexError):

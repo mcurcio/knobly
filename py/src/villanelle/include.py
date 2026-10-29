@@ -4,11 +4,10 @@ own variables (R22): ``@include "palettes.conf" { @set $hue 0.3; }``. What an in
 
 from __future__ import annotations
 
-from villanelle.diagnostics import DiagnosticCode
-from villanelle.errors import DiagnosticError
+from villanelle._api.codes import DiagnosticCode, describe
+from villanelle._api.errors import DiagnosticError
+from villanelle._api.written import Extension, ExtensionUse
 from villanelle.report import LocatedDiagnostic
-from villanelle.syntax._recovery import message_of
-from villanelle.written.extension import Extension, ExtensionUse
 from villanelle.written.value import ExpandedString, value_error
 
 
@@ -30,9 +29,12 @@ class _Include:
         is not a string, else the second value; with no value, at the directive's name (F1-05)."""
         code = DiagnosticCode.INCLUDE_BAD_PATH
         if not use.values:
-            raise DiagnosticError(LocatedDiagnostic(code, message_of(code), use.origin.place, use.origin.via))
+            raise DiagnosticError(LocatedDiagnostic(code, describe(code).message, use.origin.place, use.origin.via))
         first = use.values[0]
         bad = first if not isinstance(first, ExpandedString) else (use.values[1] if len(use.values) > 1 else None)
         if bad is not None:
-            raise value_error(bad, code, f"{message_of(code)}: {bad.text}")
+            raise value_error(bad, code, describe(code, bad.text).message)
         return (first.string(),)
+
+
+__all__ = ["include"]

@@ -1,40 +1,35 @@
 """The rendered tree's nodes (spec 7; R15 tier 2): what a program walks after ``render``. Model: the standard ``ast``
-module. Nodes are read-only objects with ``__match_args__``, read with ``match``; ``walk()`` iterates a subtree as
-``ast.walk`` does (here in written order); every node carries where it came from. Directives and values are expanded
-(variables replaced, snippets and extension files spliced in). A directive is built on its directive expansion's own
-objects (vil-umh.8): its ``values`` are the low level's expanded values and its ``unreadable`` the low level's
-unreadable expansions, the same objects; this layer adds ``name``, ``parent``, ``walk``, ``closest``, the address and
-``error``. It names low-level handles, never the other way round."""
+module. Nodes are read-only objects with ``__match_args__``, read with ``match``; a block's ``walk()`` iterates a
+subtree as ``ast.walk`` does (here in written order); every node carries where it came from. Directives and values
+are expanded (variables replaced, snippets and extension files spliced in). A directive is built on its directive
+expansion's own objects (vil-umh.8): its ``values`` are the low level's expanded values and its ``unreadable`` the
+low level's unreadable expansions, the same objects; this layer adds ``name``, ``parent``, ``closest``, the address
+and ``error``, and its block (``RenderedBlock``) the walk. It names low-level handles, never the other way round."""
 
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterator, Sequence
-from dataclasses import dataclass
-from typing import TypeAlias, final
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import final
 
-from villanelle.errors import DiagnosticError
-from villanelle.origin import DirectiveOrigin
+from villanelle._api import rendered as api
+from villanelle._api.errors import DiagnosticError
+from villanelle._api.rendered import AddressStep
+from villanelle._api.shared import DirectiveOrigin
+from villanelle._api.written import ExpandedValue, WrittenDirective
+from villanelle._block import BlockBase
 from villanelle.report import LocatedDiagnostic, check_program_code
-from villanelle.written import DirectiveExpansion, ExpandedValue, UnreadableExpansion, WrittenDirective
-
-
-@dataclass(frozen=True, slots=True)
-class AddressStep:
-    name: str
-    key: str | None
-    """What the key rule returned for this directive; None when it returned nothing or there is no rule."""
-    occurrence: int
-    """0-based, among earlier siblings with the same name and key."""
+from villanelle.written import DirectiveExpansion, UnreadableExpansion
 
 
 @final
 @dataclass(frozen=True, slots=True)
-class Address:
+class Address(api.Address):
     """Where a directive lands in the expanded tree: its identity across loads. Hashable; unique within one load. A file
     included at two places, or a snippet used twice, lands at two addresses (R21: "Allowed, per place")."""
 
-    steps: tuple[AddressStep, ...]
+    steps: tuple[AddressStep, ...] = field()
     """From the top level down to this directive."""
 
     @property
@@ -61,7 +56,7 @@ class Address:
 
 
 @final
-class Directive:
+class Directive(api.Directive):
     """One directive after expansion. ``@set``, ``@snippet``, ``@use`` and extension lines never appear: their results
     do, in their place. Match it: ``case vl.Directive("node", [kind, node_id, *rest], block):``. Its address is
     ``rendered.addresses(key=...)[directive]`` (D4)."""
@@ -77,7 +72,11 @@ class Directive:
         self._parent = parent
         self._origin = expansion.origin
         self._written = expansion.written
-        self._block = None if expansion.block is None else tuple(Directive(child, self) for child in expansion.block)
+        self._block = (
+            None
+            if expansion.block is None
+            else RenderedBlock(tuple(Directive(child, self) for child in expansion.block))
+        )
         self._unreadable = expansion.unreadable
 
     def __repr__(self) -> str:
@@ -93,7 +92,7 @@ class Directive:
         return self._values
 
     @property
-    def block(self) -> tuple[Directive, ...] | None:
+    def block(self) -> RenderedBlock | None:
         """The block's readable directives; None when written without a block."""
         return self._block
 
@@ -118,11 +117,6 @@ class Directive:
         """The written directive this is a copy of (closes vil-uji): the same handle for every copy of one line."""
         return self._written
 
-    def walk(self, *, descend: Callable[[Directive], bool] | None = None) -> Iterator[Directive]:
-        """Every directive in its block, at any depth (not itself), depth-first in written order. ``descend``, when
-        given, is asked of each directive yielded; False passes over its block. Stop early with ``break``."""
-        return walk_block(self._block or (), descend)
-
     def closest(self, predicate: Callable[[Directive], bool], /) -> Directive | None:
         """This directive or its nearest enclosing one that matches, as the DOM's ``Element.closest``."""
         directive: Directive | None = self
@@ -136,23 +130,25 @@ class Directive:
         return DiagnosticError(LocatedDiagnostic(code, message, self._origin.place, self._origin.via))
 
 
-KeyRule: TypeAlias = Callable[[Directive], "str | None"]
-"""The program's rule for naming a directive among its siblings, so it keeps its address when lines move (D5: it
-takes the rendered directive). Called once per directive, parents before children, in walk order, by
-``Rendered.addresses`` and ``Rendered.diff``; what it raises propagates. rasl:
-``lambda d: d.values[1].text if d.name == "node" and d.parent and d.parent.name == "graph" else None``."""
+@final
+class RenderedBlock(BlockBase[Directive, Directive], api.RenderedBlock):
+    """The directives of one block after expansion, in written order (spec 7.1): the render's top level
+    (``rendered.block``) or a directive's block. ``walk`` visits every directive under it, at any depth."""
 
+    __slots__ = ("_items",)
 
-def walk_block(block: Sequence[Directive], descend: Callable[[Directive], bool] | None) -> Iterator[Directive]:
-    """The one home of the walk: every directive under ``block``, depth-first in written order. Private to the
-    rendered layer."""
-    stack: list[Iterator[Directive]] = [iter(block)]
-    while stack:
-        directive = next(stack[-1], None)
-        if directive is None:
-            stack.pop()
-            continue
-        yield directive
-        inner = directive.block
-        if inner and (descend is None or descend(directive)):
-            stack.append(iter(inner))
+    def __init__(self, items: tuple[Directive, ...]) -> None:
+        """Made by ``render`` only."""
+        self._items = items
+
+    def _members(self) -> tuple[Directive, ...]:
+        return self._items
+
+    def _directive(self, item: Directive, /) -> Directive:
+        return item
+
+    def _name(self, directive: Directive, /) -> str:
+        return directive.name
+
+    def _inner(self, item: Directive, /) -> RenderedBlock | None:
+        return item.block

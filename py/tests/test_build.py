@@ -30,8 +30,10 @@ def test_wheel_and_sdist_contain_the_generated_parser_and_api_lists(tmp_path: Pa
 
 
 CONSUMER = """\
-from villanelle import Processor, memory_source, render
+from villanelle import memory_source
 from villanelle.include import include
+from villanelle.rendered import render
+from villanelle.written import Processor
 
 graph = Processor(source=memory_source({"main.conf": "port 80;\\n"}), extensions=[include()]).load("main.conf")
 port: int = render(graph).block[0].values[0].integer()
@@ -70,4 +72,4 @@ def test_a_consumer_type_checks_against_the_installed_wheel(tmp_path: Path) -> N
     )
     assert "import-untyped" not in checked.stdout, checked.stdout
     errors = [line for line in checked.stdout.splitlines() if ": error:" in line]
-    assert len(errors) == 1 and "consumer.py:6:" in errors[0] and '"str"' in errors[0], checked.stdout
+    assert len(errors) == 1 and "consumer.py:8:" in errors[0] and '"str"' in errors[0], checked.stdout

@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import villanelle as vl
+from villanelle import written
 from villanelle.files import file_source, file_writer
 
 
@@ -68,13 +69,13 @@ def test_file_writer_refuses_a_lost_update_writing_nothing(tmp_path: Path) -> No
 def test_save_through_file_writer_writes_the_changed_file_once(tmp_path: Path) -> None:
     root = tmp_path / "main.conf"
     root.write_text("x 1;\n")
-    graph = vl.Processor(source=file_source()).load(str(root))
+    graph = written.Processor(source=file_source()).load(str(root))
     x = graph.root.block[0]
-    assert isinstance(x, vl.WrittenDirective)
+    assert isinstance(x, written.WrittenDirective)
     x.values[0].replace_with_text(vl.text("2"))
-    assert graph.save(file_writer()) == [str(root)]
+    assert graph.save(file_writer()) == (str(root),)
     assert root.read_text() == "x 2;\n"
-    assert graph.save(file_writer()) == []
+    assert graph.save(file_writer()) == ()
 
 
 def test_file_writer_reads_a_missing_target_as_empty_text(tmp_path: Path) -> None:

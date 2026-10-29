@@ -1,25 +1,28 @@
 """Where text was written, and how it got to where a program reads it (round 11, slices.md "Shared primitives").
 
 Pure data, shared by the low level and the rendered layer: every expanded value, directive and diagnostic carries
-one of these.
+one of these. ``Origin`` and ``DirectiveOrigin`` are generated records (``villanelle._api.shared``); ``Place``,
+``Override`` and ``Step`` carry a people form, so the generator writes Protocols for them and these dataclasses
+subclass those (each field is ``= field()``: without it the Protocol's property would become the field's default).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
+from villanelle._api import shared
 from villanelle._api.kinds import PlaceKind, StepKind
-from villanelle.span import SourceSpan
+from villanelle._api.shared import SourceSpan
 
 
 @dataclass(frozen=True, slots=True)
-class Place:
+class Place(shared.Place):
     """A range of one file's text."""
 
-    resolved_path: str
+    resolved_path: str = field()
     """The file's identity, as the document source gave it."""
-    span: SourceSpan
+    span: SourceSpan = field()
 
     @property
     def kind(self) -> Literal[PlaceKind.FILE]:
@@ -33,11 +36,11 @@ class Place:
 
 
 @dataclass(frozen=True, slots=True)
-class Override:
+class Override(shared.Override):
     """A value the program passed in at load or with ``set_override`` (``rasl --set host=10.0.60.30``): written in
     no file."""
 
-    variable: str
+    variable: str = field()
     """The variable's name, without ``$``."""
 
     @property
@@ -50,14 +53,14 @@ class Override:
 
 
 @dataclass(frozen=True, slots=True)
-class Step:
+class Step(shared.Step):
     """One expansion a directive or value went through to reach where it is read: ``variable`` (``$pixels`` replaced
     by its value), ``use`` (a snippet's body spliced) or ``extension`` (files spliced by an extension line)."""
 
-    kind: StepKind
-    name: str
+    kind: StepKind = field()
+    name: str = field()
     """The variable (without ``$``), snippet or extension directive name."""
-    place: Place
+    place: Place = field()
     """Where the reference was written: the ``$pixels`` token, the ``@use`` keyword, the ``@include`` token."""
 
     def __str__(self) -> str:
@@ -65,22 +68,4 @@ class Step:
         return f"{self.kind} {self.name} at {self.place}"
 
 
-@dataclass(frozen=True, slots=True)
-class Origin:
-    """Where a value was written, and how it got here. For a value from a variable, ``place`` is the value's text in
-    its ``set`` (the definition) or the override, and ``via[0]`` is the ``$name`` (the use site)."""
-
-    place: Place | Override
-    via: tuple[Step, ...]
-    """Innermost first. Empty when the text is read where it was written."""
-
-
-@dataclass(frozen=True, slots=True)
-class DirectiveOrigin:
-    """A directive's origin: its name is always written in a file, never an override."""
-
-    place: Place
-    via: tuple[Step, ...]
-
-
-__all__ = ["DirectiveOrigin", "Origin", "Override", "Place", "PlaceKind", "Step", "StepKind"]
+__all__ = ["Override", "Place", "Step"]

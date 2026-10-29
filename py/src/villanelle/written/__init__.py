@@ -6,34 +6,44 @@ edits back and ``graph.expand()`` gives every copy as read, which the rendered l
 direction"), and this module's ``__all__`` is the only part of it the rendered layer reaches (both checked by
 tests/test_layers.py).
 
-The written values ``Word``, ``String``, ``List``, ``Slice``, ``Index`` and ``Reference`` are exported from here only,
-not from the package root (``from villanelle import written; written.List``), so ``from villanelle import *`` never
-replaces ``typing.List``."""
+The records (``Copy``, ``DocumentEdge``, ``Resolution``, ``Expansion``, ``SliceValue`` ...), the ports and the kind
+lists are generated from spec/schema/api.json (``villanelle._api``); every handle class here subclasses its
+generated Protocol, so mypy checks each member against the schema. Import it as a namespace
+(``from villanelle import written``; ``written.List``) or by name: ``from villanelle.written import *`` replaces
+``typing.List``."""
 
-from villanelle.written.extension import Extension, ExtensionUse
-from villanelle.written.format import format_diagnostic
-from villanelle.written.model import (
+from villanelle._api.kinds import StatementKind, UnreadableReason, ValueKind, VariableKind
+from villanelle._api.limits import MAX_DEPTH, MAX_DIRECTIVES, MAX_SAFE_INTEGER, RESERVED, VARIABLE_NAME
+from villanelle._api.written import (
     Copy,
     DirectiveExpansion,
-    Document,
     DocumentEdge,
-    DocumentGraph,
     Expansion,
+    Extension,
+    ExtensionUse,
+    IndexValue,
+    ReferenceResolution,
+    Resolution,
+    SliceValue,
+    UnreadableExpansion,
+)
+from villanelle.written.format import format_diagnostic
+from villanelle.written.model import (
+    Document,
+    DocumentGraph,
+    ExpansionBlock,
     ExtensionLine,
     Index,
     List,
     OverrideVariable,
     Parameter,
     Reference,
-    ReferenceResolution,
-    Resolution,
     SetLine,
     SetVariable,
     Slice,
     SnippetLine,
     Statement,
     String,
-    UnreadableExpansion,
     UnreadableLine,
     UseLine,
     Variable,
@@ -50,11 +60,14 @@ from villanelle.written.value import (
     ExpandedString,
     ExpandedValue,
     ExpandedWord,
-    IndexValue,
-    SliceValue,
 )
 
 __all__ = [
+    "MAX_DEPTH",
+    "MAX_DIRECTIVES",
+    "MAX_SAFE_INTEGER",
+    "RESERVED",
+    "VARIABLE_NAME",
     "Copy",
     "DirectiveExpansion",
     "Document",
@@ -67,6 +80,7 @@ __all__ = [
     "ExpandedValue",
     "ExpandedWord",
     "Expansion",
+    "ExpansionBlock",
     "Extension",
     "ExtensionLine",
     "ExtensionUse",
@@ -85,11 +99,15 @@ __all__ = [
     "SliceValue",
     "SnippetLine",
     "Statement",
+    "StatementKind",
     "String",
     "UnreadableExpansion",
     "UnreadableLine",
+    "UnreadableReason",
     "UseLine",
+    "ValueKind",
     "Variable",
+    "VariableKind",
     "Word",
     "WrittenBlock",
     "WrittenDirective",

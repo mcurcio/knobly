@@ -1,49 +1,17 @@
-"""The lossless concrete syntax tree: concept nodes over token ranges (design/RECORD.md, "The CST")."""
+"""The lossless concrete syntax tree: concept nodes over token ranges (design/RECORD.md, "The CST"). ``Token``,
+``TokenRange``, ``Node`` and ``Syntax`` are generated records (``villanelle._api.syntax``): a node is a token range
+whose children are in source order, non-overlapping, inside [start, end), and a ``slice`` node spans ``name[bounds]``
+exactly; ``parse`` returns every token (contiguous, in source order, never empty, their texts concatenated equal to the
+input), a ``document`` root over [0, len(tokens)) and what went wrong."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Protocol
-
-from villanelle._api.kinds import NodeKind as NodeKind
-from villanelle.diagnostics import Diagnostic
-from villanelle.span import SourcePosition, SourceSpan
-from villanelle.syntax.tokens import Token
-
-
-class TokenRange(Protocol):
-    """A half-open range [start, end) of token indices."""
-
-    @property
-    def start(self) -> int: ...
-
-    @property
-    def end(self) -> int: ...
-
-
-@dataclass(frozen=True, slots=True)
-class Node:
-    """A CST node: children in source order, non-overlapping, inside [start, end); tokens not covered by a child
-    belong to this node directly. A ``slice`` node spans ``name[bounds]`` exactly."""
-
-    kind: NodeKind
-    start: int
-    end: int
-    children: tuple[Node, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class Syntax:
-    """The result of ``parse``: every token, a ``document`` root over [0, len(tokens)), and what went wrong."""
-
-    tokens: tuple[Token, ...]
-    root: Node
-    diagnostics: tuple[Diagnostic, ...]
-
+from villanelle._api.shared import SourcePosition, SourceSpan
+from villanelle._api.syntax import Node, Syntax, TokenRange
 
 ValueRef = int | Node
-"""The index of a WORD, INTEGER, DIGIT_WORD, STRING or VARIABLE token, or a ``slice`` or ``list`` node: one value as
-written."""
+"""Private to the package (not exported, round 15). The index of a WORD, INTEGER, DIGIT_WORD, STRING or VARIABLE
+token, or a ``slice`` or ``list`` node: one value as written."""
 
 _ORIGIN = SourcePosition(offset=0, line=0, column=0)
 

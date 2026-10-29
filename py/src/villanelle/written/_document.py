@@ -13,15 +13,16 @@ from dataclasses import dataclass
 from typing import TypeAlias
 
 from villanelle._anatomy import anatomy_of, items_of, values_of
-from villanelle._api.kinds import StatementKind
-from villanelle.diagnostics import Diagnostic, DiagnosticCode
-from villanelle.errors import BadTextError
+from villanelle._api import shared
+from villanelle._api.codes import DiagnosticCode, describe
+from villanelle._api.errors import BadTextError
+from villanelle._api.kinds import NodeKind, StatementKind, TokenKind
+from villanelle._api.shared import SourcePosition, SourceSpan
+from villanelle._api.syntax import Node, Syntax, TokenRange
+from villanelle.diagnostics import Diagnostic
 from villanelle.origin import Place
-from villanelle.span import SourcePosition, SourceSpan
-from villanelle.syntax._recovery import message_of
-from villanelle.syntax.cst import Node, NodeKind, Syntax, ValueRef, span_of
+from villanelle.syntax.cst import ValueRef, span_of
 from villanelle.syntax.parse import EntryRule, parse, parse_entry
-from villanelle.syntax.tokens import TokenKind
 from villanelle.written import _names
 from villanelle.written._shape import Shape, ShapeKind, block_shapes, parameter_tokens, statement_nodes
 from villanelle.written.model import (
@@ -79,12 +80,6 @@ def _insert_of(given: str, pieces: Sequence[Piece]) -> _Insert:
     return _Insert("".join(text), given, tuple(origin))
 
 
-@dataclass(frozen=True, slots=True)
-class _Range:
-    start: int
-    end: int
-
-
 def starts_of(syntax: Syntax) -> list[int]:
     """Each token's start as a ``str`` index, then the text's length."""
     out = [0]
@@ -105,7 +100,7 @@ def place_of_span(doc: Document, span: SourceSpan) -> Place:
 
 
 def place(doc: Document, rng: tuple[int, int]) -> Place:
-    return Place(doc._path, span_of(doc._syntax, _Range(*rng)))
+    return Place(doc._path, span_of(doc._syntax, TokenRange(*rng)))
 
 
 def text_of_range(doc: Document, rng: tuple[int, int]) -> str:
@@ -472,7 +467,12 @@ def _build_value(
 
 
 def _splice(
-    doc: Document, start: int, end: int, insert: str | _Insert, given: Sequence[Diagnostic], keep: Handle | None = None
+    doc: Document,
+    start: int,
+    end: int,
+    insert: str | _Insert,
+    given: Sequence[shared.Diagnostic],
+    keep: Handle | None = None,
 ) -> list[Handle]:
     """Replace ``doc._text[start:end]`` with ``insert``, after ``given`` (the given text's own problems) and the
     text-alone rules found nothing wrong; then re-parse, reconcile and tell the graph. Raises BadTextError, changing
@@ -552,7 +552,7 @@ def _is_blank(text: str) -> bool:
     return _BLANK.fullmatch(text) is not None
 
 
-def _statements_text_problems(text: str) -> tuple[Diagnostic, ...]:
+def _statements_text_problems(text: str) -> tuple[shared.Diagnostic, ...]:
     """A statements text's check: the grammar's ``statementsText`` entry rule (2.8), so a byte-order mark is refused."""
     return parse_entry(text, "statementsText").diagnostics
 
@@ -630,7 +630,7 @@ def replace_values(statement: Statement, after: int, text: str) -> None:
     _splice(doc, start, end, text, given)
 
 
-def _no_value_problems(text: str) -> tuple[Diagnostic, ...]:
+def _no_value_problems(text: str) -> tuple[shared.Diagnostic, ...]:
     """A statement ``set``'s rule after its entry rule: a text that holds no value must be the empty text."""
     syntax = parse_entry(text, "valuesText")
     if text == "" or values_of(syntax.tokens, syntax.root):
@@ -787,7 +787,7 @@ def _insert_into_empty_block(
     lines: Sequence[Piece],
     parent_indentation: str,
     eol: str,
-    given: Sequence[Diagnostic],
+    given: Sequence[shared.Diagnostic],
 ) -> list[Handle]:
     """An empty block: ``{}`` (or only whitespace and line breaks between) becomes ``{``, a line break, the lines, a
     line break, the parent's indentation, ``}`` (D14, D-F1-1); a block holding only comments takes the lines before
@@ -918,10 +918,10 @@ def position_in(text: str, index: int) -> SourcePosition:
 
 def at(given: str, index: int, code: DiagnosticCode) -> Diagnostic:
     position = position_in(given, index)
-    return Diagnostic(code, message_of(code), SourceSpan(position, position))
+    return Diagnostic(code, describe(code).message, SourceSpan(position, position))
 
 
-def entry_problems(text: str, rule: EntryRule) -> tuple[Diagnostic, ...]:
+def entry_problems(text: str, rule: EntryRule) -> tuple[shared.Diagnostic, ...]:
     """2.8's check of a text that depends only on the text: the grammar's entry rule ``rule`` (``valuesText`` for a
     statement's ``set`` or a value's replace, ``valueText`` for a value's ``set``, ``itemsText`` for a list item's
     replace, ``boundText`` for a slice or index bound's, ``sliceNameText`` for a slice or index name's), its first error
@@ -931,11 +931,11 @@ def entry_problems(text: str, rule: EntryRule) -> tuple[Diagnostic, ...]:
 
 def _rule_problems(
     syntax: Syntax, starts: Sequence[int], extensions: frozenset[str], frm: int, insert: _Insert
-) -> list[Diagnostic]:
+) -> list[shared.Diagnostic]:
     """The text-alone rules (E5002, E5005, E5009-E5011) a spliced text would break, on the statements the splice
     touches (D-S1-6; a ``set`` claiming the name of a snippet parameter the splice touches counts too): located in
     the caller's text when the problem lies in what it gave (2.3), else at 0:0 (D-S1-5)."""
-    out: list[Diagnostic] = []
+    out: list[shared.Diagnostic] = []
     tokens = syntax.tokens
     to = frm + len(insert.text)
 
@@ -967,9 +967,9 @@ def _rule_problems(
             if node.kind is not NodeKind.DIRECTIVE:
                 continue
             block = anatomy_of(tokens, node).block
-            if block is None or shape.kind == "unreadable":
+            if block is None or shape.kind is StatementKind.UNREADABLE:
                 continue
-            params = list(parameter_tokens(tokens, node)) if shape.kind == "snippet" else []
+            params = list(parameter_tokens(tokens, node)) if shape.kind is StatementKind.SNIPPET else []
             names = [tokens[t].text[1:] for t in params]
             touched = frozenset(tokens[t].text[1:] for t in params if overlaps(starts[t], starts[t + 1]))
             visit(block, names, touched)
@@ -978,7 +978,7 @@ def _rule_problems(
     return out
 
 
-def override_text_problems(text: str) -> tuple[Diagnostic, ...]:
+def override_text_problems(text: str) -> tuple[shared.Diagnostic, ...]:
     """The text half of the check of an override (spec 6.3): the ``valuesText`` entry rule's first error, else E2001
     at the first ``$name`` (an override holds values only), or at 0:0 when the text holds no value."""
     syntax = parse_entry(text, "valuesText")

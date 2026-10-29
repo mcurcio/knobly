@@ -7,9 +7,8 @@ from typing import Any
 
 import pytest
 
-from villanelle import Node, NodeKind, parse, text_of
-from villanelle._api.limits import MAX_NESTING
-from villanelle.diagnostics import DiagnosticCode
+from villanelle import DiagnosticCode
+from villanelle.syntax import MAX_NESTING, Node, NodeKind, parse, text_of
 
 
 def shape(text: str) -> dict[str, Any]:
@@ -205,7 +204,9 @@ def test_rejects_one_level_more_with_one_e2010_at_its_opener_and_one_error_node_
             (DiagnosticCode.NESTING_TOO_DEEP, column)
         ]
         n = len(syntax.tokens)
-        assert syntax.root == Node(NodeKind.DOCUMENT, 0, n, (Node(NodeKind.ERROR, 0, n, ()),))
+        assert syntax.root == Node(
+            kind=NodeKind.DOCUMENT, start=0, end=n, children=(Node(kind=NodeKind.ERROR, start=0, end=n, children=()),)
+        )
         assert text_of(syntax, syntax.root) == text
 
 

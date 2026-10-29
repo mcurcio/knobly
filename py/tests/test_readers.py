@@ -6,25 +6,28 @@ from __future__ import annotations
 import pytest
 
 import villanelle as vl
+from villanelle import rendered, written
+from villanelle._api import shared
+from villanelle._api import written as api
 
 
-def _render(processor: vl.Processor, overrides: dict[str, vl.ConfigText] | None = None) -> vl.Rendered:
+def _render(processor: written.Processor, overrides: dict[str, vl.ConfigText] | None = None) -> rendered.Rendered:
     """``render(load("main.conf"))``."""
-    return vl.render(processor.load("main.conf", overrides=overrides))
+    return rendered.render(processor.load("main.conf", overrides=overrides))
 
 
-def args(text: str) -> tuple[vl.ExpandedValue, ...]:
-    loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})))
+def args(text: str) -> tuple[api.ExpandedValue, ...]:
+    loaded = _render(written.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})))
     assert loaded.diagnostics == ()
     return loaded.block[0].values
 
 
-def arg(text: str) -> vl.ExpandedValue:
+def arg(text: str) -> api.ExpandedValue:
     [only] = args(text)
     return only
 
 
-def raises(read: object, code: str) -> vl.LocatedDiagnostic:
+def raises(read: object, code: str) -> shared.LocatedDiagnostic:
     assert callable(read)
     with pytest.raises(vl.DiagnosticError) as raised:
         read()
@@ -94,20 +97,20 @@ def test_list_gives_items_each_with_its_own_origin() -> None:
 
 
 def test_slice_gives_slices_with_an_absent_side_none_and_indexes() -> None:
-    assert arg("hyperhdr_color[144~152]").slice() == vl.SliceValue("hyperhdr_color", 144, 152)
-    assert arg("c[144~]").slice() == vl.SliceValue("c", 144, None)
-    assert arg("c[~-2]").slice() == vl.SliceValue("c", None, -2)
-    assert arg("foo[1]").slice() == vl.IndexValue("foo", 1)
+    assert arg("hyperhdr_color[144~152]").slice() == written.SliceValue("hyperhdr_color", 144, 152)
+    assert arg("c[144~]").slice() == written.SliceValue("c", 144, None)
+    assert arg("c[~-2]").slice() == written.SliceValue("c", None, -2)
+    assert arg("foo[1]").slice() == written.IndexValue("foo", 1)
     big = 2**53 - 1
-    assert arg(f"c[-{big}~{big}]").slice() == vl.SliceValue("c", -big, big)
+    assert arg(f"c[-{big}~{big}]").slice() == written.SliceValue("c", -big, big)
     raises(arg("c").slice, "E4002")
 
 
 def test_a_variable_slice_name_reads_as_the_word_it_holds() -> None:
-    loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": "@set $s leds;\nx $s[0~3] $s[1];\n"})))
+    loaded = _render(written.Processor(source=vl.memory_source({"main.conf": "@set $s leds;\nx $s[0~3] $s[1];\n"})))
     slice_, index = loaded.block[0].values
-    assert (slice_.slice(), slice_.text) == (vl.SliceValue("leds", 0, 3), "leds[0~3]")
-    assert index.slice() == vl.IndexValue("leds", 1)
+    assert (slice_.slice(), slice_.text) == (written.SliceValue("leds", 0, 3), "leds[0~3]")
+    assert index.slice() == written.IndexValue("leds", 1)
     assert slice_.origin.via == () and slice_.chain == ()
 
 
@@ -122,7 +125,7 @@ def test_a_colon_is_a_word_character_after_a_words_first() -> None:
 
 
 def test_a_reader_error_is_placed_on_the_value_with_its_steps() -> None:
-    loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": "@set $v x;\na 1 $v;\n"})))
+    loaded = _render(written.Processor(source=vl.memory_source({"main.conf": "@set $v x;\na 1 $v;\n"})))
     d = raises(loaded.block[0].values[1].integer, "E4005")
     assert (d.place.span.start.line, d.place.span.start.column) == (0, 8)
     assert [(s.kind, s.name, s.place.span.start.column) for s in d.via] == [("variable", "v", 4)]
@@ -151,15 +154,15 @@ def test_single_quoted_strings_are_raw(literal: str, decoded: str) -> None:
 
 @pytest.mark.parametrize(("text", "column"), [(f"c[{2**53}]", 4), (f"c[1~-{2**53}]", 6)])
 def test_a_literal_bound_beyond_the_integer_range_is_e4001_at_the_bound(text: str, column: int) -> None:
-    loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})))
+    loaded = _render(written.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})))
     [d] = loaded.diagnostics
     assert (d.code, d.place.span.start.column) == ("E4001", column)
-    assert loaded.block == ()
+    assert list(loaded.block) == []
 
 
 @pytest.mark.parametrize(("text", "column"), [("c[x~2]", 4), ("c[1~x]", 6), ("c[007]", 4), ("c[1:3]", 4)])
 def test_a_literal_bound_that_is_not_an_integer_is_e2007_at_parse(text: str, column: int) -> None:
-    loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})))
+    loaded = _render(written.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})))
     [d] = loaded.diagnostics
     assert (d.code, d.place.span.start.column) == ("E2007", column)
     assert [u.reason for u in loaded.unreadable] == ["syntax"]
@@ -169,7 +172,7 @@ def test_a_literal_bound_that_is_not_an_integer_is_e2007_at_parse(text: str, col
 
 
 @pytest.mark.parametrize(
-    ("written", "text"),
+    ("source", "text"),
     [
         ("w", "w"),
         ("'single \"q\"'", '"single \\"q\\""'),
@@ -184,10 +187,10 @@ def test_a_literal_bound_that_is_not_an_integer_is_e2007_at_parse(text: str, col
         ("[]", "[]"),
     ],
 )
-def test_canonical_text(written: str, text: str) -> None:
-    assert arg(written).text == text
+def test_canonical_text(source: str, text: str) -> None:
+    assert arg(source).text == text
 
 
 def test_a_value_from_a_variable_has_the_values_text() -> None:
-    loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": "@set $v 'x';\na $v;\n"})))
+    loaded = _render(written.Processor(source=vl.memory_source({"main.conf": "@set $v 'x';\na $v;\n"})))
     assert loaded.block[0].values[0].text == '"x"'

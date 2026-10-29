@@ -8,14 +8,16 @@ from typing import Any, Literal, TypeAlias
 from antlr4 import CommonTokenStream, InputStream
 from antlr4.error.Errors import RecognitionException
 
+from villanelle._api.codes import DiagnosticCode, describe
+from villanelle._api.kinds import NodeKind, TokenKind
+from villanelle._api.shared import SourcePosition, SourceSpan
+from villanelle._api.syntax import Node, Syntax, Token, TokenRange
 from villanelle._gen.VillanelleLexer import VillanelleLexer
 from villanelle._gen.VillanelleParser import VillanelleParser
-from villanelle.diagnostics import Diagnostic, DiagnosticCode
-from villanelle.span import SourcePosition, SourceSpan
-from villanelle.syntax._recovery import RawDiagnostic, install_recovery, message_of, nesting_overflow
+from villanelle.diagnostics import Diagnostic
+from villanelle.syntax._recovery import RawDiagnostic, install_recovery, nesting_overflow
 from villanelle.syntax._walk import to_cst, to_entry_cst
-from villanelle.syntax.cst import Node, NodeKind, Syntax, span_of
-from villanelle.syntax.tokens import Token, TokenKind
+from villanelle.syntax.cst import span_of
 
 _EOF = -1
 _ORIGIN = SourcePosition(offset=0, line=0, column=0)
@@ -82,9 +84,11 @@ def parse(text: str) -> Syntax:
     # The depth guard runs first: deep enough nesting would overflow the stack of the recursive parser.
     too_deep = nesting_overflow([t.kind for t in tokens])
     if too_deep is not None:
-        root = Node(NodeKind.DOCUMENT, 0, n, (Node(NodeKind.ERROR, 0, n, ()),))
+        root = Node(
+            kind=NodeKind.DOCUMENT, start=0, end=n, children=(Node(kind=NodeKind.ERROR, start=0, end=n, children=()),)
+        )
         code = DiagnosticCode.NESTING_TOO_DEEP
-        return _located(tokens, root, [RawDiagnostic(code, too_deep, too_deep + 1, message_of(code))])
+        return _located(tokens, root, [RawDiagnostic(code, too_deep, too_deep + 1, describe(code).message)])
 
     parser = VillanelleParser(stream)
     raw: list[RawDiagnostic] = []
@@ -113,7 +117,11 @@ def parse_entry(text: str, rule: EntryRule) -> Syntax:
     if too_deep is not None:
         code = DiagnosticCode.NESTING_TOO_DEEP
         at = too_deep
-        return _located(tokens, Node(NodeKind.DOCUMENT, 0, n, ()), [RawDiagnostic(code, at, at + 1, message_of(code))])
+        return _located(
+            tokens,
+            Node(kind=NodeKind.DOCUMENT, start=0, end=n, children=()),
+            [RawDiagnostic(code, at, at + 1, describe(code).message)],
+        )
     parser = VillanelleParser(stream)
     raw: list[RawDiagnostic] = []
     parser.removeErrorListeners()
@@ -122,12 +130,12 @@ def parse_entry(text: str, rule: EntryRule) -> Syntax:
         tree = getattr(parser, rule)()
     except RecognitionException:
         tree = None  # the error is in ``raw``: an entry rule has no statement to resume at
-    root = Node(NodeKind.DOCUMENT, 0, n, ()) if raw or tree is None else to_entry_cst(tree, n)
+    root = Node(kind=NodeKind.DOCUMENT, start=0, end=n, children=()) if raw or tree is None else to_entry_cst(tree, n)
     return _located(tokens, root, raw[:1])
 
 
 def _located(tokens: tuple[Token, ...], root: Node, raw: list[RawDiagnostic]) -> Syntax:
     """The syntax result, with each token-range diagnostic turned into a source span (the one place that does)."""
     unlocated = Syntax(tokens, root, ())
-    diagnostics = tuple(Diagnostic(d.code, d.message, span_of(unlocated, d)) for d in raw)
+    diagnostics = tuple(Diagnostic(d.code, d.message, span_of(unlocated, TokenRange(d.start, d.end))) for d in raw)
     return Syntax(tokens, root, diagnostics)

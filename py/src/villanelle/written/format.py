@@ -4,15 +4,11 @@ reads the source line from a document graph (spec/schema/api.json puts it in the
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from villanelle.report import LocatedDiagnostic
-
-if TYPE_CHECKING:
-    from villanelle.written.model import DocumentGraph
+from villanelle._api import shared
+from villanelle._api.written import DocumentGraph
 
 
-def format_diagnostic(diagnostic: LocatedDiagnostic, graph: DocumentGraph | None = None) -> str:
+def format_diagnostic(diagnostic: shared.LocatedDiagnostic, graph: DocumentGraph | None = None) -> str:
     """``str(diagnostic)`` (``path:line:col: code: message``, 1-based), then the source line and a caret line under
     the span when ``graph`` holds the file (its current text), then ``  via `` and ``str(step)`` per step, innermost
     first. Columns and carets count code points. Reads text only from ``graph``; never does I/O."""

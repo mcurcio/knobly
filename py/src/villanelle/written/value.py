@@ -1,46 +1,29 @@
 """Values after expansion (spec 2.9), owned by the low level (vil-umh.8): one class per value kind
 (``ExpandedWord``, ``ExpandedString``, ``ExpandedList``, ``ExpandedSlice``, ``ExpandedIndex``; the union
 ``ExpandedValue``), each with the readers and three links to the lines it came through (``written``, ``definition``,
-``chain``), and the values a slice's and an index's reader returns. An extension use holds them, a directive expansion's
-``values`` are them, and a rendered directive's ``values`` are the same objects: one family, one home of the readers.
+``chain``); the values a slice's and an index's reader returns are generated records (``SliceValue``,
+``IndexValue``). An extension use holds them, a directive expansion's ``values`` are them, and a rendered directive's
+``values`` are the same objects: one family, one home of the readers. Each class implements its generated Protocol.
 Two expanded values are equal exactly when their canonical texts are (``==`` and ``hash``). The rules each reader
 applies live in ``villanelle._values``."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar, Literal, TypeAlias
+from typing import TYPE_CHECKING, Literal, TypeAlias
 
 from villanelle import _values
-from villanelle._api.codes import MESSAGES
-from villanelle._api.kinds import ValueKind
-from villanelle.diagnostics import DiagnosticCode
-from villanelle.errors import DiagnosticError
-from villanelle.origin import Origin, Place, Step
+from villanelle._api import written as api
+from villanelle._api.codes import DiagnosticCode, describe
+from villanelle._api.errors import DiagnosticError
+from villanelle._api.kinds import PlaceKind, ValueKind
+from villanelle._api.shared import Origin
+from villanelle._api.written import IndexValue, SliceValue
+from villanelle.origin import Step
 from villanelle.report import LocatedDiagnostic, check_program_code
 
 if TYPE_CHECKING:
-    from villanelle.written.model import ReferenceResolution, WrittenValue
-
-
-@dataclass(frozen=True, slots=True)
-class SliceValue:
-    """``name[start~end]``, ``name[start~]`` or ``name[~end]``; the absent side is None. A value's origin says where
-    it was written."""
-
-    kind: ClassVar[ValueKind] = ValueKind.SLICE
-    name: str
-    start: int | None
-    end: int | None
-
-
-@dataclass(frozen=True, slots=True)
-class IndexValue:
-    """``name[index]``: one element (vil-9ze.2)."""
-
-    kind: ClassVar[ValueKind] = ValueKind.INDEX
-    name: str
-    index: int
+    from villanelle._api.written import ReferenceResolution
+    from villanelle.written.model import WrittenValue
 
 
 class _Expanded:
@@ -97,7 +80,7 @@ class _Expanded:
         return self._origin
 
     @property
-    def written(self) -> WrittenValue:
+    def written(self) -> api.WrittenValue:
         """The written value on the same line: for a value that came through a variable, the ``$name`` there
         (``chain[0].reference``; a list item shares its list's); otherwise the value itself, also its ``definition``.
         Never None. Editing it edits that one written line, which every copy of the line shares: a file included
@@ -200,10 +183,11 @@ class _Expanded:
         raise self._problem(DiagnosticCode.WRONG_VALUE_KIND, f"expected {wanted}, not a {self.kind}")
 
     def _problem(self, code: DiagnosticCode, detail: str) -> DiagnosticError:
-        return value_error(self, code, f"{MESSAGES[code]}: {detail}")
+        described = describe(code, detail)
+        return value_error(self, described.code, described.message)
 
 
-class ExpandedWord(_Expanded):
+class ExpandedWord(_Expanded, api.ExpandedWord):
     """A bare word. Match it: ``case ExpandedWord("true"):``."""
 
     __match_args__ = ("text",)
@@ -224,7 +208,7 @@ class ExpandedWord(_Expanded):
         return ExpandedWord(self._text, origin, self._definition, chain)
 
 
-class ExpandedString(_Expanded):
+class ExpandedString(_Expanded, api.ExpandedString):
     """A quoted string: ``text`` is its canonical quoted text, ``string()`` the decoded text."""
 
     __match_args__ = ("text",)
@@ -258,7 +242,7 @@ class ExpandedString(_Expanded):
         return ExpandedString(self._value, origin, self._definition, chain)
 
 
-class ExpandedList(_Expanded):
+class ExpandedList(_Expanded, api.ExpandedList):
     """A list: ``items`` are its values, each with its own origin and links."""
 
     __match_args__ = ("items",)
@@ -296,7 +280,7 @@ class ExpandedList(_Expanded):
         return ExpandedList(items, origin, self._definition, chain)
 
 
-class ExpandedSlice(_Expanded):
+class ExpandedSlice(_Expanded, api.ExpandedSlice):
     """``name[start~end]``; an absent side is None. ``name`` is the word it slices (a ``$name`` written as the slice
     name is expanded to the one word it holds)."""
 
@@ -348,7 +332,7 @@ class ExpandedSlice(_Expanded):
         return self._end
 
 
-class ExpandedIndex(_Expanded):
+class ExpandedIndex(_Expanded, api.ExpandedIndex):
     """``name[index]``: one element."""
 
     __match_args__ = ("name", "index")
@@ -398,23 +382,11 @@ came through. A snapshot that holds live handles. Its kind is never ``reference`
 ``case ExpandedWord("true"):``."""
 
 
-def value_error(value: _Expanded, code: DiagnosticCode | str, message: str) -> DiagnosticError:
+def value_error(value: _Expanded | api.ExpandedValue, code: DiagnosticCode | str, message: str) -> DiagnosticError:
     """A located error placed on a value. An override is written in no file: the problem is placed on the ``$name``
     that used it (``via[0]``) and the message names the variable. Private to the package (the include extension
     places E3005 with it)."""
     place, via = value.origin.place, value.origin.via
-    if isinstance(place, Place):
+    if place.kind is PlaceKind.FILE:
         return DiagnosticError(LocatedDiagnostic(code, message, place, via))
     return DiagnosticError(LocatedDiagnostic(code, f"{message} (override ${place.variable})", via[0].place, via[1:]))
-
-
-__all__ = [
-    "ExpandedIndex",
-    "ExpandedList",
-    "ExpandedSlice",
-    "ExpandedString",
-    "ExpandedValue",
-    "ExpandedWord",
-    "IndexValue",
-    "SliceValue",
-]

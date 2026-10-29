@@ -6,24 +6,31 @@ home of that rule) and reads no file. A port of ts/src/rendered/."""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping, Sequence
 from types import MappingProxyType
-from typing import Literal, TypeAlias, final
+from typing import TypeAlias, final
 
-from villanelle._api.kinds import ChangeKind
-from villanelle.errors import DiagnosticError
-from villanelle.origin import DirectiveOrigin, Place
-from villanelle.rendered._tree import Address, AddressStep, Directive, KeyRule, walk_block
+from villanelle._api import rendered as api
+from villanelle._api import shared
+from villanelle._api.errors import DiagnosticError
+from villanelle._api.rendered import Added, AddressStep, Change, Changed, Removed, Unknown
+from villanelle._api.shared import DirectiveOrigin, SourcePosition, SourceSpan
+from villanelle._api.written import DocumentGraph
+from villanelle.origin import Place
+from villanelle.rendered._tree import Address, Directive, RenderedBlock
 from villanelle.report import LocatedDiagnostic, check_program_code
-from villanelle.span import SourcePosition, SourceSpan
-from villanelle.written import DocumentGraph, UnreadableExpansion
+from villanelle.written import UnreadableExpansion
 
 _START = SourcePosition(0, 0, 0)
 
+_Key: TypeAlias = Callable[[Directive], "str | None"]
+"""What ``addresses`` and ``diff`` take as ``key``: the generated ``KeyRule`` (a function of the generated
+``Directive`` Protocol) or a function of this layer's ``Directive``, which every directive they call it with is. Wider
+than ``KeyRule`` (parameters are contravariant), so the generated Protocol still holds."""
+
 
 @final
-class Rendered:
+class Rendered(api.Rendered):
     """The rendered tree of one graph. Problems are diagnostics; the root file owns the top level, as a directive its
     block."""
 
@@ -31,10 +38,10 @@ class Rendered:
 
     def __init__(
         self,
-        block: tuple[Directive, ...],
+        block: RenderedBlock,
         unreadable: tuple[UnreadableExpansion, ...],
         origin: DirectiveOrigin,
-        diagnostics: tuple[LocatedDiagnostic, ...],
+        diagnostics: tuple[shared.LocatedDiagnostic, ...],
         graph: DocumentGraph,
     ) -> None:
         """Made by ``render`` only."""
@@ -45,8 +52,8 @@ class Rendered:
         self._graph = graph
 
     @property
-    def block(self) -> tuple[Directive, ...]:
-        """The top-level readable directives, expanded."""
+    def block(self) -> RenderedBlock:
+        """The top-level readable directives, expanded; ``block.walk()`` visits every directive."""
         return self._block
 
     @property
@@ -61,7 +68,7 @@ class Rendered:
         return self._origin
 
     @property
-    def diagnostics(self) -> tuple[LocatedDiagnostic, ...]:
+    def diagnostics(self) -> tuple[shared.LocatedDiagnostic, ...]:
         """The graph's one diagnostics list (spec 7.1): every file's syntax diagnostics (documents in order), then
         the low level's problems in walk order."""
         return self._diagnostics
@@ -71,17 +78,12 @@ class Rendered:
         """The graph it was rendered from."""
         return self._graph
 
-    def walk(self, *, descend: Callable[[Directive], bool] | None = None) -> Iterator[Directive]:
-        """Every directive, depth-first in written order. ``descend``, when given, is asked of each directive
-        yielded; False passes over its block. Stop early with ``break``."""
-        return walk_block(self._block, descend)
-
-    def addresses(self, *, key: KeyRule | None = None) -> Mapping[Directive, Address]:
+    def addresses(self, *, key: _Key | None = None) -> Mapping[api.Directive, Address]:
         """Every directive's address under ``key``, in walk order (the mapping's order). The key rule is called once
         per directive, parents before children; what it raises propagates. The one home of the address rule (D4);
         ``diff`` uses it. Without a key rule, a directive is named by its position among same-name siblings. Raises
         TypeError when the key rule returns anything but a str or None."""
-        out: dict[Directive, Address] = {}
+        out: dict[api.Directive, Address] = {}
 
         def name(container: Sequence[Directive], parent: tuple[AddressStep, ...]) -> None:
             occurrences: dict[tuple[str, str | None], int] = {}
@@ -103,18 +105,20 @@ class Rendered:
         name(self._block, ())
         return MappingProxyType(out)
 
-    def diff(self, after: Rendered, /, *, key: KeyRule | None = None) -> list[Change]:
+    def diff(self, after: api.Rendered, /, *, key: _Key | None = None) -> tuple[Change, ...]:
         """What differs from this render to ``after``, by address under ``key`` (D4): removed and unknown in this
         render's walk order, then added and changed in ``after``'s. A directive missing from ``after`` is Unknown, not
         Removed, when its block in ``after`` (or the top level) holds an unreadable statement. Raises whatever the key
-        rule raises, and TypeError when it returns anything but a str or None."""
+        rule raises, and TypeError when it returns anything but a str or None, or when ``after`` is not a render."""
+        if not isinstance(after, Rendered):
+            raise TypeError(f"diff() argument 'after' must be a Rendered, not {type(after).__name__}")
         old = self.addresses(key=key)
         new = after.addresses(key=key)
         gone: list[Change] = []
         came: list[Change] = []
         _compare_before(self._block, after.block, bool(after.unreadable), old, new, gone)
         _compare_after(after.block, self._block, new, old, came)
-        return gone + came
+        return (*gone, *came)
 
     def error(self, message: str, *, code: str) -> DiagnosticError:
         """A located error for a problem of the whole file, such as a required top-level directive left out."""
@@ -133,65 +137,12 @@ def render(graph: DocumentGraph, /) -> Rendered:
             f"not {type(graph).__name__}"
         )
     expansion = graph.expand()
-    block = tuple(Directive(directive, None) for directive in expansion.block)
+    block = RenderedBlock(tuple(Directive(directive, None) for directive in expansion.block))
     origin = DirectiveOrigin(Place(graph.root.resolved_path, SourceSpan(_START, _START)), ())
     return Rendered(block, expansion.unreadable, origin, expansion.diagnostics, graph)
 
 
-@final
-@dataclass(frozen=True, slots=True)
-class Added:
-    address: Address
-    after: Directive
-
-    @property
-    def kind(self) -> Literal[ChangeKind.ADDED]:
-        return ChangeKind.ADDED
-
-
-@final
-@dataclass(frozen=True, slots=True)
-class Removed:
-    address: Address
-    before: Directive
-
-    @property
-    def kind(self) -> Literal[ChangeKind.REMOVED]:
-        return ChangeKind.REMOVED
-
-
-@final
-@dataclass(frozen=True, slots=True)
-class Changed:
-    """Same address; its own values (by text) or whether it has a block differ."""
-
-    address: Address
-    before: Directive
-    after: Directive
-
-    @property
-    def kind(self) -> Literal[ChangeKind.CHANGED]:
-        return ChangeKind.CHANGED
-
-
-@final
-@dataclass(frozen=True, slots=True)
-class Unknown:
-    """It was in ``before``; in ``after`` its block holds an unreadable statement that may be it."""
-
-    address: Address
-    before: Directive
-
-    @property
-    def kind(self) -> Literal[ChangeKind.UNKNOWN]:
-        return ChangeKind.UNKNOWN
-
-
-Change: TypeAlias = Added | Removed | Changed | Unknown
-"""One difference between two renders. An added, removed or unknown directive is listed alone, never with the
-directives inside it (``walk`` it); a changed one's block is compared at its own addresses."""
-
-_Addresses: TypeAlias = Mapping[Directive, Address]
+_Addresses: TypeAlias = Mapping[api.Directive, Address]
 
 
 def _compare_before(
