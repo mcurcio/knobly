@@ -97,3 +97,25 @@
   comment. Noted on frozen-m2.md section 15 for its own bead.
 - Committing the generator change ahead of the lanes leaves `ts/` and `py/` red on this branch (they still import
   `ValueKind.List`, the `Literal` aliases and the hand-written `TokenKind`) until both lanes land.
+
+## 2026-10-29, milestone 2 Python lane (vil-0vz, vil-9fy, vil-5ya, vil-gxu)
+
+- Frozen page 1.3 says `graph.variables(name?)` returns `list[Variable]` in Python. It returned a tuple before and
+  every other reader returns a tuple; the lane keeps the tuple (element type now the `Variable` union, order
+  unchanged), reading "list" as the element type only.
+- Behaviour changes the frozen page's section 14 does not list for Python:
+  - `render(object())` raised `TypeError("render takes a document graph ...")` in Python too, not only in
+    TypeScript (item 21). Python drops the check as well: `render` reads only `graph.expand()` and
+    `graph.root`, so a stand-in with those members renders (test `test_render_builds_on_the_graphs_public_members_only`).
+  - `Unreadable.__match_args__` was the dataclass default `("reason", "origin", "written")`; the schema and page 1.6
+    say `("reason",)`, so a three-positional pattern no longer matches.
+  - `DiagnosticError` moved from `villanelle.diagnostics` to the new `villanelle.errors` (the one home of every error
+    class, page 5), and `villanelle.written.errors` is deleted: `from villanelle.diagnostics import DiagnosticError`
+    and `from villanelle.written import BadTextError` (or `EditError`, `DetachedError`, `ReadError`, `SaveError`)
+    no longer import. The root `villanelle` exports every error class.
+  - `ReadError`'s message changed (`cannot read the root file <path>: <reason>`); messages are not contract.
+- Typing cost of behaviour change 14: under `mypy --strict`, `stmt.kind == "set"` is a `comparison-overlap` error
+  (`Literal[StatementKind.SET]` against `Literal['set']`), though it is true at run time. Typed programs compare with
+  the member (`stmt.kind is StatementKind.SET`) or match on the class. Worth a line in the docs pass.
+- The memory writer's lost-update refusal raises `RuntimeError` (page 8 says "an `Error`"); `save` wraps it in
+  `SaveError` with it as `__cause__`, as it does the file writer's `OSError`.
