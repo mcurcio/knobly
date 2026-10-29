@@ -248,3 +248,19 @@
 - **Before this milestone the real bindings in this checkout break on import with the new grammar** (Python:
   `grammar has no rule "lastDirective"`), so the shared driver bails out for them until each lane lands: every case
   is red, not only the new ones.
+
+## 2026-10-29, milestone 4 Python lane
+
+- **`conformance/written/expected/add-include-unread.json` predates vil-umh.4** and contradicts spec 6.3 and 6.10:
+  after `addStatements 'include "part.conf";'` (not read yet), its `list` step expects the graph's `diagnostics`
+  to be `[]` and its `render` step expects `"unreadable": []` and `"diagnostics": []`. The spec says each copy in
+  `unread ()` is an `unreadable expansion` with reason `unread` and E3007 in the one diagnostics list, as the new
+  case `render-unread-include` pins. The Python binding follows the spec, so this case is its one red case: it
+  gives `"diagnostics": [["E3007", "main.conf:1:0"]]` in `list`, and `"unreadable": [["", "unread",
+  "main.conf:1:0"]]` with the same diagnostic in `render`. The expected file needs re-deriving in the spec lane
+  (outside the Python lane's owned paths).
+- **An override's literal bound beyond ±(2^53-1)** (`overrides={"n": "c[99999999999999999999]"}`): the frozen
+  page deletes the override check's old step 4, so the text is accepted, but spec 6.3 does not say where its E4001
+  goes. The Python binding reports E4001 at each `$name` that reads the override (reason `value`), as for a bad
+  bound through a variable (spec 2.4, E4001 "a bound reached through a variable"). No shared case covers it; the
+  TypeScript lane should agree, or the spec should say.
