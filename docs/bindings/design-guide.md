@@ -45,25 +45,48 @@ with their sources.
 These are the review's rules ([review.md, "Naming and structure rules across languages"](../../.claude/design/consumer-api/round13/review.md#naming-and-structure-rules-across-languages)).
 A new binding should follow them; where TypeScript or Python break one today, section 4 says so.
 
-1. **Spec names change only in casing.** The spec names each concept once in lowercase words. A
-   binding applies its language's casing and nothing else:
+1. **Spec names change only in casing.** The spec names each concept, member and kind value once in
+   lowercase words. A binding applies its language's casing and nothing else. Two exceptions, each
+   for a language's own rule: factories follow rule 3, and a type name MAY drop a layer word its
+   module already gives (Go `written.Directive` for `written directive`, since Go's linters flag
+   `written.WrittenDirective` as a stutter; TypeScript and Python keep the full name, since their
+   users import names unqualified):
 
    | Spec | TypeScript | Python | Go (example only) |
    |---|---|---|---|
    | type `document graph` | `DocumentGraph` | `DocumentGraph` | `DocumentGraph` |
    | member `set values` | `setValues` | `set_values` | `SetValues` |
    | kind value `set` | `"set"` | `StatementKind.SET` (value `"set"`) | `StatementKindSet` |
+   | factory `make processor` | `villanelle(...)` (rule 3) | `Processor(...)` | `NewProcessor(...)` |
 
 2. **No language prefixes on type names.** No `I` on interfaces. Where a short name would clash with
    a built-in, the module gives the context (`written.String`), not a prefix.
-3. **One factory convention per binding.** TypeScript: lowercase nouns, no `create`
-   (`fileSource()`, `include()`). Python: public classes (`FileSource()`, `Include()`), as jinja2's
-   `FileSystemLoader`.
+3. **One factory convention per binding, the language's own constructor idiom.** TypeScript:
+   lowercase nouns, no `create` (`fileSource()`, `include()`). Python: public classes
+   (`FileSource()`, `Include()`), as jinja2's `FileSystemLoader`. Go: `New` plus the concept
+   (`NewMemorySource`, `NewProcessor`), since a Go type and function cannot share a name. Rust:
+   `Type::new`. Java: constructors or a static `of`. A spec name that starts with `make` (`make
+   processor`, `make diagnostics`) names the factory of the concept after it.
 4. **One model per language, used in every layer.** Each binding names its model in its README:
    - TypeScript: discriminated unions, read-only objects, generators for iteration, options objects.
    - Python: the standard `ast` style: a class per kind with `__match_args__` in the same field
      order in every layer, frozen slotted records, generators, keyword-only options, tuples for
      results, a `MutableMapping` where the user edits a map.
+
+   Models for languages without unions or generators (proposed, not yet tried by a binding):
+   - Go (1.23 or later, the `go/ast` style): a sealed interface per kind list (an unexported method)
+     with one struct per kind, matched by a type switch; kind lists as typed string constants in a
+     `const` block; handles as pointers (identity is pointer equality), snapshots and records as
+     structs passed by value; `iter.Seq` for lists worked out on demand and for `walk` (descend
+     asked after each yield, spec 7.5); functional options (`WithKey(rule)`); errors as values,
+     matched with `errors.Is` and `errors.As` (spec 2.8 and section 3); `context.Context` first on
+     every call that does I/O.
+   - Rust: an `enum` per kind list with data on its variants, matched with `match`; handles as
+     reference-counted or arena-indexed types; iterators; builder structs for options;
+     `Result<T, E>` with one error `enum` per group sort.
+   - Java (21 or later): `sealed interface` plus `record` per kind, matched with `switch` patterns;
+     `Stream` or `Iterable`; builders for options; unchecked exceptions for program bugs and checked
+     ones (or a result type) for expected outcomes.
 5. **Containers have one shape.** A block can be iterated and indexed in every layer, and both
    layers offer the same walk (spec 7.5).
 6. **Properties and methods.** A fact the object holds, or can work out cheaply on its own, is a
@@ -75,7 +98,11 @@ A new binding should follow them; where TypeScript or Python break one today, se
    `max_count` stop using it; add a line in `sink.conf`; save; render. A binding is not done until
    that program reads naturally in its language.
 8. **Module layout.** One module per layer, the same short names in every binding, and a small top
-   level (`villanelle/written`, `villanelle/rendered`, `villanelle/file`).
+   level (`villanelle/written`, `villanelle/rendered`, `villanelle/file`), with the shared pieces of
+   spec 2 in a module both import. A lower layer never imports an upper one. Today two links break
+   that (`extension use` holds rendered arguments; the processor renders), which TypeScript and
+   Python tolerate but Go and Rust do not: see spec 5, "Known gap (layer direction)". Until the
+   owner answers it, a Go binding keeps the low level and the rendered tree in one package.
 
 ## 3. What may differ, and what must not
 
@@ -90,7 +117,7 @@ A new binding should follow them; where TypeScript or Python break one today, se
 | How a kind list is spelled | a string-literal type (today: constant objects) | a `StrEnum` | narrowing without an import, against `match` and enums |
 | Options | an options object (`{ key }`) | keyword-only arguments (`key=`) | the language's habit |
 | Iteration | iterators and `for...of` (today: a walk callback) | generators and `for` | the language's habit |
-| Reader names | `word()`, `integer()` | `as_` only where the bare name would shadow a built-in (`as_int`, `as_str`, `as_bool`, `as_list`) | not shadowing `int`, `str` (today Python prefixes all of them) |
+| Reader names | `word()`, `integer()` | `as_` only where the bare name would shadow a built-in (`as_int`, `as_str`, `as_bool`, `as_list`) | not shadowing `int`, `str` (today Python prefixes all of them). The same reason covers a name a language's conventions give another meaning: in Go, `String()` is `fmt.Stringer` (the `people form` of an address) and `Error()` is the `error` interface, so the readers become `AsString()` and the like, and `error (...)` becomes `Fail(...)` or similar |
 | Chained errors | `cause` | `__cause__` | the language's mechanism |
 
 **Must not differ:**
@@ -102,8 +129,25 @@ A new binding should follow them; where TypeScript or Python break one today, se
 - what a handle is: one object per written thing, detached handles raising (spec 6.1);
 - every conformance output, byte for byte.
 
-**Positions** are a special case. Today every binding reports UTF-16 units. The review proposes that
-each reports its own string unit and the runners convert (spec 2.1, Proposed).
+**Positions** are a special case. Today every binding reports UTF-16 units, and a new one must too
+until the owner answers spec 2.1's proposal (each binding reports its own string unit and the
+runners convert).
+
+### For languages unlike TypeScript and Python (proposed, pending owner)
+
+These rows say how a language with error values, no exceptions, no `undefined`, or cancellation
+meets the spec. None has been tried by a binding yet; spec 2.8 and 4.1 hold the matching proposals.
+
+| Difference | Go (the worked case) | Why |
+|---|---|---|
+| Errors | a member that reads a fact returns the bare value (`d.Name()`, `v.Text()`) and panics on a detached handle; every call that can end in an expected outcome (spec 2.8, "two sorts") returns `(T, error)`: edits (a detached handle's edit returns the `detached error`), `Load`, `Read`, `Save`, `Addresses`, `Diff`, the readers. Misuse and index out of range panic. Each group is a type usable with `errors.As`; `edit error` is matched with `errors.Is` | errors as values are Go's habit; a getter returning `(T, error)` cannot be used in an expression, and a detached getter is a program bug |
+| Key rule | `func(*rendered.Directive) (key string, ok bool, err error)`: `ok` false is absent, a non-nil `err` ends `Addresses` and `Diff` with that error unchanged | spec 7.1: a key rule may fail |
+| Extension failure | a returned error that is not a `diagnostic error` gives E3006; a panic inside `Specs` is not recovered, and the binding says so | spec 5: recovering a panic would hide a bug as a diagnostic |
+| Absent and empty | a pointer or a `(T, bool)` pair for absent text; a boolean such as `HasBlock()` beside `Body()` | spec 1: absent and empty differ, and Go's `nil` slice is fragile to rely on |
+| Handed-in values | an ordered input (`[]Handed{{Name, Text}}` or a functional option per value), not a `map` | spec 6.2: the order is kept |
+| Cancellation | `ctx context.Context` first on `Load`, `Read`, `Save`, `Resolve`, `Read` and `Write`; cancellation returns `ctx.Err()`, never a diagnostic | spec 4.1, Proposed |
+| Concurrency | document that a graph is not safe for concurrent use, renders included | spec 4.1 |
+| Positions | UTF-16 offsets in the API today, with a public helper converting to byte offsets | spec 2.1 |
 
 ## 4. Concept map: TypeScript and Python today
 
@@ -163,7 +207,7 @@ section 3, with the review finding that names it ([findings.json](../../.claude/
 | readers | `word()`, `string()`, `number()`, `integer()`, `boolean()`, `items()`, `slice()`, `plain()` | `as_word()`, `as_str()`, `as_number()`, `as_int()`, `as_bool()`, `as_list()`, `as_slice()`, `plain()` | section 3 reader row |
 | `slice value`, `index value` | `ISliceValue`, `IIndexValue` | `SliceValue`, `IndexValue` | Python names clash with low-level `Slice`, `Index` |
 | `unreadable` | `IUnreadable` (`kind` is the reason) | `Unreadable` | proposed: `reason` |
-| `address`, `address step` | `IAddress` (`toString()`), `IAddressStep` | `Address` (`str()`), `AddressStep` | |
+| `address`, `address step` | `IAddress` (`text`; `toString()` is the `people form`), `IAddressStep` | `Address` (`text`; `str()` is the `people form`), `AddressStep` | |
 | `key rule` | `KeyRule` | `KeyRule` | |
 | `change` | `Change` union with `kind` | `Added`, `Removed`, `Changed`, `Unknown` classes, no `kind` | rule 4 |
 
@@ -178,7 +222,7 @@ section 3, with the review finding that names it ([findings.json](../../.claude/
 | diagnostic codes | `DiagnosticCode.UnterminatedString` | `DiagnosticCode.UNTERMINATED_STRING` | copied by hand: see codegen.md |
 | `diagnostic error`, edit errors, `save error`, `read error` | as spec 2.8 | as spec 2.8; `EditError` is a `ValueError` | no package base error |
 | `format diagnostic` | `formatDiagnostic(d, graph?)` | `format_diagnostic(d, graph=None)` | |
-| diagnostics sink | `new Diagnostics(initial)`, `collect(read)` | `Diagnostics(initial)`, `with problems.collecting():` | |
+| diagnostics sink (`make diagnostics`, `add`, `report`, `count`, `collect`) | `new Diagnostics(initial)`, `add`, `report`, `length`, `collect(read)` | `Diagnostics(initial)`, `add`, `report`, `len()`, `with problems.collecting():` | `collect` as a context manager is the Python idiom |
 | `error (message, code)` | `error(message, code)` | `error(message, code=...)` | |
 | syntax | `parse`, `spanOf`, `textOf`, `IToken`, `INode`, `ISyntax` | `parse`, `span_of`, `text_of`, `Token`, `Node`, `Syntax` | |
 

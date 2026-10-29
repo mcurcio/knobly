@@ -43,6 +43,11 @@ Follow the checklist in `docs/bindings/design-guide.md` section 5. In short: pic
 first-hour program approved, generate the parser, pass the syntax cases, then the written cases,
 then the load cases, then write the first-hour program as a test.
 
+For a language with error values, no exceptions, UTF-8 strings or no cyclic imports (Go, Rust),
+read the design guide's "For languages unlike TypeScript and Python" table and the spec's
+Proposed notes in 2.1, 2.8, 4.1 and 5 before planning: those rules are not agreed yet, so show the
+owner the planned choice with the first-hour program.
+
 ## Workflow: changing an existing binding
 
 1. Find the spec section for the concept. If the code and spec disagree, that is a finding: report
@@ -101,6 +106,15 @@ Lint, format and typecheck commands are in `ts/README.md` and `py/README.md`.
 - **Python's `EditError` is a `ValueError`,** so a broad `except ValueError` also catches
   `DetachedError`.
 - **The `rasl` key rule** in the load runner must match `conformance/load/format.md` exactly.
+- **`graph.diagnostics()` leaves out every E4xxx code,** E4001 and E4003 included (decision D11);
+  only the render reports them. An earlier draft of the spec said otherwise.
+- **The layers import each other** (`extension use` args are rendered arguments). A Go or Rust
+  binding cannot copy that module split: see spec 5, "Known gap (layer direction)".
+- **JSON libraries are not the byte rule.** Go's `encoding/json` escapes `<`, `>`, `&` and replaces
+  invalid UTF-8; the conformance bytes and `address text` are defined in neutral terms
+  (`conformance/format.md`, spec 7.4). Write the encoder to the rule.
+- **Inserted statements copy the first statement's indentation,** not the one before the index
+  (spec 6.5); line breaks are the document's first.
 
 ## Tracking
 

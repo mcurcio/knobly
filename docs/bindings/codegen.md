@@ -25,9 +25,11 @@ This proposal does the same for the API's fixed lists.
 
 | Piece | From | Gives each binding |
 |---|---|---|
-| Kind lists | the schema's closed sets | TypeScript: a string-literal type per list. Python: a `StrEnum` per list. The values are the spec's lowercase words |
-| Per-kind type skeletons | statement and value kinds, with their fields | TypeScript: the union members. Python: one class per kind with `__match_args__` in a fixed field order. Bodies stay hand-written |
-| Diagnostic code registry | `diagnostics.json`: code, spec name, message, owning layer, retired codes | the code constants, the message table, and the code table in [spec.md 2.4](spec.md#24-the-diagnostic-code-registry) |
+| Kind lists | the schema's closed sets | TypeScript: a string-literal type per list. Python: a `StrEnum` per list. Go: a typed string and a `const` block. The values are the spec's lowercase words |
+| Per-kind type skeletons | statement, value, change and `plain` kinds, each mapped to the type it gives | TypeScript: the union members. Python: one class per kind with `__match_args__` in a fixed field order. Go: a sealed interface and one struct per kind. Bodies stay hand-written |
+| Member signatures | each type's members (below) | the public-name check, and for a language with error values, which members return `(T, error)` and which take a context |
+| Diagnostic code registry | `diagnostics.json`: code, spec name, message, owning layer, found by, unreadable kind, placement rule, retired codes | the code constants, the message table, and the code table in [spec.md 2.4](spec.md#24-the-diagnostic-code-registry) |
+| Conformance tokens | the token-to-spec-name table of `conformance/written/format.md` | each runner's op and error mapping |
 | Limits and reserved names | the schema | constants |
 | Plain data records | place, span, position, step, origin, address step, file write | read-only records (TypeScript interfaces, Python frozen slotted dataclasses) |
 | Conformance driver | the three case formats under `conformance/` | one shared driver, plus a small adapter interface each binding fills in: load files, find a target, apply one operation, dump the result |
@@ -73,6 +75,19 @@ docs/bindings/schema/          # or spec/schema/ if the owner prefers the review
 tools/gen-api.sh               # runs each language's generator; output git-ignored, like gen.sh
 ```
 
+What `api.json` carries, so that a binding unlike TypeScript and Python (the Go review's list) can be
+planned from it:
+
+- per type: `layer` (shared, syntax, written, rendered), and `nature`: `handle` (one object per
+  thing, identity holds, may detach), `snapshot` (plain data from one working-out) or `record`
+  (plain data); the layer direction then follows (a type may name only its own layer or a lower one);
+- per member: `kind` (`property`, `method` or `factory`), parameters with whether each is optional,
+  the result type with whether it may be absent and whether empty text counts as present, `errors`
+  (the error groups of spec 2.8 it can raise), `io` (true when it goes through a port, so it may be
+  asynchronous or take a context), `detachable`, and `order` (the stated order of a returned list,
+  as text, or the spec section that states it);
+- per number: its range (`integer`: ±(2^53-1)).
+
 A sketch of `diagnostics.json`:
 
 ```json
@@ -83,6 +98,8 @@ A sketch of `diagnostics.json`:
       "code": "E1001",
       "name": "unterminated string",
       "layer": "syntax",
+      "foundBy": ["parse"],
+      "unreadableKind": "syntax",
       "message": "unterminated string"
     }
   ]
