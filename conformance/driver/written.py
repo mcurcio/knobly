@@ -123,12 +123,13 @@ class Case:
             block = self._statement(dump, texts, *rest).get("block")
             return None if block is None else str(block["id"])
         if kind == "value":
-            path, line, col = rest
+            path, line, col, *part = rest
             doc = self._document(dump, path)
             for st in statements(doc["block"]):
                 for v in values(st):
                     if self._starts(texts, v["place"], path, line, col):
-                        return str(v["id"])
+                        found = v[part[0]] if part else v
+                        return str(found["id"]) if isinstance(found, dict) else None
             return None
         if kind == "variable":
             path, line, col = rest

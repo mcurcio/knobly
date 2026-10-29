@@ -60,6 +60,11 @@ if TYPE_CHECKING:
     from villanelle.written.extension import Extension
 
 
+def _names_a_slice(word: str) -> bool:
+    """Whether a word may name a slice: what the grammar's ``sliceNameText`` entry rule takes (spec/expansion.md 8)."""
+    return not parse_entry(word, "sliceNameText").diagnostics
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class BoundDirective:
     """One copy of a directive statement (kind "directive"), with its block's items at that copy."""
@@ -838,15 +843,16 @@ class Binding:
         copy: Copy | None,
         written: WrittenValue | None,
     ) -> str:
-        """A slice's name: a word's text, or through a ``$name`` the one word it holds. E4007 otherwise, placed as
-        E4001 is for a bound through a variable (``_bound``)."""
+        """A slice's name: a word's text, or through a ``$name`` the one word it holds, a word that may name a slice
+        (the grammar's ``sliceName``: a WORD or an AT_WORD, so never ``5``, ``1.5`` or ``-``). E4007 otherwise, placed
+        as E4001 is for a bound through a variable (``_bound``)."""
         token = text.syntax.tokens[ref]
         if token.kind is not TokenKind.VARIABLE:
             return token.text
         reference = written._name if isinstance(written, Slice | Index) else None
         values = self._variable(text, ref, token, scope, via, copy, reference)
         only = values[0] if values else None
-        if len(values) == 1 and only is not None and only.kind is ValueKind.WORD:
+        if len(values) == 1 and only is not None and only.kind is ValueKind.WORD and _names_a_slice(only.text):
             return only.text
         raise self._through(DiagnosticCode.BAD_SLICE_NAME, text, token, via, only)
 

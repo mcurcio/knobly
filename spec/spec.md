@@ -169,7 +169,7 @@ which also holds each code's message and owning layer; the schema wins.
 | E3008 | `unknown extension` | low level | extension | A statement written `@name` where `name` is no language statement (`set`, `snippet`, `use`) and no registered extension's name (milestone 5). Placed on the `@name`; the statement is an `unreadable line`. |
 | E4001 | `non-integer bound` | low level | value | A slice or index bound reached through a variable that is not one integer word, or a literal integer beyond the integer range. |
 | E4002 | `wrong value kind` | readers | none | A reader asked for a kind the value is not. |
-| E4007 | `bad slice name` | low level | value | A slice or index whose name is a `$name` that does not hold exactly one word (`$src[0~3]` with `$src` a string, a list or two values); placed as E4001 is (milestone 5). |
+| E4007 | `bad slice name` | low level | value | A slice or index whose name is a `$name` that does not hold exactly one `WORD` or `AT_WORD`, the words the grammar's `sliceName` takes (`$src[0~3]` with `$src` a string, a list, two values, or a number-like word such as `5`, `1.5`, `-` or `07:30`); placed as E4001 is (milestone 5). |
 | E4004 | `not a number` | readers | none | A word read as a number that is not a JSON number. |
 | E4005 | `not an integer` | readers | none | A word read as an integer that is not one. |
 | E4006 | `not a boolean` | readers | none | A word other than `true` or `false`, read as a boolean. |
@@ -664,7 +664,9 @@ ports that do I/O.)
   resolved or read for it and its `document edge` has empty `specs` and `targets`.
 - Making a processor MUST refuse, with a misuse error, an extension whose name is reserved (2.5: `set`, `snippet`,
   `use`), already taken by another extension, or not a name the `nameText` entry rule takes (so `@` and the name are
-  one `AT_WORD`; milestone 5).
+  one `AT_WORD`; milestone 5); a name that is not text is an `argument type error` (2.8). The checks run in that
+  order: the type, then `nameText` (the one directive-name check of 2.8, shared with `rename`), then reserved or
+  taken.
 
 **Layer direction** (owner, 2026-10-29: "The low level shouldn't "depend on" the middle layer — they should have different domain objects. The middle layer of objects can build on the lower layer domains"). Nothing below the rendered layer imports, names or
 returns a rendered type: an `extension use` holds the low level's `expanded value`s (2.9), the graph has no
@@ -727,7 +729,9 @@ statement detach with it. Per edit:
 should work. i figured that they were references anyway, so both nodes essentially held the same pointer and editing
 either was fine"). `set (text)` on a written value replaces it with exactly one value (the `valueText` entry rule,
 2.8) and edits in place: the same object stays in its statement's `values` (or its list's `items`, or as its slice's
-bound or name), now holding the new text. When the new value is of another kind (`$pixels` set to `2400` is a
+bound or name), now holding the new text. The text is written as given, spaces around the value included, and the
+handle is kept by the one value the text holds wherever in it that value starts (`set (" 5 ")`; case
+`value-set-padded`). When the new value is of another kind (`$pixels` set to `2400` is a
 `reference` that becomes a `word`; `80` set to `[1, 2]` becomes a `list`), the handle takes the new kind: its `kind`
 and its type are the new kind's (TypeScript: the same object reports the new `kind`; Python: the object's class
 becomes the new kind's class, as the state pattern does with `__class__` assignment, Python Cookbook recipe 8.19).
@@ -761,7 +765,7 @@ first picked "B graph.render()", then clarified: "The low level shouldn't "depen
 
 | Spec name | Inputs | Output | Errors |
 |---|---|---|---|
-| `make processor` | `source` (a document source), `extensions` (optional, in order) | a `processor` | misuse error for a reserved, repeated or malformed extension name (5) |
+| `make processor` | `source` (a document source), `extensions` (optional, in order) | a `processor` | argument type error for an extension name that is not text; misuse error for a malformed, reserved or repeated one (5) |
 | `load` | root `path`; option `overrides` (name without `$` to `config text`, in order, 6.9) | a `document graph` | `read error` (with `paths`, the root path given) when the source cannot resolve the root to exactly one file or cannot read it; misuse error for a bad override name (not letters, digits and `_`: the one name check, 2.8); `argument type error` for an override that is not text; `bad text error` for an override's text the check of an override refuses (6.3). Never fails for anything in the files' text. |
 
 - `load` resolves the root path through the source as an included file's spec is, so the root has
@@ -963,7 +967,7 @@ A `written value` is a union (2.10) over the `value kind` list: `word`, `string`
 | `list` | the list it is an item of; absent otherwise |
 | `set (text)` | milestone 5: replace it with exactly one value written as `config text`, keeping this handle (6.1): it stays the same object and takes the new value's kind. `bad text error` (the `valueText` entry rule; a slice bound takes `boundText`, a slice's name `sliceNameText`) |
 | `replace with text (text)` | replace it with values written as `config text`: separated by spaces on a line, by commas in a list; returns the new values; this handle detaches. `bad text error` (a slice bound takes exactly one word or `$name`) |
-| `remove ()` | remove it and its separator; then it is detached. `bad text error` when that breaks a rule (a `set` left with no value) |
+| `remove ()` | remove it and its separator; then it is detached. `bad text error` when that breaks a rule (a `set` left with no value). A slice's or index's `name`, and a bound that is its slice's or index's only one (`b[1]`, `x[0~]`), refuse: a `misuse error`, the text unchanged (milestone 5; a design call the owner may revise: the other choice was to remove the whole slice). Case: `slice-name-and-only-bound-remove` |
 
 Per kind:
 

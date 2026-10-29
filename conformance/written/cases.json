@@ -75,5 +75,8 @@
 {"name": "rename-to-keyword-word", "needs": ["include", "rename"], "files": {"main.conf": "fps 20;\n"}, "root": "main.conf", "extensions": ["include"], "steps": [["edit", ["statement", "main.conf", 0, 0], "rename", "use"], ["edit", ["statement", "main.conf", 0, 0], "rename", "include"], ["texts"], ["list"]]},
 {"name": "add-unknown-extension", "needs": ["blocks"], "files": {"main.conf": "x 1;\n"}, "root": "main.conf", "steps": [["edit", ["block", "main.conf"], "addStatements", "@nope 1;"], ["list"]]},
 {"name": "references-slice-name", "needs": ["values"], "files": {"main.conf": "@set $s leds;\nx $s[0~3] b[$s];\n"}, "root": "main.conf", "steps": [["references"]]},
-{"name": "set-raw-string", "needs": ["directive-values"], "files": {"main.conf": "p \"x\";\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "'C:\\x'"], ["texts"], ["quote", "C:\\x"]]}
+{"name": "set-raw-string", "needs": ["directive-values"], "files": {"main.conf": "p \"x\";\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "'C:\\x'"], ["texts"], ["quote", "C:\\x"]]},
+{"name": "value-set-padded", "needs": ["values"], "files": {"main.conf": "b x;\n"}, "root": "main.conf", "steps": [["edit", ["value", "main.conf", 0, 2], "set", " 5 "], ["edit", ["previous"], "set", " [1]"], ["edit", ["previous"], "set", "7"], ["texts"]]},
+{"name": "value-replace-bom-refused", "needs": ["values"], "files": {"main.conf": "b x;\n"}, "root": "main.conf", "steps": [["edit", ["value", "main.conf", 0, 2], "replaceWithText", "\ufeff"], ["texts"]]},
+{"name": "slice-name-and-only-bound-remove", "needs": ["directive-values"], "files": {"main.conf": "x leds[0~3] b[1] c[0~];\n"}, "root": "main.conf", "steps": [["edit", ["value", "main.conf", 0, 2, "name"], "remove"], ["edit", ["value", "main.conf", 0, 14], "remove"], ["edit", ["value", "main.conf", 0, 19], "remove"], ["edit", ["value", "main.conf", 0, 9], "remove"], ["texts"]]}
 ]

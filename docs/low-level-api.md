@@ -214,7 +214,7 @@ parameter, and its value is on the `use` line: `read.values[0].replaceWithText(.
 ```
 
 ```python
-    doc.replace_with_text(kept)  # undo: `saved_text` is untouched; every handle into it detaches
+    doc.replace_with_text(vl.text(kept))  # undo: `saved_text` is untouched; every handle into it detaches
     assert doc.text == doc.saved_text
     with pytest.raises(vl.DetachedError):
         _ = node.text
@@ -505,7 +505,7 @@ and column, as `parse` places them), with the same codes a load gives:
     const graph = await load({ "main.conf": "@set $a 1;\n" });
     const [set] = graph.root.block.statements;
     if (set?.kind !== "set") throw new Error("not a set line");
-    for (const text of ["1; x", "{", "", "\"open"]) {
+    for (const given of ["1; x", "{", "", "\"open"]) {
       expect(() => set.set(text(given)), given).toThrow(BadTextError);
       expect(graph.root.text).toBe("@set $a 1;\n");
     }

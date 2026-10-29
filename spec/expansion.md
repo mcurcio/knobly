@@ -121,7 +121,9 @@ never a declaration (spec 6.7), and it has no line to edit (spec 6.3 `set overri
 - A `$name` is always every value its winner holds, never part of a word (spec 6.7, `reference resolution`). As a
   slice or index bound it must hold one integer word within the integer range (E4001). As a slice's or index's name
   (`$src[0~3]`, milestone 5: a variable may be subscripted wherever a name can stand, a snippet's parameter
-  included) it must hold exactly one word (E4007); the slice is then that word's slice (`@set $src leds; a
+  included) it must hold exactly one word that may name a slice, a `WORD` or an `AT_WORD` as the grammar's
+  `sliceName` takes (E4007; so not `5`, `1.5`, `-` or `07:30`, which written in place are refused too:
+  `load-var-subscript-number`); the slice is then that word's slice (`@set $src leds; a
   $src[0~3];` gives `a leds[0~3]`, `load-var-subscript`; `load-snippet-param-subscript`,
   `load-var-subscript-not-word`). The slice is read where it is written: its `origin` is the slice's own place, and
   the name's resolution is its reference's (spec 6.6), as for a bound.

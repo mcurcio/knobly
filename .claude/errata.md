@@ -436,3 +436,22 @@
   new grammar (`tsc`: three `"COLON"` comparisons), as the frozen page says, so the first driver run was after the
   change (371 of 371). The binding's own new tests (removed names, config text type tests, value `set`, the natural
   rasl loop, `@` statements, render of a non-graph) were written with the change, not before it.
+
+## 2026-10-29, milestone 5 review fixes
+
+- **`remove()` of a slice's or index's name, or of its only bound, is now a misuse error** (spec 6.6, case
+  `slice-name-and-only-bound-remove`), the text unchanged. Design call the owner may revise: the other choice was to
+  remove the whole slice. The written-conformance `value` target gained an optional fifth element, `"name"`, to reach
+  a slice's name (it starts where the slice does).
+- **An extension name that is not text is an argument type error** at make processor (spec 5, api.json), checked
+  before `nameText`, then reserved or taken, in both bindings; TypeScript now calls the one directive-name check.
+- **A blank text is spaces, tabs, CR and LF only** (spec 2.8, case `value-replace-bom-refused`): TypeScript's
+  `trim()` counted U+FEFF as blank, so a value's `replace with text` given a lone byte-order mark removed it.
+- **E4007 now refuses a word the grammar's `sliceName` does not take** (`5`, `1.5`, `-`, `07:30`; case
+  `load-var-subscript-number`): both bindings check the word with the `sliceNameText` entry rule.
+- **`:` as a word's first character is still an open question for the owner.** His "yes" was to `:` in every word;
+  spec 3.1 reads it as after the first character. Evidence: nginx `listen [::]:80;` lexes as three BAD_CHARs and E1003,
+  and `listen ::1:80;` is E1003, so an IPv6 address starting with `::` must be quoted. Not changed.
+- The nine older plants in `tools/planted/` are still copies of older grammars (some headed `@rasl/config grammar`);
+  they still bite. Two milestone-5 plants were added beside them, and `tools/planted-tokens/` holds the token-check
+  plants.

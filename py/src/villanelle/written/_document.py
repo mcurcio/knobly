@@ -543,6 +543,15 @@ def _removal_range(text: str, start: int, end: int) -> tuple[int, int]:
     return start, end
 
 
+_BLANK = re.compile(r"[ \t\r\n]*")
+
+
+def _is_blank(text: str) -> bool:
+    """Text that holds only the grammar's spaces and line breaks (space, tab, CR, LF): what an edit given it removes or
+    inserts nothing for. Not ``str.strip``, which also strips other Unicode spaces the grammar refuses."""
+    return _BLANK.fullmatch(text) is not None
+
+
 def _statements_text_problems(text: str) -> tuple[Diagnostic, ...]:
     """A statements text's check: the grammar's ``statementsText`` entry rule (2.8), so a byte-order mark is refused."""
     return parse_entry(text, "statementsText").diagnostics
@@ -552,7 +561,7 @@ def replace_statement(statement: Statement, text: str) -> tuple[Statement, ...]:
     """``replace_with_text`` of a statement: zero or more statements, indented as it is."""
     doc = statement._doc
     given = _statements_text_problems(text)
-    if text.strip() == "":
+    if _is_blank(text):
         if given:
             raise BadTextError(given)
         remove_statement(statement)
@@ -646,7 +655,7 @@ def replace_value(value: WrittenValue, text: str) -> tuple[WrittenValue, ...]:
     rules: dict[ValuePart, EntryRule] = {"value": "valuesText", "bound": "boundText", "name": "sliceNameText"}
     rule = "itemsText" if value._part == "value" and value._list is not None else rules[value._part]
     given = entry_problems(text, rule)
-    if text.strip() == "":
+    if _is_blank(text):
         if given:
             raise BadTextError(given)
         remove_value(value)
@@ -666,8 +675,13 @@ def replace_value(value: WrittenValue, text: str) -> tuple[WrittenValue, ...]:
 
 
 def remove_value(value: WrittenValue) -> None:
-    """``remove()`` of a value (2.4): with the space before it; in a list, with its comma."""
+    """``remove()`` of a value (2.4): with the space before it; in a list, with its comma. A slice's or index's name,
+    and its only bound, refuse (spec 6.6): a misuse error (ValueError)."""
     doc = value._doc
+    if value._part == "name" or (value._part == "bound" and _is_only_bound(doc, value)):
+        raise ValueError(
+            "remove(): a slice's or index's name, and its only bound, cannot be removed: set it, or remove the slice"
+        )
     start, end = offsets(doc, ref_range(value._ref))
     tokens = doc._syntax.tokens
     if value._list is not None:
@@ -677,6 +691,20 @@ def remove_value(value: WrittenValue) -> None:
     while first > 0 and tokens[first - 1].kind is TokenKind.SPACE:
         first -= 1
     _splice(doc, doc._starts[first], end, "", [])
+
+
+def _is_only_bound(doc: Document, bound: WrittenValue) -> bool:
+    """Whether a bound is its slice's or index's only one (``b[1]``, ``x[0~]``): removing it leaves no bound."""
+    tokens = doc._syntax.tokens
+    at = ref_range(bound._ref)[0]
+    while at > 0 and tokens[at].kind is not TokenKind.LBRACK:
+        at -= 1
+    bounds = 0
+    at += 1
+    while at < len(tokens) and tokens[at].kind is not TokenKind.RBRACK:
+        bounds += tokens[at].kind in (TokenKind.INTEGER, TokenKind.VARIABLE)
+        at += 1
+    return bounds <= 1
 
 
 def _remove_item(doc: Document, value: WrittenValue, start: int, end: int) -> None:
@@ -716,7 +744,7 @@ def insert_statements(block: WrittenBlock, index: int, text: str) -> tuple[State
         raise IndexError(f"insert_statements: index {index} is outside 0..{len(items)}")
     doc = block._doc
     given = _statements_text_problems(text)
-    if text.strip() == "":
+    if _is_blank(text):
         if given:
             raise BadTextError(given)
         return ()

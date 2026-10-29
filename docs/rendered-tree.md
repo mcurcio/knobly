@@ -57,9 +57,9 @@ function nodeIds(loaded: IRendered): string[] {
   return ids;
 }
 
-const OVERRIDES = { leds_host: '"10.0.70.1"' };
+const OVERRIDES = { leds_host: text('"10.0.70.1"') };
 
-export async function rendered(processor: IProcessor, path: string, options?: { readonly overrides?: Readonly<Record<string, string>> }): Promise<IRendered> {
+export async function rendered(processor: IProcessor, path: string, options?: { readonly overrides?: Readonly<Record<string, ConfigText>> }): Promise<IRendered> {
   return render(await processor.load(path, options));
 }
 
@@ -76,7 +76,7 @@ export async function rendered(processor: IProcessor, path: string, options?: { 
 
 Excerpt of `ts/src/rendered/rasl.test.ts`, test "%s loads with the expected nodes and reload changes" (run once
 per fixture), and of `rendered` in `ts/src/rendered/testing.ts`. `files` is the file source from `fileSource()`,
-wrapped so that `edit()` makes the next read say `set $pixels 2400;` instead of `2284`.
+wrapped so that `edit()` makes the next read say `@set $pixels 2400;` instead of `2284`.
 
 Python:
 
@@ -103,7 +103,7 @@ def node_ids(loaded: vl.Rendered) -> list[str]:
 
 
     processor = vl.Processor(source=file_source(), extensions=[include()])
-    overrides = {"leds_host": '"10.0.0.9"'} if override else None
+    overrides = {"leds_host": vl.quote("10.0.0.9")} if override else None
     first = vl.render(processor.load(str(root), overrides=overrides))
     expected = EXPECTED[name]
     assert expected["diagnostics"] == []
@@ -274,7 +274,7 @@ name and no address: what it would have been is unknown.
 | `unread` | an include line's files are not read yet: an edit added or changed it, and `graph.read()` has not run (E3007) |
 
 ```ts
-    const loaded = await loadText("a {\n  b 1;\n  : x;\n  c $nope { d $nope2; }\n  e;\n}\n");
+    const loaded = await loadText("a {\n  b 1;\n  ~ x;\n  c $nope { d $nope2; }\n  e;\n}\n");
     expect(problems(loaded.diagnostics)).toEqual([
       ["E2001", "main.conf:2:2"],
       ["E5001", "main.conf:3:4"],
@@ -392,14 +392,14 @@ So a value from a variable says both where it was set and where the `$name` was 
     value = next(d for d in loaded.walk() if d.name == "max_count").values[0]
     assert value.text == "2284"
     assert isinstance(value.origin.place, vl.Place)
-    assert value.origin.place.span.start == vl.SourcePosition(12, 0, 12)
+    assert value.origin.place.span.start == vl.SourcePosition(13, 0, 13)
     [step] = value.origin.via
     start = step.place.span.start
     assert (step.kind, step.name, start.line, start.column) == ("variable", "pixels", 2, 32)
 ```
 
 Excerpt of `test_a_variable_value_has_its_set_place_and_the_variable_step`, `py/tests/test_load.py`
-(`set $pixels 2284;` on line 0, `max_count $pixels;` on line 2).
+(`@set $pixels 2284;` on line 0, `max_count $pixels;` on line 2).
 
 A value from an override has `origin.place` = the override, and its steps say how it got there. In the split rasl
 fixture, the `leds` sink's `target` comes from `--set leds_host`, through `$host` in the include block, through the
@@ -637,10 +637,10 @@ becomes E3006 at the line:
         throw use.values[0]?.error("bad pull", "test/bad-pull") ?? new Error("no value");
       },
     };
-    const loaded = await loadText("pull;\npull x;\n", { extensions: [throwing] });
+    const loaded = await loadText("@pull;\n@pull x;\n", { extensions: [throwing] });
     expect(problems(loaded.diagnostics)).toEqual([
       ["E3006", "main.conf:0:0"],
-      ["test/bad-pull", "main.conf:1:5"],
+      ["test/bad-pull", "main.conf:1:6"],
     ]);
 ```
 

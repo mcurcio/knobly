@@ -226,6 +226,20 @@ def test_no_directive_name_is_reserved() -> None:
     assert names(loaded) == ["events", "events > use", "events > set", "events > snippet", "events > include"]
 
 
+@pytest.mark.parametrize(
+    ("directive", "error"),
+    [(5, TypeError), ("1x", ValueError), ("@x", ValueError), ("a b", ValueError), ("set", ValueError)],
+)
+def test_make_processor_checks_an_extension_name_type_then_word_then_reserved(directive: object, error: type) -> None:
+    with pytest.raises(error):
+        vl.Processor(source=vl.memory_source({}), extensions=[_Named(cast("str", directive))])
+
+
+def test_make_processor_refuses_a_non_text_extension_name_with_the_argument_type_error() -> None:
+    with pytest.raises(TypeError, match="argument 'directive' must be str, not int"):
+        vl.Processor(source=vl.memory_source({}), extensions=[_Named(cast("str", 5))])
+
+
 # --- rule 2: set -------------------------------------------------------------------------------------------------
 
 

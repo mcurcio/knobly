@@ -8,10 +8,10 @@
 import { MisuseError } from "../errors.js";
 import { RESERVED } from "../gen/api/limits.js";
 import type { IDocumentSource } from "../source.js";
-import type { ConfigText } from "../text.js";
-import { parseEntry } from "../syntax/parse.js";
+import { type ConfigText, requireText } from "../text.js";
 import type { IExtension } from "./extension.js";
 import { DocumentGraph } from "./graph.js";
+import { checkDirectiveName } from "./names.js";
 import type { IDocumentGraph } from "./model.js";
 import { readRoot } from "./read.js";
 
@@ -45,17 +45,17 @@ export interface IProcessor {
 /**
  * Make a processor once, with its document source and extensions. An extension's name is written after `@`
  * (`@include`), so it must be a word the grammar's `nameText` takes, and not a language statement's name.
- * @throws MisuseError for an extension name that is reserved (`set`, `snippet`, `use`), already taken, or not a word
+ * @throws TypeError for an extension name that is not a string; MisuseError for one that is not a word, then for one
+ * that is reserved (`set`, `snippet`, `use`) or already taken
  */
 export function villanelle(options: IProcessorOptions): IProcessor {
   const { source } = options;
   const extensions = new Map<string, IExtension>();
   for (const extension of options.extensions ?? []) {
-    const name = extension.directive;
+    const name: unknown = extension.directive;
+    requireText(name, "villanelle", "directive");
+    checkDirectiveName(name);
     if (RESERVED.has(name) || extensions.has(name)) throw new MisuseError(`extension directive name taken: ${JSON.stringify(name)}`);
-    if (typeof name !== "string" || parseEntry(name, "nameText").diagnostics.length > 0) {
-      throw new MisuseError(`not an extension name (one word, written after @): ${JSON.stringify(name)}`);
-    }
     extensions.set(name, extension);
   }
   return {

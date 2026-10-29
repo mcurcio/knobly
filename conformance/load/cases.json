@@ -50,5 +50,6 @@
 {"name": "load-var-subscript", "needs": [], "files": {"main.conf": "@set $src leds;\n@set $i 1;\na $src[0~3];\nb $src[$i];\nc [$src[~2]];\n"}, "root": "main.conf"},
 {"name": "load-snippet-param-subscript", "needs": ["snippet"], "files": {"main.conf": "@snippet s $src {\n    connect $src[0~3];\n}\nnode n {\n    @use s leds;\n}\n"}, "root": "main.conf"},
 {"name": "load-var-subscript-not-word", "needs": [], "files": {"main.conf": "@set $s \"leds\";\n@set $t a b;\nx $s[0];\ny $t[0~1];\nz $nope[1];\nok 1;\n"}, "root": "main.conf"},
-{"name": "load-raw-string", "needs": [], "files": {"main.conf": "path 'C:\\new\\x' \"C:\\\\new\";\nq 'a\"b';\n"}, "root": "main.conf"}
+{"name": "load-raw-string", "needs": [], "files": {"main.conf": "path 'C:\\new\\x' \"C:\\\\new\";\nq 'a\"b';\n"}, "root": "main.conf"},
+{"name": "load-var-subscript-number", "needs": [], "files": {"main.conf": "@set $a 5;\n@set $b 1.5;\n@set $c -;\nx $a[0~1];\ny $b[0];\nz $c[0];\nw $d[0];\nv $e[0];\nok 1;\n"}, "root": "main.conf", "overrides": {"d": "07:30", "e": "@x"}}
 ]

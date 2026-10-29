@@ -20,6 +20,7 @@ import { type IOverride, type IPlace, type IStep, makeOverride, makePlace, makeS
 import { type ILocatedDiagnostic, makeLocated } from "../report.js";
 import type { ISourceSpan } from "../span.js";
 import { type INode, type ISyntax, spanOf, type ValueRef } from "../syntax/cst.js";
+import { parseEntry } from "../syntax/parse.js";
 import { type IToken, isWordKind } from "../syntax/tokens.js";
 import { typeNameOf } from "../text.js";
 import { decodeString, integerOf } from "../values.js";
@@ -819,12 +820,15 @@ class Walk implements IBindingWithNeeds {
     );
   }
 
-  /** A slice's name: a word's text, or the one word its variable holds (E4007 otherwise, placed as E4001 is). */
+  /**
+   * A slice's name: a word's text, or the one word its variable holds, a word that may name a slice (the grammar's
+   * `sliceNameText`: a WORD or an AT_WORD, so never `5`, `1.5` or `-`); E4007 otherwise, placed as E4001 is.
+   */
   private sliceName(text: IText, token: IToken, scope: IScopeView, via: readonly IStep[], copy: ICopy | undefined, reference: IReference | undefined): string {
     if (token.kind !== "VARIABLE") return token.text;
     const values = this.variable(text, token, scope, via, copy, reference);
     const [only] = values;
-    if (values.length === 1 && only?.kind === "word") return only.text;
+    if (values.length === 1 && only?.kind === "word" && parseEntry(only.text, "sliceNameText").diagnostics.length === 0) return only.text;
     throw this.throughVariable(DiagnosticCode.BadSliceName, text, token, via, only);
   }
 

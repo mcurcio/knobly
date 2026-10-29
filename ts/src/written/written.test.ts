@@ -9,7 +9,8 @@ import { describe, expect, it } from "vitest";
 import { include } from "../include.js";
 import { villanelle } from "./processor.js";
 import { memorySource } from "../source.js";
-import { BadTextError, DetachedError, SaveError } from "../errors.js";
+import { BadTextError, DetachedError, MisuseError, SaveError } from "../errors.js";
+import type { IExtension } from "./extension.js";
 import type { IDocumentWriter, IFileWrite } from "../source.js";
 import type { IDocumentGraph, ISetLine, IWrittenDirective } from "./model.js";
 import { quote, text } from "../text.js";
@@ -79,6 +80,20 @@ describe("documents and handles", () => {
       expect(graph.root.text).toBe("@set $a 1;\n");
     }
     expect(set.text).toBe("@set $a 1;");
+  });
+});
+
+describe("make processor checks an extension's name: its type, then a word, then reserved or taken (spec 5)", () => {
+  const named = (directive: unknown): IExtension => ({ directive, specs: () => [] }) as unknown as IExtension;
+  const make = (directive: unknown) => () => villanelle({ source: memorySource({}), extensions: [named(directive)] });
+
+  it("refuses a name that is not a string with the argument type error", () => {
+    expect(make(5)).toThrow(TypeError);
+    expect(make(5)).toThrow('argument "directive" must be a string, not number');
+  });
+
+  it.each(["1x", "@x", "a b", "set"])("refuses %j with a misuse error", (name) => {
+    expect(make(name)).toThrow(MisuseError);
   });
 });
 

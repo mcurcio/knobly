@@ -327,7 +327,7 @@
     {
       "name": "argument type error",
       "sort": "program bug",
-      "raised when": "an argument of the wrong type: anything but text where config text or a name is taken, and to quote and text (spec 6.9), a writer that is not a document writer, a render given something that is not a document graph (no callable expand; spec 7.0, milestone 5), a key rule that returns anything but text or absent (spec 7.4)",
+      "raised when": "an argument of the wrong type: anything but text where config text or a name is taken (an extension's name at make processor included), and to quote and text (spec 6.9), a writer that is not a document writer, a render given something that is not a document graph (no callable expand; spec 7.0, milestone 5), a key rule that returns anything but text or absent (spec 7.4)",
       "ts": "TypeError",
       "py": "TypeError"
     },
@@ -499,6 +499,7 @@
       ],
       "returns": "processor",
       "errors": [
+        "argument type error",
         "misuse error"
       ],
       "spell": {

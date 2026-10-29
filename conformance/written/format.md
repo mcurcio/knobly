@@ -92,7 +92,8 @@ the resolution's `copy.via`. A **variable text** is its `place`, `override <name
   comment, space or line break) starts there.
 - `["block", path]`: the document's `block`; `["block", path, line, col]`: that statement's block.
 - `["value", path, line, col]`: the written value starting there (list items and slice bounds included; a
-  reference at its `$`).
+  reference at its `$`). `["value", path, line, col, "name"]` (milestone 5): that slice's or index's `name`, which
+  starts where the slice does.
 - `["variable", path, line, col]`: the variable whose `$name` starts there; `["override", name]`: the override
   variable of that name.
 - `["rendered", address, arg, step, "winner" | "reference"]`: render now; the directive at that people address,

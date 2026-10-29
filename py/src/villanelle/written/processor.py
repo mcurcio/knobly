@@ -10,7 +10,7 @@ from collections.abc import Mapping, Sequence
 from typing import final
 
 from villanelle._api.limits import RESERVED
-from villanelle._text import ConfigText
+from villanelle._text import ConfigText, require_text
 from villanelle.source import DocumentSource
 from villanelle.written import _names
 from villanelle.written.extension import Extension
@@ -24,13 +24,14 @@ class Processor:
     __slots__ = ("_extensions", "_source")
 
     def __init__(self, *, source: DocumentSource, extensions: Sequence[Extension] = ()) -> None:
-        """Raises ValueError (misuse) for an extension whose name the ``nameText`` entry rule refuses (it is written
-        ``@`` and its name, one AT_WORD), one named ``set``, ``snippet`` or ``use`` (the language statements), or two
-        extensions with one name (one name has one owner)."""
+        """Raises TypeError for an extension whose name is not a str; then ValueError (misuse) for one whose name the
+        ``nameText`` entry rule refuses (it is written ``@`` and its name, one AT_WORD), then for one named ``set``,
+        ``snippet`` or ``use`` (the language statements), or two extensions with one name (one name has one owner)."""
         self._source = source
         self._extensions: dict[str, Extension] = {}
         for extension in extensions:
-            name = _names.directive_name(extension.directive, member="Processor")
+            given = require_text(extension.directive, member="Processor", parameter="directive")
+            name = _names.directive_name(given, member="Processor")
             if name in RESERVED or name in self._extensions:
                 raise ValueError(f"extension directive name taken: {name!r}")
             self._extensions[name] = extension

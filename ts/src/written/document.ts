@@ -13,7 +13,7 @@ import { parse, parseEntry } from "../syntax/parse.js";
 import { type IToken } from "../syntax/tokens.js";
 import { type ConfigText, requireText } from "../text.js";
 import type { IBinding } from "./bind.js";
-import { BadTextError, DetachedError } from "../errors.js";
+import { BadTextError, DetachedError, MisuseError } from "../errors.js";
 import type { IDocument, IDocumentEdge, IParameter, ISetVariable, IWrittenBlock, IWrittenDirective, Statement, WrittenValue } from "./model.js";
 import { checkDirectiveName, checkVariableName } from "./names.js";
 import { blockShapes, type IShape, isTextAlone, parameterTokens, type ShapeKind, statementNodes } from "./shape.js";
@@ -52,6 +52,14 @@ interface IOldEntry {
 }
 
 /** A reconcile key's family: `s` (statement), `v` (value) or `p` (parameter). */
+/**
+ * Text that holds only the grammar's spaces and line breaks (space, tab, CR, LF): what an edit given it removes or
+ * inserts nothing for. Not `trim()`, which also strips U+FEFF and other Unicode spaces the grammar refuses.
+ */
+function isBlank(text: string): boolean {
+  return /^[ \t\r\n]*$/u.test(text);
+}
+
 function familyOf(key: string): string {
   return /^[a-z]+/u.exec(key)?.[0] ?? "";
 }
@@ -76,7 +84,7 @@ class Reconcile {
     if (newStart < range.start) oldStart = newStart;
     else if (newStart >= range.start + range.inserted) oldStart = newStart - delta;
     else if (newStart === range.start) return this.atStart(key);
-    else return undefined;
+    else return this.keptInside(key);
     const id = `${key}@${String(oldStart)}`;
     const entry = this.old.get(id);
     if (entry === undefined) return undefined;
@@ -105,6 +113,22 @@ class Reconcile {
     for (const [oldId, old] of this.old) {
       if (old.handle !== this.keep) continue;
       if (familyOf(oldId) !== familyOf(key) || old.start !== range.start) return undefined;
+      this.old.delete(oldId);
+      return this.keep;
+    }
+    return undefined;
+  }
+
+  /**
+   * A value built inside what replaced the range but not at its start (a value's `set` given text with a leading
+   * gap, spec 6.1): the value the edit keeps, for the first such value built (the new value; its own items, bounds
+   * and name are built after it), whatever its kind.
+   */
+  private keptInside(key: string): Handle | undefined {
+    if (this.keep === undefined || familyOf(key) !== "v") return undefined;
+    for (const [oldId, old] of this.old) {
+      if (old.handle !== this.keep) continue;
+      if (familyOf(oldId) !== "v") return undefined;
       this.old.delete(oldId);
       return this.keep;
     }
@@ -475,7 +499,7 @@ export class Document implements IDocument {
   /** `replaceWithText` of a statement: zero or more statements, indented as it is. */
   replaceStatement(statement: StatementHandle, text: ConfigText): readonly Statement[] {
     const given = parseEntry(text, "statementsText").diagnostics;
-    if (text.trim() === "") {
+    if (isBlank(text)) {
       if (given.length > 0) throw new BadTextError(given);
       this.removeStatement(statement);
       return [];
@@ -521,7 +545,7 @@ export class Document implements IDocument {
    */
   insertStatements(block: Block, index: number, text: ConfigText): readonly Statement[] {
     const given = parseEntry(text, "statementsText").diagnostics;
-    if (text.trim() === "") {
+    if (isBlank(text)) {
       if (given.length > 0) throw new BadTextError(given);
       return [];
     }
@@ -661,7 +685,8 @@ export class Document implements IDocument {
     const rule = value.role === "bound" ? "boundText" : value.role === "name" ? "sliceNameText" : value.listHandle !== undefined ? "itemsText" : "valuesText";
     const given = parseEntry(text, rule).diagnostics;
     if (value.role !== "value" && given.length > 0) throw new BadTextError(given);
-    if (text.trim() === "") {
+    if (isBlank(text)) {
+      if (given.length > 0) throw new BadTextError(given);
       this.removeValue(value);
       return [];
     }
@@ -681,6 +706,9 @@ export class Document implements IDocument {
    */
   removeValue(value: ValueHandle): void {
     const { tokens } = this.parsed;
+    if (value.role === "name" || (value.role === "bound" && this.isOnlyBound(value))) {
+      throw new MisuseError("remove(): a slice's or index's name, and its only bound, cannot be removed: set it, or remove the slice");
+    }
     const { start, end } = this.valueOffsets(value);
     if (value.listHandle !== undefined) {
       const skipped: ReadonlySet<string> = new Set(["SPACE", "NEWLINE", "COMMENT"]);
@@ -714,6 +742,19 @@ export class Document implements IDocument {
     let from = this.tokenIndexOf(value);
     while (tokens[from - 1]?.kind === "SPACE") from--;
     this.splice(tokens[from]?.span.start.offset ?? start, end, "", []);
+  }
+
+  /** Whether a bound is its slice's or index's only one (`b[1]`, `x[0~]`): removing it leaves no bound (spec 6.6). */
+  private isOnlyBound(bound: ValueHandle): boolean {
+    const { tokens } = this.parsed;
+    let open = this.tokenIndexOf(bound);
+    while (open > 0 && tokens[open]?.kind !== "LBRACK") open--;
+    let bounds = 0;
+    for (let i = open + 1; i < tokens.length && tokens[i]?.kind !== "RBRACK"; i++) {
+      const kind = tokens[i]?.kind;
+      if (kind === "INTEGER" || kind === "VARIABLE") bounds++;
+    }
+    return bounds <= 1;
   }
 
   private tokenIndexOf(value: ValueHandle): number {
