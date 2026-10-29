@@ -4,7 +4,7 @@
  */
 
 import { DiagnosticError, type IDiagnostic } from "../diagnostics.js";
-import type { ILocatedDiagnostic } from "../load/report.js";
+import type { ILocatedDiagnostic } from "../report.js";
 import type { IFileWrite } from "./model.js";
 
 /** Base of the errors an edit throws. Nothing changed when one is thrown. */
@@ -38,7 +38,7 @@ export class DetachedError extends EditError {
   }
 }
 
-/** `IVariable.setValues` on a parameter (edit the `use` line) or a handed-in value (use `setHanded`). */
+/** `IVariable.set` or `rename` on a parameter (edit the `use` line) or an override (use `setOverride`). */
 export class NoSetLineError extends EditError {
   constructor(message: string) {
     super(message);
@@ -46,7 +46,7 @@ export class NoSetLineError extends EditError {
   }
 }
 
-/** The writer rejected. No document's `source` changed. `cause` (Error's own) is what the writer rejected with. */
+/** The writer rejected. No document's `savedText` changed. `cause` (Error's own) is what the writer rejected with. */
 export class SaveError extends Error {
   constructor(
     message: string,

@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { createFetchSource, createFetchWriter } from "./browser.js";
 import { include } from "./include.js";
-import { villanelle } from "./load/processor.js";
-import { rendered } from "./load/testing.js";
+import { villanelle } from "./written/processor.js";
+import { rendered } from "./rendered/testing.js";
 
 /** A fetch over a map of URL to body that records every call. */
 const fakeFetch = (
@@ -30,7 +30,7 @@ describe("villanelle/browser", () => {
     const loaded = await rendered(villanelle({ source: createFetchSource(fetchImpl), extensions: [include()] }), "https://h.test/root.conf");
     expect(loaded.diagnostics).toEqual([]);
     expect([...loaded.graph.documents.keys()]).toEqual(["https://h.test/root.conf", "https://h.test/conf/a.conf", "https://h.test/b.conf"]);
-    expect(loaded.body.map((d) => d.name)).toEqual(["b"]);
+    expect(loaded.block.map((d) => d.name)).toEqual(["b"]);
   });
 
   it("resolves without fetching, resolves a glob to nothing, and rejects a non-2xx read", async () => {
@@ -47,10 +47,10 @@ describe("villanelle/browser", () => {
   it("writes with PUT text/plain by default, or the given method and content type, one request per file", async () => {
     const { calls, fetchImpl } = fakeFetch({});
     await createFetchWriter(fetchImpl).write([
-      { resolvedPath: "https://h.test/a", text: "a;", source: "" },
-      { resolvedPath: "https://h.test/c", text: "c;", source: "" },
+      { resolvedPath: "https://h.test/a", text: "a;", savedText: "" },
+      { resolvedPath: "https://h.test/c", text: "c;", savedText: "" },
     ]);
-    await createFetchWriter(fetchImpl, { method: "POST", contentType: "text/x-conf" }).write([{ resolvedPath: "https://h.test/b", text: "b;", source: "" }]);
+    await createFetchWriter(fetchImpl, { method: "POST", contentType: "text/x-conf" }).write([{ resolvedPath: "https://h.test/b", text: "b;", savedText: "" }]);
     expect(calls).toEqual([
       ["https://h.test/a", { method: "PUT", headers: { "content-type": "text/plain" }, body: "a;" }],
       ["https://h.test/c", { method: "PUT", headers: { "content-type": "text/plain" }, body: "c;" }],
@@ -66,7 +66,7 @@ describe("villanelle/browser", () => {
       return Promise.resolve(new Response("no", { status: url.endsWith("/a") ? 500 : 200 }));
     };
     const writer = createFetchWriter(fetchImpl);
-    const files = ["a", "b"].map((n) => ({ resolvedPath: `https://h.test/${n}`, text: `${n};`, source: "" }));
+    const files = ["a", "b"].map((n) => ({ resolvedPath: `https://h.test/${n}`, text: `${n};`, savedText: "" }));
     await expect(writer.write(files)).rejects.toThrow(/500/);
     expect(calls).toEqual(["https://h.test/a"]);
   });

@@ -5,10 +5,9 @@ import { join, relative } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { SaveError } from "./written/errors.js";
-import { save } from "./written/save.js";
 import { include } from "./include.js";
-import { villanelle } from "./load/processor.js";
-import { rendered } from "./load/testing.js";
+import { villanelle } from "./written/processor.js";
+import { rendered } from "./rendered/testing.js";
 import { createFileSource, createFsWriter } from "./node.js";
 
 describe("villanelle/node", () => {
@@ -37,7 +36,7 @@ describe("villanelle/node", () => {
     const [glob, plain] = loaded.graph.edges();
     expect(glob?.targets).toEqual(["C.conf", "a.conf", "b.conf", "x[1].conf", "é.conf"].map((name) => join(dir, "conf.d", name)));
     expect(plain?.targets).toEqual([join(dir, "plain.conf")]);
-    expect(loaded.body.map((d) => d.args[0]?.text)).toEqual(['"C.conf"', '"a.conf"', '"b.conf"', '"x[1].conf"', '"é.conf"', "1"]);
+    expect(loaded.block.map((d) => d.values[0]?.text)).toEqual(['"C.conf"', '"a.conf"', '"b.conf"', '"x[1].conf"', '"é.conf"', "1"]);
   });
 
   it("resolves a relative root through the source, so the root has one path and is read once", async () => {
@@ -45,7 +44,7 @@ describe("villanelle/node", () => {
     const loaded = await rendered(villanelle({ source: createFileSource(), extensions: [include()] }), relative(process.cwd(), join(dir, "self.conf")));
     expect([...loaded.graph.documents.keys()]).toEqual([join(dir, "self.conf")]);
     expect(loaded.diagnostics.map((d) => d.code)).toEqual(["E1001", "E5006"]);
-    expect(loaded.body.map((d) => d.name)).toEqual(["y"]);
+    expect(loaded.block.map((d) => d.name)).toEqual(["y"]);
   });
 
   it("matches ? to one character", async () => {
@@ -70,10 +69,10 @@ describe("villanelle/node", () => {
 
   it("writes text back with the fs writer, and save writes nothing for an unchanged load", async () => {
     const path = join(dir, "written.conf");
-    await createFsWriter().write([{ resolvedPath: path, text: "w 1;\n", source: "" }]);
+    await createFsWriter().write([{ resolvedPath: path, text: "w 1;\n", savedText: "" }]);
     expect(await readFile(path, "utf8")).toBe("w 1;\n");
     const graph = await villanelle({ source: createFileSource() }).load(path);
-    expect(await save(graph, createFsWriter())).toEqual([]);
+    expect(await graph.save(createFsWriter())).toEqual([]);
     expect(await readFile(path, "utf8")).toBe("w 1;\n");
   });
 
@@ -89,15 +88,15 @@ describe("villanelle/node", () => {
     await writeFile(join(directory, "part.conf"), "p 1;\n");
     const graph = await villanelle({ source: createFileSource(), extensions: [include()] }).load(join(directory, "main.conf"));
     const [main, part] = [...graph.documents.values()];
-    const m = main?.body.statements[1];
-    const p = part?.body.statements[0];
+    const m = main?.block.statements[1];
+    const p = part?.block.statements[0];
     if (m?.kind !== "directive" || p?.kind !== "directive") throw new Error("fixture");
-    m.setValues("2");
-    p.setValues("2");
-    expect(await save(graph, createFsWriter())).toEqual([join(directory, "main.conf"), join(directory, "part.conf")]);
+    m.set("2");
+    p.set("2");
+    expect(await graph.save(createFsWriter())).toEqual([join(directory, "main.conf"), join(directory, "part.conf")]);
     expect(await readFile(join(directory, "main.conf"), "utf8")).toBe('include "part.conf";\nm 2;\n');
     expect(await readFile(join(directory, "part.conf"), "utf8")).toBe("p 2;\n");
-    expect(main?.source).toBe(main?.text);
+    expect(main?.savedText).toBe(main?.text);
     expect(await temporaries(directory)).toEqual([]);
   });
 
@@ -108,23 +107,23 @@ describe("villanelle/node", () => {
     await writeFile(a, "a 1;\n");
     await writeFile(b, "b 1;\n");
     const graph = await villanelle({ source: createFileSource() }).load(a);
-    const statement = graph.root.body.statements[0];
+    const statement = graph.root.block.statements[0];
     if (statement?.kind !== "directive") throw new Error("fixture");
-    statement.setValues("2");
+    statement.set("2");
     // Someone else changes b after it was read.
     await writeFile(b, "b changed;\n");
     const batch = [
-      { resolvedPath: a, text: "a 2;\n", source: "a 1;\n" },
-      { resolvedPath: b, text: "b 2;\n", source: "b 1;\n" },
+      { resolvedPath: a, text: "a 2;\n", savedText: "a 1;\n" },
+      { resolvedPath: b, text: "b 2;\n", savedText: "b 1;\n" },
     ];
     await expect(createFsWriter().write(batch)).rejects.toThrow(/lost update.*b\.conf/);
     expect(await readFile(a, "utf8")).toBe("a 1;\n");
     expect(await readFile(b, "utf8")).toBe("b changed;\n");
     // Through save: a changed on disk too, so SaveError, and the document keeps its unsaved text.
     await writeFile(a, "a changed;\n");
-    await expect(save(graph, createFsWriter())).rejects.toBeInstanceOf(SaveError);
+    await expect(graph.save(createFsWriter())).rejects.toBeInstanceOf(SaveError);
     expect(await readFile(a, "utf8")).toBe("a changed;\n");
-    expect(graph.root.text).not.toBe(graph.root.source);
+    expect(graph.root.text).not.toBe(graph.root.savedText);
     expect(await temporaries(directory)).toEqual([]);
   });
 
@@ -134,9 +133,9 @@ describe("villanelle/node", () => {
     const a = join(directory, "a.conf");
     await writeFile(a, "a 1;\n");
     const batch = [
-      { resolvedPath: a, text: "a 2;\n", source: "a 1;\n" },
+      { resolvedPath: a, text: "a 2;\n", savedText: "a 1;\n" },
       // A new file in a directory that is not there: nothing on disk, so no lost update, but it cannot be staged.
-      { resolvedPath: join(directory, "missing", "b.conf"), text: "b 1;\n", source: "" },
+      { resolvedPath: join(directory, "missing", "b.conf"), text: "b 1;\n", savedText: "" },
     ];
     await expect(createFsWriter().write(batch)).rejects.toThrow(/ENOENT/);
     expect(await readFile(a, "utf8")).toBe("a 1;\n");

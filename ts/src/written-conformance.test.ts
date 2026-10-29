@@ -8,11 +8,12 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { include } from "./include.js";
-import type { IOrigin, IPlace, IStep } from "./load/origin.js";
-import { villanelle } from "./load/processor.js";
-import { memorySource } from "./load/source.js";
-import { originText, placeText } from "./load/testing.js";
+import type { IOrigin, IPlace, IStep } from "./origin.js";
+import { render } from "./rendered/render.js";
+import { originText, placeText } from "./rendered/testing.js";
+import { memorySource } from "./source.js";
 import { TokenKind } from "./syntax/tokens.js";
+import { quote } from "./text.js";
 import { BadTextError, EditError } from "./written/errors.js";
 import type {
   IDocument,
@@ -24,7 +25,7 @@ import type {
   Statement,
   WrittenValue,
 } from "./written/model.js";
-import { quote, save } from "./written/save.js";
+import { villanelle } from "./written/processor.js";
 
 const WRITTEN = new URL("../../conformance/written/", import.meta.url);
 const EXPECTED = new URL("expected/", WRITTEN);
@@ -42,7 +43,7 @@ const FEATURES: ReadonlySet<string> = new Set([
   "blocks",
   "rename",
   "document",
-  "handed",
+  "override",
 ]);
 
 type Step = readonly [string, ...unknown[]];
@@ -54,7 +55,7 @@ interface ICase {
   readonly files?: Readonly<Record<string, string>>;
   readonly fixture?: string;
   readonly root: string;
-  readonly variables?: Readonly<Record<string, string>>;
+  readonly overrides?: Readonly<Record<string, string>>;
   readonly extensions?: readonly "include"[];
   readonly steps: readonly Step[];
 }
@@ -74,14 +75,14 @@ function bytes(value: unknown): string {
   return `${json}\n`;
 }
 
-/** The copy text of format.md: the load-conformance origin text of `{written, via}`. */
-function copyText(written: IPlace, via: readonly IStep[]): string {
-  return originText({ written, via });
+/** The copy text of format.md: the load-conformance origin text of `{place, via}`. */
+function copyText(place: IPlace, via: readonly IStep[]): string {
+  return originText({ place, via });
 }
 
 function variableText(variable: IVariable | undefined): string | null {
   if (variable === undefined) return null;
-  return variable.place === undefined ? `handed ${variable.name}` : placeText(variable.place);
+  return variable.place === undefined ? `override ${variable.name}` : placeText(variable.place);
 }
 
 function origin(o: IOrigin): string {
@@ -129,10 +130,7 @@ class Runner {
     },
   };
 
-  constructor(
-    private readonly processor: ReturnType<typeof villanelle>,
-    private readonly graph: IDocumentGraph,
-  ) {}
+  constructor(private readonly graph: IDocumentGraph) {}
 
   private doc(path: unknown): IDocument {
     const doc = this.graph.documents.get(path as string);
@@ -142,7 +140,7 @@ class Runner {
 
   private statement(path: unknown, line: unknown, col: unknown): Statement {
     const doc = this.doc(path);
-    const found = statementsOf(doc.body).find((s) => {
+    const found = statementsOf(doc.block).find((s) => {
       const [l, c] = nameAt(doc, s);
       return l === line && c === col;
     });
@@ -158,13 +156,13 @@ class Runner {
       case "statement":
         return this.statement(rest[0], rest[1], rest[2]);
       case "block": {
-        if (rest.length === 1) return this.doc(rest[0]).body;
+        if (rest.length === 1) return this.doc(rest[0]).block;
         const statement = this.statement(rest[0], rest[1], rest[2]);
         return "block" in statement ? statement.block : undefined;
       }
       case "value": {
         const doc = this.doc(rest[0]);
-        const found = statementsOf(doc.body)
+        const found = statementsOf(doc.block)
           .flatMap(valuesOf)
           .find((v) => at(v.place, rest[1] as number, rest[2] as number));
         if (found === undefined) throw new Error(`no value at ${JSON.stringify(rest)}`);
@@ -172,8 +170,8 @@ class Runner {
       }
       case "variable":
         return this.graph.variables().find((v) => v.place !== undefined && v.place.resolvedPath === rest[0] && at(v.place, rest[1] as number, rest[2] as number));
-      case "handed":
-        return this.graph.variables().find((v) => v.kind === "handed" && v.name === rest[0]);
+      case "override":
+        return this.graph.variables().find((v) => v.kind === "override" && v.name === rest[0]);
       case "graph":
         return this.graph;
       case "previous":
@@ -182,10 +180,10 @@ class Runner {
         return this.returned;
       case "rendered": {
         const [address, arg, step, which] = rest as [string, number, number, "winner" | "reference"];
-        const rendered = this.processor.render(this.graph);
+        const rendered = render(this.graph);
         let found;
         for (const [d, at] of rendered.addresses()) {
-          if (at.toString() === address) found = d.args[arg]?.resolutions[step]?.[which];
+          if (at.toString() === address) found = d.values[arg]?.chain[step]?.[which];
         }
         return found;
       }
@@ -200,7 +198,7 @@ class Runner {
     try {
       const method = handle[op];
       if (typeof method !== "function") throw new Error(`no ${op} on ${JSON.stringify(target)}`);
-      // JSON has no undefined: `["setHanded", name, null]` removes the value.
+      // JSON has no undefined: `["setOverride", name, null]` removes the override.
       const result = method.apply(handle, args.map((a) => (a === null ? undefined : a)));
       if (Array.isArray(result)) {
         this.returned = result[0];
@@ -224,48 +222,48 @@ class Runner {
         .map((v) => [
           v.name,
           v.kind,
-          v.place === undefined ? "handed" : placeText(v.place),
-          v.reaches().map((r) => copyText(r.reference.place, r.copy.via)),
-          v.overridden().map((r) => [copyText(r.reference.place, r.copy.via), variableText(r.winner)]),
+          v.place === undefined ? "override" : placeText(v.place),
+          v.wins().map((r) => copyText(r.reference.place, r.copy.via)),
+          v.shadowedAt().map((r) => [copyText(r.reference.place, r.copy.via), variableText(r.winner)]),
         ]),
-      diagnostics: g.diagnostics().map((d) => [d.code, origin({ written: d.at, via: d.via })]),
+      diagnostics: g.diagnostics.map((d) => [d.code, origin(d)]),
     };
   }
 
   private references(): unknown {
     return [...this.graph.documents.values()].flatMap((doc) =>
-      statementsOf(doc.body)
+      statementsOf(doc.block)
         .flatMap(valuesOf)
         .filter((v) => v.kind === "reference")
         .map((r) => [
           placeText(r.place),
           variableText(r.declaration),
-          r.resolutions().map((x) => [copyText(r.place, x.copy.via), variableText(x.winner), x.overridden.map(variableText)]),
+          r.resolutions().map((x) => [copyText(r.place, x.copy.via), variableText(x.winner), x.shadowed.map(variableText)]),
         ]),
     );
   }
 
   private render(): unknown {
-    const rendered = this.processor.render(this.graph);
+    const rendered = render(this.graph);
     const directives: unknown[] = [];
-    const unreadable: unknown[] = rendered.unreadable.map((u) => ["", u.kind, origin(u.origin)]);
+    const unreadable: unknown[] = rendered.unreadable.map((u) => ["", u.reason, origin(u.origin)]);
     const named = rendered.addresses();
     rendered.walk((d) => {
       const address = named.get(d)?.toString();
       directives.push([
         address,
-        d.body !== undefined,
+        d.block !== undefined,
         origin(d.origin),
-        d.args.map((a) => [
+        d.values.map((a) => [
           a.text,
           origin(a.origin),
-          a.written === undefined ? null : placeText(a.written.place),
-          a.resolutions.map((r) => [copyText(r.reference.place, r.copy.via), variableText(r.winner)]),
+          a.definition === undefined ? null : placeText(a.definition.place),
+          a.chain.map((r) => [copyText(r.reference.place, r.copy.via), variableText(r.winner)]),
         ]),
       ]);
-      for (const u of d.unreadable) unreadable.push([address, u.kind, origin(u.origin)]);
+      for (const u of d.unreadable) unreadable.push([address, u.reason, origin(u.origin)]);
     });
-    return { directives, unreadable, diagnostics: rendered.diagnostics.map((d) => [d.code, origin({ written: d.at, via: d.via })]) };
+    return { directives, unreadable, diagnostics: rendered.diagnostics.map((d) => [d.code, origin(d)]) };
   }
 
   async step(step: Step): Promise<unknown> {
@@ -278,10 +276,10 @@ class Runner {
       case "render":
         return this.render();
       case "texts":
-        return [...this.graph.documents.values()].filter((d) => d.text !== d.source).map((d) => [d.resolvedPath, d.text]);
+        return [...this.graph.documents.values()].filter((d) => d.text !== d.savedText).map((d) => [d.resolvedPath, d.text]);
       case "save": {
         const before = this.batches.length;
-        await save(this.graph, this.writer);
+        await this.graph.save(this.writer);
         const batch = this.batches.length > before ? (this.batches.at(-1) ?? []) : [];
         return batch.map((f) => [f.resolvedPath, f.text]);
       }
@@ -311,8 +309,8 @@ describe("written conformance (conformance/written/)", () => {
       source: memorySource(files),
       ...(c.extensions?.includes("include") === true ? { extensions: [include()] } : {}),
     });
-    const graph = await processor.load(c.root, c.variables === undefined ? undefined : { variables: c.variables });
-    const runner = new Runner(processor, graph);
+    const graph = await processor.load(c.root, c.overrides === undefined ? undefined : { overrides: c.overrides });
+    const runner = new Runner(graph);
     const out: unknown[] = [];
     for (const step of c.steps) out.push(await runner.step(step));
     expect(bytes(out)).toBe(readFileSync(new URL(`${name}.json`, EXPECTED), "utf8"));

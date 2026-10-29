@@ -1,16 +1,18 @@
 /**
- * Test helpers for the load layer's tests: loads through the public processor over `memorySource`. Not shipped
- * (tsconfig.build.json leaves it out).
+ * Test helpers for the rendered layer's tests: loads through the public processor over `memorySource`, then
+ * `render (graph)`. Not shipped (tsconfig.build.json leaves it out).
  */
 
-import type { IDirective } from "./directive.js";
-import type { IOrigin, IPlace, IStep } from "./origin.js";
-import { type IExtension, type IKeyOptions, type IProcessor, type IRendered, villanelle } from "./processor.js";
-import type { ILocatedDiagnostic } from "./report.js";
-import { type IDocumentSource, memorySource } from "./source.js";
+import type { IExtension } from "../extension.js";
+import type { IOrigin, IPlace, IStep } from "../origin.js";
+import type { ILocatedDiagnostic } from "../report.js";
+import { type IDocumentSource, memorySource } from "../source.js";
+import { type IProcessor, villanelle } from "../written/processor.js";
+import type { IDirective, IKeyOptions, IRendered } from "./model.js";
+import { render } from "./render.js";
 
 export interface ITestOptions {
-  readonly variables?: Readonly<Record<string, string>>;
+  readonly overrides?: Readonly<Record<string, string>>;
   readonly extensions?: readonly IExtension[];
 }
 
@@ -22,15 +24,15 @@ export function processorOf(files: Readonly<Record<string, string>>, options: IT
   });
 }
 
-/** `processor.render(await processor.load(path, options))`: the mechanical form of a PR 3 load (D8). */
-export async function rendered(processor: IProcessor, path: string, options?: { readonly variables?: Readonly<Record<string, string>> }): Promise<IRendered> {
-  return processor.render(await processor.load(path, options));
+/** `render(await processor.load(path, options))`. */
+export async function rendered(processor: IProcessor, path: string, options?: { readonly overrides?: Readonly<Record<string, string>> }): Promise<IRendered> {
+  return render(await processor.load(path, options));
 }
 
 /** Load `main.conf` (or `root`) from these files, and render it. */
 export async function loadFiles(files: Readonly<Record<string, string>>, options: ITestOptions = {}, root = "main.conf"): Promise<IRendered> {
   const processor = processorOf(files, options);
-  return processor.render(await processor.load(root, options.variables === undefined ? undefined : { variables: options.variables }));
+  return render(await processor.load(root, options.overrides === undefined ? undefined : { overrides: options.overrides }));
 }
 
 /** Load one text as `main.conf`, and render it. */
@@ -61,19 +63,19 @@ export function only<T>(list: readonly T[] | undefined): T {
 }
 
 /** `path:line:col`, 0-based, as the load conformance format writes it. */
-export function placeText(at: IPlace): string {
-  return `${at.resolvedPath}:${String(at.span.start.line)}:${String(at.span.start.column)}`;
+export function placeText(place: IPlace): string {
+  return `${place.resolvedPath}:${String(place.span.start.line)}:${String(place.span.start.column)}`;
 }
 
 /** An origin as the load conformance format writes it. */
-export function originText({ written, via }: { readonly written: IOrigin["written"]; readonly via: readonly IStep[] }): string {
-  const head = written.kind === "handed" ? `handed ${written.variable}` : placeText(written);
-  return head + via.map((step) => ` < ${step.kind} ${step.name} ${placeText(step.at)}`).join("");
+export function originText({ place, via }: { readonly place: IOrigin["place"]; readonly via: readonly IStep[] }): string {
+  const head = place.kind === "override" ? `override ${place.variable}` : placeText(place);
+  return head + via.map((step) => ` < ${step.kind} ${step.name} ${placeText(step.place)}`).join("");
 }
 
 /** Each diagnostic as `[code, origin]`. */
 export function problems(diagnostics: Iterable<ILocatedDiagnostic>): [string, string][] {
-  return [...diagnostics].map((d) => [d.code, originText({ written: d.at, via: d.via })]);
+  return [...diagnostics].map((d) => [d.code, originText(d)]);
 }
 
 /** Every directive's people address in walk order, under `options.key`. */
@@ -88,5 +90,5 @@ export function addressOf(rendered: IRendered, directive: IDirective, options?: 
 
 /** Each of the directive's values' canonical text. */
 export function texts(directive: IDirective | undefined): string[] {
-  return directive?.args.map((a) => a.text) ?? [];
+  return directive?.values.map((a) => a.text) ?? [];
 }

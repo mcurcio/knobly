@@ -3,8 +3,9 @@
  * `$name` references, each pointing at its tokens in its document's current parse. Private to the package.
  */
 
-import type { IPlace } from "../load/origin.js";
+import type { IPlace } from "../origin.js";
 import { textOf, type ValueRef } from "../syntax/cst.js";
+import { requireText } from "../text.js";
 import type { Document } from "./document.js";
 import { detached } from "./document.js";
 import type { IList, IReference, IReferenceResolution, IVariable, IWord, Statement, WrittenValue } from "./model.js";
@@ -47,6 +48,7 @@ export abstract class ValueHandle {
 
   replaceWithText(text: string): readonly WrittenValue[] {
     this.live();
+    requireText(text, "replaceWithText", "text");
     return this.doc.replaceValue(this, text);
   }
 

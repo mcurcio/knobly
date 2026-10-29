@@ -12,13 +12,12 @@
 
 import * as antlr4 from "antlr4";
 
-import { DiagnosticCode } from "../diagnostics.js";
+import { DiagnosticCode, messageOf } from "../diagnostics.js";
+import { MAX_NESTING } from "../gen/api/limits.js";
 import VillanelleParser from "../gen/VillanelleParser.js";
 import type { ITokenRange } from "./cst.js";
 import { TokenKind } from "./tokens.js";
 
-/** Blocks and lists may nest this deep; one more level is E2010 (owner, vil-bzv.3). */
-export const MAX_NESTING = 100;
 
 /** A diagnostic located by token range; parse.ts turns the range into a source span. */
 export interface IRawDiagnostic {
@@ -91,46 +90,6 @@ export function classifyError(kinds: readonly TokenKind[], at: number, from: num
     return DiagnosticCode.ValuesTouch;
   }
   return DiagnosticCode.UnexpectedToken;
-}
-
-const MESSAGES: Readonly<Record<DiagnosticCode, string>> = {
-  E1001: "unterminated string",
-  E1003: "unexpected character",
-  E1004: "'$' must be followed by a variable name",
-  E2001: "unexpected token",
-  E2003: "expected '}' to close the block",
-  E2004: "unmatched bracket",
-  E2007: "malformed slice",
-  E2008: "'{' must open on its directive's line",
-  E2009: "values must be separated by a space or comment",
-  E2010: `blocks and lists nest deeper than ${MAX_NESTING} levels`,
-  E3001: "include not found",
-  E3004: "include resolver failed",
-  E3005: "include takes one quoted path",
-  E3006: "extension failed",
-  E4001: "bound is not an integer",
-  E4002: "wrong kind of value",
-  E4003: "unknown escape",
-  E4004: "not a number",
-  E4005: "not an integer",
-  E4006: "not true or false",
-  E5001: "unknown variable",
-  E5002: "variable set twice in one block",
-  E5003: "unknown snippet",
-  E5004: "wrong number of values for the snippet",
-  E5005: "snippet defined twice in one block",
-  E5006: "expansion reaches itself",
-  E5007: "expansion nests too deep",
-  E5008: "too many directives after expansion",
-  E5009: "write set $name value...;",
-  E5010: "write snippet name $param... { ... }",
-  E5011: "write use name value...;",
-  E5012: "an extension's block holds only set lines",
-};
-
-/** The message for a code; not part of the cross-language contract. */
-export function messageOf(code: DiagnosticCode): string {
-  return MESSAGES[code];
 }
 
 // --- the ANTLR strategy -----------------------------------------------------------------------------------------

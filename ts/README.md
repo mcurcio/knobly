@@ -23,19 +23,35 @@ The core has three layers, each built on the one below:
   throws. The tree is lossless: every character of the text is in exactly one token, and
   `textOf(syntax, syntax.root)` gives the text back. Node kinds are `document`, `directive`,
   `block`, `list`, `slice` and `error`.
-- **The low level: the files as written.** `villanelle({ source, extensions })` makes a processor;
-  `await processor.load(path, { variables })` reads the root file and every file it includes and returns the
-  document graph: the documents, their statements and values, the include copies, the variables and what each
-  `$name` reads at each place. Named edits (`setValues`, `replaceWithText`, `insertStatements`, `rename`,
-  `setHanded`, ...) change the text and keep comments and layout; `await processor.read(graph)` reads files an edit
-  added; `save(graph, writer)` hands the changed files to a writer in one batch. Reference:
-  [docs/low-level-api.md](../docs/low-level-api.md).
-- **The rendered tree.** `processor.render(graph)` expands variables, snippets and included files into directives
-  (`body`, `walk`), each value with its readers (`word()`, `number()`, `integer()`, `boolean()`, `items()`,
-  `slice()`, `plain()`), its origin, and `written`/`resolutions` leading back to the low level.
-  `rendered.addresses({ key })` names each directive under a key rule, and `processor.diff(before, after, { key })`
-  lists what changed between two renders. `Diagnostics` collects problems; `formatDiagnostic` prints one with its
-  source line. Reference: [docs/rendered-tree.md](../docs/rendered-tree.md).
+- **The low level: the files as written.** `villanelle({ source, extensions })` makes a processor, and `load` is
+  its only operation: `await processor.load(path, { overrides })` reads the root file and every file it includes
+  and returns the document graph: the documents (`savedText`, `text`, `block`), their statements and values, the
+  include copies, the variables and what each `$name` reads at each place. Overrides are values the program passes
+  in by name, as villanelle text; each wins over every `set` of its name. Every edit takes villanelle text, and
+  only text: write a program string with `quote()`, a number as its text.
+
+  ```ts
+  const graph = await villanelle({ source: createFileSource() }).load("main.conf", { overrides: { port: "8080" } });
+  const server = graph.root.block.directives("server")[0];
+  server?.set(quote("10.0.60.31")); // replaces the statement's values (not the language's `set` line)
+  graph.setOverride("port", "9090");
+  await graph.save(createFsWriter());
+  ```
+
+  `set(text)` replaces a statement's or a variable's values; `replaceWithText`, `insertStatements`,
+  `addStatements` and `rename` are the other named edits. Each keeps comments and layout, and given anything but a
+  string it throws a `TypeError` naming the member and the parameter. `graph.setOverride(name, text)` changes an
+  override without a reload, checked as `load` checks its overrides. `await graph.read()` reads files an edit
+  added, through the source the graph was loaded with; `await graph.save(writer)` hands the changed files to a
+  writer in one batch. The low level never imports the rendered tree (`pnpm lint` checks it). Reference:
+  [docs/low-level-api.md](../docs/low-level-api.md) (still in the names before milestone 1).
+- **The rendered tree.** `render(graph)` builds on the low level: it expands variables, snippets and included
+  files into directives (`block`, `values`, `walk`), each value with its readers (`word()`, `number()`,
+  `integer()`, `boolean()`, `items()`, `slice()`, `plain()`), its origin, and `written` (the value on its own
+  line), `definition` (where it is written) and `chain` (the `$name` steps between) leading back to the low level.
+  `rendered.addresses({ key })` names each directive under a key rule, and `before.diff(after, { key })` lists what
+  changed between two renders. `Diagnostics` collects problems; `formatDiagnostic` prints one with its source line.
+  Reference: [docs/rendered-tree.md](../docs/rendered-tree.md) (still in the names before milestone 1).
 
 Every example in those pages is copied from a test that runs. The language is
 [docs/language.md](../docs/language.md).
@@ -58,12 +74,13 @@ corepack pnpm -C ts build       # dist/
 ```
 
 Each script first runs `bash ../tools/gen.sh ts`, which regenerates the parser into `src/gen/`
-(ignored by git, never committed). That needs Java 11+; the ANTLR jar is cached in
+and the diagnostic codes, kind lists and limits from `spec/schema/` into `src/gen/api/` (ignored by
+git, never committed). That needs Java 11+; the ANTLR jar is cached in
 `$ANTLR_JAR_DIR` (default `~/.cache/antlr`).
 
 Two settings exist because of the generated code:
 
-- `gen.sh` puts `// @ts-nocheck` at the top of each generated file. The `antlr4` 4.13.2 typings
+- `gen.sh` puts `// @ts-nocheck` at the top of each generated parser file (not `src/gen/api/`). The `antlr4` 4.13.2 typings
   are incomplete, and the generated code gives 206 type errors without it, though it runs.
 - `verbatimModuleSyntax` is off in `tsconfig.json`. With it on, the generated files' type-only
   imports stay in the JavaScript output and fail at run time.

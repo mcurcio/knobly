@@ -6,18 +6,19 @@ import { describe, expect, it } from "vitest";
 
 import { DiagnosticError } from "../diagnostics.js";
 import { include } from "../include.js";
-import { Diagnostics, formatDiagnostic, type ILocatedDiagnostic, type ProgramCode } from "./report.js";
+import { Diagnostics, type ILocatedDiagnostic, type ProgramCode } from "../report.js";
+import { formatDiagnostic } from "../written/format.js";
 import { loadFiles, loadText, only, problems } from "./testing.js";
 
 describe("Diagnostics", () => {
   it("starts with the load's problems and records add and report in order", async () => {
     const loaded = await loadText("a $nope;\nnode x;\n");
     const sink = new Diagnostics(loaded.diagnostics);
-    const node = only(loaded.body);
+    const node = only(loaded.block);
     sink.report(node, "no such node", "rasl/unknown-node");
-    sink.report(only(node.args), "bad id", "rasl/bad-id");
+    sink.report(only(node.values), "bad id", "rasl/bad-id");
     sink.report(loaded, "no graph", "rasl/no-graph");
-    const extra: ILocatedDiagnostic = { code: "rasl/x", message: "x", at: loaded.origin.written, via: [] };
+    const extra: ILocatedDiagnostic = { code: "rasl/x", message: "x", place: loaded.origin.place, via: [] };
     sink.add(extra);
     expect(sink.length).toBe(5);
     expect(problems(sink)).toEqual([
@@ -34,7 +35,7 @@ describe("Diagnostics", () => {
   it("collect records a DiagnosticError and returns undefined; passes anything else through", async () => {
     const loaded = await loadText("port eighty;\n");
     const sink = new Diagnostics();
-    const port = only(only(loaded.body).args);
+    const port = only(only(loaded.block).values);
     expect(sink.collect(() => port.integer())).toBeUndefined();
     expect(sink.collect(() => port.word())).toBe("eighty");
     expect(problems(sink)).toEqual([["E4005", "main.conf:0:5"]]);
@@ -49,8 +50,8 @@ describe("Diagnostics", () => {
 
   it("refuses a program code without a namespace in every error() and in report()", async () => {
     const loaded = await loadText("a x;\n");
-    const directive = only(loaded.body);
-    const arg = only(directive.args);
+    const directive = only(loaded.block);
+    const arg = only(directive.values);
     for (const code of ["E5001", "nope", "/x", "x/", ""] as ProgramCode[]) {
       expect(() => directive.error("m", code), code).toThrow(TypeError);
       expect(() => arg.error("m", code), code).toThrow(TypeError);
@@ -62,9 +63,9 @@ describe("Diagnostics", () => {
     expect(error.diagnostic.code).toBe("rasl/ok");
   });
 
-  it("places a program's error on a handed-in value at the $name that used it", async () => {
-    const loaded = await loadText("set $host h;\nouter { target $host; }\n", { variables: { host: "given" } });
-    const arg = only(only(only(loaded.body).body).args);
+  it("places a program's error on an override at the $name that used it", async () => {
+    const loaded = await loadText("set $host h;\nouter { target $host; }\n", { overrides: { host: "given" } });
+    const arg = only(only(only(loaded.block).block).values);
     expect(problems([arg.error("unreachable", "rasl/host").diagnostic])).toEqual([["rasl/host", "main.conf:1:15"]]);
   });
 });

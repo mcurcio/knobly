@@ -3,7 +3,7 @@
  */
 
 import { hasGlob } from "./graph/glob.js";
-import type { IDocumentSource } from "./load/source.js";
+import type { IDocumentSource } from "./source.js";
 import type { IDocumentWriter } from "./written/model.js";
 
 /**

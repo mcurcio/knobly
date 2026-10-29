@@ -4,7 +4,7 @@
  * file and fetch sources; `memorySource` serves texts the program already holds (tests, editors).
  */
 
-import { globToRegExp, hasGlob } from "../graph/glob.js";
+import { globToRegExp, hasGlob } from "./graph/glob.js";
 
 /** Where a spec is being resolved from. */
 export interface ILoadContext {

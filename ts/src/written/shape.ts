@@ -6,13 +6,14 @@
  */
 
 import { DiagnosticCode } from "../diagnostics.js";
+import type { StatementKind } from "../gen/api/kinds.js";
 import type { ISourceSpan } from "../span.js";
 import { type INode, NodeKind } from "../syntax/cst.js";
 import { type IToken, TokenKind } from "../syntax/tokens.js";
-import { anatomyOf, type IDirectiveAnatomy } from "../load/anatomy.js";
+import { anatomyOf, type IDirectiveAnatomy } from "../anatomy.js";
 
-/** A statement's kind by its text alone. */
-export type ShapeKind = "directive" | "extension" | "set" | "snippet" | "use" | "unreadable";
+/** A statement's kind by its text alone: one of the generated statement kind list. */
+export type ShapeKind = StatementKind;
 
 /** One problem of a line's text alone. */
 export interface IShapeFault {
@@ -41,7 +42,7 @@ export function shapeOf(tokens: readonly IToken[], node: INode, extensions: Read
 export function shapeOfAnatomy(tokens: readonly IToken[], anatomy: IDirectiveAnatomy, extensions: ReadonlySet<string>): IShape {
   const name = tokens[anatomy.name];
   if (name === undefined) throw new Error("a directive node has no name token");
-  const [first, ...rest] = anatomy.args;
+  const [first, ...rest] = anatomy.values;
   const firstToken = typeof first === "number" ? tokens[first] : undefined;
   switch (name.text) {
     case "set": {
@@ -73,7 +74,7 @@ export function shapeOfAnatomy(tokens: readonly IToken[], anatomy: IDirectiveAna
 
 /** A snippet line's parameter tokens (VARIABLE token indices), in order. Call only on a well-formed snippet. */
 export function parameterTokens(tokens: readonly IToken[], node: INode): readonly number[] {
-  const [, ...rest] = anatomyOf(tokens, node).args;
+  const [, ...rest] = anatomyOf(tokens, node).values;
   return rest.filter((ref): ref is number => typeof ref === "number");
 }
 
@@ -94,7 +95,7 @@ export function blockShapes(
     const shape = shapeOf(tokens, node, extensions);
     if (shape.kind === "set" && shape.claims !== undefined) {
       if (sets.has(shape.claims)) {
-        const variable = tokens[anatomyOf(tokens, node).args[0] as number];
+        const variable = tokens[anatomyOf(tokens, node).values[0] as number];
         const span = variable?.span ?? (tokens[node.start] as IToken).span;
         return { kind: "unreadable", fault: { code: DiagnosticCode.VariableSetTwice, span, detail: variable?.text ?? "" }, claims: undefined };
       }
@@ -102,7 +103,7 @@ export function blockShapes(
     }
     if (shape.kind === "snippet" && shape.claims !== undefined) {
       if (snippets.has(shape.claims)) {
-        const nameToken = tokens[anatomyOf(tokens, node).args[0] as number];
+        const nameToken = tokens[anatomyOf(tokens, node).values[0] as number];
         const span = nameToken?.span ?? (tokens[node.start] as IToken).span;
         return { kind: "unreadable", fault: { code: DiagnosticCode.SnippetDefinedTwice, span, detail: shape.claims }, claims: undefined };
       }

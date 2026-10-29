@@ -1,6 +1,6 @@
 /**
  * The value rules of grammar/villanelle.ebnf (NumberText, IntegerText, BooleanText, EscapeText) and the canonical text of a value
- * (slices.md §1.3): the one home of each rule. Private to the load layer; Python ports it as `_values.py`.
+ * (slices.md §1.3): the one home of each rule. Package-internal, shared; Python ports it as `_values.py`.
  */
 
 /** IntegerText: `'-'? Digits`, Digits being `0` or a non-zero digit then digits. */

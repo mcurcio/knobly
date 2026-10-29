@@ -1,18 +1,16 @@
 /**
- * What differs between two renders, by address (slices.md §1.5; round 12 D4: addresses under the caller's key rule,
- * from `IRendered.addresses`). Private to the load layer; programs call `IProcessor.diff`, which first checks both
- * renders came from that processor.
+ * What differs between two renders, by address (spec 7.6; round 12 D4: addresses under the caller's key rule, from
+ * `IRendered.addresses`). Package-internal; programs call `IRendered.diff`.
  */
 
-import type { IAddress, IDirective, IUnreadable } from "./directive.js";
-import type { Change, IKeyOptions, IRendered } from "./processor.js";
+import type { Change, IAddress, IDirective, IKeyOptions, IRendered, IUnreadable } from "./model.js";
 
 /** A directive's own state for "changed": its values' canonical texts and whether it has a block. */
 function sameOwn(before: IDirective, after: IDirective): boolean {
   return (
-    (before.body === undefined) === (after.body === undefined) &&
-    before.args.length === after.args.length &&
-    before.args.every((arg, i) => arg.text === after.args[i]?.text)
+    (before.block === undefined) === (after.block === undefined) &&
+    before.values.length === after.values.length &&
+    before.values.every((value, i) => value.text === after.values[i]?.text)
   );
 }
 

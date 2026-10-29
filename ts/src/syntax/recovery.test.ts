@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DiagnosticCode } from "../diagnostics.js";
 import { type INode, NodeKind, textOf } from "./cst.js";
 import { parse } from "./parse.js";
-import { MAX_NESTING } from "./recovery.js";
+import { MAX_NESTING } from "../gen/api/limits.js";
 
 /** A node as [kind, source text, children], for readable tree assertions. */
 type Shape = [kind: string, text: string, children: Shape[]];

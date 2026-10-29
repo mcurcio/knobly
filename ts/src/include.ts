@@ -4,12 +4,10 @@
  * An included file's top-level `set` and `snippet` are visible after the include line in the including block (L2).
  */
 
-import { DiagnosticCode, DiagnosticError } from "./diagnostics.js";
-import type { IArgument } from "./load/directive.js";
-import { codeError } from "./load/locate.js";
-import type { IExtension } from "./load/processor.js";
-import { messageOf } from "./syntax/recovery.js";
-import { ValueKind } from "./value.js";
+import { DiagnosticCode, DiagnosticError, messageOf } from "./diagnostics.js";
+import type { IExtension } from "./extension.js";
+import { codeError } from "./locate.js";
+import { type IExpandedValue, ValueKind } from "./value.js";
 
 /**
  * The include extension. Its one value must be a quoted path or glob (E3005 otherwise, placed on the value);
@@ -18,13 +16,13 @@ import { ValueKind } from "./value.js";
 export function include(): IExtension {
   return {
     directive: "include",
-    specs({ args, origin }) {
-      const [path, extra] = args;
+    specs({ values, origin }) {
+      const [path, extra] = values;
       if (path === undefined) {
         const code = DiagnosticCode.IncludeBadPath;
-        throw new DiagnosticError({ code, message: messageOf(code), at: origin.written, via: origin.via });
+        throw new DiagnosticError({ code, message: messageOf(code), place: origin.place, via: origin.via });
       }
-      const bad: IArgument | undefined = path.kind !== ValueKind.String ? path : extra;
+      const bad: IExpandedValue | undefined = path.kind !== ValueKind.String ? path : extra;
       if (bad !== undefined) throw codeError(bad.origin, DiagnosticCode.IncludeBadPath, bad.text);
       return [path.string()];
     },

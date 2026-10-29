@@ -4,31 +4,23 @@
  * PR 3's expansion read them (depth first), each path once (R21), and a rejection is kept, never retried.
  */
 
-import { DiagnosticCode } from "../diagnostics.js";
-import type { IExtension } from "../load/processor.js";
-import type { IDocumentSource } from "../load/source.js";
-import { messageOf } from "../syntax/recovery.js";
+import { DiagnosticCode, messageOf } from "../diagnostics.js";
+import type { IDocumentSource } from "../source.js";
 import { ReadError } from "./errors.js";
-import { DocumentGraph } from "./graph.js";
+import type { DocumentGraph } from "./graph.js";
 
 const START = { offset: 0, line: 0, column: 0 } as const;
 
 /**
- * Read the root file at `path` (resolved through the source, as an included file's spec is) and every file its
- * include lines name. @throws (rejects) ReadError (E3004 at the root path, D25) when the source cannot resolve or
- * read it; TypeError for bad handed-in variables (checked first)
+ * Read the root file at `path` (resolved through the source, as an included file's spec is) into an empty graph,
+ * then every file its include lines name. @throws (rejects) ReadError (E3004 at the root path, D25) when the source
+ * cannot resolve or read it
  */
-export async function loadGraph(
-  source: IDocumentSource,
-  extensions: ReadonlyMap<string, IExtension>,
-  path: string,
-  handed: ReadonlyMap<string, string>,
-): Promise<DocumentGraph> {
-  const graph = new DocumentGraph(extensions, handed);
+export async function readRoot(graph: DocumentGraph, source: IDocumentSource, path: string): Promise<void> {
   const fail = (reason: string): ReadError => {
     const code = DiagnosticCode.IncludeResolverFailed;
-    const at = { kind: "file", resolvedPath: path, span: { start: START, end: START } } as const;
-    return new ReadError({ code, message: `${messageOf(code)}: ${path}: ${reason}`, at, via: [] });
+    const place = { kind: "file", resolvedPath: path, span: { start: START, end: START } } as const;
+    return new ReadError({ code, message: `${messageOf(code)}: ${path}: ${reason}`, place, via: [] });
   };
   // The root is resolved through the source as an included file's spec is (F1-04), so one file has one path.
   let paths: readonly string[];
@@ -49,7 +41,6 @@ export async function loadGraph(
   }
   graph.recordRead(resolved, text);
   await readUnread(graph, source);
-  return graph;
 }
 
 /** Resolve and read what `graph.unread()` names, until nothing new is named. Returns the paths read, in read order. */
@@ -77,7 +68,7 @@ export async function readUnread(graph: DocumentGraph, source: IDocumentSource):
       continue;
     }
     for (const path of need.paths) {
-      if (graph.read(path) !== undefined) continue;
+      if (graph.readOf(path) !== undefined) continue;
       let text: string | Error;
       try {
         text = await source.read(path);

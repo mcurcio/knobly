@@ -5,13 +5,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { IDirective, KeyRule } from "./directive.js";
-import type { IProcessor } from "./processor.js";
-import { villanelle } from "./processor.js";
-import { type IDocumentSource, memorySource } from "./source.js";
+import type { IDirective, KeyRule } from "./model.js";
+import { type IProcessor, villanelle } from "../written/processor.js";
+import { type IDocumentSource, memorySource } from "../source.js";
 import { addresses, loadText, only, processorOf, rendered } from "./testing.js";
 
-const RASL_KEY: KeyRule = (d) => (d.name === "node" && d.parent?.name === "graph" ? d.args[1]?.text : undefined);
+const RASL_KEY: KeyRule = (d) => (d.name === "node" && d.parent?.name === "graph" ? d.values[1]?.text : undefined);
 
 /** A processor whose `main.conf` is whatever `text()` holds at each read. */
 function changing(text: () => string): IProcessor {
@@ -29,7 +28,7 @@ async function changes(before: string, after: string, key?: KeyRule): Promise<[s
   const first = await rendered(processor, "main.conf");
   text = after;
   const second = await rendered(processor, "main.conf");
-  return processor.diff(first, second, key === undefined ? undefined : { key }).map((c) => [c.kind, c.address.toString()]);
+  return first.diff(second, key === undefined ? undefined : { key }).map((c) => [c.kind, c.address.toString()]);
 }
 
 describe("address", () => {
@@ -66,10 +65,10 @@ describe("key rule", () => {
     const seen: IDirective[] = [];
     const key: KeyRule = (d) => {
       seen.push(d);
-      return d.name === "node" ? d.args[1]?.text : undefined;
+      return d.name === "node" ? d.values[1]?.text : undefined;
     };
     expect(addresses(loaded, { key })).toEqual(["graph", 'graph > node "leds"', 'graph > node "leds" > x', "graph > flag"]);
-    expect(seen.map((d) => [d.name, d.args.map((a) => a.text), d.body !== undefined, d.parent?.name])).toEqual([
+    expect(seen.map((d) => [d.name, d.values.map((a) => a.text), d.block !== undefined, d.parent?.name])).toEqual([
       ["graph", [], true, undefined],
       ["node", ["A", "leds"], true, "graph"],
       ["x", [], false, "node"],
@@ -91,7 +90,7 @@ describe("key rule", () => {
     const processor = processorOf({ "main.conf": "a;\nb;\n" });
     const loaded = await rendered(processor, "main.conf");
     expect(() => loaded.addresses({ key })).toThrow(boom);
-    expect(() => processor.diff(loaded, loaded, { key })).toThrow(boom);
+    expect(() => loaded.diff(loaded, { key })).toThrow(boom);
   });
 
   it("is called only for readable directives", async () => {
@@ -112,12 +111,12 @@ describe("key rule", () => {
     const first = await rendered(processor, "main.conf");
     text = "graph {\n  node A two;\n}\n";
     const second = await rendered(processor, "main.conf");
-    const key: KeyRule = (d) => (d.name === "node" ? d.args[1]?.text : undefined);
-    expect(processor.diff(first, second, { key }).map((c) => [c.kind, c.address.toString()])).toEqual([
+    const key: KeyRule = (d) => (d.name === "node" ? d.values[1]?.text : undefined);
+    expect(first.diff(second, { key }).map((c) => [c.kind, c.address.toString()])).toEqual([
       ["removed", 'graph > node "one"'],
       ["added", 'graph > node "two"'],
     ]);
-    expect(only(processor.diff(first, second)).kind).toBe("changed");
+    expect(only(first.diff(second)).kind).toBe("changed");
   });
 });
 
@@ -179,14 +178,11 @@ describe("diff", () => {
     expect(await changes("n 0.5;\n", "n 0.50;\n")).toEqual([["changed", "n"]]);
   });
 
-  it("refuses loads of another processor with a TypeError", async () => {
-    const one = processorOf({ "main.conf": "a;\n" });
-    const other = processorOf({ "main.conf": "a;\n" });
-    const a = await rendered(one, "main.conf");
-    const b = await rendered(other, "main.conf");
-    expect(() => one.diff(a, b)).toThrow(TypeError);
-    expect(() => one.diff(b, a)).toThrow(TypeError);
-    expect(one.diff(a, a)).toEqual([]);
+  it("compares renders of any two processors: no ownership check (D27 retired)", async () => {
+    const a = await rendered(processorOf({ "main.conf": "a;\n" }), "main.conf");
+    const b = await rendered(processorOf({ "main.conf": "a 1;\n" }), "main.conf");
+    expect(a.diff(b).map((c) => [c.kind, c.address.toString()])).toEqual([["changed", "a"]]);
+    expect(a.diff(a)).toEqual([]);
   });
 
   it("gives each change its directives", async () => {
@@ -195,9 +191,9 @@ describe("diff", () => {
     const first = await rendered(processor, "main.conf");
     text = "a 2;\nc;\n";
     const second = await rendered(processor, "main.conf");
-    const [removed, changed, added] = processor.diff(first, second);
-    expect(removed).toMatchObject({ kind: "removed", before: first.body[1] });
-    expect(changed).toMatchObject({ kind: "changed", before: first.body[0], after: second.body[0] });
-    expect(added).toMatchObject({ kind: "added", after: second.body[1] });
+    const [removed, changed, added] = first.diff(second);
+    expect(removed).toMatchObject({ kind: "removed", before: first.block[1] });
+    expect(changed).toMatchObject({ kind: "changed", before: first.block[0], after: second.block[0] });
+    expect(added).toMatchObject({ kind: "added", after: second.block[1] });
   });
 });

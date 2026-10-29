@@ -5,12 +5,12 @@
 
 import { CharStreams, CommonTokenStream } from "antlr4";
 
-import { DiagnosticCode, type IDiagnostic } from "../diagnostics.js";
+import { DiagnosticCode, type IDiagnostic, messageOf } from "../diagnostics.js";
 import VillanelleLexer from "../gen/VillanelleLexer.js";
 import VillanelleParser from "../gen/VillanelleParser.js";
 import type { ISourcePosition } from "../span.js";
 import { type INode, type ISyntax, NodeKind, spanOf } from "./cst.js";
-import { type IRawDiagnostic, installRecovery, messageOf, nestingOverflow } from "./recovery.js";
+import { type IRawDiagnostic, installRecovery, nestingOverflow } from "./recovery.js";
 import { type IToken, TokenKind } from "./tokens.js";
 import { type IAntlrToken, type IAntlrTree, toCst } from "./walk.js";
 

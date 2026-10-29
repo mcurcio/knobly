@@ -1,11 +1,10 @@
 /**
- * Diagnostics of the load layer, and the one sink that load, value readers and programs all report into
+ * Located diagnostics, and the one sink that load, value readers and programs all report into
  * (round 11 review finding 2; R14's report helper). Prior art: PostCSS `Result.messages` / `node.warn(result)`,
  * HCL's `hcl.Diagnostics`.
  */
 
-import { type DiagnosticCode, DiagnosticError } from "../diagnostics.js";
-import type { IDocumentGraph } from "../written/model.js";
+import { type DiagnosticCode, DiagnosticError } from "./diagnostics.js";
 import type { IPlace, IStep } from "./origin.js";
 
 /**
@@ -20,11 +19,11 @@ export interface ILocatedDiagnostic {
   /** For people; not part of the cross-language contract. */
   readonly message: string;
   /**
-   * Where the problem is. For a value handed in by the program (written in no file) this is the `$name` that used
-   * it, and the message names the handed-in variable.
+   * Where the problem is. For an override (written in no file) this is the `$name` that used it, and the message
+   * names the override's variable.
    */
-  readonly at: IPlace;
-  /** The variables, uses and extension directives that brought the text to `at`'s reader; innermost first. */
+  readonly place: IPlace;
+  /** The variables, uses and extension directives that brought the text to `place`'s reader; innermost first. */
   readonly via: readonly IStep[];
 }
 
@@ -83,32 +82,4 @@ export class Diagnostics implements Iterable<ILocatedDiagnostic> {
   [Symbol.iterator](): Iterator<ILocatedDiagnostic> {
     return this.items[Symbol.iterator]();
   }
-}
-
-/** `path:line:col`, 1-based, for people. */
-function where(at: IPlace): string {
-  return `${at.resolvedPath}:${String(at.span.start.line + 1)}:${String(at.span.start.column + 1)}`;
-}
-
-/**
- * `path:line:col: code: message` (1-based line and column, for people), then the source line and a caret under the
- * span when `graph` holds the file (its current text), then one `  via <kind> <name> at path:line:col` line per
- * step (rasl-ynq). Reads text only from `graph`; never does I/O.
- */
-export function formatDiagnostic(diagnostic: ILocatedDiagnostic, graph?: IDocumentGraph): string {
-  const { at, via } = diagnostic;
-  const lines = [`${where(at)}: ${diagnostic.code}: ${diagnostic.message}`];
-  const source = graph?.documents.get(at.resolvedPath)?.text;
-  if (source !== undefined) {
-    const { start, end } = at.span;
-    const lineStart = start.offset - start.column;
-    const lineEnd = source.slice(lineStart).search(/\r\n|\n|\r/u);
-    const text = lineEnd < 0 ? source.slice(lineStart) : source.slice(lineStart, lineStart + lineEnd);
-    const width = end.line === start.line ? end.column - start.column : text.length - start.column;
-    // Tabs stay tabs so the caret lines up under the same characters.
-    const pad = text.slice(0, start.column).replace(/[^\t]/g, " ");
-    lines.push(text, `${pad}${"^".repeat(Math.max(1, width))}`);
-  }
-  for (const step of via) lines.push(`  via ${step.kind} ${step.name} at ${where(step.at)}`);
-  return lines.join("\n");
 }

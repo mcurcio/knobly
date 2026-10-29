@@ -3,19 +3,13 @@
  */
 
 import type { IDiagnostic } from "../diagnostics.js";
+import { NodeKind } from "../gen/api/kinds.js";
 import type { ISourcePosition, ISourceSpan } from "../span.js";
 import type { IToken } from "./tokens.js";
 
-export const NodeKind = {
-  Document: "document",
-  Directive: "directive",
-  Block: "block",
-  List: "list",
-  Slice: "slice",
-  /** One bad statement, or a run of tokens the parser could not use. Never has children. */
-  Error: "error",
-} as const;
-export type NodeKind = (typeof NodeKind)[keyof typeof NodeKind];
+/** The node kinds, generated from spec/schema/api.json. An error node is one bad statement, or a run of tokens the
+ * parser could not use; it never has children. */
+export { NodeKind };
 
 /** A half-open range [start, end) of token indices. */
 export interface ITokenRange {
@@ -46,7 +40,7 @@ export interface ISyntax {
 
 /**
  * A reference to one value of a directive or list: the index of a WORD, STRING or VARIABLE token, or a `slice` or
- * `list` node. The load layer reads it into an `IArgument`.
+ * `list` node. The binding expands it into an expanded value (a rendered `IArgument`).
  */
 export type ValueRef = number | INode;
 

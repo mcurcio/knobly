@@ -6,14 +6,14 @@
 import { describe, expect, it } from "vitest";
 
 import { DiagnosticCode, DiagnosticError } from "../diagnostics.js";
-import type { IArgument } from "./directive.js";
+import type { IArgument } from "./model.js";
 import { loadText, only, originText } from "./testing.js";
 
 /** The values of the one directive `v ...;`. */
-async function values(written: string, variables?: Record<string, string>): Promise<readonly IArgument[]> {
-  const loaded = await loadText(`v ${written};\n`, variables === undefined ? {} : { variables });
+async function values(written: string, overrides?: Record<string, string>): Promise<readonly IArgument[]> {
+  const loaded = await loadText(`v ${written};\n`, overrides === undefined ? {} : { overrides });
   expect(loaded.diagnostics).toEqual([]);
-  return only(loaded.body).args;
+  return only(loaded.block).values;
 }
 
 async function value(written: string): Promise<IArgument> {
@@ -27,7 +27,7 @@ function thrown(read: () => unknown): [string, string] {
   } catch (error) {
     expect(error).toBeInstanceOf(DiagnosticError);
     const { diagnostic } = error as DiagnosticError;
-    return [diagnostic.code, originText({ written: diagnostic.at, via: diagnostic.via })];
+    return [diagnostic.code, originText(diagnostic)];
   }
   throw new Error("expected a throw");
 }
@@ -110,10 +110,10 @@ describe("readers", () => {
 
   it("places a reader's error on a value from a variable at its definition, via the variable", async () => {
     const loaded = await loadText("set $n many;\nv $n;\n");
-    expect(thrown(() => only(only(loaded.body).args).integer())).toEqual([DiagnosticCode.NotAnInteger, "main.conf:0:7 < variable n main.conf:1:2"]);
+    expect(thrown(() => only(only(loaded.block).values).integer())).toEqual([DiagnosticCode.NotAnInteger, "main.conf:0:7 < variable n main.conf:1:2"]);
   });
 
-  it("places a reader's error on a handed-in value at the $name that used it", async () => {
+  it("places a reader's error on an override at the $name that used it", async () => {
     const [arg] = await values("$n", { n: "many" });
     expect(thrown(() => arg?.integer())).toEqual([DiagnosticCode.NotAnInteger, "main.conf:0:2"]);
   });
@@ -153,7 +153,7 @@ describe("canonical text", () => {
 
   it("gives a value from a variable the value's text, never $name", async () => {
     const loaded = await loadText('set $c "x";\nv $c [$c];\n');
-    expect(only(loaded.body).args.map((a) => a.text)).toEqual(['"x"', '["x"]']);
+    expect(only(loaded.block).values.map((a) => a.text)).toEqual(['"x"', '["x"]']);
   });
 });
 

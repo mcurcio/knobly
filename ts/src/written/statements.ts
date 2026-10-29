@@ -4,10 +4,11 @@
  * Private to the package: programs see the interfaces of model.ts.
  */
 
-import type { IPlace } from "../load/origin.js";
-import { anatomyOf } from "../load/anatomy.js";
+import { anatomyOf } from "../anatomy.js";
+import type { IPlace } from "../origin.js";
 import type { INode } from "../syntax/cst.js";
 import { textOf } from "../syntax/cst.js";
+import { requireText } from "../text.js";
 import type { IBinding } from "./bind.js";
 import type { Block, Document } from "./document.js";
 import { detached } from "./document.js";
@@ -71,6 +72,7 @@ export abstract class StatementHandle {
 
   replaceWithText(text: string): readonly Statement[] {
     this.live();
+    requireText(text, "replaceWithText", "text");
     return this.doc.replaceStatement(this, text);
   }
 
@@ -91,7 +93,7 @@ export abstract class StatementHandle {
 
   /** The token index of its first value-position token (a `set`'s `$name`, a snippet's or use's name). */
   firstArgToken(): number {
-    const [first] = anatomyOf(this.doc.syntax.tokens, this.node).args;
+    const [first] = anatomyOf(this.doc.syntax.tokens, this.node).values;
     return typeof first === "number" ? first : this.node.start;
   }
 }
@@ -118,12 +120,14 @@ export class WrittenDirective extends StatementHandle {
 
   rename(name: string): void {
     this.live();
+    requireText(name, "rename", "name");
     this.doc.renameStatement(this, name);
   }
 
-  setValues(text: string): void {
+  set(text: string): void {
     this.live();
-    this.doc.setValues(this, this.valueList, this.node.start, text);
+    requireText(text, "set", "text");
+    this.doc.replaceValues(this, this.valueList, this.node.start, text);
   }
 }
 
@@ -144,9 +148,10 @@ export class SetLine extends StatementHandle {
     return this.live().valueList as unknown as readonly WrittenValue[];
   }
 
-  setValues(text: string): void {
+  set(text: string): void {
     this.live();
-    this.doc.setValues(this, this.valueList, this.variableToken, text);
+    requireText(text, "set", "text");
+    this.doc.replaceValues(this, this.valueList, this.variableToken, text);
   }
 
   /** The token index of its `$name`. */
@@ -198,9 +203,10 @@ export class UseLine extends StatementHandle {
     return this.live().valueList as unknown as readonly WrittenValue[];
   }
 
-  setValues(text: string): void {
+  set(text: string): void {
     this.live();
-    this.doc.setValues(this, this.valueList, this.firstArgToken(), text);
+    requireText(text, "set", "text");
+    this.doc.replaceValues(this, this.valueList, this.firstArgToken(), text);
   }
 }
 
@@ -210,22 +216,22 @@ export class UnreadableLine extends StatementHandle {
 
 // --- Variables ---
 
-/** What `reaches()` and `overridden()` share. */
+/** What `wins()` and `shadowedAt()` share. */
 abstract class VariableBase {
   abstract readonly kind: IVariable["kind"];
   abstract readonly name: string;
   protected abstract graphBinding(): IBinding;
 
-  reaches(): readonly IReferenceResolution[] {
+  wins(): readonly IReferenceResolution[] {
     return this.graphBinding()
       .resolutions()
       .filter((r) => r.winner === (this as unknown as IVariable));
   }
 
-  overridden(): readonly IReferenceResolution[] {
+  shadowedAt(): readonly IReferenceResolution[] {
     return this.graphBinding()
       .resolutions()
-      .filter((r) => r.overridden.includes(this as unknown as IVariable));
+      .filter((r) => r.shadowed.includes(this as unknown as IVariable));
   }
 }
 
@@ -263,11 +269,12 @@ export class SetVariable extends VariableBase implements IVariable {
 
   rename(name: string): void {
     this.setLine.live();
+    requireText(name, "rename", "name");
     this.setLine.doc.renameVariable(this.setLine.variableToken, name, this.setLine);
   }
 
-  setValues(text: string): void {
-    this.setLine.setValues(text);
+  set(text: string): void {
+    this.setLine.set(text);
   }
 }
 
@@ -310,19 +317,20 @@ export class ParameterVariable extends VariableBase implements IVariable {
 
   rename(name: string): void {
     const line = this.alive();
+    requireText(name, "rename", "name");
     line.doc.renameVariable(this.token, name, this);
   }
 
-  setValues(text: string): void {
+  set(text: string): void {
     this.alive();
-    void text;
+    requireText(text, "set", "text");
     throw new NoSetLineError(`$${this.name} is a snippet parameter: edit the use line's values`);
   }
 }
 
-/** A value the program handed in: one per name for the graph's life (D28). */
-export class HandedVariable extends VariableBase implements IVariable {
-  readonly kind = "handed" as const;
+/** An override: one per name for the graph's life (D28). */
+export class OverrideVariable extends VariableBase implements IVariable {
+  readonly kind = "override" as const;
   readonly place = undefined;
   readonly line = undefined;
 
@@ -342,13 +350,13 @@ export class HandedVariable extends VariableBase implements IVariable {
   }
 
   rename(name: string): void {
-    void name;
-    throw new NoSetLineError(`$${this.name} is handed in: use setHanded`);
+    requireText(name, "rename", "name");
+    throw new NoSetLineError(`$${this.name} is an override: use setOverride`);
   }
 
-  setValues(text: string): void {
-    void text;
-    throw new NoSetLineError(`$${this.name} is handed in: use setHanded`);
+  set(text: string): void {
+    requireText(text, "set", "text");
+    throw new NoSetLineError(`$${this.name} is an override: use setOverride`);
   }
 }
 

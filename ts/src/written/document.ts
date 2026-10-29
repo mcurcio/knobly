@@ -1,18 +1,19 @@
 /**
- * One file as written (round 12 slices.md 2.1-2.4): its text, its source, its tier-1 parse, and the tree of handles
+ * One file as written (round 12 slices.md 2.1-2.4): its text, its saved text, its tier-1 parse, and the tree of handles
  * over it. Every edit computes the new text, checks it (2.3), re-parses the whole document and reconciles the
  * handles (2.1). Private to the package; programs see IDocument and the statement and value interfaces.
  */
 
-import { DiagnosticCode, type IDiagnostic } from "../diagnostics.js";
-import type { IPlace } from "../load/origin.js";
+import { anatomyOf, itemsOf } from "../anatomy.js";
+import { DiagnosticCode, type IDiagnostic, messageOf } from "../diagnostics.js";
+import { RESERVED, VARIABLE_NAME } from "../gen/api/limits.js";
+import type { IPlace } from "../origin.js";
 import type { ISourcePosition, ISourceSpan } from "../span.js";
 import { type INode, type ISyntax, NodeKind, spanOf, type ValueRef } from "../syntax/cst.js";
 import { parse } from "../syntax/parse.js";
-import { messageOf } from "../syntax/recovery.js";
 import { type IToken, TokenKind } from "../syntax/tokens.js";
-import { anatomyOf, itemsOf } from "../load/anatomy.js";
-import { type IBinding, RESERVED, VARIABLE_NAME } from "./bind.js";
+import { requireText } from "../text.js";
+import type { IBinding } from "./bind.js";
 import { BadTextError, DetachedError } from "./errors.js";
 import type { IDocument, IDocumentEdge, IVariable, IWrittenBlock, IWrittenDirective, Statement, WrittenValue } from "./model.js";
 import { blockShapes, type IShape, parameterTokens, type ShapeKind, statementNodes } from "./shape.js";
@@ -97,7 +98,7 @@ export class Block implements IWrittenBlock {
 
   constructor(
     private readonly document: Document,
-    /** The statement whose block this is; undefined for a document's body. */
+    /** The statement whose block this is; undefined for a document's top level. */
     readonly owner: StatementHandle | undefined,
   ) {}
 
@@ -112,6 +113,7 @@ export class Block implements IWrittenBlock {
 
   insertStatements(index: number, text: string): readonly Statement[] {
     this.owner?.live();
+    requireText(text, "insertStatements", "text");
     if (!Number.isInteger(index) || index < 0 || index > this.items.length) {
       throw new RangeError(`statement index ${String(index)} is outside 0..${String(this.items.length)}`);
     }
@@ -119,6 +121,8 @@ export class Block implements IWrittenBlock {
   }
 
   addStatements(text: string): readonly Statement[] {
+    this.owner?.live();
+    requireText(text, "addStatements", "text");
     return this.insertStatements(this.statements.length, text);
   }
 }
@@ -129,7 +133,7 @@ export class Document implements IDocument {
   private current: string;
   private saved: string;
   private parsed: ISyntax;
-  readonly body: Block;
+  readonly block: Block;
   private statementsByToken = new Map<number, StatementHandle>();
   private valuesByToken = new Map<number, ValueHandle>();
 
@@ -141,11 +145,11 @@ export class Document implements IDocument {
     this.current = text;
     this.saved = text;
     this.parsed = parse(text);
-    this.body = new Block(this, undefined);
+    this.block = new Block(this, undefined);
     this.build(new Reconcile(new Map(), undefined));
   }
 
-  get source(): string {
+  get savedText(): string {
     return this.saved;
   }
 
@@ -162,6 +166,7 @@ export class Document implements IDocument {
   }
 
   replaceWithText(text: string): void {
+    requireText(text, "replaceWithText", "text");
     const reconcile = new Reconcile(this.entries(), undefined);
     this.current = text;
     this.parsed = parse(text);
@@ -170,7 +175,7 @@ export class Document implements IDocument {
     this.host.changed();
   }
 
-  /** After a writer resolved: `source` becomes the text handed over. */
+  /** After a writer resolved: `savedText` becomes the text handed over. */
   markSaved(text: string): void {
     this.saved = text;
   }
@@ -253,7 +258,7 @@ export class Document implements IDocument {
       add(`v:${v.kind}`, v, typeof v.ref === "number" ? { start: v.ref, end: v.ref + 1 } : v.ref);
       for (const inner of v.innerHandles()) value(inner);
     };
-    for (const s of this.body.items) statement(s);
+    for (const s of this.block.items) statement(s);
     return entries;
   }
 
@@ -270,7 +275,7 @@ export class Document implements IDocument {
   private build(reconcile: Reconcile): void {
     this.statementsByToken = new Map();
     this.valuesByToken = new Map();
-    this.body.items = this.buildBlock(this.parsed.root, undefined, [], reconcile);
+    this.block.items = this.buildBlock(this.parsed.root, undefined, [], reconcile);
   }
 
   private buildBlock(container: INode, owner: StatementHandle | undefined, claimed: readonly string[], reconcile: Reconcile): StatementHandle[] {
@@ -300,13 +305,13 @@ export class Document implements IDocument {
       handle.blockHandle.items = this.buildBlock(anatomy.block, handle, claimed, reconcile);
     };
     if (handle instanceof WrittenDirective) {
-      handle.valueList = values(anatomy?.args ?? []);
+      handle.valueList = values(anatomy?.values ?? []);
       block([]);
     } else if (handle instanceof SetLine) {
-      handle.valueList = values((anatomy?.args ?? []).slice(1));
+      handle.valueList = values((anatomy?.values ?? []).slice(1));
       handle.blockHandle = undefined;
     } else if (handle instanceof UseLine) {
-      handle.valueList = values((anatomy?.args ?? []).slice(1));
+      handle.valueList = values((anatomy?.values ?? []).slice(1));
       handle.blockHandle = undefined;
     } else if (handle instanceof SnippetLine) {
       handle.valueList = [];
@@ -583,8 +588,8 @@ export class Document implements IDocument {
     this.splice(span.start.offset, span.end.offset, insertOf(name, ["$", [0, name.length]]), [], keep);
   }
 
-  /** `setValues` of a statement's values (2.4): first value to last; with none, after `after` (a token index). */
-  setValues(statement: StatementHandle, values: readonly ValueHandle[], after: number, text: string): void {
+  /** `set` of a statement's values (2.4): first value to last; with none, after `after` (a token index). */
+  replaceValues(statement: StatementHandle, values: readonly ValueHandle[], after: number, text: string): void {
     const given = valuesTextProblems(text, false);
     const { tokens } = this.parsed;
     const first = values[0];
@@ -688,7 +693,7 @@ export class Document implements IDocument {
     const name = reference.name;
     for (let s: StatementHandle | undefined = reference.statementHandle; s !== undefined; s = s.parentHandle) {
       const parent = s.parentHandle;
-      const items = (parent?.blockHandle ?? this.body).items;
+      const items = (parent?.blockHandle ?? this.block).items;
       for (let i = items.indexOf(s) - 1; i >= 0; i--) {
         const candidate = items[i];
         if (candidate instanceof SetLine && candidate.variableHandle.name === name) return candidate.variableHandle;
@@ -704,7 +709,7 @@ export class Document implements IDocument {
   /** The nearest statement above `statement` in its block or an enclosing block that matches. */
   above(statement: StatementHandle, match: (s: StatementHandle) => boolean): StatementHandle | undefined {
     for (let s: StatementHandle | undefined = statement; s !== undefined; s = s.parentHandle) {
-      const block = s.parentHandle?.blockHandle ?? this.body;
+      const block = s.parentHandle?.blockHandle ?? this.block;
       const items = block.items;
       for (let i = items.indexOf(s) - 1; i >= 0; i--) {
         const candidate = items[i] as StatementHandle;
@@ -725,7 +730,7 @@ export class Document implements IDocument {
       for (const v of s.valueHandles()) value(v);
       for (const child of s.blockHandle?.items ?? []) statement(child);
     };
-    for (const s of this.body.items) statement(s);
+    for (const s of this.block.items) statement(s);
     return out;
   }
 
@@ -737,7 +742,7 @@ export class Document implements IDocument {
       if (s instanceof SnippetLine) out.push(...s.parameterHandles);
       for (const child of s.blockHandle?.items ?? []) statement(child);
     };
-    for (const s of this.body.items) statement(s);
+    for (const s of this.block.items) statement(s);
     return out;
   }
 }

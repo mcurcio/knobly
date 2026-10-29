@@ -7,15 +7,15 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { include } from "../include.js";
-import { villanelle } from "../load/processor.js";
-import { memorySource } from "../load/source.js";
+import { villanelle } from "./processor.js";
+import { memorySource } from "../source.js";
 import { BadTextError, DetachedError, SaveError } from "./errors.js";
 import type { IDocumentGraph, IDocumentWriter, IFileWrite, ISetLine, IWrittenDirective } from "./model.js";
-import { quote, save } from "./save.js";
+import { quote } from "../text.js";
 
-async function load(files: Record<string, string>, variables?: Record<string, string>): Promise<IDocumentGraph> {
+async function load(files: Record<string, string>, overrides?: Record<string, string>): Promise<IDocumentGraph> {
   const processor = villanelle({ source: memorySource(files), extensions: [include()] });
-  return processor.load("main.conf", variables === undefined ? undefined : { variables });
+  return processor.load("main.conf", overrides === undefined ? undefined : { overrides });
 }
 
 function recorder(): IDocumentWriter & { batches: IFileWrite[][] } {
@@ -32,11 +32,11 @@ function recorder(): IDocumentWriter & { batches: IFileWrite[][] } {
 describe("documents and handles", () => {
   it("keeps one handle per statement and value across an edit elsewhere in the file (===)", async () => {
     const graph = await load({ "main.conf": "set $a 1;\nb 2 3;\nc { d 4; }\n" });
-    const body = graph.root.body;
+    const body = graph.root.block;
     const [set, b, c] = body.statements as [ISetLine, IWrittenDirective, IWrittenDirective];
     const [two, three] = b.values;
     const d = c.block?.statements[0];
-    set.setValues("100 200");
+    set.set("100 200");
     expect(graph.root.text).toBe("set $a 100 200;\nb 2 3;\nc { d 4; }\n");
     expect(body.statements[0]).toBe(set);
     expect(body.statements[1]).toBe(b);
@@ -50,7 +50,7 @@ describe("documents and handles", () => {
 
   it("detaches a replaced value: every member but kind throws DetachedError", async () => {
     const graph = await load({ "main.conf": "x 1;\n" });
-    const [value] = (graph.root.body.statements[0] as IWrittenDirective).values;
+    const [value] = (graph.root.block.statements[0] as IWrittenDirective).values;
     if (value === undefined) throw new Error("no value");
     const [made] = value.replaceWithText("2");
     expect(made?.text).toBe("2");
@@ -61,7 +61,7 @@ describe("documents and handles", () => {
 
   it("owns the comment lines directly above a statement and its trailing comment", async () => {
     const graph = await load({ "main.conf": "# far\n\n# near\n  b 2; # end\nc;\n" });
-    const [b] = graph.root.body.statements;
+    const [b] = graph.root.block.statements;
     expect(b?.text).toBe("# near\n  b 2; # end");
     expect(b?.place.span.start).toMatchObject({ line: 2, column: 0 });
     b?.remove();
@@ -70,9 +70,9 @@ describe("documents and handles", () => {
 
   it("changes nothing when an edit's text is refused", async () => {
     const graph = await load({ "main.conf": "set $a 1;\n" });
-    const set = graph.root.body.statements[0] as ISetLine;
+    const set = graph.root.block.statements[0] as ISetLine;
     for (const text of ["1; x", "{", "", "\"open"]) {
-      expect(() => set.setValues(text), text).toThrow(BadTextError);
+      expect(() => set.set(text), text).toThrow(BadTextError);
       expect(graph.root.text).toBe("set $a 1;\n");
     }
     expect(set.text).toBe("set $a 1;");
@@ -83,39 +83,39 @@ describe("save", () => {
   it("hands only changed files to the writer in one call, then updates source; nothing changed: no call", async () => {
     const graph = await load({ "main.conf": 'include "p.conf";\nx 1;\n', "p.conf": "y 2;\n" });
     const writer = recorder();
-    expect(await save(graph, writer)).toEqual([]);
+    expect(await graph.save(writer)).toEqual([]);
     expect(writer.batches).toEqual([]);
     const p = graph.documents.get("p.conf");
-    (p?.body.statements[0] as IWrittenDirective).values[0]?.replaceWithText("3");
-    expect(await save(graph, writer)).toEqual(["p.conf"]);
-    expect(writer.batches).toEqual([[{ resolvedPath: "p.conf", text: "y 3;\n", source: "y 2;\n" }]]);
-    expect(p?.source).toBe("y 3;\n");
-    expect(await save(graph, writer)).toEqual([]);
+    (p?.block.statements[0] as IWrittenDirective).values[0]?.replaceWithText("3");
+    expect(await graph.save(writer)).toEqual(["p.conf"]);
+    expect(writer.batches).toEqual([[{ resolvedPath: "p.conf", text: "y 3;\n", savedText: "y 2;\n" }]]);
+    expect(p?.savedText).toBe("y 3;\n");
+    expect(await graph.save(writer)).toEqual([]);
     expect(writer.batches).toHaveLength(1);
   });
 
   it("throws SaveError with the files and the cause when the writer rejects, and changes no source", async () => {
     const graph = await load({ "main.conf": "x 1;\n" });
-    (graph.root.body.statements[0] as IWrittenDirective).values[0]?.replaceWithText("2");
+    (graph.root.block.statements[0] as IWrittenDirective).values[0]?.replaceWithText("2");
     const cause = new Error("disk full");
-    const error: unknown = await save(graph, { write: () => Promise.reject(cause) }).catch((e: unknown) => e);
+    const error: unknown = await graph.save({ write: () => Promise.reject(cause) }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(SaveError);
     expect((error as SaveError).files.map((f) => f.resolvedPath)).toEqual(["main.conf"]);
     expect((error as SaveError).cause).toBe(cause);
-    expect(graph.root.source).toBe("x 1;\n");
-    expect(graph.root.text).not.toBe(graph.root.source);
+    expect(graph.root.savedText).toBe("x 1;\n");
+    expect(graph.root.text).not.toBe(graph.root.savedText);
   });
 
   it("keeps an edit made while the writer ran unsaved", async () => {
     const graph = await load({ "main.conf": "x 1;\n" });
-    const x = graph.root.body.statements[0] as IWrittenDirective;
+    const x = graph.root.block.statements[0] as IWrittenDirective;
     x.values[0]?.replaceWithText("2");
     let release: () => void = () => undefined;
-    const pending = save(graph, { write: () => new Promise<void>((resolve) => (release = resolve)) });
+    const pending = graph.save({ write: () => new Promise<void>((resolve) => (release = resolve)) });
     x.values[0]?.replaceWithText("3");
     release();
     await pending;
-    expect(graph.root.source).toBe("x 2;\n");
+    expect(graph.root.savedText).toBe("x 2;\n");
     expect(graph.root.text).toBe("x 3;\n");
   });
 

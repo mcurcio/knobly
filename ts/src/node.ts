@@ -7,7 +7,7 @@ import { readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises
 import { basename, dirname, join, resolve } from "node:path";
 
 import { globToRegExp, hasGlob } from "./graph/glob.js";
-import type { IDocumentSource } from "./load/source.js";
+import type { IDocumentSource } from "./source.js";
 import type { IDocumentWriter } from "./written/model.js";
 
 /**
@@ -54,7 +54,7 @@ function isMissing(error: unknown): boolean {
 
 /**
  * One batch on disk (D18): reads each target first and rejects, writing nothing, when one no longer holds its
- * `source` (a lost update; the Error names the paths; a missing file holds ""); else writes each text, as UTF-8, to
+ * `savedText` (a lost update; the Error names the paths; a missing file holds ""); else writes each text, as UTF-8, to
  * a temporary file beside its target (`<name>.<random>.tmp`), then renames each over its target in batch order. A
  * failure while staging removes the temporaries and rejects with nothing replaced; a failure while renaming can
  * leave earlier files replaced (stated cost) and removes the temporaries not yet renamed.
@@ -64,7 +64,7 @@ export function createFsWriter(): IDocumentWriter {
     async write(files) {
       const lost: string[] = [];
       for (const file of files) {
-        if ((await readOrEmpty(file.resolvedPath)) !== file.source) lost.push(file.resolvedPath);
+        if ((await readOrEmpty(file.resolvedPath)) !== file.savedText) lost.push(file.resolvedPath);
       }
       if (lost.length > 0) throw new Error(`lost update: changed on disk since it was read: ${lost.join(", ")}`);
       const staged: { readonly temporary: string; readonly target: string }[] = [];

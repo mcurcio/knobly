@@ -1,53 +1,37 @@
 /**
- * The document graph (round 12 design.md §5; slices.md 2.7, 2.8): the files one load read, the handed-in values,
- * and the read ledger. Everything else (copies, edges, variables, resolutions, diagnostics) is derived from them by
- * `bind`, cached per graph version; every edit, `setHanded` and read bumps the version. Private to the package.
+ * The document graph (spec 6.3): the files one load read, the overrides, the read ledger, and the document source
+ * it reads through. Everything else (copies, edges, variables, resolutions, diagnostics) is derived from them by
+ * `bind`, cached per graph version; every edit, `setOverride` and read bumps the version. Package-internal: programs
+ * see IDocumentGraph.
  */
 
-import type { IExtension } from "../load/processor.js";
-import type { ILocatedDiagnostic } from "../load/report.js";
-import type { Argument } from "../load/tree.js";
-import { DiagnosticCode, type IDiagnostic } from "../diagnostics.js";
-import { parse } from "../syntax/parse.js";
-import { messageOf } from "../syntax/recovery.js";
-import { TokenKind } from "../syntax/tokens.js";
-import { bind, handedValueProblem, type IBindingWithNeeds, type IHandedInput, type IReadLedger, readHanded, VARIABLE_NAME } from "./bind.js";
-import { Document, type IDocumentHost, positionIn, valuesTextProblems } from "./document.js";
-import { BadTextError } from "./errors.js";
-import type { IDocumentEdge, IDocumentGraph, IVariable } from "./model.js";
-import { HandedVariable } from "./statements.js";
+import { DiagnosticCode } from "../diagnostics.js";
+import type { IExtension } from "../extension.js";
+import type { ILocatedDiagnostic } from "../report.js";
+import type { IDocumentSource } from "../source.js";
+import { bind, type IBindingWithNeeds, type IOverrideInput, type IReadLedger } from "./bind.js";
+import { Document, type IDocumentHost } from "./document.js";
+import { SaveError } from "./errors.js";
+import type { Bound } from "./expanded.js";
+import type { IDocumentEdge, IDocumentGraph, IDocumentWriter, IFileWrite, IVariable } from "./model.js";
+import { checkOverride, checkOverrideName } from "./override.js";
+import { readUnread } from "./read.js";
+import { OverrideVariable } from "./statements.js";
 
-/** The codes `render` owns: the graph's `diagnostics()` leaves them out (D11). */
-const RENDER_CODES: ReadonlySet<string> = new Set(["E5001", "E5003", "E5004", "E5008"]);
-
-/**
- * A handed-in text's values for `setHanded` (2.3's values check): its syntax diagnostics, or E2001 at the first
- * token that is more than values or is a `$name` (at 0:0 for no value), then what the load's handed-in reader refuses
- * (E4003, E4001) located in the given text (D-F1-7). @throws BadTextError
- */
-function handedValues(name: string, text: string): readonly Argument[] {
-  const fault = (offset: number, code: DiagnosticCode): BadTextError => {
-    const at = positionIn(text, offset);
-    return new BadTextError(`not a handed-in value: ${JSON.stringify(text)}`, [{ code, message: messageOf(code), span: { start: at, end: at } }]);
-  };
-  const given: readonly IDiagnostic[] = text.trim() === "" ? [] : valuesTextProblems(text, false);
-  if (given.length > 0) throw new BadTextError(`not a handed-in value: ${JSON.stringify(text)}`, given);
-  const tokens = parse(`x ${text};`).tokens.filter((t) => t.span.start.offset >= 2 && t.span.start.offset < 2 + text.length);
-  const first = tokens.find((t) => t.kind !== TokenKind.Space && t.kind !== TokenKind.Newline && t.kind !== TokenKind.Comment);
-  if (first === undefined) throw fault(0, DiagnosticCode.UnexpectedToken);
-  const variable = tokens.find((t) => t.kind === TokenKind.Variable);
-  if (variable !== undefined) throw fault(variable.span.start.offset - 2, DiagnosticCode.UnexpectedToken);
-  const problem = handedValueProblem(text);
-  if (problem !== undefined) throw fault(problem.span.start.offset - 2, problem.code);
-  return readHanded(name, text);
-}
+/** The codes `render` owns: the graph's `diagnostics` leaves them out, with every E4xxx code (D11). */
+const RENDER_CODES: ReadonlySet<string> = new Set([
+  DiagnosticCode.UnknownVariable,
+  DiagnosticCode.UnknownSnippet,
+  DiagnosticCode.SnippetArity,
+  DiagnosticCode.TooManyDirectives,
+]);
 
 export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger {
   readonly documents = new Map<string, Document>();
   readonly extensionNames: ReadonlySet<string>;
-  private readonly handedTexts = new Map<string, string>();
-  private readonly handedValues = new Map<string, readonly Argument[]>();
-  private readonly handedVariables = new Map<string, HandedVariable>();
+  private readonly overrideTexts = new Map<string, string>();
+  private readonly overrideValues = new Map<string, readonly Bound[]>();
+  private readonly overrideVariables = new Map<string, OverrideVariable>();
   /** Per `JSON.stringify([parentPath, spec])`: the paths or the rejection. */
   private readonly resolutions = new Map<string, readonly string[] | Error>();
   /** Per path whose read rejected: the rejection (a read document is in `documents`). */
@@ -56,16 +40,19 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
   private cache: { readonly version: number; readonly binding: IBindingWithNeeds } | undefined;
   private rootDocument: Document | undefined;
 
-  /** @throws TypeError for a bad handed-in name or text (PR 3's rule) */
+  /**
+   * Each override goes through the check of an override, in order; the first refusal throws.
+   * @throws TypeError for a bad override name or a text that is not a string; BadTextError for a refused text
+   */
   constructor(
+    private readonly source: IDocumentSource,
     readonly extensions: ReadonlyMap<string, IExtension>,
-    handed: ReadonlyMap<string, string>,
+    overrides: Readonly<Record<string, unknown>>,
   ) {
     this.extensionNames = new Set(extensions.keys());
-    for (const [name, text] of handed) {
-      this.handedValues.set(name, readHanded(name, text));
-      this.handedTexts.set(name, text);
-      this.handedVariables.set(name, new HandedVariable(name, () => this.binding()));
+    for (const [name, text] of Object.entries(overrides)) {
+      const values = checkOverride(name, text, { member: "load", textParameter: `overrides[${JSON.stringify(name)}]` });
+      this.putOverride(name, text as string, values);
     }
   }
 
@@ -74,25 +61,53 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
     return this.rootDocument;
   }
 
-  get handed(): ReadonlyMap<string, string> {
-    return this.handedTexts;
+  get overrides(): ReadonlyMap<string, string> {
+    return this.overrideTexts;
   }
 
-  setHanded(name: string, text: string | undefined): void {
-    if (!VARIABLE_NAME.test(name)) throw new TypeError(`handed-in variable name must be letters, digits and _: ${JSON.stringify(name)}`);
+  setOverride(name: string, text: string | undefined): void {
     if (text === undefined) {
-      if (!this.handedTexts.has(name)) return;
-      this.handedTexts.delete(name);
-      this.handedValues.delete(name);
+      checkOverrideName(name, "setOverride");
+      if (!this.overrideTexts.has(name)) return;
+      this.overrideTexts.delete(name);
+      this.overrideValues.delete(name);
       this.changed();
       return;
     }
-    const values = handedValues(name, text);
-    // A changed name keeps its place in `handed`; a new one (or one removed before) goes at the end (2.7).
-    this.handedTexts.set(name, text);
-    this.handedValues.set(name, values);
-    if (!this.handedVariables.has(name)) this.handedVariables.set(name, new HandedVariable(name, () => this.binding()));
+    const values = checkOverride(name, text, { member: "setOverride", textParameter: "text" });
+    this.putOverride(name, text, values);
     this.changed();
+  }
+
+  /** A changed name keeps its place in `overrides`; a new one (or one removed before) goes at the end (6.2). */
+  private putOverride(name: string, text: string, values: readonly Bound[]): void {
+    this.overrideTexts.set(name, text);
+    this.overrideValues.set(name, values);
+    if (!this.overrideVariables.has(name)) this.overrideVariables.set(name, new OverrideVariable(name, () => this.binding()));
+  }
+
+  async read(): Promise<readonly string[]> {
+    return await readUnread(this, this.source);
+  }
+
+  /**
+   * Hand every document whose `text` differs from its `savedText` to the writer in one batch, in `documents` order;
+   * with none, the writer is not called. When the writer resolves, each written document's `savedText` becomes the
+   * text handed over (an edit made while the writer ran stays unsaved); when it rejects, no `savedText` changes.
+   */
+  async save(writer: IDocumentWriter): Promise<readonly string[]> {
+    const files: IFileWrite[] = [];
+    for (const doc of this.documents.values()) {
+      if (doc.text !== doc.savedText) files.push({ resolvedPath: doc.resolvedPath, text: doc.text, savedText: doc.savedText });
+    }
+    if (files.length === 0) return [];
+    try {
+      await writer.write(files);
+    } catch (error) {
+      throw new SaveError(`the writer rejected: ${error instanceof Error ? error.message : String(error)}`, files, error);
+    }
+    for (const file of files) this.documents.get(file.resolvedPath)?.markSaved(file.text);
+    return files.map((file) => file.resolvedPath);
   }
 
   edges(): readonly IDocumentEdge[] {
@@ -105,14 +120,14 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
 
   variables(name?: string): readonly IVariable[] {
     const all: IVariable[] = [...this.documents.values()].flatMap((doc) => doc.variables());
-    for (const handed of this.handedTexts.keys()) {
-      const variable = this.handedVariables.get(handed);
+    for (const override of this.overrideTexts.keys()) {
+      const variable = this.overrideVariables.get(override);
       if (variable !== undefined) all.push(variable);
     }
     return name === undefined ? all : all.filter((v) => v.name === name);
   }
 
-  diagnostics(): readonly ILocatedDiagnostic[] {
+  get diagnostics(): readonly ILocatedDiagnostic[] {
     const found = this.binding().diagnostics.filter((d) => !d.code.startsWith("E4") && !RENDER_CODES.has(d.code));
     return [...this.syntaxDiagnostics(), ...found];
   }
@@ -120,7 +135,7 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
   /** Each document's syntax diagnostics, documents in order, located. */
   syntaxDiagnostics(): ILocatedDiagnostic[] {
     return [...this.documents.values()].flatMap((doc) =>
-      doc.syntax.diagnostics.map((d) => ({ code: d.code, message: d.message, at: doc.place(d.span), via: [] })),
+      doc.syntax.diagnostics.map((d) => ({ code: d.code, message: d.message, place: doc.place(d.span), via: [] })),
     );
   }
 
@@ -128,12 +143,12 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
 
   binding(): IBindingWithNeeds {
     if (this.cache?.version !== this.version) {
-      const handed = new Map<string, IHandedInput>();
-      for (const [name, values] of this.handedValues) {
-        const variable = this.handedVariables.get(name);
-        if (variable !== undefined) handed.set(name, { variable, values });
+      const overrides = new Map<string, IOverrideInput>();
+      for (const [name, values] of this.overrideValues) {
+        const variable = this.overrideVariables.get(name);
+        if (variable !== undefined) overrides.set(name, { variable, values });
       }
-      this.cache = { version: this.version, binding: bind({ root: this.root, extensions: this.extensions, handed, reads: this }) };
+      this.cache = { version: this.version, binding: bind({ root: this.root, extensions: this.extensions, overrides, reads: this }) };
     }
     return this.cache.binding;
   }
@@ -152,7 +167,8 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
     return this.resolutions.get(JSON.stringify([parentPath, spec]));
   }
 
-  read(resolvedPath: string): Document | Error | undefined {
+  /** The document read at `resolvedPath`, the rejection, or undefined (the ledger's `read`; the I/O is `read()`). */
+  readOf(resolvedPath: string): Document | Error | undefined {
     return this.documents.get(resolvedPath) ?? this.failedReads.get(resolvedPath);
   }
 

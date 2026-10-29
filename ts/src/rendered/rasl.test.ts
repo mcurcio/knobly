@@ -1,6 +1,6 @@
 /**
  * rasl acceptance: rasl's real configs (fixtures/rasl/) load through the file source and the include extension,
- * with a handed-in variable, and a `$pixels` edit gives the expected change list under rasl's key rule.
+ * with an override variable, and a `$pixels` edit gives the expected change list under rasl's key rule.
  */
 
 import { readFileSync } from "node:fs";
@@ -10,9 +10,9 @@ import { describe, expect, it } from "vitest";
 
 import { include } from "../include.js";
 import { createFileSource } from "../node.js";
-import type { IDirective, KeyRule } from "./directive.js";
-import { type IRendered, villanelle } from "./processor.js";
-import type { IDocumentSource } from "./source.js";
+import type { IDirective, IRendered, KeyRule } from "./model.js";
+import { villanelle } from "../written/processor.js";
+import type { IDocumentSource } from "../source.js";
 import { rendered } from "./testing.js";
 
 const FIXTURES = new URL("../../../fixtures/rasl/", import.meta.url);
@@ -27,9 +27,9 @@ const EXPECTED = JSON.parse(readFileSync(new URL("expected.json", FIXTURES), "ut
 
 /** The "rasl" key rule of conformance/load/format.md. */
 const RASL_KEY: KeyRule = (d) => {
-  if (d.name === "node" && d.parent?.name === "graph") return d.args[1]?.text;
-  if (d.name === "connect") return d.args.map((a) => a.text).join(" ");
-  if (d.name === "fill") return d.args[0]?.text;
+  if (d.name === "node" && d.parent?.name === "graph") return d.values[1]?.text;
+  if (d.name === "connect") return d.values.map((a) => a.text).join(" ");
+  if (d.name === "fill") return d.values[0]?.text;
   return undefined;
 };
 
@@ -54,12 +54,12 @@ function source(): { source: IDocumentSource; edit: () => void } {
 function nodeIds(loaded: IRendered): string[] {
   const ids: string[] = [];
   loaded.walk((d: IDirective) => {
-    if (d.name === "node" && d.parent?.name === "graph") ids.push(d.args[1]?.text ?? "");
+    if (d.name === "node" && d.parent?.name === "graph") ids.push(d.values[1]?.text ?? "");
   });
   return ids;
 }
 
-const HANDED = { leds_host: '"10.0.70.1"' };
+const OVERRIDES = { leds_host: '"10.0.70.1"' };
 
 describe("rasl's configs", () => {
   it.each(Object.keys(EXPECTED))("%s loads with the expected nodes and reload changes", async (name) => {
@@ -67,23 +67,23 @@ describe("rasl's configs", () => {
     const { source: files, edit } = source();
     const processor = villanelle({ source: files, extensions: [include()] });
     const path = fileURLToPath(new URL(name, FIXTURES));
-    const options = { variables: HANDED };
+    const options = { overrides: OVERRIDES };
     const first = await rendered(processor, path, options);
     expect(first.diagnostics).toEqual(expected.diagnostics);
     expect(nodeIds(first)).toEqual(expected.nodes);
     edit();
     const second = await rendered(processor, path, options);
-    expect(processor.diff(first, second, { key: RASL_KEY }).map((c) => [c.kind, c.address.toString()])).toEqual(expected.changes);
+    expect(first.diff(second, { key: RASL_KEY }).map((c) => [c.kind, c.address.toString()])).toEqual(expected.changes);
   });
 
-  it("splits one sink file over two places, each with its own include-block values and the handed-in host", async () => {
+  it("splits one sink file over two places, each with its own include-block values and the override host", async () => {
     const processor = villanelle({ source: createFileSource(), extensions: [include()] });
     const path = fileURLToPath(new URL("split/main.conf", FIXTURES));
-    const loaded = await rendered(processor, path, { variables: HANDED });
+    const loaded = await rendered(processor, path, { overrides: OVERRIDES });
     const targets: [string, string][] = [];
     const named = loaded.addresses({ key: RASL_KEY });
     loaded.walk((d) => {
-      if (d.name === "target") targets.push([named.get(d)?.toString() ?? "", d.args[0]?.text ?? ""]);
+      if (d.name === "target") targets.push([named.get(d)?.toString() ?? "", d.values[0]?.text ?? ""]);
     });
     expect(targets).toEqual([
       ['graph > node "leds" > target', '"10.0.70.1"'],
@@ -91,11 +91,11 @@ describe("rasl's configs", () => {
     ]);
     expect([...loaded.graph.documents.keys()]).toEqual([path, fileURLToPath(new URL("split/sink.conf", FIXTURES))]);
     expect(loaded.graph.edges()).toHaveLength(2);
-    // Without the handed-in value, the file's own default is used.
+    // Without the override, the file's own default is used.
     const plain = await rendered(processor, path);
     let host = "";
     plain.walk((d) => {
-      if (d.name === "target" && host === "") host = d.args[0]?.text ?? "";
+      if (d.name === "target" && host === "") host = d.values[0]?.text ?? "";
     });
     expect(host).toBe('"10.0.60.30"');
   });
