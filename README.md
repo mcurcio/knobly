@@ -1,7 +1,8 @@
 # villanelle
 
-A small configuration language: directives, `{ }` blocks, lists and slices, `#` comments, variables and
-snippets, with parsers for TypeScript and Python generated from one grammar.
+A small configuration language: directives ended by `;` (a line break is a space, as in nginx), `{ }` blocks,
+lists and slices, `#` comments, variables and snippets, with parsers for TypeScript and Python generated from one
+grammar.
 
 ```conf
 set $pixels 2284;
@@ -19,7 +20,8 @@ snippet twinkle $source {
 ```
 
 (Excerpt of [`fixtures/rasl/family_room.conf`](fixtures/rasl/family_room.conf), which both packages' tests load.)
-The language, with every rule the load applies, is described in [docs/language.md](docs/language.md).
+The language is taught in [docs/language.md](docs/language.md); its rules live in the grammar and in
+[spec/expansion.md](spec/expansion.md) (which `set` a `$name` reaches, and which definition wins).
 
 ## Using it from a program
 
@@ -64,8 +66,10 @@ copied from a test that runs.
 
 [`grammar/Villanelle.g4`](grammar/Villanelle.g4) (ANTLR4) is the specification. ANTLR4
 generates the TypeScript and Python parsers from it, so both parsers accept exactly the
-grammar's language. [`grammar/villanelle.ebnf`](grammar/villanelle.ebnf) is the same grammar
-in W3C EBNF, kept as a readable view.
+grammar's language. Its entry rules (`valuesText`, `itemsText`, `boundText`, `nameText`) also check every text a
+program hands to an edit, so no binding keeps a scanner of its own. [`grammar/villanelle.ebnf`](grammar/villanelle.ebnf)
+is the same grammar in W3C EBNF, kept by hand as a readable view (whether to derive or retire it is an open question
+in `.claude/errata.md`).
 
 The API every language binding offers on top of the parsers is specified, language-neutrally, in
 [`spec/`](spec/README.md): the layers, one word per concept ([`spec/glossary.md`](spec/glossary.md)),
@@ -80,7 +84,7 @@ tools/check.sh
 ```
 
 The script runs three checks:
-- it translates the parser rules to Bison and requires 0 conflicts;
+- it translates the parser rules to Bison and requires 0 conflicts, for the document rule and each entry rule;
 - it checks that no two token kinds can match the same text;
 - it confirms that both checks still catch the planted bad grammars in `tools/planted/`.
 

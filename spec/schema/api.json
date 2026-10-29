@@ -1,5 +1,5 @@
 {
-  "$comment": "The one home of villanelle's API concepts, members, kind lists, error groups, limits and reserved names (spec/spec.md and spec/contract.md are canonical for behaviour; this file is canonical for the lists). Names are spec names: lowercase words; a binding changes only the casing (spec/binding-guide.md rule 1) except where a member's 'spell' records an allowed difference. 'ts' and 'py' give each binding's spelling after milestone 2 (beads vil-0vz, vil-9fy, vil-5ya, vil-gxu; .claude/design/consumer-api/round14/frozen-m2.md). A concept with 'variants' is a union over a kind list ('kind list', less any 'except'): its members are the ones every variant has. Each variant concept names its union in 'variant of' and its kind value in 'kind', and lists only the members it adds; it has every member of its union too. 'extends' names a concept of a lower layer whose members it also has. 'py module' names the only Python module that exports a type when that is not the package root. Every member is present in every binding: there is no deferral marker (tools/gen-api.py --check refuses one).",
+  "$comment": "The one home of villanelle's API concepts, members, kind lists, error groups, limits and reserved names (spec/spec.md and spec/contract.md are canonical for behaviour; this file is canonical for the lists). Names are spec names: lowercase words; a binding changes only the casing (spec/binding-guide.md rule 1) except where a member's 'spell' records an allowed difference. 'ts' and 'py' give each binding's spelling after milestone 4 (beads vil-umh.1 to vil-umh.8 and vil-umh.12; .claude/design/consumer-api/round15/frozen-m4.md; earlier milestones: round14/frozen-m1.md to frozen-m3.md). A concept with 'variants' is a union over a kind list ('kind list', less any 'except'): its members are the ones every variant has. Each variant concept names its union in 'variant of' and its kind value in 'kind', and lists only the members it adds; it has every member of its union too. 'extends' names a concept of a lower layer whose members it also has. 'py module' names the only Python module that exports a type when that is not the package root. Every member is present in every binding: there is no deferral marker (tools/gen-api.py --check refuses one).",
   "version": 2,
   "naming": {
     "rule": "The spec names each concept once in plain lowercase words; each binding only changes the casing.",
@@ -19,7 +19,7 @@
   "layers": [
     {
       "name": "shared",
-      "holds": "positions, places, origins, diagnostics, error groups, value kinds, expanded values and their readers",
+      "holds": "positions, places, origins, diagnostics and the diagnostics sink, error groups, the kind lists",
       "may import": []
     },
     {
@@ -31,14 +31,14 @@
     },
     {
       "name": "io",
-      "holds": "the document source and writer ports, adapters, the extension port",
+      "holds": "the document source and writer ports, their adapters, and check lost updates (the one lost-update check every writer calls)",
       "may import": [
         "shared"
       ]
     },
     {
       "name": "written",
-      "holds": "the low level: processor, document graph, documents, statements, values, variables",
+      "holds": "the low level: processor, document graph, documents, statements, values, variables, the expansion and its expanded values with their readers, the extension port and the include extension (spec 5: an extension is pure, so it belongs to the layer that owns expansion)",
       "may import": [
         "shared",
         "syntax",
@@ -118,7 +118,7 @@
         "index": "index",
         "reference": "reference"
       },
-      "note": "the written value variants cover the whole list; an expanded value's (and so a rendered argument's) variants cover it less 'reference'",
+      "note": "the written value variants cover the whole list; an expanded value's variants cover it less 'reference'",
       "ts": "ValueKind (string-literal type)",
       "py": "ValueKind (StrEnum)"
     },
@@ -165,15 +165,15 @@
         "syntax",
         "expansion",
         "value",
-        "extension"
+        "extension",
+        "unread"
       ],
       "tag of": [
-        "unreadable",
         "unreadable expansion"
       ],
       "ts": "UnreadableReason (string-literal type)",
       "py": "UnreadableReason (StrEnum)",
-      "note": "computed by the low level's expansion (spec 6.10) and shown by the rendered layer's unreadable; generated into the shared kinds module"
+      "note": "computed by the low level's expansion (spec 6.10); 'unread' marks an extension copy not read yet (E3007)"
     },
     "change kind": {
       "values": [
@@ -254,7 +254,7 @@
     {
       "name": "villanelle error",
       "sort": "base",
-      "raised when": "never by itself: the base class of every error class the package defines, so one except or catch clause catches them all. The native classes of the program-bug groups (argument type error, misuse error, index out of range) are not under it",
+      "raised when": "never by itself: the base class of every expected-outcome class (spec 2.8), so one except or catch clause catches every outcome the input or the outside world decides, and no program bug",
       "ts": "VillanelleError (extends Error)",
       "py": "VillanelleError (subclass of Exception)"
     },
@@ -273,7 +273,7 @@
       "name": "read error",
       "sort": "expected outcome",
       "parent": "villanelle error",
-      "raised when": "load cannot resolve the root path to exactly one file, or cannot read it. No diagnostic and no code: a missing root file is not an extension's failure (E3004 is only an extension line's)",
+      "raised when": "load cannot resolve the root path to exactly one file, or cannot read it. No diagnostic and no code",
       "fields": [
         "paths"
       ],
@@ -282,31 +282,15 @@
       "py": "ReadError"
     },
     {
-      "name": "edit error",
-      "sort": "base",
-      "parent": "villanelle error",
-      "raised when": "base of the refusals of an edit; nothing changed",
-      "ts": "EditError",
-      "py": "EditError (subclass of VillanelleError and ValueError)"
-    },
-    {
       "name": "bad text error",
       "sort": "expected outcome",
-      "parent": "edit error",
-      "raised when": "the text given to an edit, or an override's text, is not what it takes; 'diagnostics' are located in that text, in the binding's string unit (spec/contract.md 1)",
+      "parent": "villanelle error",
+      "raised when": "the text given to an edit, or an override's text, is not what its entry rule (spec 2.8) and the text-alone rules take; 'diagnostics' are located in that text, in the binding's string unit; its message is built from them (spec 2.8)",
       "fields": [
         "diagnostics"
       ],
       "ts": "BadTextError",
       "py": "BadTextError"
-    },
-    {
-      "name": "detached error",
-      "sort": "program bug",
-      "parent": "villanelle error",
-      "raised when": "any member but kind of a detached handle is used. Not an edit error: reading a property raises it too",
-      "ts": "DetachedError",
-      "py": "DetachedError (subclass of VillanelleError and ReferenceError, the error a dead weakref proxy raises)"
     },
     {
       "name": "save error",
@@ -321,6 +305,26 @@
       "py": "SaveError"
     },
     {
+      "name": "lost update error",
+      "sort": "expected outcome",
+      "parent": "save error",
+      "raised when": "a file the save would write changed since it was read or last saved: its current text differs from its saved text (spec 4.2). Raised by check lost updates inside every writer; save raises it as is",
+      "fields": [
+        "paths"
+      ],
+      "cause": "absent",
+      "note": "paths are only the conflicting files, in batch order",
+      "ts": "LostUpdateError",
+      "py": "LostUpdateError"
+    },
+    {
+      "name": "detached error",
+      "sort": "program bug",
+      "raised when": "any member but kind of a detached handle is used",
+      "ts": "DetachedError (extends ReferenceError; not under VillanelleError)",
+      "py": "DetachedError (subclass of ReferenceError, the error a dead weakref proxy raises; not under VillanelleError)"
+    },
+    {
       "name": "argument type error",
       "sort": "program bug",
       "raised when": "an argument of the wrong type: anything but text where villanelle text is taken (spec 6.9), a writer that is not a document writer, a key rule that returns anything but text or absent (spec 7.4)",
@@ -330,8 +334,8 @@
     {
       "name": "misuse error",
       "sort": "program bug",
-      "raised when": "a bad argument value a program could have checked: a bad variable or override name, a program code without '/', a reserved or repeated extension name",
-      "ts": "TypeError",
+      "raised when": "a bad argument value a program could have checked: every bad name (a variable or override name not matching the variable name pattern, a directive rename the nameText entry rule refuses or that is reserved or an extension's name), a program code without '/', a reserved or repeated extension name",
+      "ts": "MisuseError (extends Error; not under VillanelleError)",
       "py": "ValueError"
     },
     {
@@ -569,11 +573,35 @@
     },
     {
       "name": "include",
-      "layer": "io",
+      "layer": "written",
       "returns": "extension",
       "spell": {
         "ts": "include() from villanelle/include",
         "py": "include() from villanelle.include"
+      }
+    },
+    {
+      "name": "check lost updates",
+      "layer": "io",
+      "params": [
+        {
+          "name": "files",
+          "type": "file write[]"
+        },
+        {
+          "name": "current",
+          "type": "text or absent[]",
+          "note": "each file's text in the medium now, in the order of files; absent when there is none (read as empty text)"
+        }
+      ],
+      "returns": "nothing",
+      "errors": [
+        "lost update error"
+      ],
+      "note": "the one lost-update check (spec 4.2): raises a lost update error whose paths are the files whose current text differs from their saved text, in batch order. Every writer calls it before it writes; a program's own writer should too",
+      "spell": {
+        "ts": "checkLostUpdates(files, current)",
+        "py": "check_lost_updates(files, current)"
       }
     }
   ],
@@ -1101,7 +1129,7 @@
     },
     {
       "name": "extension",
-      "layer": "io",
+      "layer": "written",
       "nature": "port",
       "ts": "IExtension",
       "py": "Extension",
@@ -1129,7 +1157,7 @@
     },
     {
       "name": "extension use",
-      "layer": "io",
+      "layer": "written",
       "nature": "record",
       "ts": "IExtensionUse",
       "py": "ExtensionUse",
@@ -1138,7 +1166,7 @@
           "name": "values",
           "member": "property",
           "type": "expanded value[]",
-          "note": "was args, typed as the rendered argument"
+          "note": "the line's values, expanded, with their links (spec 5)"
         },
         {
           "name": "origin",
@@ -1291,7 +1319,7 @@
           "name": "diagnostics",
           "member": "property",
           "type": "located diagnostic[]",
-          "note": "a property, as on the render; was a method"
+          "note": "each document's syntax diagnostics, then every problem the low level finds, render codes included (one list, spec 6.3); a property"
         },
         {
           "name": "expand",
@@ -2307,7 +2335,7 @@
           "name": "diagnostics",
           "member": "property",
           "type": "located diagnostic[]",
-          "note": "the graph's diagnostics with the render's codes kept in their walk-order places: what rendered diagnostics is (spec 7.1)"
+          "note": "the graph's diagnostics: one list for the graph, its expansion and its render (milestone 4 deleted the render-only codes)"
         }
       ]
     },
@@ -2318,16 +2346,16 @@
       "ts": "IDirectiveExpansion",
       "py": "DirectiveExpansion",
       "py match args": [
-        "statement",
+        "written",
         "values",
         "block"
       ],
       "members": [
         {
-          "name": "statement",
+          "name": "written",
           "member": "property",
           "type": "written directive",
-          "note": "the line this is a copy of"
+          "note": "the written directive this is a copy of (was statement; one name for the link, milestone 4)"
         },
         {
           "name": "origin",
@@ -2338,7 +2366,7 @@
         {
           "name": "values",
           "member": "property",
-          "type": "value expansion[]",
+          "type": "expanded value[]",
           "note": "in order; a reference gives every value it reaches"
         },
         {
@@ -2362,19 +2390,21 @@
       "ts": "IUnreadableExpansion",
       "py": "UnreadableExpansion",
       "py match args": [
-        "statement",
-        "reason"
+        "reason",
+        "written"
       ],
       "members": [
         {
-          "name": "statement",
+          "name": "written",
           "member": "property",
-          "type": "statement"
+          "type": "statement",
+          "note": "the statement that could not be read: an unreadable line, or a directive, use or extension line this copy could not expand (was statement)"
         },
         {
           "name": "reason",
           "member": "property",
-          "type": "unreadable reason"
+          "type": "unreadable reason",
+          "note": "unread for an extension copy not read yet (E3007, spec 6.10)"
         },
         {
           "name": "origin",
@@ -2382,51 +2412,8 @@
           "type": "directive origin",
           "note": "the statement's own tokens (owned comments left out) and the copy's via"
         }
-      ]
-    },
-    {
-      "name": "value expansion",
-      "layer": "written",
-      "nature": "snapshot",
-      "ts": "IValueExpansion",
-      "py": "ValueExpansion",
-      "py match args": [
-        "value",
-        "written",
-        "definition"
       ],
-      "members": [
-        {
-          "name": "value",
-          "member": "property",
-          "type": "expanded value"
-        },
-        {
-          "name": "written",
-          "member": "property",
-          "type": "written value",
-          "note": "the same line: chain[0].reference when the value came through a variable, else the value itself"
-        },
-        {
-          "name": "definition",
-          "member": "property",
-          "type": "written value",
-          "absent": true,
-          "note": "the end of the chain; absent for an override"
-        },
-        {
-          "name": "chain",
-          "member": "property",
-          "type": "reference resolution[]",
-          "note": "own line first"
-        },
-        {
-          "name": "items",
-          "member": "property",
-          "type": "value expansion[]",
-          "note": "a list's items with their own links; empty for every other kind (a stated cost: not a variant set)"
-        }
-      ]
+      "note": "one statement a copy could not read; the rendered tree lists these same objects (milestone 4: the rendered unreadable type is gone)"
     },
     {
       "name": "rendered",
@@ -2443,7 +2430,7 @@
         {
           "name": "unreadable",
           "member": "property",
-          "type": "unreadable[]"
+          "type": "unreadable expansion[]"
         },
         {
           "name": "origin",
@@ -2453,7 +2440,8 @@
         {
           "name": "diagnostics",
           "member": "property",
-          "type": "located diagnostic[]"
+          "type": "located diagnostic[]",
+          "note": "the graph's diagnostics (spec 7.1)"
         },
         {
           "name": "graph",
@@ -2552,7 +2540,8 @@
         {
           "name": "values",
           "member": "property",
-          "type": "argument[]"
+          "type": "expanded value[]",
+          "note": "its directive expansion's values, the same objects"
         },
         {
           "name": "block",
@@ -2563,7 +2552,7 @@
         {
           "name": "unreadable",
           "member": "property",
-          "type": "unreadable[]"
+          "type": "unreadable expansion[]"
         },
         {
           "name": "parent",
@@ -2579,7 +2568,8 @@
         {
           "name": "written",
           "member": "property",
-          "type": "written directive"
+          "type": "written directive",
+          "note": "its directive expansion's written: the same object for every copy of one line"
         },
         {
           "name": "walk",
@@ -2631,33 +2621,6 @@
         "name",
         "values",
         "block"
-      ]
-    },
-    {
-      "name": "unreadable",
-      "layer": "rendered",
-      "nature": "record",
-      "ts": "IUnreadable",
-      "py": "Unreadable",
-      "members": [
-        {
-          "name": "reason",
-          "member": "property",
-          "type": "unreadable reason"
-        },
-        {
-          "name": "origin",
-          "member": "property",
-          "type": "directive origin"
-        },
-        {
-          "name": "written",
-          "member": "property",
-          "type": "statement"
-        }
-      ],
-      "py match args": [
-        "reason"
       ]
     },
     {
@@ -2717,11 +2680,11 @@
     },
     {
       "name": "expanded value",
-      "layer": "shared",
+      "layer": "written",
       "nature": "snapshot",
       "ts": "ExpandedValue",
       "py": "ExpandedValue",
-      "note": "a union: one value after expansion ($name replaced), what an extension use holds and what a rendered argument builds on (owner, 2026-10-29: the layers have different domain objects). The readers stay on every variant: a value of the wrong kind is a problem in the config text, reported as E4002 (spec 2.9)",
+      "note": "a union: one value after expansion ($name replaced) with its links to the lines it came through. The low level owns it (spec 2.9, 6.10): an extension use holds it, a directive expansion's values are it, and a rendered directive's values are the same objects (milestone 4 collapsed value expansion and the rendered argument family into it). The readers stay on every variant: a value of the wrong kind is a problem in the config text, reported as E4002. Two expanded values are equal exactly when their texts are equal (spec 2.9; Python ==)",
       "members": [
         {
           "name": "kind",
@@ -2737,6 +2700,25 @@
           "name": "origin",
           "member": "property",
           "type": "origin"
+        },
+        {
+          "name": "written",
+          "member": "property",
+          "type": "written value",
+          "note": "the written value on the same line: chain[0].reference when the value came through a variable (a list item that came through one shares its list's), else the value itself; never absent. Was value expansion's and the rendered argument's written"
+        },
+        {
+          "name": "definition",
+          "member": "property",
+          "type": "written value",
+          "absent": true,
+          "note": "the written value at the end of the chain; absent for an override"
+        },
+        {
+          "name": "chain",
+          "member": "property",
+          "type": "reference resolution[]",
+          "note": "one per variable step of origin.via, own line first; empty when read where written"
         },
         {
           "name": "word",
@@ -2841,7 +2823,7 @@
     },
     {
       "name": "expanded word",
-      "layer": "shared",
+      "layer": "written",
       "nature": "snapshot",
       "ts": "IExpandedWord",
       "py": "ExpandedWord",
@@ -2854,7 +2836,7 @@
     },
     {
       "name": "expanded string",
-      "layer": "shared",
+      "layer": "written",
       "nature": "snapshot",
       "ts": "IExpandedString",
       "py": "ExpandedString",
@@ -2867,7 +2849,7 @@
     },
     {
       "name": "expanded list",
-      "layer": "shared",
+      "layer": "written",
       "nature": "snapshot",
       "ts": "IExpandedList",
       "py": "ExpandedList",
@@ -2881,13 +2863,13 @@
           "name": "items",
           "member": "property",
           "type": "expanded value[]",
-          "note": "a tuple in Python"
+          "note": "a tuple in Python; each item an expanded value with its own links"
         }
       ]
     },
     {
       "name": "expanded slice",
-      "layer": "shared",
+      "layer": "written",
       "nature": "snapshot",
       "ts": "IExpandedSlice",
       "py": "ExpandedSlice",
@@ -2920,7 +2902,7 @@
     },
     {
       "name": "expanded index",
-      "layer": "shared",
+      "layer": "written",
       "nature": "snapshot",
       "ts": "IExpandedIndex",
       "py": "ExpandedIndex",
@@ -2942,137 +2924,6 @@
           "type": "integer"
         }
       ]
-    },
-    {
-      "name": "argument",
-      "layer": "rendered",
-      "nature": "snapshot",
-      "ts": "Argument",
-      "py": "Argument",
-      "members": [
-        {
-          "name": "written",
-          "member": "property",
-          "type": "written value",
-          "note": "the same line: chain[0].reference when the value came through a variable, else the value itself; never absent"
-        },
-        {
-          "name": "definition",
-          "member": "property",
-          "type": "written value",
-          "absent": true,
-          "note": "the end of the chain; absent for an override"
-        },
-        {
-          "name": "chain",
-          "member": "property",
-          "type": "reference resolution[]",
-          "note": "own line first"
-        },
-        {
-          "name": "list",
-          "member": "method",
-          "params": [],
-          "returns": "argument[]",
-          "errors": [
-            "diagnostic error"
-          ],
-          "note": "narrowed: each item is an argument"
-        }
-      ],
-      "note": "a union: a rendered value. Each variant builds on the expanded variant of its kind and adds written, definition and chain; list () returns arguments",
-      "extends": "expanded value",
-      "kind list": "value kind",
-      "except": [
-        "reference"
-      ],
-      "variants": [
-        "word argument",
-        "string argument",
-        "list argument",
-        "slice argument",
-        "index argument"
-      ]
-    },
-    {
-      "name": "word argument",
-      "layer": "rendered",
-      "nature": "snapshot",
-      "ts": "IWordArgument",
-      "py": "WordArgument",
-      "variant of": "argument",
-      "kind": "word",
-      "extends": "expanded word",
-      "py match args": [
-        "text"
-      ],
-      "members": []
-    },
-    {
-      "name": "string argument",
-      "layer": "rendered",
-      "nature": "snapshot",
-      "ts": "IStringArgument",
-      "py": "StringArgument",
-      "variant of": "argument",
-      "kind": "string",
-      "extends": "expanded string",
-      "py match args": [
-        "text"
-      ],
-      "members": []
-    },
-    {
-      "name": "list argument",
-      "layer": "rendered",
-      "nature": "snapshot",
-      "ts": "IListArgument",
-      "py": "ListArgument",
-      "variant of": "argument",
-      "kind": "list",
-      "extends": "expanded list",
-      "py match args": [
-        "items"
-      ],
-      "members": [
-        {
-          "name": "items",
-          "member": "property",
-          "type": "argument[]",
-          "note": "a tuple in Python"
-        }
-      ]
-    },
-    {
-      "name": "slice argument",
-      "layer": "rendered",
-      "nature": "snapshot",
-      "ts": "ISliceArgument",
-      "py": "SliceArgument",
-      "variant of": "argument",
-      "kind": "slice",
-      "extends": "expanded slice",
-      "py match args": [
-        "name",
-        "start",
-        "end"
-      ],
-      "members": []
-    },
-    {
-      "name": "index argument",
-      "layer": "rendered",
-      "nature": "snapshot",
-      "ts": "IIndexArgument",
-      "py": "IndexArgument",
-      "variant of": "argument",
-      "kind": "index",
-      "extends": "expanded index",
-      "py match args": [
-        "name",
-        "index"
-      ],
-      "members": []
     },
     {
       "name": "address step",
@@ -3322,9 +3173,10 @@
   },
   "kind rule": "A list whose members have different members or operations is a variant set ('variants': one type per value, each with kind typed by the list). A list whose members share one shape is a tag ('tag of': one type, whose kind or reason field is typed by the list). Every list is generated: TypeScript a string-literal union type, Python a StrEnum (spec/codegen.md).",
   "error fields": {
-    "rule": "read error and save error have the same fields: 'paths' (text[]) and the chained cause, the language's own mechanism (TypeScript Error cause, Python __cause__)",
+    "rule": "read error, save error and lost update error have the same field 'paths' (text[]); read error and save error also chain a cause, the language's own mechanism (TypeScript Error cause, Python __cause__)",
     "read error paths": "the root path as given to load, alone",
-    "save error paths": "the resolved paths handed to the writer, in batch order"
+    "save error paths": "the resolved paths handed to the writer, in batch order",
+    "lost update error paths": "only the files whose current text differs from their saved text, in batch order"
   },
   "removed in milestone 1": [
     {
@@ -3424,6 +3276,44 @@
     {
       "name": "Python's UTF-16 positions",
       "now": "code points (spec/contract.md 1)"
+    }
+  ],
+  "removed in milestone 4": [
+    {
+      "name": "value expansion",
+      "now": "expanded value, which carries written, definition and chain itself"
+    },
+    {
+      "name": "argument, word argument, string argument, list argument, slice argument, index argument",
+      "now": "expanded value and its five variants: a rendered directive's values are its directive expansion's expanded values"
+    },
+    {
+      "name": "unreadable (rendered)",
+      "now": "unreadable expansion: the rendered tree lists the expansion's own objects"
+    },
+    {
+      "name": "directive expansion statement, unreadable expansion statement",
+      "now": "written, the one name of the link to the written statement"
+    },
+    {
+      "name": "edit error",
+      "now": "nothing: bad text error is the only edit refusal and sits directly under villanelle error"
+    },
+    {
+      "name": "detached error under villanelle error",
+      "now": "detached error is a program bug, outside villanelle error"
+    },
+    {
+      "name": "misuse error as TypeError (TypeScript)",
+      "now": "MisuseError, outside VillanelleError, so it is told apart from an argument type error"
+    },
+    {
+      "name": "the render-only diagnostic codes (E4xxx, E5001, E5003, E5004, E5008 left out of the graph's diagnostics)",
+      "now": "one list: the graph's diagnostics are the expansion's and the render's"
+    },
+    {
+      "name": "E2008 brace on own line, E4003 bad escape",
+      "now": "retired (diagnostics.json): a line break is whitespace; a bad escape is E1005, found by parse"
     }
   ]
 }

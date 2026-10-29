@@ -1,0 +1,1 @@
+{"files":["main.conf"],"directives":[["t",false,"main.conf:0:0",[["1","override x < variable x main.conf:0:2"]]],["blk",true,"main.conf:1:0",[]],["blk > u",false,"main.conf:2:2",[["1","override x < variable x main.conf:2:4"]]]],"unreadable":[],"diagnostics":[]}

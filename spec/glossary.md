@@ -32,13 +32,13 @@ Where the words come from:
   layer is the upper layer's free function, `render (graph)`.
 - **Layer direction** (owner, 2026-10-29: "The low level shouldn't "depend on" the middle layer — they should have different domain objects. The middle layer of objects can build on the lower layer domains"): each layer has its own types. A lower layer never
   imports, names or returns an upper layer's type; an upper layer's type may build on a lower one's
-  (an `argument` builds on an `expanded value`).
+  (a rendered `directive` builds on a `directive expansion` and holds its `expanded value`s).
 - **Kind values** are lowercase words (`"set"`, `"override"`), the same strings in every binding (token kinds,
   the grammar's names, aside).
 - **Variants** (spec 2.10): a kind list whose members differ in shape gives one type per member; its spec name is
   the kind word when that is unambiguous in its layer (`word`, `added`), else the kind word plus the concept
-  (`set variable`, `extension line`, `expanded list`, `list argument`). The union keeps the concept's word
-  (`statement`, `variable`, `expanded value`, `argument`, `change`).
+  (`set variable`, `extension line`, `expanded list`). The union keeps the concept's word
+  (`statement`, `variable`, `expanded value`, `change`).
 
 ## The words
 
@@ -49,9 +49,9 @@ in lowercase words; the TypeScript and Python spellings follow from the casing r
 |---|---|---|
 | `block` | the statements inside `{ }`, and a file's top level, in every layer. The word is shared; the shape is not: the low level's `written block` is an object (`statements`, `directives (name)`, `insert statements`, `add statements`), while a rendered `block` is a plain read-only sequence of directives (filter it by `name`, or `walk`) | `body` (document, rendered directive, rendered tree) |
 | `values` | a line's values, in every layer | `args` (rendered directive, extension use) |
-| `written` | the low-level handle behind a rendered thing, on **the same line**: a rendered directive's line, an unreadable statement, a rendered value's same-line value (the `$name` it came through, or the value itself) | a rendered value's `written`, which used to be the end of its chain |
+| `written` | the link from an expanded or rendered thing to the low-level handle behind it, on **the same line**: a directive expansion's (and so a rendered directive's) line, an unreadable expansion's statement, an expanded value's same-line value (the `$name` it came through, or the value itself). The one name of that link in every family (milestone 4) | a rendered value's `written`, which used to be the end of its chain; `statement` on a directive or unreadable expansion (before milestone 4) |
 | `definition` | the written value at the end of a variable chain (the value in the `set` line) | the old rendered value `written` |
-| `chain` | a rendered value's steps along its variable chain, as reference resolutions, its own line first | the rendered value's `resolutions` |
+| `chain` | an expanded value's steps along its variable chain, as reference resolutions, its own line first | the rendered value's `resolutions` |
 | `resolutions ()` | on a written reference: one resolution per copy of its statement | (kept; now its only meaning) |
 | `place` | a file and a span; also the field that says where text was written or a step happened (`origin.place`, `step.place`, `located diagnostic.place`). An origin's `place` may be an `override` instead of a file place | `origin.written`, `step.at`, `located diagnostic.at` |
 | `place kind` | the closed list `file`, `override` | (new list; the values existed) |
@@ -65,12 +65,12 @@ in lowercase words; the TypeScript and Python spellings follow from the casing r
 | `shadowed` | in a resolution: every other definition visible there, next first | a resolution's `overridden` |
 | `wins ()` | a variable's resolutions where it wins | `reaches ()` |
 | `shadowed at ()` | a variable's resolutions where another variable wins | `overridden ()` |
-| `reason` | why a rendered statement could not be read; its list is `unreadable reason` | the rendered unreadable's `kind`, and the `unreadable kind` list |
+| `reason` | why a statement copy could not be read (an unreadable expansion's); its list is `unreadable reason` | the rendered unreadable's `kind`, and the `unreadable kind` list |
 | `kind` | which variant of a closed list a thing is, and nothing else | (`kind` no longer holds a reason) |
 | `diagnostics` | the located problems, a property on the graph and on the render | `graph.diagnostics ()` (a method) |
 | `text` | the parameter of every member that takes new villanelle text | (mixed parameter names) |
 | `set (text)` | replace a statement's or a variable's values with `text` (owner: "Can "set_values" become simply "set"?"). Not the language's `set` keyword: it never makes a `set` line | `set values (text)` |
-| `expanded value` | one value after expansion, with its readers: what an extension use holds and what a rendered argument builds on | the rendered `argument`, which an extension use used to hold |
+| `expanded value` | one value after expansion, with its readers and its links (`written`, `definition`, `chain`): what an extension use holds, a directive expansion's values, and a rendered directive's values (the same objects) | the rendered `argument`, which an extension use used to hold; since milestone 4 also `value expansion` and the `argument` family |
 | `render (graph)` | the rendered layer's free function that makes a graph's rendered tree; the low level has no render member | `processor.render (graph)` |
 | `read ()` | the graph's method that reads what `unread ()` names | `processor.read (graph)` |
 | `save (writer)` | the graph's method that hands changed documents to a writer | the free function `save (graph, writer)` |
@@ -84,11 +84,10 @@ table at the end):
 | `extension line` | a statement whose name an extension owns (an include line): kind `extension`, its own type | a `written directive` of kind `extension` |
 | `set variable`, `parameter`, `override variable` | the three variable types, one per `variable kind` | `variable`, one type for all three |
 | `expanded word` ... `expanded index` | the five expanded value types, one per value kind but `reference` | `expanded value`, one type |
-| `word argument` ... `index argument` | the five rendered value types, each building on the expanded type of its kind | `argument`, one type |
 | `list ()` | the reader that asks for a list (every value variant; E4002 otherwise) | the reader `items ()` |
-| `items` | a list's items, a property of the list variants in every layer (written `list`, `expanded list`, `list argument`) | `items ()` on a rendered value |
+| `items` | a list's items, a property of the list variants (written `list`, `expanded list`) | `items ()` on a rendered value |
 | `expand ()`, `expansion` | the graph's method, and the snapshot it returns: every copy as read, values expanded and linked, what `render (graph)` builds on (spec 6.10) | the package-internal binding render used to read |
-| `directive expansion`, `unreadable expansion`, `value expansion` | the parts of an expansion: a directive copy, a copy that could not be read, one expanded value with its links | (internal: TypeScript `BoundItem`, `Bound`; Python `BoundItem`, `BoundValue`) |
+| `directive expansion`, `unreadable expansion` | the parts of an expansion: a directive copy, a copy that could not be read (the rendered tree lists the same unreadable expansions since milestone 4; `value expansion` merged into `expanded value`) | (internal: TypeScript `BoundItem`, `Bound`; Python `BoundItem`, `BoundValue`) |
 | `insert before (text)`, `insert after (text)` | insert statements next to this statement in its block | `insert statements (index, text)` with a worked-out index |
 | `people form` | the text a person reads, a binding's to-text conversion: an address's, and now a place's, an override's, a step's and a diagnostic's (contract 2) | (an address's only) |
 | `villanelle error` | the base class of every error class the package defines (contract 4) | (none) |
@@ -132,7 +131,8 @@ same name (spec 2.10).
 | `slice value`, `index value` | `ISliceValue`, `IIndexValue` | `SliceValue`, `IndexValue` |
 | `plain value` | `PlainValue` | `PlainValue` |
 | `quote` (free function: a plain string as villanelle text) | `quote`, in `ts/src/text.ts` | `quote`, in `villanelle/_text.py`, exported from `villanelle` |
-| errors (contract 4) | `VillanelleError`, `DiagnosticError`, `ReadError`, `SaveError`, `EditError`, `BadTextError`, `DetachedError` | the same class names |
+| errors (contract 4) | `VillanelleError`, `DiagnosticError`, `ReadError`, `SaveError`, `LostUpdateError`, `BadTextError`; outside the base `DetachedError`, `MisuseError` | the same, and `ValueError` for misuse |
+| `check lost updates` (free function, the io layer) | `checkLostUpdates` | `check_lost_updates` |
 
 ### Syntax layer
 
@@ -179,7 +179,8 @@ same name (spec 2.10).
 | `resolution` | `IResolution<T>` | `Resolution[T]` |
 | `reference resolution` | `IReferenceResolution` | `ReferenceResolution` |
 | `expansion` | `IExpansion` | `Expansion` |
-| `directive expansion`, `unreadable expansion`, `value expansion` | `IDirectiveExpansion`, `IUnreadableExpansion`, `IValueExpansion` | `DirectiveExpansion`, `UnreadableExpansion`, `ValueExpansion` |
+| `directive expansion`, `unreadable expansion` | `IDirectiveExpansion`, `IUnreadableExpansion` | `DirectiveExpansion`, `UnreadableExpansion` |
+| `expanded value` and its variants, `extension`, `extension use` (the low level since milestone 4) | as above | as above |
 | `format diagnostic` (free function; reads the source line from a graph) | `formatDiagnostic`, in `ts/src/written/format.ts` | `format_diagnostic`, in `villanelle/written/format.py` |
 
 The low level's public entry is one module in each binding: `ts/src/written/index.ts` (new) and the package
@@ -193,9 +194,6 @@ The low level's public entry is one module in each binding: `ts/src/written/inde
 | `render (graph)` (entry point) | `render(graph)` in `ts/src/rendered/`, re-exported by `"villanelle"` | `render(graph)` in `villanelle.rendered`, re-exported as `villanelle.render` |
 | `rendered` | `IRendered` | `Rendered` |
 | `directive` | `IDirective` | `Directive` |
-| `argument` | `Argument` (union) | `Argument` (union) |
-| `word argument`, `string argument`, `list argument`, `slice argument`, `index argument` | `IWordArgument extends IExpandedWord`, ... `IIndexArgument extends IExpandedIndex` | `WordArgument(ExpandedWord)`, ... `IndexArgument(ExpandedIndex)` |
-| `unreadable` | `IUnreadable` | `Unreadable` |
 | `unreadable reason` | `UnreadableReason` | `UnreadableReason` (`StrEnum`) |
 | `address`, `address step` | `IAddress`, `IAddressStep` | `Address`, `AddressStep` |
 | `key rule` | `KeyRule` | `KeyRule` |
@@ -233,6 +231,21 @@ The low level's public entry is one module in each binding: `ts/src/written/inde
 | `villanelle error` | the package's base error class | one class to catch (root cause 4) | none |
 | `memory writer` | a writer into the map a memory source reads | every binding ships both ports in memory (root cause 4) | none |
 | `list ()` | the reader that asks for a list | `items` became the list variants' property, the same in both layers (vil-gxu) | `items ()` |
+
+## New terms in milestone 4
+
+| Term | Definition | Why it is needed | Existing term it could be |
+|---|---|---|---|
+| `lost update error` | a `save error` for a file that changed since it was read; `paths` are the conflicting files | round 15: the spec named the lost update but gave it no error (vil-umh.5) | `save error`, which it refines |
+| `check lost updates` | the one function every writer calls to find a lost update | one shared check, not one per writer (vil-umh.5) | the per-writer comparisons it replaces |
+| `entry rule` | a grammar rule a binding parses a given text with (`valuesText`, `itemsText`, `boundText`, `nameText`) | the rules that depend only on the text live in the grammar (vil-umh.3) | the check of a values text (its probe and scanner) |
+| `misuse error` (`MisuseError` in TypeScript) | the program-bug group for a bad value, every bad name included | one group for every bad name, told apart from an argument type error (vil-umh.7) | TypeScript's `TypeError` for misuse |
+| `unread` (an `unreadable reason`), E3007 `unread copy` | an extension copy not read yet | a render and a diff must show it (vil-umh.4) | none: it rendered as nothing |
+| definition, environment, walk, candidate | the words of [expansion.md](expansion.md) | the scoping and precedence rules have one home (vil-umh.2) | the prose of `docs/language.md` |
+| `INTEGER`, `DIGIT_WORD`, `BAD_ESCAPE` (token kinds) | an integer word, every other word starting with a digit or `-`, a string with a bad escape | directive names cannot start with a digit or `-` (owner Q1); bounds and escapes are checked by the grammar (vil-umh.3) | `WORD` (split in three); E4003 found at render |
+
+Removed in milestone 4: `value expansion`, `argument` and its five variants, the rendered `unreadable`, `edit
+error`, and `statement` as the name of the link on a directive or unreadable expansion (now `written`).
 
 ## New terms in milestone 3
 

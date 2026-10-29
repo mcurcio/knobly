@@ -206,7 +206,7 @@ class Model:
             if c.code in seen:
                 raise SchemaError(f"code {c.code} listed twice")
             seen.add(c.code)
-        retired = set(map(str, diagnostics.get("retired", [])))  # type: ignore[call-overload]
+        retired = {str(r["code"]) if isinstance(r, dict) else str(r) for r in diagnostics.get("retired", [])}  # type: ignore[union-attr]
         if retired & seen:
             raise SchemaError(f"retired codes still listed: {sorted(retired & seen)}")
 

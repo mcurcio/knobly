@@ -126,10 +126,15 @@ its test suite (`corepack pnpm -C ts test`, `cd py && uv run pytest`); lint, for
   the driver applies, so an adapter sends the number, never its text.
 - **A lone `"\r"` never ends a line**, also in `format diagnostic`'s source line. Python's
   `str.splitlines()` and a JavaScript `/\r\n|\n|\r/` both break there.
-- **A values text with a line break outside a list splits the statement** (`set("1\n2")` on `port
-  80;` wrote two statements, vil-5ya). The check of a values text refuses it (spec 2.8). So does a
-  comment the text ends in (`set("1 # note")` wrote `port 1 # note;`, whose `;` the comment swallowed,
-  vil-033), at the comment, list items included.
+- **`;` ends every statement; a line break is whitespace** (milestone 4, owner Q1). A directive name
+  cannot start with a digit or `-` (tokens `WORD`, `INTEGER`, `DIGIT_WORD`; all three are the value
+  kind `word`). Error recovery resumes after the bad statement's `;` or block, never at a line break,
+  and a broken statement is one `error` node (spec 3.2). E2008 is retired.
+- **Check a given text with the grammar's entry rules, never a probe or a scanner** (spec 2.8):
+  `valuesText`, `itemsText`, `boundText`, `nameText`, parsed with the generated parser. A text that
+  ends in a comment is refused at its end; a line break in a values text is fine (`set("1\n2")`
+  writes one statement with two values). Splicing the text into `x <text>;` and re-parsing was the
+  old way: it leaked a `;` the user never typed into the diagnostics (round 15).
 - **`written` on a rendered value** meant the end of the chain before milestone 1; the spec now
   calls that `definition`, and `written` is the value on the same line. Code on PR 4 still has the
   old meaning until the milestone 1 binding work lands: `arg.written.replaceWithText(...)` on
@@ -157,24 +162,37 @@ its test suite (`corepack pnpm -C ts test`, `cd py && uv run pytest`); lint, for
 - **The processor ownership check** (D27) is retired by milestone 1: no operation takes a graph or
   render back to a processor. On PR 4 it still refuses another processor's graph at run time.
 - **Generated parser code is never committed.** `tools/gen.sh` writes it to git-ignored folders.
-- **Errors** (contract 4): `VillanelleError` is the one base; `DetachedError` is not an edit error
-  (Python: a `ReferenceError`), so `except ValueError` no longer swallows it; `ReadError` has no
-  diagnostic and no E3004 (a missing root file is not an include failure); `ReadError` and
-  `SaveError` both carry `paths`.
+- **Errors** (contract 4, milestone 4): `VillanelleError` is the base of the expected outcomes only
+  (`DiagnosticError`, `ReadError`, `BadTextError`, `SaveError` and its `LostUpdateError`). Program bugs
+  sit outside it: `DetachedError` (a `ReferenceError`), `TypeError`, misuse (`MisuseError` in
+  TypeScript, `ValueError` in Python), `RangeError` / `IndexError`. There is no `EditError`. Every bad
+  name is a misuse error, from `load`, `setOverride` and `rename` alike. `ReadError` has no diagnostic
+  and no E3004; `ReadError`, `SaveError` and `LostUpdateError` carry `paths`.
+- **A lost update has its own error and one check.** Every writer calls `check lost updates`
+  (spec 4.2) before writing; `LostUpdateError.paths` are only the conflicting files. The fetch writer
+  sends `If-Match` on the ETag of a `GET` it makes first.
 - **The `rasl` key rule is data** (`conformance/keys.json`, sent in `render` and `diff`). The adapter
   builds its key rule from the data (`spec/conformance.md` 4.3); it never names `rasl`.
-- **`graph.diagnostics()` leaves out every E4xxx code,** E4001 and E4003 included (decision D11);
-  only the render reports them. An earlier draft of the spec said otherwise.
+- **One diagnostics list** (milestone 4): `graph.diagnostics` holds every code the expansion finds,
+  E5001 and E4001 included; the expansion and the render show the same list. Decision D11 (render-only
+  codes) is retired: do not keep a list of codes to filter.
+- **An unread include copy is an unreadable with reason `unread`** (E3007), never nothing, so `diff`
+  reports what it held as `unknown`.
+- **Scoping and precedence live in `spec/expansion.md`** (one table). `docs/language.md` only teaches.
 - **The low level never imports the rendered layer,** not even a type (owner, 2026-10-29: "The low
   level shouldn't "depend on" the middle layer"). `render(graph)` is the rendered layer's function;
-  an extension use holds shared `expanded value`s. Each binding has a check (binding guide rule 8):
-  ESLint `no-restricted-imports` in TypeScript, `py/tests/test_layers.py` in Python. On PR 4 the low
-  level still imports the rendered `Argument`: that is what the milestone 1 work removes.
+  the low level owns expansion, the extension port and the expanded values (milestone 4), and a
+  rendered directive holds its directive expansion's own objects (no `Argument` family, no rendered
+  `Unreadable`). Each binding has a check (binding guide rule 8): ESLint `no-restricted-imports` in
+  TypeScript, `py/tests/test_layers.py` in Python.
 - **JSON libraries are not the byte rule.** Go's `encoding/json` escapes `<`, `>`, `&` and replaces
   invalid UTF-8; the conformance bytes and `address text` are defined in neutral terms
   (`conformance/format.md`, spec 7.4). Write the encoder to the rule.
 - **Inserted statements copy the first statement's indentation,** not the one before the index
   (spec 6.5); line breaks are the document's first.
+- **Python: a `str` is a `Sequence[str]`.** Type port results `tuple[str, ...]` and refuse a bare
+  `str` at run time (a `resolve` or `specs` returning `"dark.conf"` used to resolve `d`, `a`, `r` ...).
+  Expanded values compare by text (`==`, `hash`).
 
 ## Tracking
 

@@ -1,1 +1,1 @@
-{"tokens":[["WORD","x"],["SPACE"," "],["LBRACK","["],["RBRACK","]"],["NEWLINE","\n"]],"cst":["document",0,5,[["directive",0,5,[["list",2,4,[]]]]]],"diagnostics":[]}
+{"tokens":[["WORD","x"],["SPACE"," "],["LBRACK","["],["RBRACK","]"],["SEMI",";"],["NEWLINE","\n"]],"cst":["document",0,6,[["directive",0,5,[["list",2,4,[]]]]]],"diagnostics":[]}

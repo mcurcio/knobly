@@ -1,4 +1,6 @@
-/* @rasl/config language, grammar draft 2 (round 11: variables).
+/* villanelle language, grammar draft 2 (round 11: variables; milestone 4: ';' ends every statement, a line
+   break is whitespace, directive names cannot start with a digit or '-', and the entry rules).
+   Kept in step with grammar/Villanelle.g4 by hand; the .g4 is the specification.
    Notation: W3C EBNF (XML 1.0 section 6) in the REx layout: syntax rules,
    then the TOKENS marker, then the regular token definitions.
    Tokenization: at each position the longest match among the token kinds
@@ -9,28 +11,30 @@
 /* ---------------- syntax ---------------- */
 
 Document     ::= Bom? Statements EOF                       /* cst: document */
-Statements   ::= Filler* ( Directive Filler* )* LastDirective?
+Statements   ::= Filler* ( Directive Filler* )*
 Filler       ::= Space | Comment | Newline | ';'
-Directive    ::= Header ( Separator | Block )               /* cst: directive */
-LastDirective
-             ::= Header                                     /* cst: directive */
+Directive    ::= Header ( ';' | Block )                     /* cst: directive */
 Header       ::= Word Rest
-Rest         ::= ( Gap ( Value Rest )? )?
-Gap          ::= ( Space | Comment )+
-Separator    ::= ';' | Newline
+Rest         ::= ( Gap Value )* Gap?
+Gap          ::= ( Space | Newline | Comment Newline )+     /* a comment runs to the end of its line */
 Block        ::= '{' Statements '}'                         /* cst: block */
-Value        ::= Word | String | Variable | SlicedWord | List
+Value        ::= Word | Integer | DigitWord | String | Variable | SlicedWord | List
 SlicedWord   ::= Word '[' Bounds ']'                        /* cst: slice */
 Bounds       ::= Bound ':' Bound? | ':' Bound | Bound
-Bound        ::= Word | Variable
-List         ::= '[' ListGap? Items? ']'                     /* cst: list */
-Items        ::= Value ListGap? ( ',' ListGap? Items? )?
-ListGap      ::= ( Space | Comment | Newline )+
+Bound        ::= Integer | Variable
+List         ::= '[' Gap? Items? ']'                        /* cst: list */
+Items        ::= Value Gap? ( ',' Gap? Value Gap? )* ( ',' Gap? )?
+
+/* entry rules (spec 2.8): a text a program hands to an edit or an override, parsed on its own */
+ValuesText   ::= Gap? ( Value ( Gap Value )* Gap? )? EOF
+ItemsText    ::= Gap? ( Value Gap? ( ',' Gap? Value Gap? )* )? EOF
+BoundText    ::= Bound EOF
+NameText     ::= Word EOF
 
 <?TOKENS?>
 
 /* ---------------- tokens ---------------- */
-/* tokens: Bom Space Newline Comment Variable Word String '{' '}' '[' ']' ';' ',' ':' UnterminatedString LoneDollar BadChar */
+/* tokens: Bom Space Newline Comment Variable Word Integer DigitWord String '{' '}' '[' ']' ';' ',' ':' UnterminatedString BadEscape LoneDollar BadChar */
 
 EOF          ::= $
 Bom          ::= #xFEFF
@@ -38,26 +42,34 @@ Space        ::= [#x20#x9]+
 Newline      ::= #xA | #xD #xA
 Comment      ::= '#' Char*
 Variable     ::= '$' VariableChar+                     /* round 11 L1: nginx's name rule */
-Word         ::= NameStart NameChar* | NumberStart NumberChar*
-String       ::= '"' ( ( Char - ( '"' | '\' ) ) | '\' Char )* '"'
-               | "'" ( ( Char - ( "'" | '\' ) ) | '\' Char )* "'"
+Word         ::= NameStart NameChar*                   /* the only word a directive name can be */
+Integer      ::= IntegerText                           /* the only literal slice or index bound */
+DigitWord    ::= ( NumberStart NumberChar* ) - Integer /* every other word that starts with a digit or '-' */
+String       ::= '"' ( ( Char - ( '"' | '\' ) ) | EscapeText )* '"'
+               | "'" ( ( Char - ( "'" | '\' ) ) | EscapeText )* "'"
 
 /* error tokens: never used by the syntax, so any input holding one is invalid */
 UnterminatedString
              ::= '"' ( ( Char - ( '"' | '\' ) ) | '\' Char )* '\'?
                | "'" ( ( Char - ( "'" | '\' ) ) | '\' Char )* '\'?
+BadEscape    ::= '"' ( ( Char - ( '"' | '\' ) ) | '\' Char )* '\' ( Char - EscapeChar )
+                   ( ( Char - ( '"' | '\' ) ) | '\' Char )* '"'
+               | "'" ( ( Char - ( "'" | '\' ) ) | '\' Char )* '\' ( Char - EscapeChar )
+                   ( ( Char - ( "'" | '\' ) ) | '\' Char )* "'"   /* a closed string with a bad escape */
 LoneDollar   ::= '$'                                   /* a '$' with no name after it */
 BadChar      ::= AnyChar - TokenStart
 
 /* ---------------- value rules ----------------
-   Applied to the whole text of one token after parsing. They never change
-   the tokens or the tree; a failure is a located diagnostic. */
+   Applied by the readers (spec 2.9) to the whole text of one word token after parsing. They never change
+   the tokens or the tree; a failure is a reader's diagnostic error. IntegerText and EscapeText are also
+   token rules since milestone 4 (Integer, String, BadEscape). */
 /* values: NumberText IntegerText BooleanText EscapeText */
 
 NumberText   ::= '-'? Digits Fraction? Exponent?     /* JSON number, RFC 8259 section 6 */
 IntegerText  ::= '-'? Digits                         /* slice bound */
 BooleanText  ::= 'true' | 'false'
-EscapeText   ::= '\' ( '"' | "'" | '\' | 'n' | 't' | 'r' )
+EscapeText   ::= '\' EscapeChar
+EscapeChar   ::= '"' | "'" | '\' | 'n' | 't' | 'r'
 Digits       ::= '0' | [1-9] [0-9]*
 Fraction     ::= '.' [0-9]+
 Exponent     ::= [eE] [-+]? [0-9]+

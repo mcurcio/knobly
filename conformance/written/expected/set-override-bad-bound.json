@@ -1,1 +1,1 @@
-[["error","BadTextError",[["E4001",0,6]]],["error","BadTextError",[["E4003",0,2]]],{"directives":[["a",false,"main.conf:0:0",[["1","override h < variable h main.conf:0:2",null,[["main.conf:0:2","override h"]]]]]],"unreadable":[],"diagnostics":[]}]
+[["error","BadTextError",[["E2007",0,6]]],["error","BadTextError",[["E1005",0,2]]],{"directives":[["a",false,"main.conf:0:0",[["1","override h < variable h main.conf:0:2",null,[["main.conf:0:2","override h"]]]]]],"unreadable":[],"diagnostics":[]}]

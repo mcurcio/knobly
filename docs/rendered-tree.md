@@ -158,7 +158,7 @@ every problem becomes a diagnostic and the rest is read. It fails only when:
   path) and the source's failure as its cause, and no diagnostic or code (test "rejects with ReadError, paths the root
   path and no diagnostic, when the source resolves no file (B10)", `ts/src/written/edits.test.ts`;
   `test_a_root_the_source_cannot_read_raises_read_error_from_the_sources_failure`, `py/tests/test_load.py`);
-- an override has a bad name (TypeError in TypeScript, ValueError in Python), is not a string (TypeError), or has
+- an override has a bad name (MisuseError in TypeScript, ValueError in Python), is not a string (TypeError), or has
   text the check of an override refuses (`BadTextError`, located in the text: see
   [low-level-api.md](low-level-api.md#overrides)).
 
@@ -166,7 +166,7 @@ every problem becomes a diagnostic and the rest is read. It fails only when:
 `diff` takes any other render.
 
 **Overrides** are texts read as values: `{ ports: '8080 443 "x" [1, 2]' }` gives `$ports` four values. They win
-over every `set` of the same name. The low level can change them later without a reload (`graph.setOverride`,
+over every `set` of the same name ([spec/expansion.md](../spec/expansion.md) 6 has the whole precedence table). The low level can change them later without a reload (`graph.setOverride`,
 [low-level-api.md](low-level-api.md#overrides)).
 
 What a render gives back (`IRendered` / `Rendered`):
@@ -174,8 +174,8 @@ What a render gives back (`IRendered` / `Rendered`):
 | Field | What it is |
 |---|---|
 | `block` | the top-level directives, expanded (a read-only sequence) |
-| `unreadable` | top-level statements that could not be read, in place |
-| `diagnostics` | every problem: each file's syntax problems, then the render's, in order |
+| `unreadable` | top-level statements that could not be read, in place (`IUnreadableExpansion` / `UnreadableExpansion`, the low level's own objects) |
+| `diagnostics` | every problem: each file's syntax problems, then the low level's, in order; the same list as `graph.diagnostics` |
 | `graph` | the document graph it was rendered from |
 | `origin` | the root file at 0:0, where a problem of the whole file is placed |
 | `walk(...)`, `error(...)` | see "Walking" and "Problems" |
@@ -261,15 +261,17 @@ A rendered `block` is a plain sequence of directives, not the low level's `writt
 
 ### Unreadable statements
 
-A statement that could not be read stays in its block's `unreadable` list, with its `reason`, its `origin` and
-`written` (the statement as written). It has no name and no address: what it would have been is unknown.
+A statement that could not be read stays in its block's `unreadable` list as an unreadable expansion (the same
+object `graph.expand()` gives), with its `reason`, its `origin` and `written` (the statement as written). It has no
+name and no address: what it would have been is unknown.
 
 | Reason | Why |
 |---|---|
 | `syntax` | the parser could not read it |
 | `expansion` | a variable, `set`, `snippet` or `use` failed (unknown name, wrong count, loop, limits) |
-| `value` | a value broke a rule checked when rendering (E4001, E4003) |
+| `value` | a value broke a rule checked when expanding (E4001) |
 | `extension` | an include line (or another extension's line) failed |
+| `unread` | an include line's files are not read yet: an edit added or changed it, and `graph.read()` has not run (E3007) |
 
 ```ts
     const loaded = await loadText("a {\n  b 1;\n  : x;\n  c $nope { d $nope2; }\n  e;\n}\n");
@@ -290,10 +292,12 @@ A statement that could not be read stays in its block's `unreadable` list, with 
 
 ## Reading values
 
-Each value (`Argument`, a union over `kind` in both languages: `IWordArgument`, `IStringArgument`, `IListArgument`,
-`ISliceArgument`, `IIndexArgument`; Python `WordArgument`, `StringArgument`, ...) is an **expanded value**
-(`ExpandedValue`, the shared union an extension use holds too) with three links to the low level: a `kind` (word, string, list, slice, index; never
-reference), a canonical `text`, an `origin`, readers, and `written`, `definition` and `chain` (below). A reader that meets the wrong value throws a
+Each value is an **expanded value** (`ExpandedValue`, a union over `kind` in both languages: `IExpandedWord`,
+`IExpandedString`, `IExpandedList`, `IExpandedSlice`, `IExpandedIndex`; Python `ExpandedWord`, `ExpandedString`,
+...), the low level's own object, the one an extension use holds too: a `kind` (word, string, list, slice, index;
+never reference), a canonical `text`, an `origin`, readers, and three links to the low level, `written`,
+`definition` and `chain` (below). (Before milestone 4 the rendered tree had its own `Argument` family that copied
+it.) In Python two expanded values are `==` when their texts are equal. A reader that meets the wrong value throws a
 `DiagnosticError` placed on that value.
 
 | Reads | TypeScript | Python | Error |
@@ -622,7 +626,9 @@ An **extension** owns one directive name and turns each use of it into specs of 
 the source, reads each file once, applies the line's block of `set` lines, and checks loops and limits.
 
 An extension has `directive` (its name) and `specs(use)`, where `use` has the line's `values` (expanded values, the
-shared type a rendered argument builds on; the low level never hands an extension a rendered type) and its `origin`.
+low level's own type, the same a rendered directive's values are; the low level never hands an extension a rendered
+type) and its `origin`. `specs` returns a list of texts (Python: a `tuple[str, ...]`; a bare `str` is refused at
+run time as E3006, since Python would read it as a list of letters).
 To refuse a use at a place, throw a `DiagnosticError` from a value's or the use's `error(...)`; anything else thrown
 becomes E3006 at the line:
 
@@ -666,20 +672,20 @@ was given ([low-level-api.md](low-level-api.md#edits-and-their-errors)).
 | E1001 | `UnterminatedString` | `UNTERMINATED_STRING` | a string with no closing quote | per `conformance/` |
 | E1003 | `UnexpectedCharacter` | `UNEXPECTED_CHARACTER` | a character the language does not use | per `conformance/` |
 | E1004 | `LoneDollar` | `LONE_DOLLAR` | `$` not followed by a name | the `$` (case `var-lone-dollar`) |
-| E2001 | `UnexpectedToken` | `UNEXPECTED_TOKEN` | a token where it cannot go | per `conformance/` |
+| E1005 | `BadEscape` | `BAD_ESCAPE` | a string escape other than the six (found by the parser) | the string |
+| E2001 | `UnexpectedToken` | `UNEXPECTED_TOKEN` | a token where it cannot go, a missing `;` at the end of a block or file among them | per `conformance/` |
 | E2003 | `ExpectedClosingBrace` | `EXPECTED_CLOSING_BRACE` | a block with no `}` | per `conformance/` |
 | E2004 | `ExpectedClosingBracket` | `EXPECTED_CLOSING_BRACKET` | an unmatched bracket | per `conformance/` |
-| E2007 | `BadSlice` | `BAD_SLICE` | a malformed slice (`[:]` among them) | per `conformance/` |
-| E2008 | `BraceOnOwnLine` | `BRACE_ON_OWN_LINE` | `{` not on its directive's line | per `conformance/` |
+| E2007 | `BadSlice` | `BAD_SLICE` | a malformed slice (`[:]` among them), or a literal bound that is not a whole number | per `conformance/` |
 | E2009 | `ValuesTouch` | `VALUES_TOUCH` | two values with no space or comment between | per `conformance/` |
 | E2010 | `NestingTooDeep` | `NESTING_TOO_DEEP` | blocks and lists nested deeper than 100 | per `conformance/` |
 | E3001 | `IncludeNotFound` | `INCLUDE_NOT_FOUND` | a spec matched no file | the extension line's name |
 | E3004 | `IncludeResolverFailed` | `INCLUDE_RESOLVER_FAILED` | the source threw (for the root file `load` fails) | the extension line's name; the root file at 0:0 |
 | E3005 | `IncludeBadPath` | `INCLUDE_BAD_PATH` | include needs exactly one quoted path | the bad value, or the name when there is none |
-| E3006 | `ExtensionFailed` | `EXTENSION_FAILED` | an extension threw something other than a located error | the extension line's name |
-| E4001 | `NonIntegerBound` | `NON_INTEGER_BOUND` | a slice or index bound that is not a whole number | the bound (a bound from a variable: the value, via the variable) |
+| E3006 | `ExtensionFailed` | `EXTENSION_FAILED` | an extension threw something other than a located error, or returned something other than a list of texts | the extension line's name |
+| E3007 | `UnreadCopy` | `UNREAD_COPY` | an include copy whose files are not read yet (`graph.read()` reads them) | the extension line's name |
+| E4001 | `NonIntegerBound` | `NON_INTEGER_BOUND` | a bound from a variable that is not one whole number, or a literal whole number beyond the range | the bound (a bound from a variable: the value, via the variable) |
 | E4002 | `WrongValueKind` | `WRONG_VALUE_KIND` | a reader met the wrong kind of value | the value |
-| E4003 | `BadEscape` | `BAD_ESCAPE` | a string escape other than the six (found when rendering) | the string |
 | E4004 | `NotANumber` | `NOT_A_NUMBER` | `number()` met a word that is not a number | the value |
 | E4005 | `NotAnInteger` | `NOT_AN_INTEGER` | `integer()` met a word that is not a whole number | the value |
 | E4006 | `NotABoolean` | `NOT_A_BOOLEAN` | `boolean()` met a word other than `true`, `false` | the value |
@@ -697,7 +703,9 @@ was given ([low-level-api.md](low-level-api.md#edits-and-their-errors)).
 | E5012 | `ExtensionBlockNotSet` | `EXTENSION_BLOCK_NOT_SET` | an extension line's block holds a line other than `set` | that line's name |
 
 Codes that are no longer used, and never will be again: **E2006** (the old include path error, replaced by E3005),
-**E3002** and **E3003** (the old include loop and depth errors, replaced by E5006 and E5007). E6xxx is kept for the
+**E3002** and **E3003** (the old include loop and depth errors, replaced by E5006 and E5007), **E2008** (a `{` on its
+own line, allowed since a line break is whitespace) and **E4003** (a bad escape found when rendering, now E1005 found
+by the parser). Every code but the readers' is in one list, `graph.diagnostics`, which the render shows unchanged. E6xxx is kept for the
 high-level API, which is not built yet; none is defined.
 
 ## How the two languages differ
@@ -710,11 +718,11 @@ By design (each language's own way):
   `slice()`, `plain()`); `walk` is a method in both, taking a callback in TypeScript and returning a generator
   in Python; change kinds are a `kind` field in TypeScript and classes in Python.
 - The key rule is an options object in TypeScript (`{ key }`) and a keyword argument in Python (`key=`).
-- Misuse by a program is TypeError in TypeScript and ValueError in Python.
+- Misuse by a program is MisuseError in TypeScript and ValueError in Python.
 - Python has no fetch source or fetch writer.
 
 Both languages refuse an extension named `set`, `snippet` or `use`, or two extensions with one name, when the
-processor is made (TypeError in TypeScript, ValueError in Python).
+processor is made (MisuseError in TypeScript, ValueError in Python).
 
 ## What is not tested
 

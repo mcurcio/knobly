@@ -1,0 +1,1 @@
+{"tokens":[["WORD","a"],["NEWLINE","\n"],["LBRACE","{"],["NEWLINE","\n"],["SPACE","  "],["WORD","b"],["SEMI",";"],["NEWLINE","\n"],["RBRACE","}"],["NEWLINE","\n"]],"cst":["document",0,10,[["directive",0,9,[["block",2,9,[["directive",5,7,[]]]]]]]],"diagnostics":[]}

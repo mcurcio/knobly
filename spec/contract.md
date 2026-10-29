@@ -117,43 +117,50 @@ Each binding maps these groups onto its own classes (the list is `error groups` 
   every entry point (edits, `set override`, each override `load` takes).
 - **A problem a reader finds in the config's values** (a list where a word was asked for, `20hz` read as a number)
   raises `diagnostic error`: the config text decides it, not the program, so it stays a run-time error.
-- **Misuse** raises the language's own errors: `argument type error` (a value of the wrong type), `misuse error`
-  (a bad value the program could have checked), `index out of range`.
-- **A removed handle** raises `detached error`, which is not an edit error: reading a property of a detached
-  handle raises it too.
-- **I/O** raises `read error` (the root file, from `load`) and `save error` (the writer, from `save`). Both have
-  the same fields: `paths` (text[]), and the port's failure chained as the cause. A missing root file is a `read
-  error` with no diagnostic and no code: it is not an extension line's failure, so it is never E3004 ("include
-  resolver failed"), which stays an extension line's code.
-- **One package base class per binding**, `villanelle error`, is the parent of every class the package defines,
-  so one clause catches them all. The native classes of the program-bug groups are not under it: a program bug
-  should not be caught with the config's problems.
+- **Program bugs** raise classes outside the package base (spec 2.8, the two sorts): `argument type error` (a
+  value of the wrong type), `misuse error` (a bad value the program could have checked, every bad name among
+  them), `index out of range`, and `detached error` (a removed handle; reading a property of one raises it too).
+- **I/O** raises `read error` (the root file, from `load`), `save error` (the writer, from `save`) and its
+  subgroup `lost update error` (a file changed since it was read, spec 4.2). All three have `paths` (text[]); a read
+  error and a save error chain the port's failure as the cause; a lost update error has no cause. A missing root
+  file is a `read error` with no diagnostic and no code: it is not an extension line's failure, so it is never
+  E3004 ("include resolver failed"), which stays an extension line's code.
+- **One package base class per binding**, `villanelle error`, is the parent of every expected-outcome class and of
+  nothing else, so one clause catches every outcome and no bug (vil-umh.7; before milestone 4 `DetachedError` sat
+  under it, against this rule).
 
 `read error` `paths`: the root path as given to `load`, alone. `save error` `paths`: the resolved paths handed to
-the writer, in batch order. `diagnostic error` keeps `diagnostic`; `bad text error` keeps `diagnostics`.
+the writer, in batch order. `lost update error` `paths`: only the conflicting files, in batch order. `diagnostic
+error` keeps `diagnostic`; `bad text error` keeps `diagnostics` and builds its message from them (spec 2.8).
 
 ### 4.2 The class tree in each binding
 
 ```text
-TypeScript                               Python
-Error                                    Exception
-└─ VillanelleError                       └─ VillanelleError
-   ├─ DiagnosticError  (diagnostic)         ├─ DiagnosticError  (diagnostic)
-   ├─ ReadError        (paths, cause)       ├─ ReadError        (paths, __cause__)
-   ├─ SaveError        (paths, cause)       ├─ SaveError        (paths, __cause__)
-   ├─ EditError                             ├─ EditError        (also a ValueError)
-   │  └─ BadTextError  (diagnostics)        │  └─ BadTextError  (diagnostics)
-   └─ DetachedError                         └─ DetachedError    (also a ReferenceError)
+TypeScript                                 Python
+Error                                      Exception
+└─ VillanelleError     (expected outcomes) └─ VillanelleError     (expected outcomes)
+   ├─ DiagnosticError  (diagnostic)           ├─ DiagnosticError  (diagnostic)
+   ├─ ReadError        (paths, cause)         ├─ ReadError        (paths, __cause__)
+   ├─ BadTextError     (diagnostics)          ├─ BadTextError     (diagnostics)
+   └─ SaveError        (paths, cause)         └─ SaveError        (paths, __cause__)
+      └─ LostUpdateError (paths)                 └─ LostUpdateError (paths)
 
-native, not under VillanelleError:
-TypeError   argument type error, misuse  TypeError   argument type error
-RangeError  index out of range           ValueError  misuse error
-                                         IndexError  index out of range
+program bugs, not under VillanelleError:
+TypeError                  argument type   TypeError                  argument type error
+MisuseError extends Error  misuse error    ValueError                 misuse error
+RangeError                 index out of    IndexError                 index out of range
+DetachedError extends      detached error  DetachedError(ReferenceError) detached error
+  ReferenceError
 ```
 
-- Python's `EditError` stays a `ValueError` (a refused text is a bad value, the language's idiom), so `except
-  ValueError` still catches a refused edit; `DetachedError` leaves it and joins `ReferenceError`, the error a dead
-  `weakref` proxy raises, so `except ValueError` around unrelated code no longer swallows a detached handle.
+- There is no `EditError` (milestone 4): it was never raised, so `BadTextError` sits directly under the base.
+  Python's `BadTextError` is no longer a `ValueError`: `except ValueError` now catches only misuse, a bug.
+- `DetachedError` extends `ReferenceError` in both languages (in Python the error a dead `weakref` proxy raises; in
+  TypeScript the error for a name that cannot be reached): a detached handle is a reference that no longer leads
+  anywhere, and a program bug.
+- TypeScript's `MisuseError` is the package's own class because JavaScript has no `ValueError`; it is outside
+  `VillanelleError` like the native classes, and it is not a `TypeError`, so a misuse and an argument type error
+  are told apart.
 - `no set line error` is gone: `set` and `rename` exist only on the variable kinds where they can succeed (spec
   6.7), so there is nothing left to refuse at run time.
 - `save (writer)` raises an `argument type error` before it collects anything when `writer` is not a document
@@ -187,9 +194,11 @@ only).
   copy made when it was created; `memory writer (files)` writes each batch into the map it is given. Given the same
   map, a save is visible to the next `load` or `read`: a program keeps its texts in one place (TypeScript: a plain
   `Record<string, string>`; Python: a `MutableMapping[str, str]`, such as a `dict`).
-- **The memory writer refuses a lost update** as the file writer does: when any file's text in the map (empty text
-  when the key is absent) differs from that file's `saved text`, it fails and writes nothing; else it sets every
-  file's text. A batch is all or nothing, since nothing can fail part way.
+- **Every writer refuses a lost update through one check**, `check lost updates (files, current)` (spec 4.2;
+  TypeScript `checkLostUpdates` from `"villanelle"`, Python `check_lost_updates` from `villanelle`): the memory
+  writer with each file's text in the map (absent when the key is), the file writer with each file's text on disk,
+  the fetch writer with each URL's `GET` body, then a `PUT` with `If-Match` on the `GET`'s ETag (a `412` is a lost
+  update). The memory writer's batch is all or nothing, since nothing can fail part way.
 - Factories keep each binding's present convention (lowercase functions in both); the binding guide's rule 3
   (Python classes such as `MemorySource()`) is still a proposal pending the owner.
 

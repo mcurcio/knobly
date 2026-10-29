@@ -1,13 +1,16 @@
 # villanelle language-binding specification
 
 Status: this page is canonical (owner, 2026-10-27: "Within villanelle I want the spec to win over a
-reference language"). It describes the API after milestone 2 (beads vil-0vz, vil-9fy, vil-5ya, vil-gxu): the words of
+reference language"). It describes the API after milestone 4 (beads vil-umh.1 to vil-umh.8 and vil-umh.12, the
+round 15 review's next steps: `.claude/design/consumer-api/round15/`), built on milestone 2 (beads vil-0vz, vil-9fy,
+vil-5ya, vil-gxu): the words of
 [glossary.md](glossary.md), the operation homes and layer direction the owner settled on the
 round 13 gate page (2026-10-29, 6.2), types that carry their kinds (2.10, round 13 root cause 3), the rendered
 layer built only on the low level's public members (6.10, 7.0), and the edge contract of
 [contract.md](contract.md) (round 13 root cause 4). The exact old-to-new tables are the milestones' frozen pages,
 `.claude/design/consumer-api/round14/frozen-m1.md` and `frozen-m2.md`; the bindings carry the older names until each
-milestone's binding work lands. Nothing here is locked: the owner approves API
+milestone's binding work lands; milestone 4's old-to-new tables are `.claude/design/consumer-api/round15/frozen-m4.md`.
+Nothing here is locked: the owner approves API
 shapes ("Nothing is locked until I see user APIs that I like", 2026-10-27). A note marked
 **Proposed (pending owner)** is not agreed; it links to [review.md](../.claude/design/consumer-api/round13/review.md)
 or names its open question.
@@ -17,8 +20,10 @@ name in each layer and binding, is in [glossary.md](glossary.md). Every fixed li
 error groups, limits, reserved names, diagnostic codes) has its one home in [schema/](schema/): the
 tables on this page are copies for reading, and the schema wins where they differ. How to turn the
 rules into a binding in a given language (names, idiom, what may differ) is in
-[binding-guide.md](binding-guide.md). The language itself (what a config file may say) is in
-[docs/language.md](../docs/language.md).
+[binding-guide.md](binding-guide.md). The syntax is [grammar/Villanelle.g4](../grammar/Villanelle.g4); which
+definition a `$name` or a `use` reaches, and which one wins, is [expansion.md](expansion.md) (normative); the
+language for people writing configs is [docs/language.md](../docs/language.md), which teaches both and is not a
+source of rules.
 
 ## 1. How to read this page
 
@@ -38,7 +43,8 @@ rules into a binding in a given language (names, idiom, what may differ) is in
   a language without exceptions maps the groups is in 2.8.
 - **Free**: a reference or a `use` line is free when no declaration is found for it by where it is
   written (6.5, 6.6). A free reference can still resolve at a copy, through an extension line's
-  `set` lines or an override; `render` reports E5001 or E5003 only where nothing does.
+  `set` lines or an override ([expansion.md](expansion.md) 5); the low level reports E5001 or E5003 only where
+  nothing does.
 - "In order" lists are ordered as stated. When a list's order is stated, a binding MUST keep it:
   the conformance outputs depend on it.
 - "Text" means the language's string type. Values going into edits are villanelle text, and only
@@ -132,7 +138,8 @@ language's to-text conversion ([contract.md 2](contract.md#2-people-forms-the-te
 ### 2.4 The diagnostic code registry
 
 Codes are stable across bindings and releases and are never reused for another meaning. Retired,
-never to be reused: E2006, E3002, E3003. Ranges: 1xxx lexical, 2xxx syntax, 3xxx files and
+never to be reused: E2006, E3002, E3003, E2008 and E4003 (milestone 4: a line break is whitespace, so a `{` may
+start its line; a bad escape is found by parse, E1005). Ranges: 1xxx lexical, 2xxx syntax, 3xxx files and
 extensions, 4xxx values, 5xxx expansion, 6xxx reserved for the high level.
 
 A binding MUST expose every code below, by its value and by a name. The "found by" column says
@@ -144,45 +151,48 @@ which also holds each code's message and owning layer; the schema wins.
 | E1001 | `unterminated string` | parse | syntax | A string reaches the end of its line or of the text without its closing quote. |
 | E1003 | `unexpected character` | parse | syntax | A character no token may start with, or a byte-order mark after the first character. |
 | E1004 | `lone dollar` | parse | syntax | A `$` not followed by a variable name. |
-| E2001 | `unexpected token` | parse | syntax | A token the grammar does not allow here, when no more specific code applies. |
+| E1005 | `bad escape` | parse | syntax | A closed string holding a backslash escape other than the six (the `BAD_ESCAPE` error token), placed on the string. |
+| E2001 | `unexpected token` | parse | syntax | A token the grammar does not allow here, when no more specific code applies: among them the end of the text or a `}` where a directive's `;` or block is due. |
 | E2003 | `expected closing brace` | parse | syntax | The text ends inside a block. |
 | E2004 | `expected closing bracket` | parse | syntax | A stray `]`, or a `[` list with no matching `]`. |
-| E2007 | `bad slice` | parse | syntax | A malformed slice after a word: `a[:]`, `a[1:b c]`, an unclosed slice. |
-| E2008 | `brace on own line` | parse | syntax | A `{` that starts its line. |
+| E2007 | `bad slice` | parse | syntax | A malformed slice after a word: `a[:]`, `a[1:b c]`, an unclosed slice, or a literal bound that is not an integer (`a[i]`, `a[1.5]`). |
 | E2009 | `values touch` | parse | syntax | Two values with nothing between them, such as `a"b"`. |
 | E2010 | `nesting too deep` | parse | syntax | Blocks and lists nested deeper than 100 levels. |
 | E3001 | `include not found` | load, read | extension | An extension's spec matched no file. |
 | E3004 | `include resolver failed` | load, read | extension | The document source rejected while resolving or reading a file. For the root file, `load` fails instead (6.2). |
 | E3005 | `include bad path` | include extension | extension | An `include` whose values are not exactly one quoted path. |
-| E3006 | `extension failed` | load, read | extension | An extension threw something other than a diagnostic error. |
-| E4001 | `non-integer bound` | render, `load` and `set override` (an override's text) | value | A slice or index bound that is not an integer. |
+| E3006 | `extension failed` | load, read | extension | An extension threw something other than a diagnostic error, or returned something other than a list of texts. |
+| E3007 | `unread copy` | low level | unread | An extension line's copy whose specs are not resolved or whose files are not read yet (it is in `unread ()`); `read ()` reads them. Placed on the extension line's name. |
+| E4001 | `non-integer bound` | low level | value | A slice or index bound reached through a variable that is not one integer word, or a literal integer beyond the integer range. |
 | E4002 | `wrong value kind` | readers | none | A reader asked for a kind the value is not. |
-| E4003 | `bad escape` | render, `load` and `set override` (an override's text) | value | A backslash escape other than the six the language allows. |
 | E4004 | `not a number` | readers | none | A word read as a number that is not a JSON number. |
 | E4005 | `not an integer` | readers | none | A word read as an integer that is not one. |
 | E4006 | `not a boolean` | readers | none | A word other than `true` or `false`, read as a boolean. |
-| E5001 | `unknown variable` | render | expansion | A `$name` with no `set` visible and no override. |
+| E5001 | `unknown variable` | low level | expansion | A `$name` with no `set` visible and no override. |
 | E5002 | `variable set twice` | low level | expansion | Two `set` lines for one name in one block. |
-| E5003 | `unknown snippet` | render | expansion | A `use` naming no visible snippet. |
-| E5004 | `snippet arity` | render | expansion | A `use` with a different number of values than its snippet's parameters. |
+| E5003 | `unknown snippet` | low level | expansion | A `use` naming no visible snippet. |
+| E5004 | `snippet arity` | low level | expansion | A `use` with a different number of values than its snippet's parameters. |
 | E5005 | `snippet defined twice` | low level | expansion | Two `snippet` lines for one name in one block. |
 | E5006 | `expansion cycle` | low level | expansion | A `use` or extension line that reaches itself again. |
 | E5007 | `expansion too deep` | low level | expansion | `use` and extension lines nested deeper than 16. |
-| E5008 | `too many directives` | render | expansion | More than 100,000 directives after expansion. |
+| E5008 | `too many directives` | low level | expansion | More than 100,000 directives after expansion. |
 | E5009 | `bad set` | low level | expansion | A `set` that is not `set $name value...;`. |
 | E5010 | `bad snippet` | low level | expansion | A malformed `snippet`, or one naming a parameter twice. |
 | E5011 | `bad use` | low level | expansion | A `use` that is not `use name value...;`. |
 | E5012 | `extension block not set` | low level | extension | An extension line whose block holds a line other than `set`. |
 
-"Low level" codes appear in `document graph` `diagnostics`; "render" codes appear only in the
-`rendered` tree's `diagnostics` (6.3, 7.1). "Load, read" codes are found when the load or `read`
-runs, but are reported in both lists, at the extension line, as low-level codes are.
+Every code but the readers' is in the one diagnostics list: the `document graph`'s `diagnostics` (6.3), which the
+`expansion` and the `rendered` tree show unchanged (6.10, 7.1). "Low level" codes are found when the list is worked
+out from the current texts; "load, read" codes when the load or `read` runs, reported at the extension line.
+(Before milestone 4 the graph left out E4xxx, E5001, E5003, E5004 and E5008, which only a render showed: round 15,
+root cause C.)
 
-**Unreadable reason** is the `unreadable reason` (7.2) of the statement a code makes unreadable; it is
+**Unreadable reason** is the `unreadable reason` (6.10) of the statement a code makes unreadable; it is
 part of the load conformance output. "syntax" means the statement is an `error` node, or an
 extension line whose block holds one (the code is then the parser's, reported once). A diagnostic
 error an extension's `specs` throws keeps its own code (a program code included) and gives reason
-`extension`. "none" means the code never makes a statement unreadable: readers raise it.
+`extension`. "unread" (E3007) marks an extension copy not read yet. "none" means the code never makes a statement
+unreadable: readers raise it.
 
 Each binding's code registry and message table are generated from
 [schema/diagnostics.json](schema/diagnostics.json) ([codegen.md](codegen.md)); the schema marks which
@@ -228,71 +238,86 @@ It MUST read text only from the graph it is given and MUST NOT do I/O.
 Every binding maps these groups onto its own error classes (a copy of `error groups` in
 [schema/api.json](schema/api.json); the class tree and the fields are [contract.md 4](contract.md#4-errors)):
 
-| Group | Raised when | TypeScript | Python |
-|---|---|---|---|
-| problems in the config text | never raised: reported as diagnostics | | |
-| `villanelle error` (base) | never by itself: the parent of every class below that the package defines | `VillanelleError` | `VillanelleError` |
-| `diagnostic error` | 2.6 | `DiagnosticError` | `DiagnosticError` |
-| `read error` | `load` cannot resolve the root to exactly one file, or cannot read it; `paths`, the source's failure as the cause; no diagnostic, no code | `ReadError` | `ReadError` |
-| `argument type error` | an argument of the wrong type: an edit, `quote`, `set override` or a `load` override given anything but text (6.9); `save` given something that is not a document writer; a key rule that returns anything but text or absent (7.4) | `TypeError` | `TypeError` |
-| `edit error` (base) | an edit refused; nothing changed | `EditError` | `EditError` (also a `ValueError`) |
-| `bad text error` | the text given to an edit, or an override's text (6.3), is not what it takes | `BadTextError` | `BadTextError` |
-| `detached error` | a member of a detached handle was used; not an edit error | `DetachedError` | `DetachedError` (also a `ReferenceError`) |
-| `save error` | the writer rejected; `paths`, the writer's failure as the cause | `SaveError` | `SaveError` |
-| misuse error | a bad argument value a program could have checked (a bad variable name, a program code without `/`) | `TypeError` | `ValueError` |
-| index out of range | an insert index outside a block; a token range outside a parse (3.3) | `RangeError` | `IndexError` |
+The groups fall into **two sorts**, decided here once (round 15, vil-umh.7):
 
-There is no `no set line error`: `set` and `rename` exist only on the variable kinds where they succeed (6.7).
+- **An expected outcome**: only the input or the outside world decides it, so a correct program still meets it and
+  handles it. Every expected-outcome class is under the package's one base class, `villanelle error`, and nothing
+  else is: one `catch` or `except` clause for `VillanelleError` catches every outcome and no bug.
+- **A program bug**: the program could have checked first. These raise the language's own classes, or a package
+  class outside the base; never a `villanelle error`.
 
-A binding MUST raise the same group in the same situation. An edit that raises an `edit error`
+| Group | Sort | Raised when | TypeScript | Python |
+|---|---|---|---|---|
+| problems in the config text | | never raised: reported as diagnostics | | |
+| `villanelle error` (base) | base | never by itself: the parent of every expected-outcome class | `VillanelleError` | `VillanelleError` |
+| `diagnostic error` | outcome | 2.6 | `DiagnosticError` | `DiagnosticError` |
+| `read error` | outcome | `load` cannot resolve the root to exactly one file, or cannot read it; `paths`, the source's failure as the cause; no diagnostic, no code | `ReadError` | `ReadError` |
+| `bad text error` | outcome | the text given to an edit, or an override's text (6.3), is not what it takes (below) | `BadTextError` | `BadTextError` |
+| `save error` | outcome | the writer rejected; `paths`, the writer's failure as the cause | `SaveError` | `SaveError` |
+| `lost update error` | outcome, a `save error` | a file the save would write changed since it was read or last saved (4.2); `paths`, only the conflicting files | `LostUpdateError` | `LostUpdateError` |
+| `detached error` | bug | a member of a detached handle was used | `DetachedError`, extends `ReferenceError` | `DetachedError`, subclass of `ReferenceError` |
+| `argument type error` | bug | an argument of the wrong type: an edit, `quote`, `set override` or a `load` override given anything but text (6.9); `save` given something that is not a document writer; a key rule that returns anything but text or absent (7.4) | `TypeError` | `TypeError` |
+| misuse error | bug | a bad argument value a program could have checked: **every bad name** (below), a program code without `/`, a reserved or repeated extension name | `MisuseError`, extends `Error` | `ValueError` |
+| index out of range | bug | an insert index outside a block; a token range outside a parse (3.3) | `RangeError` | `IndexError` |
+
+There is no `edit error` (milestone 4: it was never raised; `bad text error` is the only refusal of an edit) and no
+`no set line error` (`set` and `rename` exist only on the variable kinds where they succeed, 6.7). Each group has
+its own class, so the conformance adapter tells every group apart by class (TypeScript's misuse error was
+`TypeError`, the class of an argument type error, before milestone 4).
+
+A binding MUST raise the same group in the same situation. An edit that raises a `bad text error`
 MUST leave every document unchanged. A `detached error` is raised by every member of a detached
 handle, edits included, before any other check.
 
-The groups fall into two sorts, which matters to a language that reports errors as values:
-
-- **A program bug** (the program could have checked first): misuse error, `argument type error`,
-  index out of range, `detached error`.
-- **An expected outcome** (only the input or the outside world decides): `diagnostic error` (from
-  a reader, `error (...)`, or the root read), `read error`, `bad text error`, `save error`, and
-  whatever a key rule or a port fails with.
+**Every bad name is a misuse error**, through one check per kind of name, the same from every member that takes
+one (vil-umh.7): a variable or override name that does not match the `variable name` pattern (`load`'s `overrides`,
+`set override`, a variable's `rename`); a directive name the grammar's `nameText` entry rule refuses (a name that
+is not one word, or starts with a digit or `-`), or one that is reserved or a registered extension's name (a
+directive's `rename`). A name that is well formed but collides with a line already there (a variable `rename`
+that would make a second `set` of a name in its block, E5002) is a `bad text error`: the document decides it.
 
 **`bad text error`** has `diagnostics`: a list of syntax-layer `diagnostic`s (2.3) whose spans
 count from the start of the text the edit was given (0-based lines, columns in the binding's string unit), never
-from the document. Which codes each edit checks, and where it places them:
+from the document. Its message is built from them: a summary, then each diagnostic's people form (2.3), joined by
+`; ` (Python `str (error)`, TypeScript `error.message`): `bad text: 1:2: E2001: unexpected token: ";"`. It never
+shows text the program did not give.
+
+**Entry rules** (vil-umh.3). Every check of a given text that depends only on the text is the grammar's: a binding
+parses the text with the entry rule of [grammar/Villanelle.g4](../grammar/Villanelle.g4) the table names, with the
+generated parser, never by splicing it into a probe document and never with a scanner of its own. The entry rule's
+diagnostics are its parse's first error, coded as in a document (2.4: E1xxx for an error token, E2004, E2007,
+E2009, else E2001) and placed at the offending token, or at the end of the text when the text ends too soon. Which
+codes each edit checks, and where it places them:
 
 | Edit | Codes | Placed at |
 |---|---|---|
 | `replace with text`, `insert statements`, `add statements` (statements) | the text's syntax diagnostics; then the text-alone rules (E5002, E5005, E5009, E5010, E5011) for every statement the new text touches, checked in the document as it would be after the edit | the syntax diagnostic's span; a rule's fault at its place in the given text, or 0:0 when the fault lies in a statement already there (a `set` inserted before an existing `set` of the same name) |
-| `replace with text` (a value), `set` | the text's syntax diagnostics, then E2001 at the first token that is more than values (a `;`, a block, anything after a line break outside a list, or a comment the text ends in: the check of a values text, below), then the same text-alone rules | as above |
-| a slice bound's `replace with text` | E2001 unless the text is exactly one word or `$name` | 0:0 |
+| `replace with text` (a value that is not a list item), `set` | the `valuesText` entry rule (so a `;`, a block, or a comment the text ends in is refused), then the same text-alone rules | the entry rule's diagnostic; as above |
+| `replace with text` (a list item) | the `itemsText` entry rule (values separated by `,`, no trailing `,`), then the same text-alone rules | as above |
+| a slice bound's `replace with text` | the `boundText` entry rule: exactly one integer word or `$name` | the entry rule's diagnostic (E2001 at 0:0 for anything else) |
 | `set` on a `set line` with empty text; `remove` of a `set` line's last value | E5009 | 0:0 (of an empty text) |
-| `rename` (a directive) | E2001 when the name is not one word, is `set`, `snippet`, `use` or a registered extension's name, or the line is an extension line | 0:0 |
-| `rename` (a variable) | E2001 when the name is not letters, digits and `_`; E5002 when it would make a second `set` of a name in its block | 0:0 |
-| `set override`, and each override `load` takes (the check of an override, 6.3) | the text's syntax diagnostics; E2001 by the check of a values text (so `"1;"` is refused at its `;`, `"1\n2"` at its `2`, `"1\n"` at its line break, `"1 # c"` at its comment), at a `$name`, or at 0:0 for no value; then E4003 or E4001 at the value the override reader refuses | as stated |
+| `rename` (a directive) | none: a bad name is a misuse error (above); an extension line has no `rename` | |
+| `rename` (a variable) | E5002 when it would make a second `set` of a name in its block (a bad name is a misuse error) | 0:0 |
+| `set override`, and each override `load` takes (the check of an override, 6.3) | the `valuesText` entry rule (so `"1;"` is refused at its `;` and `"1 # c"` at the text's end; `"1\n2"` is two values), then E2001 at a `$name`, or at 0:0 for no value | as stated |
 
-**The check of a values text** (one home; vil-5ya). A text given as a line's values, outside a list (`set`, a
-value's `replace with text` when the value is not a list item, an override), is refused with E2001 when it holds a
-line break outside a list: a line break ends a statement, so the values after it would be a second statement (`set
-("1\n2")` on `port 80;` used to write `port 1\n2;`, which reads as two). E2001 is placed at the first token after
-the line break that is not a space, a comment or a line break, or at the line break itself when nothing follows it
-(`"1\n"` would put the statement's `;` on a line of its own). A line break inside `[ ]` is allowed: a list may span
-lines (`"[1,\n2]"`). Cases: `set-line-break`, `set-line-break-trailing`, `set-line-break-leading`,
-`set-line-break-in-list`, `value-replace-line-break`, `set-override-line-break`, `set-override-trailing-line-break`,
-`set-override-blank-line-break` (`"  \n"`: at its line break, before the check of an override finds no value).
+**A values text and line breaks** (milestone 4). A line break is whitespace (owner, 2026-10-29, round 15 question
+1: "';' is required and a line break is plain whitespace (nginx); directive names cannot start with a digit or
+'-'"), so a values text may hold line breaks anywhere: `set ("1\n2")` on `port 80;` writes `port 1\n2;`, one
+statement with two values. The line-break half of the old check of a values text (vil-5ya) is deleted. Cases:
+`set-line-break`, `set-line-break-trailing`, `set-line-break-leading`, `set-line-break-in-list`,
+`value-replace-line-break`, `set-override-line-break`, `set-override-trailing-line-break`, `set-wrapped-values`;
+`set-override-blank-line-break` (`"  \n"` holds no value: E2001 at 0:0).
 
-**A comment the text ends in** (vil-033) is refused the same way, with E2001 at the comment: a comment runs to the
-end of its line, so the statement's `;` (or a list's `,` or `]`, for a list item's text) written after it would
-become part of the comment (`set ("1 # note")` on `port 80;` used to write `port 1 # note;`, which swallows the
-`;`). This holds for every values text, a list item's `replace with text` included, and for an override's text (one
-check). A comment that a line break follows is the line-break rule's (`"1 # c\n"` is refused at its line break);
-inside `[ ]` a comment followed by a line break is allowed (`"[1, # c\n2]"`). The comment comes last in the
-table's order: a text with an earlier problem is refused for that problem, as if the comment were followed by a line
-break (`"1\n2 # c"` at its `2`, `"1; # c"` at its `;`, `"[1 # c"` with the syntax diagnostic `"[1"` gets, at the
-text's end). Cases: `set-comment`, `set-line-comment`, `value-replace-comment`, `list-item-replace-comment`,
-`set-override-comment`, `set-comment-line-break`, `set-comment-in-list`, `set-comment-after-line-break`,
-`set-comment-after-semicolon`, `set-comment-after-syntax-error`.
+**A comment the text ends in** (vil-033) is still refused: a comment runs to the end of its line, so the statement's
+`;` (or a list's `,` or `]`) written after it would become part of the comment. The grammar says so: in a `gap` a
+`COMMENT` is always followed by a `NEWLINE`, so the entry rules refuse a text whose last token is a comment, with
+E2001 at the text's end (the token the rule wanted is missing there), or E2004 inside an open `[`. A comment a line
+break follows is allowed (`"1 # c\n"` writes `port 1 # c\n;`). Earlier problems win, since the entry rule reports
+its first error (`"1; # c"` at its `;`). Cases: `set-comment`, `set-line-comment`, `value-replace-comment`,
+`list-item-replace-comment`, `set-override-comment`, `set-comment-line-break`, `set-comment-in-list`,
+`set-comment-after-line-break`, `set-comment-after-semicolon`, `set-comment-after-syntax-error`.
 
-A `diagnostic error`, `read error` and `save error` have the fields of 2.6 and 6.8.
+A `diagnostic error`, `read error`, `save error` and `lost update error` have the fields of 2.6, 4.2 and 6.8.
 
 > **Proposed (pending owner), for languages that report errors as values (Go, Rust):** a member that
 > reads a fact (a property in the TypeScript sense: `text`, `name`, `values`) returns the bare
@@ -305,11 +330,12 @@ A `diagnostic error`, `read error` and `save error` have the fields of 2.6 and 6
 
 ### 2.9 Expanded value and its readers
 
-An `expanded value` is one value after expansion: a `$name` has already become its value or values.
-It is what an `extension use` holds (5) and what a rendered `argument` builds on (7.3), so the
-readers have one home below both layers (owner, 2026-10-29: "they should have different domain
-objects. The middle layer of objects can build on the lower layer domains"). It is a union of five variants
-(2.10), one per value kind without `reference`:
+An `expanded value` is one value after expansion: a `$name` has already become its value or values. The low level
+owns it (vil-umh.8: the low level is the one owner of expansion): it is what an `extension use` holds (5), what a
+`directive expansion`'s `values` are (6.10), and the very objects a rendered directive's `values` are (7.2), so the
+readers have one home. (Before milestone 4 it sat in a shared layer beside two more families, `value expansion` and
+the rendered `argument`, that copied it: round 15, root cause C.) It is a union of five variants (2.10), one per
+value kind without `reference`:
 
 | Variant | `kind` | Adds | Python `__match_args__` |
 |---|---|---|---|
@@ -319,14 +345,32 @@ objects. The middle layer of objects can build on the lower layer domains"). It 
 | `expanded slice` | `slice` | `name` (text), `start`, `end` (integers, each absent when not written) | `("name", "start", "end")` |
 | `expanded index` | `index` | `name` (text), `index` (integer) | `("name", "index")` |
 
-Every variant has `kind`, `text` (canonical, below), `origin` (2.2), the readers below and `error (message,
-code)`. It is plain data: it holds no low-level handle.
+Every variant has `kind`, `text` (canonical, below), `origin` (2.2), three links to the lines it came through, the
+readers below and `error (message, code)`. It is a snapshot (worked out once per expansion) that holds live
+handles:
+
+- `written`: the written value on **the same line**, the line of the statement this value is read in. For a value
+  that came through a variable it is the `$name` there (`chain[0].reference`: for `max_count $pixels;`, the
+  `$pixels` on `max_count`'s line); a list item that came through a variable shares its list's `$name`; otherwise it
+  is the value itself, which is also its `definition`. Never absent. Editing it edits that one written line and no
+  other (`replace with text` on that `$pixels` unbinds it from the variable), but every copy of the line shares it:
+  a file included twice has one line read in both copies (`statement`'s `copies ()`, 6.5), so the edit shows in
+  both. To change one copy only, edit what that copy is given (its include block's `set` line, at the include step
+  of `chain`).
+- `definition`: the written value at the **end of the chain** (for `$pixels`, the `2284` in its `set` line); absent
+  for an override. Editing it changes every use.
+- `chain`: one `reference resolution` per variable step of `origin.via`, from the value's own line toward where it
+  is written: `[0]` is the `$name` on the directive's line. Empty when the value is read where it is written.
+
+An `expanded list`'s `items` are expanded values, each with its own links.
 
 **Canonical text** (the same bytes in every binding): a word as written; a string as `"`, its
 decoded text with `\`, `"`, newline, tab and carriage return escaped, then `"`; a slice
 `name[start:end]` (either side may be empty) and an index `name[i]` with decimal integers; a list
 `[`, its items' texts joined by `, `, then `]`. Comments and line breaks are never part of it. Two
-values are the same exactly when their texts are equal.
+values are the same exactly when their texts are equal: a language with an equality operator that a type defines
+MUST make it compare the texts (Python `==` and `hash ()` on `text`, vil-umh.12; before milestone 4 Python compared
+identity). TypeScript has no such operator: a program compares `a.text === b.text`.
 
 Readers are on **every** variant (each raises a `diagnostic error` with the code shown). They are the one place a
 kind is checked at run time, because the config text decides it, not the program: a program asks for a list where
@@ -339,7 +383,7 @@ the user wrote a word, and the user gets a located E4002. Everything else about 
 | `number` | a word spelling a number (below) | E4002, E4004 |
 | `integer` | a word spelling an integer (below) | E4002, E4005 |
 | `boolean` | the word `true` or `false` | E4002, E4006 |
-| `list` | a list's items, each an expanded value with its own origin (on an `argument`, each an `argument`, 7.3); the same as the list variant's `items` | E4002 |
+| `list` | a list's items, each an expanded value with its own origin and links; the same as the list variant's `items` | E4002 |
 | `slice` | a `slice value` (`name`, optional `start`, optional `end`) or an `index value` (`name`, `index`) | E4002 |
 | `plain` | any value by one rule: a string is its text; a word is a number if it spells one, a boolean if `true`/`false`, else its text; a list is its items read the same way; a slice or index is its value | never |
 | `error (message, code)` | a `diagnostic error` placed on this value; for an override, on the `$name` that used it | misuse error for a code without `/` |
@@ -393,23 +437,22 @@ A list is one of two sorts (the schema's `kind rule`):
   error` is gone, 6.7). The readers of 2.9 stay on every value variant: they report a problem in the config text,
   not a misused type.
 - **A tag**, whose members share one shape: `token kind` (`token`), `node kind` (`node`), `step kind` (`step`),
-  `unreadable reason` (rendered `unreadable`, `unreadable expansion`). One type, whose `kind` or `reason` is typed by
-  the list.
+  `unreadable reason` (`unreadable expansion`). One type, whose `kind` or `reason` is typed by the list.
 
 The variant types, per layer:
 
 | List | Low level (written) | Shared | Rendered |
 |---|---|---|---|
 | `statement kind` | `written directive`, `extension line`, `set line`, `snippet line`, `use line`, `unreadable line` (6.5) | | |
-| `value kind` | `word`, `string`, `list`, `slice`, `index`, `reference` (6.6) | `expanded word`, `expanded string`, `expanded list`, `expanded slice`, `expanded index` (2.9) | `word argument`, `string argument`, `list argument`, `slice argument`, `index argument` (7.3) |
+| `value kind` | `word`, `string`, `list`, `slice`, `index`, `reference` (6.6); `expanded word`, `expanded string`, `expanded list`, `expanded slice`, `expanded index` (2.9) | | (the expanded values, 7.2) |
 | `variable kind` | `set variable`, `parameter`, `override variable` (6.7) | | |
 | `place kind` | | `place`, `override` (2.2) | |
 | `change kind` | | | `added`, `removed`, `changed`, `unknown` (7.6) |
 
 **Python matching.** Every variant class has `__match_args__`, and a concept found in two layers keeps **the same
 field order in every layer**, so `match` works on the low level as on the rendered tree: a written directive and a
-rendered directive are both `("name", "values", "block")`; a written `list`, an `expanded list` and a `list argument`
-are all `("items",)`. Each section gives its order; the schema (`py match args`) holds them all.
+rendered directive are both `("name", "values", "block")`; a written `list` and an `expanded list` are both
+`("items",)`. Each section gives its order; the schema (`py match args`) holds them all.
 
 **TypeScript narrowing.** A union narrows on `kind`; a program never casts (`as ISetLine`). A filter narrows too,
 since TypeScript infers the predicate: `block.statements.filter((s) => s.kind === "set")` is `ISetLine[]`.
@@ -423,9 +466,15 @@ Read-only, one text at a time, no I/O. Covered by the syntax conformance cases (
 
 - A `token` has `kind` (from the `token kind` list), `text` and `span`.
 - `token kind` values are the token names of `grammar/Villanelle.g4`: `BOM`, `SPACE`, `NEWLINE`,
-  `COMMENT`, `VARIABLE`, `WORD`, `STRING`, `LBRACE`, `RBRACE`, `LBRACK`, `RBRACK`, `SEMI`, `COMMA`,
-  `COLON`, and the error tokens `UNTERMINATED_STRING`, `LONE_DOLLAR`, `BAD_CHAR`. The grammar is the
-  one source of these names.
+  `COMMENT`, `VARIABLE`, `WORD`, `INTEGER`, `DIGIT_WORD`, `STRING`, `LBRACE`, `RBRACE`, `LBRACK`, `RBRACK`, `SEMI`,
+  `COMMA`, `COLON`, and the error tokens `UNTERMINATED_STRING`, `BAD_ESCAPE`, `LONE_DOLLAR`, `BAD_CHAR`. The grammar
+  is the one source of these names.
+- A bare word is one of three tokens (milestone 4): `WORD` starts with a letter or one of `_ . / @ * ?` (the only
+  word a directive name or the name before a slice can be); `INTEGER` is `-?(0|[1-9][0-9]*)` (`IntegerText`, the
+  only literal slice or index bound); `DIGIT_WORD` is every other word that starts with a digit or `-` (`1.5`,
+  `20hz`, `007`, `-x`, `-`). All three are the value kind `word` (6.6, 2.9).
+- A `STRING` holds only the six escapes `\\ \" \' \n \t \r`; a closed string with any other is one `BAD_ESCAPE`
+  token (E1005).
 - The tokens of one parse MUST be contiguous and in source order, and their texts joined MUST equal
   the input exactly, for valid and broken input alike. There is no end-of-file token. No token's
   text is empty, and each token's text length equals its span's length.
@@ -436,8 +485,16 @@ Read-only, one text at a time, no I/O. Covered by the syntax conformance cases (
   `slice`, `error`), a token range `start`/`end` (half-open indices into the tokens) and `children`.
 - Children are in source order, do not overlap, and lie inside the parent's range. Tokens not
   covered by a child belong to the node itself.
-- A `directive` node starts at its name token. A `slice` node spans `name[bounds]` exactly. An
-  `error` node has no children.
+- A `directive` node starts at its name token and ends with its `;` or its block's `}`. A `slice` node spans
+  `name[bounds]` exactly. An `error` node has no children.
+- **A statement ends with `;` or a block**; a line break is whitespace (grammar `directive : header (';' |
+  block)`). A statement the parser cannot read is one `error` node, from its first token to where recovery resumes,
+  and the diagnostic is its first error. Recovery skips to the end of the bad statement: its `;` outside brackets,
+  or a whole block it opens, and it stops before the `}` that closes the enclosing block (or consumes a stray `}` at
+  the top level, which ends the statement). A directive whose block was opened keeps its node, and its block's
+  statements are read (an unclosed block at the end of the text is E2003). So a broken statement never hides a
+  later statement after its `;` (`rec-*` syntax cases), but an unterminated string or a missing `;` runs on to the
+  next `;` (`unterminated`, `load-missing-semicolon`).
 
 ### 3.3 Operations
 
@@ -448,6 +505,10 @@ Read-only, one text at a time, no I/O. Covered by the syntax conformance cases (
 | `text of` | syntax, token range | the exact source text; `text of(syntax, root)` is the whole input | as `span of` |
 
 `diagnostics` MUST be empty exactly when the input is in the grammar's language.
+
+The grammar's entry rules `valuesText`, `itemsText`, `boundText` and `nameText` (2.8) are parsed with the same
+generated parser and the same recovery and codes. They are not part of the syntax layer's public API: the edits
+and the check of an override call them.
 
 ## 4. Ports: where files come from and go to
 
@@ -472,6 +533,11 @@ writer` that the program supplies.
   turn. Code-point order is not UTF-16 code-unit order (a character above U+FFFF sorts after U+FFFF
   here, before U+E000 in a plain JavaScript sort). No conformance case has such a path yet.
 - In a binding whose I/O is asynchronous, both operations MAY be asynchronous.
+- **Results are checked at run time** (vil-umh.12): `resolve` MUST return a list of texts. Anything else, a bare
+  text included (in Python a `str` is a sequence of one-letter strings), is the source's failure: E3004 at the
+  extension line, or a `read error` for the root. `read` MUST return a text, the same way. Python types these
+  results `tuple[str, ...]` and `str` and refuses a bare `str` where a tuple is due; a type checker alone does not
+  catch it.
 - **Concurrency:** no binding makes a graph or its handles safe for concurrent use. Even `render
   (graph)` writes the graph's cache of what it worked out, so a binding with threads MUST NOT promise that
   two renders of one graph, or a render beside an edit, may run at once, unless it adds the locking
@@ -490,13 +556,21 @@ writer` that the program supplies.
   treats them as lost updates until the program reloads (a stated cost).
 - A `file write` has `resolved path`, `text` (what to write) and `saved text` (the document's
   last-read or last-saved text, to compare with the disk and find a lost update).
+- **A lost update** is a file the batch would write whose text in the medium now differs from its `saved text`
+  (someone changed it since it was read). Every writer MUST refuse a batch that holds one, before it writes
+  anything, with a `lost update error` (2.8) whose `paths` are exactly the conflicting files, in batch order (not
+  every file of the batch). There is **one check**, `check lost updates (files, current)`, a pure function of the
+  io layer that every writer calls: given the batch and each file's text in the medium now (absent, read as empty
+  text, when the file does not exist), it raises the `lost update error` or returns. A program's own writer calls it
+  too. `save` raises a `lost update error` from the writer as it is (it is already a `save error`), never wrapped.
+  Prior art: HTTP's conditional requests (RFC 9110 13.1.1, `If-Match`) and optimistic concurrency.
 
 ### 4.3 Adapters
 
 | Spec name | Port | Required | Notes |
 |---|---|---|---|
 | `memory source` | source | MUST | Texts keyed by path, read from the map it was given at every call (never a copy). `resolve` joins the spec to the directory of `parent path` by POSIX rules (`/` separators, `.` and `..` removed, a leading `/` taken as is) and returns the path when it is a key; a glob returns every key in that directory it matches (below). `read` of a missing key fails. Pure. |
-| `memory writer` | writer | MUST | Writes each batch into the map it was given (the one a memory source reads), all or nothing: it fails and writes nothing when any file's text in the map (empty when absent) differs from its `saved text` (a lost update). |
+| `memory writer` | writer | MUST | Writes each batch into the map it was given (the one a memory source reads), all or nothing: `check lost updates` with each file's text in the map first. |
 
 The glob rule, shared by every source that takes globs: a spec is a glob when it holds `*` or `?`.
 Only the last path segment is matched: `*` matches any run of characters (empty included), `?`
@@ -506,8 +580,8 @@ directory literally named so. A leading `.` gets no special treatment (`*.conf` 
 `.hidden.conf`). The root path may be a glob, but `load` fails with a `read error` unless it
 resolves to exactly one file.
 | `file source` | source | MUST | The local filesystem. |
-| `file writer` | writer | MUST | The local filesystem; refuses a lost update. |
-| `fetch source`, `fetch writer` | both | MAY | HTTP. TypeScript only today. |
+| `file writer` | writer | MUST | The local filesystem: `check lost updates` with each file's text on disk first, then the staged write. |
+| `fetch source`, `fetch writer` | both | MAY | HTTP. TypeScript only today. The fetch writer, per file: `GET` its URL, `check lost updates` with the body (a 404 is absent), then `PUT` (or the configured method) with the precondition `If-Match: <the GET's ETag>` when the GET gave one; a `412 Precondition Failed` is a lost update of that file. Without an ETag the window between the GET and the PUT stays open (a stated cost: the server cannot enforce it). |
 
 Each adapter is named after its medium and its port, and every binding ships the memory and file adapters for both
 ports; the names in each binding are [contract.md 5](contract.md#5-adapters).
@@ -515,19 +589,24 @@ ports; the names in each binding are [contract.md 5](contract.md#5-adapters).
 ## 5. Extensions
 
 An `extension` owns one directive name and turns each use of it into specs of files to splice in its
-place. It is not part of the core; a program turns it on when it makes the processor.
+place. It is not part of the core; a program turns it on when it makes the processor. The extension port, the
+`extension use` and the include extension belong to the low level (the written layer, vil-umh.8): an extension is
+pure, and the low level is the one owner of expansion. (Before milestone 4 they sat in the io layer, beside the
+ports that do I/O.)
 
 - An extension has `directive` (the name it owns) and `specs (extension use)`, which returns the
   specs for one use, in splice order. It MUST be pure: the load resolves and reads the specs, parses
   each file once, applies the use's block of `set` lines to the spliced files, and enforces depth,
   cycles and limits.
 - An `extension use` has `values` (the line's values, expanded, as `expanded value`s, 2.9: each one of the five
-  variants) and `origin` (a directive origin). It names no rendered type.
+  variants, with its links) and `origin` (a directive origin). It names no rendered type.
+- `specs` MUST return a list of texts; anything else, a bare text included, is a failure: E3006 at the directive's
+  name (vil-umh.12). Python types it `tuple[str, ...]` and refuses a bare `str` at run time.
 - `specs` throws a `diagnostic error` for a located failure. Any other failure becomes E3006 at the
   directive's name. (In a language with error values, a returned error that is not a diagnostic
   error; whether a panic is also caught is the binding's stated choice, binding guide section 3.)
 - **Order of checks** on one extension line, each stopping the line (it becomes `unreadable`,
-  kind per 2.4) before the next: its values are expanded (E5001, E4001, E4003, ...); its block is
+  kind per 2.4) before the next: its values are expanded (E5001, E4001, ...); its block is
   checked (a line other than `set` is E5012; a syntax error inside makes it kind `syntax`); `specs`
   is called; the specs are resolved and read (4.1); cycle (E5006) and depth (E5007) are checked.
   A line that stops before `specs` is never handed to the extension and names no file, so nothing is
@@ -536,10 +615,10 @@ place. It is not part of the core; a program turns it on when it makes the proce
   already taken by another extension.
 
 **Layer direction** (owner, 2026-10-29: "The low level shouldn't "depend on" the middle layer — they should have different domain objects. The middle layer of objects can build on the lower layer domains"). Nothing below the rendered layer imports, names or
-returns a rendered type: an `extension use` holds shared `expanded value`s (2.9), the graph has no
+returns a rendered type: an `extension use` holds the low level's `expanded value`s (2.9), the graph has no
 render member (6.3), and the processor returns only low-level objects. The rendered layer builds on
-the layers below: `render (graph)` (7.0) takes a graph, an `argument` builds on an expanded value
-(7.3), and rendered things name low-level handles (`written`, `graph`). Each binding checks the
+the layers below: `render (graph)` (7.0) takes a graph, a rendered directive holds its `directive expansion`'s
+own objects (7.2), and rendered things name low-level handles (`written`, `graph`). Each binding checks the
 direction mechanically (binding guide, rule 8). So a language whose packages cannot import each
 other in a cycle (Go, Rust) can keep each layer in its own package or crate.
 
@@ -547,10 +626,8 @@ other in a cycle (Go, Rust) can keep each layer in its own package or crate.
 
 `include "path";` or `include "path" { set $name value; }`. The one value MUST be a quoted path or
 glob. Otherwise E3005, placed on the first value when it is not quoted, else on the second value,
-else (no value at all) on the word `include`. Matching files are spliced in the order of 4.1. An
-included file's top-level `set` and `snippet` lines are visible after the include line in the
-including block. ([language.md, "Including files"](../docs/language.md) says the same for people
-writing configs; this section is the rule.)
+else (no value at all) on the word `include`. Matching files are spliced in the order of 4.1. What an included
+file sees, and where its own `set` and `snippet` lines are visible, is [expansion.md](expansion.md) 3, 4 and 7.
 
 ## 6. Low level: the config as written
 
@@ -617,13 +694,14 @@ first picked "B graph.render()", then clarified: "The low level shouldn't "depen
 | Spec name | Inputs | Output | Errors |
 |---|---|---|---|
 | `make processor` | `source` (a document source), `extensions` (optional, in order) | a `processor` | misuse error for a reserved or repeated extension name |
-| `load` | root `path`; option `overrides` (name without `$` to villanelle text, in order) | a `document graph` | `read error` (with `paths`, the root path given) when the source cannot resolve the root to exactly one file or cannot read it; misuse error for a bad override name (not letters, digits and `_`); `argument type error` for an override that is not text; `bad text error` for an override's text the check of an override refuses (6.3). Never fails for anything in the files' text. |
+| `load` | root `path`; option `overrides` (name without `$` to villanelle text, in order) | a `document graph` | `read error` (with `paths`, the root path given) when the source cannot resolve the root to exactly one file or cannot read it; misuse error for a bad override name (not letters, digits and `_`: the one name check, 2.8); `argument type error` for an override that is not text; `bad text error` for an override's text the check of an override refuses (6.3). Never fails for anything in the files' text. |
 
 - `load` resolves the root path through the source as an included file's spec is, so the root has
   one path in the graph. It reads every file that extension lines name, once each, repeating until
   nothing new is named.
 - **Overrides** (owner, 2026-10-29, round 13 question 2: "A overrides"). An override wins over
-  every `set` of its name, which acts as the default. `load`'s `overrides` option, the graph's
+  every `set` of its name, which acts as the default; where it does not win, and what it reaches, is
+  [expansion.md](expansion.md) 6 and 7. `load`'s `overrides` option, the graph's
   `overrides` and `set override` (6.3), the variable kind `override` (6.7) and the place kind
   `override` (2.2) all use this one word.
 - **Override order.** `overrides` is ordered: the graph's `overrides` and the override part of
@@ -648,10 +726,10 @@ first picked "B graph.render()", then clarified: "The low level shouldn't "depen
 | `read ()` | method, I/O | resolve and read what `unread ()` names, through the graph's document source, repeating until nothing new is named; keeps every text and every failure it already had. Returns the resolved paths this call read (newly, not those read before), in read order |
 | `save (writer)` | method, I/O | 6.8 |
 | `edges ()` | method | every copy of every extension line, in walk order, as `document edge`s |
-| `unread ()` | method | the edges naming a spec not resolved or a file not read yet; non-empty means copies and a render (7.0) lack them |
+| `unread ()` | method | the edges naming a spec not resolved or a file not read yet; each such copy is an `unreadable expansion` with reason `unread` and E3007 in `diagnostics` (6.10) |
 | `variables (name?)` | method | every variable (of that name when given): set variables and parameters in document order (documents in `documents` order), then override variables in `overrides` order. Each is one of the three variable types (6.7) |
 | `expand ()` | method | the `expansion` of the graph's current texts and overrides (6.10): every copy as read, with each value expanded and linked to the lines it came through. Pure: reads no file. What `render (graph)` builds on |
-| `diagnostics` | property | each document's syntax diagnostics (documents in order), then what the low level found, in walk order. It MUST NOT include the codes `render` reports: every E4xxx code (E4001 and E4003 included, round 12 decision D11) and E5001, E5003, E5004, E5008. `rendered.diagnostics` is this same list with those codes kept in their walk-order places (7.1). A property, as on the render (glossary, "Properties and methods") |
+| `diagnostics` | property | each document's syntax diagnostics (documents in order), then every problem the low level finds, in walk order: **the one list** (vil-umh.8). The `expansion`'s and the `rendered` tree's `diagnostics` are this same list (6.10, 7.1); `x $nope;` shows E5001 here. No binding keeps a list of codes to leave out (round 12 decision D11, which made E4xxx, E5001, E5003, E5004 and E5008 render-only, is retired). A property, as on the render (glossary, "Properties and methods") |
 
 **No render member.** The graph has no `render` member and names no rendered type. A program
 renders it with the rendered layer's `render (graph)` (7.0), which turns the graph's public `expand ()` into the
@@ -662,13 +740,13 @@ raise the same errors; round 13 root cause 2). Given a name and a value:
 
 1. The name MUST be letters, digits and `_`; otherwise a misuse error.
 2. The value MUST be text; otherwise an `argument type error` (6.9).
-3. The text is read as the values of a line `x <text>`. It is refused with a `bad text error`
-   whose diagnostics are located in the given text (2.8): its syntax diagnostics; else E2001 at the
-   first token that is more than values (a `;`, a block), at a `$name`, or at 0:0 when it holds no
-   value; else E4003 or E4001 at the first value the override reader refuses.
+3. The text is parsed with the grammar's `valuesText` entry rule (2.8). It is refused with a `bad text error`
+   whose diagnostics are located in the given text: the entry rule's diagnostic; else E2001 at a `$name`, or at
+   0:0 when it holds no value. (A bad escape, E1005, and a literal bound that is not an integer, E2007, are now
+   the entry rule's; the old step 4, E4003 or E4001 from an override reader, is deleted.)
 
-`"1;"` is refused (E2001 at 0:1), from `load` as from `set override`. (Before milestone 1, `load`
-accepted it with a different check: round 13 review, root cause 2.)
+`"1;"` is refused (E2001 at 0:1), from `load` as from `set override`; `"1\n2"` is two values. (Before milestone 1,
+`load` accepted `"1;"` with a different check: round 13 review, root cause 2.)
 
 ### 6.4 Document, edge, copy
 
@@ -714,7 +792,7 @@ Per kind, each its own type (2.10):
 
 | Kind | Type (spec name) | Extra members | Python `__match_args__` |
 |---|---|---|---|
-| `directive` | `written directive` | `name`; `values` (in order); `block` (absent when written without one); `rename (name)`: `bad text error` when not one word, or a name that would change its kind (a reserved word or an extension's name); `set (text)`: replace its values, comments between them included, `bad text error` | `("name", "values", "block")` |
+| `directive` | `written directive` | `name`; `values` (in order); `block` (absent when written without one); `rename (name)`: misuse error when the `nameText` entry rule refuses it (not one word, or a word that starts with a digit or `-`) or it would change the line's kind (a reserved word or an extension's name), 2.8; `set (text)`: replace its values, comments between them included, `bad text error` | `("name", "values", "block")` |
 | `extension` | `extension line` | `name` (the directive name an extension owns, such as `include`); `values` (an include line's path); `block` (absent when written without one; its `set` lines); `set (text)`. No `rename`: any new name would change its kind | `("name", "values", "block")` |
 | `set` | `set line` | `variable` (a `set variable`); `values` (after the `$name`); `set (text)`: `bad text error`, also for empty text (E5009) | `("variable", "values")` |
 | `snippet` | `snippet line` | `name`; `parameters` (`parameter`s); `block` (always present) | `("name", "parameters", "block")` |
@@ -835,7 +913,7 @@ Per kind:
 
 | Kind | Type | Extra members | Python `__match_args__` |
 |---|---|---|---|
-| `set` | `set variable` (a `set` line's `$name`) | `place` (its `$name`); `line` (its `set line`); `rename (name)`: its `$name` only, `bad text error` (also E5002); `set (text)`: its `set` line's values, `bad text error` | `("name",)` |
+| `set` | `set variable` (a `set` line's `$name`) | `place` (its `$name`); `line` (its `set line`); `rename (name)`: its `$name` only; misuse error for a bad name, `bad text error` E5002 for a second `set` of the name in its block; `set (text)`: its `set` line's values, `bad text error` | `("name",)` |
 | `parameter` | `parameter` (a snippet's) | `place`; `line` (its `snippet line`); `rename (name)` as above. No `set`: a parameter's values are the `use` line's (edit that line) | `("name",)` |
 | `override` | `override variable` (an override, 6.2) | none: no place, no line, no `rename`, no `set`. A program changes it with the graph's `set override` | `("name",)` |
 
@@ -844,8 +922,9 @@ So the edits exist only where they can succeed (round 13 root cause 3): `NoSetLi
 member.
 
 A `resolution` (snapshot, at one copy): `copy`; `winner` (absent when nothing of that name is
-visible there, which a render reports as E5001 or E5003); `shadowed` (every other visible
-definition, next first: the one that would win if the winner were gone).
+visible there, which the low level reports as E5001 or E5003); `shadowed` (every other visible
+definition, next first: the one that would win if the winner were gone). Which definitions are visible and which
+wins is [expansion.md](expansion.md) 5 and 6.
 
 A `reference resolution` adds `reference` and `values`: the winning `set` line's values, or for a
 parameter the `use` line's values bound to it; empty for an override or when unbound. A reference
@@ -854,6 +933,7 @@ renders to all of `values` (`set $ports 8080 443;` gives two).
 `wins ()`, `shadowed at ()`, a resolution's `winner` and `shadowed`, and a reference's `resolutions ()` are the low
 level's public account of what each `set` reaches and what wins over it (owner, 2026-10-28: consumers "see ... what
 variables exist, and where they were overloaded"); the rendered layer reads them, never anything private (7.0).
+They follow [expansion.md](expansion.md), the one home of the scoping and precedence rules.
 
 ### 6.8 Saving
 
@@ -864,8 +944,9 @@ The graph's `save (writer)`:
 3. Otherwise hand them to the writer in one batch.
 4. When the writer succeeds, each written document's `saved text` becomes the text handed over (an
    edit made while the writer ran stays unsaved). Return the resolved paths handed over.
-5. When the writer fails, no `saved text` changes, and `save` raises a `save error` with `paths`
-   (the resolved paths handed over, in batch order) and the writer's failure as its cause.
+5. When the writer fails, no `saved text` changes. A `lost update error` from the writer (4.2) is raised as it
+   is, its `paths` the conflicting files. Any other failure makes `save` raise a `save error` with `paths` (the
+   resolved paths handed over, in batch order) and the writer's failure as its cause.
 
 Before step 1, `save` raises an `argument type error` when `writer` is not a document writer (no callable `write`),
 so a writer that never ran is not reported as one that failed.
@@ -891,8 +972,8 @@ only, make misuse impossible").
 - A binding's docs show `quote ()` beside the first edit they teach.
 
 `quote (text)` returns a plain string written as a villanelle string, escapes included:
-`quote("10.0.60.31")` is `"10.0.60.31"`. It MUST give the same canonical string text a rendered
-value has (7.3). A program writes a number or a boolean as its text (`"2400"`, `"true"`); text with a
+`quote("10.0.60.31")` is `"10.0.60.31"`. It MUST give the same canonical string text an expanded
+value has (2.9). A program writes a number or a boolean as its text (`"2400"`, `"true"`); text with a
 space in it written without `quote` is two values (`"my host"` sets `my` and `host`).
 
 `quote` escapes only what canonical text escapes (backslash, `"`, newline, tab, carriage return).
@@ -912,7 +993,10 @@ reads it, with each value expanded and linked back to the lines it came through.
 object (a snapshot, worked out once, holding live handles), and it is all the rendered layer builds on (7.0), so a
 render needs nothing private (owner, 2026-10-29, answering "Yes" to: the rendered layer builds only on the low
 level's public objects, and the low level makes public what each set reaches and what wins over it). It is pure:
-it reads no file, and an unread extension copy expands to nothing.
+it reads no file. An extension copy not read yet (its edge is in `unread ()`) expands to an `unreadable expansion`
+with reason `unread`, placed at the extension line, with E3007 in `diagnostics` (vil-umh.4), so a render shows it
+and `diff` reports what it held as `unknown`, not `removed` (7.6). (Before milestone 4 it expanded to nothing.) It
+follows [expansion.md](expansion.md).
 
 `expansion`:
 
@@ -920,41 +1004,37 @@ it reads no file, and an unread extension copy expands to nothing.
 |---|---|
 | `block` | the top-level readable directive copies, in written order, as `directive expansion`s |
 | `unreadable` | the top-level copies that could not be read, as `unreadable expansion`s |
-| `diagnostics` | every file's syntax diagnostics (documents in order), then every problem the expansion found, low-level and render codes alike, in one walk order: the graph's `diagnostics` (6.3) with the render's codes kept in their places |
+| `diagnostics` | the graph's `diagnostics` (6.3), the one list |
 
 `directive expansion` (one copy of a `written directive`, after `use` and extension lines spliced it in):
 
 | Member | Contract |
 |---|---|
-| `statement` | the `written directive` it is a copy of |
+| `written` | the `written directive` it is a copy of (was `statement`: one name for the link, vil-umh.8) |
 | `origin` | a directive origin: its name's place and the copy's `via` |
-| `values` | its values, expanded, as `value expansion`s, in order (a reference gives every value it reaches) |
+| `values` | its values, expanded, as `expanded value`s with their links (2.9), in order (a reference gives every value it reaches) |
 | `block` | its block's readable directive copies; absent when written without a block |
 | `unreadable` | its block's copies that could not be read; empty when none |
 
-`unreadable expansion`: `statement` (the statement that could not be read: an unreadable line, or a directive,
-`use` or extension line this copy could not expand), `reason` (`unreadable reason`, 2.4) and `origin` (the place
-of the statement's own tokens, owned comments left out, with the copy's `via`).
+`unreadable expansion`: `reason` (`unreadable reason`, 2.4: `syntax`, `expansion`, `value`, `extension`, or
+`unread` for an extension copy not read yet), `written` (the statement that could not be read: an unreadable line,
+or a directive, `use` or extension line this copy could not expand or has not read; was `statement`) and `origin`
+(the place of the statement's own tokens, owned comments left out, with the copy's `via`). The rendered tree lists
+these same objects (7.2).
 
-`value expansion`: `value` (the `expanded value`, 2.9), `written` (the written value on the same line: for a value
-that came through a variable, the `$name` there, `chain[0].reference`; a list item that came through a variable
-shares its list's; otherwise the value itself), `definition` (the written value at the end of the chain; absent for
-an override), `chain` (one `reference resolution` per variable step of the value's `origin.via`, its own line
-first; empty when read where written) and `items` (a list's items as value expansions, each with its own links;
-empty for every other kind).
+Python `__match_args__`: `directive expansion` `("written", "values", "block")`, `unreadable expansion`
+`("reason", "written")`.
 
-Python `__match_args__`: `directive expansion` `("statement", "values", "block")`, `unreadable expansion`
-`("statement", "reason")`, `value expansion` `("value", "written", "definition")`.
-
-Cost: the expansion has the rendered tree's shape one layer down, so two trees of one shape exist, one for the low
-level (handles, no addresses, no walk) and one for programs that read config. `value expansion`'s `items` is empty
-for kinds other than `list` instead of being a variant set of its own: the variants are already on its `value`.
+Cost: the rendered directive still mirrors the directive expansion (it adds `parent`, `name`, `walk`, `closest`,
+an address and `error`), so two directive types of one shape exist, one per layer. The values and unreadables are
+one family each, shared by both (vil-umh.8; before milestone 4 there were three value families, 22 types).
 
 ## 7. Rendered tree (the middle layer)
 
 The rendered tree is directives after expansion: variables replaced, snippets and extension files
 spliced in. It is read-only. `set`, `snippet`, `use` and extension lines never appear in it; their
-results do, in their place. A render reads no file: an unread include copy renders as nothing.
+results do, in their place. A render reads no file: an unread include copy renders as an `unreadable expansion`
+with reason `unread` at the include line (6.10).
 A render shows the texts as they were when it was made; after an edit, render again.
 
 ### 7.0 Render
@@ -962,14 +1042,16 @@ A render shows the texts as they were when it was made; after an edit, render ag
 `render (graph)` is the rendered layer's entry point: a free function of that layer that takes a
 `document graph` and returns its `rendered` tree, built from the graph's current texts and
 overrides. Going up a layer is the upper layer's function, so the low level depends on nothing
-here (6.2; owner, 2026-10-29). It is pure: it reads no file, and an unread extension copy renders as
-nothing (its edge is in the graph's `unread ()`). It MUST be synchronous, in every binding.
+here (6.2; owner, 2026-10-29). It is pure: it reads no file, and an unread extension copy renders as an
+unreadable with reason `unread` (its edge is in the graph's `unread ()`). It MUST be synchronous, in every binding.
 
 It builds the tree from the graph's public `expand ()` (6.10) and nothing else of the low level that is not
-public: each `directive expansion` becomes a `directive` (its `written` the expansion's `statement`), each `value
-expansion` an `argument` of its value's kind (7.3), each `unreadable expansion` an `unreadable`; the `rendered`
-tree's `origin` is the root file at 0:0 (from `graph.root`'s `resolved path`) and its `diagnostics` are the
-expansion's. The rendered layer adds what is its own: parents, `walk`, `closest`, addresses, `diff`, `error`.
+public, and it builds on the expansion's own objects instead of copying them (vil-umh.8): each `directive
+expansion` becomes a `directive` whose `written`, `origin` and `values` are the expansion's (the same objects), and
+whose `unreadable` lists the expansion's `unreadable expansion`s; the `rendered` tree's `unreadable` are the
+expansion's top-level ones, its `origin` is the root file at 0:0 (from `graph.root`'s `resolved path`) and its
+`diagnostics` are the graph's. The rendered layer adds what is its own: `name`, parents, `walk`, `closest`,
+addresses, `diff`, `error`.
 
 A binding MUST NOT give the rendered layer package-internal access to the low level (a private module, member or
 accessor, a class check such as `instanceof` on a low-level class): it reads only what any program could
@@ -983,9 +1065,9 @@ its rendered module and MAY re-export it at its top level.
 | Member | Contract |
 |---|---|
 | `block` | the top-level readable directives |
-| `unreadable` | top-level statements that could not be read; their siblings stay |
+| `unreadable` | top-level statements that could not be read, as `unreadable expansion`s (6.10); their siblings stay |
 | `origin` | a `directive origin`: the root file at 0:0, zero width, `via` empty: where a problem with no line of its own is placed |
-| `diagnostics` | every file's syntax diagnostics (documents in order), then every problem the expansion found (low-level and render codes alike) in one walk order: the graph's `diagnostics` (6.3) with the render's codes kept in their places |
+| `diagnostics` | the graph's `diagnostics` (6.3), the one list |
 | `graph` | the graph it was rendered from |
 | `walk (visit)` | every directive, depth-first in written order (7.5) |
 | `error (message, code)` | returns (does not raise) a `diagnostic error` for a problem of the whole file. `code` is required, a program code; misuse error for a code without `/` |
@@ -997,46 +1079,28 @@ its rendered module and MAY re-export it at its top level.
 | Member | Contract |
 |---|---|
 | `name` | |
-| `values` | its values, expanded, as `argument`s |
+| `values` | its values: its directive expansion's `expanded value`s (2.9), the same objects |
 | `block` | its block's readable directives; absent when written without a block |
-| `unreadable` | its block's statements that could not be read; empty when none |
+| `unreadable` | its block's statements that could not be read, as `unreadable expansion`s; empty when none |
 | `parent` | the enclosing directive; absent at the top level |
 | `origin` | a directive origin: where its name was written, and the uses and includes that brought it |
-| `written` | the `written directive` this is a copy of: the same object for every copy of one line |
+| `written` | the `written directive` this is a copy of: the same object for every copy of one line (its directive expansion's `written`) |
 | `walk (visit)` | every directive inside this one, not itself (7.5) |
 | `closest (predicate)` | this directive or its nearest enclosing one that matches |
 | `error (message, code)` | returns a `diagnostic error` placed on its name (`code` as on `rendered`) |
 
 Python `__match_args__`: `("name", "values", "block")`, the same as a `written directive` (2.10).
 
-An `unreadable` (rendered) has `reason` (from the `unreadable reason` list: `syntax`, `expansion`,
-`value`, `extension`), `origin` and `written` (the statement that could not be read). It has no
-name or address. Python `__match_args__`: `("reason",)`. (`kind` names a thing's type everywhere, so the reason has its own word:
-glossary.)
+A statement that could not be read is an `unreadable expansion` (6.10): `reason` (`syntax`, `expansion`,
+`value`, `extension`, `unread`), `written` and `origin`. It has no name or address. (`kind` names a thing's type
+everywhere, so the reason has its own word: glossary.) The rendered `unreadable` type is gone (milestone 4).
 
-### 7.3 Argument
+### 7.3 Values
 
-An `argument` is a rendered value: a union (2.10) of `word argument`, `string argument`, `list argument`, `slice
-argument` and `index argument`. Each builds on the `expanded value` variant of its kind (2.9): it has everything
-that variant has (`kind`, `text`, `origin`, the readers, `error`, and the variant's own members, with the same
-Python `__match_args__`), a `list argument`'s `items` and every argument's `list ()` reader give arguments, and each
-adds three links to the low level, `written`, `definition` and `chain`, taken from its `value expansion` (6.10):
-
-- `written` is the written value on **the same line**: the line of the statement this value is read
-  in. For a value that came through a variable it is the `$name` there (`chain[0].reference`: for
-  `max_count $pixels;`, the `$pixels` on `max_count`'s line); a list item that came through a
-  variable shares its list's `$name`; otherwise it is the value itself, which is also its
-  `definition`. Never absent. Editing it edits that one written line and no other (`replace with
-  text` on that `$pixels` unbinds it from the variable), but every copy of the line shares it: a
-  file included twice has one line read in both copies (`statement`'s `copies ()`, 6.5), so the
-  edit shows in both renders of it. To change one copy only, edit what that copy is given (its
-  include block's `set` line, at the include step of `chain`).
-- `definition` is the written value at the **end of the chain** (for `$pixels`, the `2284` in its
-  `set` line); absent for an override. Editing it changes every use.
-- `chain` has one `reference resolution` per variable step of `origin.via`, from the value's own
-  line toward where it is written: `[0]` is the `$name` on the directive's line. Empty when the
-  value is read where it is written. (`resolutions ()` names only the per-copy list on a written
-  reference, 6.6.)
+A rendered directive's values are `expanded value`s (2.9), the very objects of its directive expansion: the five
+variants, the readers, `error`, and the links `written`, `definition` and `chain`. The rendered layer adds no value
+type (vil-umh.8; before milestone 4 it had an `argument` family of five types that copied them: the old names are
+in `frozen-m4.md`).
 
 ### 7.4 Address and key rule
 
@@ -1107,7 +1171,7 @@ it with a list of `located diagnostic`s (usually a render's `diagnostics`). Its 
 | Spec name | Contract |
 |---|---|
 | `add (diagnostic)` | append one `located diagnostic` |
-| `report (at, message, code)` | append the diagnostic `at.error(message, code)` would carry; `at` is anything with `error (...)` (a rendered tree, a directive, an argument, an expanded value). `code` is required, as there |
+| `report (at, message, code)` | append the diagnostic `at.error(message, code)` would carry; `at` is anything with `error (...)` (a rendered tree, a directive, an expanded value). `code` is required, as there |
 | iterate | the diagnostics in the order added |
 | `count` | how many |
 | `collect (read)` | run `read`; when it raises a `diagnostic error`, append its diagnostic and return absent instead; any other error passes through; otherwise return `read`'s result |
@@ -1135,8 +1199,8 @@ finding against this page.
 | Corpus | Format | Level | Covers |
 |---|---|---|---|
 | `syntax`: `conformance/cases.json`, `extra.json`, `depth.json`, `edge.json`, `tracer.json`, `variables.json`, with `conformance/expected/` | [conformance/format.md](../conformance/format.md) | L0 | 2.1 (positions in UTF-16), 2.4 (1xxx and 2xxx codes), 2.5 (nesting), 3 |
-| `written`: `conformance/written/cases.json`, `conformance/written/expected/` | [conformance/written/format.md](../conformance/written/format.md) | L1 (L2 for a case that renders, L3 with include) | 6.3 to 6.9, by its `needs` tokens: `values`, `directive-values`, `statements`, `blocks`, `rename`, `document`, `override`, `save`, `quote`, `include`, `snippet`; 2.8's check of a values text (line breaks and comments); and 7.3's `definition` and `chain` |
-| `load`: `conformance/load/cases.json`, `conformance/load/expected/` | [conformance/load/format.md](../conformance/load/format.md) | L2 (L3 with include) | 2.2, 2.4 (3xxx to 5xxx), 4.3 (`memory source`), 5, 6.2 (`load` with `overrides`), 7.0 (`render (graph)`), 7.1, 7.2, 7.3 (canonical text and origins), 7.4 (people form, with the `rasl` key rule), 7.6 |
+| `written`: `conformance/written/cases.json`, `conformance/written/expected/` | [conformance/written/format.md](../conformance/written/format.md) | L1 (L2 for a case that renders, L3 with include) | 6.3 to 6.9, by its `needs` tokens: `values`, `directive-values`, `statements`, `blocks`, `rename`, `document`, `override`, `save`, `quote`, `include`, `snippet`; 2.8's entry rules (line breaks, comments, bounds, list items) and bad names (misuse error); 4.2's lost update (`saveTo`); 6.10's unread copy (and its `diff`); and 2.9's `definition` and `chain` |
+| `load`: `conformance/load/cases.json`, `conformance/load/expected/` | [conformance/load/format.md](../conformance/load/format.md) | L2 (L3 with include) | 2.2, 2.4 (3xxx to 5xxx), 4.3 (`memory source`), 5, 6.2 (`load` with `overrides`), 7.0 (`render (graph)`), 7.1, 7.2, 7.3 (canonical text and origins), 7.4 (people form, with the `rasl` key rule), 7.6; [expansion.md](expansion.md) 6 (each row of the precedence table) |
 | `rendered`: `conformance/rendered/cases.json`, `conformance/rendered/expected/` | [conformance/rendered/format.md](../conformance/rendered/format.md) | L2 | 7.4 (`address text` with escapes, keys from data, occurrences, an empty and an absent key, a rule on the parent), 7.6 (the order of a diff, unknown, a directive listed alone, a block's presence) |
 | `contract`: `conformance/contract/cases.json` (expected results inline) | [conformance/contract/format.md](../conformance/contract/format.md) | L2 | 2.9 (every reader, its results and codes), [contract.md](contract.md) 1 (positions in the binding's unit), 2 (people forms, `format diagnostic` with tabs, a character outside the Basic Multilingual Plane, `"\r\n"` and no graph), 3 (numbers) |
 
@@ -1148,12 +1212,14 @@ Rules for every binding:
 - Every output follows the byte rules of `conformance/format.md`, applied by the driver.
 
 Not covered by any shared case today (each binding tests these on its own): the diagnostics sink; `error (...)`; the
-memory writer, the file and fetch adapters (L4); the error class tree and `paths` (contract 4); that an operation is
+file and fetch adapters (L4: the fetch writer's precondition); the error class tree beyond the groups the adapter
+reports (contract 4); a port result that is a bare text (4.1, 5); expanded value equality (2.9); a bad text error's
+message (2.8); that an operation is
 absent where it cannot succeed (2.10: a type test per binding); `expand ()` itself, beyond the renders built from it;
 an override's text refused at `load` (`"1;"`: the `set override` case covers the check, no case covers `load`
 refusing it); `quote` of a character a string cannot hold (6.9); paths whose sort differs between code points and
 UTF-16 units (4.1); comment ownership across a blank line or over several comment lines (6.5); the override order
 after `set override` (6.2); `argument type error` for a value that is not text (6.9) or a key rule returning
-something other than text (7.4); the same-line `written` of a rendered value (7.3); a key holding a lone surrogate
+something other than text (7.4); the same-line `written` of an expanded value (2.9); a key holding a lone surrogate
 (7.4, known gap); a commented extension line in a written-case copy text (`conformance/written/format.md`); a
 statements text that ends in a comment (`replace with text` on a statement whose text has no `;`).

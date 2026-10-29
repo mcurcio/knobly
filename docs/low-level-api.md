@@ -432,17 +432,18 @@ per name for the graph's life, so a program can hold on to it:
 the graph's life (B5, D28)". `countingSource` is a memory source that counts each file's reads.
 
 `load` and `setOverride` run the same check of an override (spec 6.3), so they refuse the same texts with the same
-errors. The text must be one or more values without a `$name`, on one line (a line break ends the values, as it
-ends a statement, so `"1\n2"` is refused at its `2`), not ending in a comment (`"1 # note"` is refused at its `#`). Anything else is a `BadTextError` located in the text, and
-nothing changes; a text that is not a string is a `TypeError`, and a name that is not letters, digits and `_` is a
-TypeError (Python: ValueError):
+errors. The text is parsed with the grammar's `valuesText` rule: one or more values without a `$name`, over any
+number of lines (`"1\n2"` is two values), not ending in a comment (`"1 # note"` is refused at its end). Anything else
+is a `BadTextError` located in the text, and nothing changes; a text that is not a string is a `TypeError`, and a
+name that is not letters, digits and `_` is a misuse error (`MisuseError` in TypeScript, `ValueError` in Python),
+the same as for a variable's `rename` (milestone 4):
 
 ```ts
     expect(refused("1;")).toEqual([["E2001", 0, 1]]);
     expect(refused("1 $b")).toEqual([["E2001", 0, 2]]);
-    expect(refused('"\\q"')).toEqual([["E4003", 0, 0]]);
+    expect(refused('"\\q"')).toEqual([["E1005", 0, 0]]);
     expect(refused("")).toEqual([["E2001", 0, 0]]);
-    expect(() => graph.setOverride("a-b", "1")).toThrow(TypeError);
+    expect(() => graph.setOverride("a-b", "1")).toThrow(MisuseError);
     expect(graph.overrides.get("a")).toBe("1");
 ```
 
@@ -466,14 +467,18 @@ it first (`String(n)`, Python `str(n)`).
 | `insertStatements(index, text)`, `addStatements(text)` | a block (a document's or a statement's) | zero or more statements |
 | `rename(name)` | a directive; a variable (its `$name` only) | one name |
 | `replaceWithText(text)` | a document | any text |
-| `setOverride(name, text)` | the graph | values without a `$name`, on one line |
+| `setOverride(name, text)` | the graph | values without a `$name` |
 
 Every edit except a document's `replaceWithText` checks its text first, and **a refused edit changes nothing**:
 
-- A values text must be values only: its own syntax errors keep their codes; a `;` or a block in it is one E2001 at
-  that token. A line break outside a list is E2001 too (it would end the statement), and so is a comment the text
-  ends in, at the comment (`set("1 # note")` would write `port 1 # note;`, and the comment would swallow the `;`;
-  a list item's text is checked the same way). A slice bound takes exactly one word or `$name`.
+- A values text is parsed with the grammar's entry rule for it (spec 2.8): `valuesText` for a line's values,
+  `itemsText` for a list item (items separated by `,`), `boundText` for a slice bound (one whole number or
+  `$name`). Its first syntax error is the diagnostic; a `;` or a block in it is E2001 at that token. A line break is
+  whitespace, so a values text may span lines. A comment the text ends in is E2001 at the text's end
+  (`set("1 # note")` would write `port 1 # note;`, and the comment would swallow the `;`).
+- A name (`rename`, `setOverride`) that is not well formed is a misuse error, not a `BadTextError`: a directive name
+  must be one word that starts with a letter or `_ . / @ * ?`, and not `set`, `snippet`, `use` or an extension's name;
+  a variable name is letters, digits and `_`.
 - A statements text is read as a file; its syntax errors keep their codes. An empty text is zero statements.
 - Then the rules a file alone must keep are checked on the block the edit would make: a second `set` of a name in
   one block (E5002), a second snippet of a name (E5005), a malformed `set`, `snippet` or `use` (E5009 to E5011). A
@@ -502,15 +507,18 @@ and column, as `parse` places them), with the same codes a load gives:
 | Error | TypeScript | Python | When |
 |---|---|---|---|
 | the text is not what the edit takes | `BadTextError` (`diagnostics`) | `BadTextError` (`diagnostics`) | above |
-| the handle's tokens are gone | `DetachedError` | `DetachedError` | see "Handles" |
-| villanelle text was not given | `TypeError` | `TypeError` | a number, `null` / `None` or anything else where text is taken |
-| an index outside the block | `RangeError` | `IndexError` | `insertStatements` |
+| a file changed since it was read | `LostUpdateError` (`paths`: the conflicting files) | `LostUpdateError` (`paths`) | see "Saving" |
 | the writer failed | `SaveError` (`paths`, `cause`) | `SaveError` (`paths`, `__cause__`) | see "Saving" |
 | the root file cannot be read | `ReadError` (`paths`, `cause`) | `ReadError` (`paths`, `__cause__`) | `load` |
+| the handle's tokens are gone (a bug) | `DetachedError` | `DetachedError` | see "Handles" |
+| villanelle text was not given (a bug) | `TypeError` | `TypeError` | a number, `null` / `None` or anything else where text is taken |
+| a bad name (a bug) | `MisuseError` | `ValueError` | `rename`, `setOverride`, an override `load` takes |
+| an index outside the block (a bug) | `RangeError` | `IndexError` | `insertStatements` |
 
-`BadTextError` extends `EditError` (in Python also a `ValueError`). `DetachedError` is not an edit error (in Python
-it is also a `ReferenceError`). Every class villanelle defines extends `VillanelleError`. There is no error for a
-`set` on a parameter or an override: those kinds have no `set` member.
+Expected outcomes (the first four rows) extend `VillanelleError`; `LostUpdateError` is a `SaveError`. The program
+bugs do not: `catch (e) { if (e instanceof VillanelleError) ... }` never hides a bug. `DetachedError` is a
+`ReferenceError` in both languages. There is no `EditError` (milestone 4) and no error for a `set` on a parameter
+or an override: those kinds have no `set` member.
 
 ### Where new text goes
 
@@ -636,7 +644,9 @@ For `a; b; # c` the trailing comment is `b`'s.
 ## Reading files an edit added
 
 An edit can add an include line, or change one to name another file. Until that file is read, the graph lists the
-include copy in `graph.unread()`, and `render` leaves it out. `await graph.read()` (Python:
+include copy in `graph.unread()`, and `render` shows it as an unreadable statement with reason `unread` at the
+include line, with E3007 in `diagnostics` (so a change list calls what it held `unknown`, not removed; written case
+`render-unread-include`). `await graph.read()` (Python:
 `graph.read()`) reads what is missing, repeating until nothing new is named, and returns the paths it read.
 Every unsaved text stays, and no file is read twice:
 
@@ -650,6 +660,7 @@ Every unsaved text stays, and no file is read twice:
     expect(line?.kind).toBe("extension");
     expect(graph.unread()).toHaveLength(1);
     expect(render(graph).block.map((d) => d.name)).toEqual(["a"]);
+    expect(render(graph).unreadable.map((u) => u.reason)).toEqual(["unread"]);
     expect(reads.get("part.conf")).toBeUndefined();
 
     expect(await graph.read()).toEqual(["part.conf"]);
@@ -700,8 +711,10 @@ file write are I/O ports, beside the document source (`villanelle` exports them;
 | the filesystem | `fileWriter()` from `villanelle/node` | `file_writer()` from `villanelle.files` |
 | `fetch` | `fetchWriter(fetch, options?)` from `villanelle/browser` | none |
 
-The filesystem writer first checks that each file on disk still holds its `savedText`; if any does not (someone else
-changed it), it writes nothing and fails, naming the files. Then it writes each text to a temporary file beside its
+Every writer first runs the one lost-update check, `checkLostUpdates(files, current)` (Python
+`check_lost_updates`), with each file's text in its medium now: if a file no longer holds its `savedText` (someone
+else changed it), it writes nothing and raises `LostUpdateError` whose `paths` are exactly those files (written
+cases `save-lost-update`, `save-lost-update-paths`). A writer of your own calls it too. Then it writes each text to a temporary file beside its
 target and renames them over the targets, so a failure while staging replaces nothing. A missing file holds the
 empty text, so a new file (`savedText` "") is written. A failure while renaming can leave the files renamed before it
 replaced while their `savedText` stays the old text, so the next save refuses them as lost updates until you load again:
@@ -711,7 +724,7 @@ def test_file_writer_refuses_a_lost_update_writing_nothing(tmp_path: Path) -> No
     a, b = tmp_path / "a.conf", tmp_path / "b.conf"
     a.write_text("a 1;\n")
     b.write_text("changed by someone else;\n")
-    with pytest.raises(OSError, match=r"b\.conf"):
+    with pytest.raises(vl.LostUpdateError, match=r"b\.conf"):
         file_writer().write([vl.FileWrite(str(a), "a 2;\n", "a 1;\n"), vl.FileWrite(str(b), "b 2;\n", "b 1;\n")])
     assert a.read_text() == "a 1;\n"
     assert b.read_text() == "changed by someone else;\n"
@@ -719,13 +732,14 @@ def test_file_writer_refuses_a_lost_update_writing_nothing(tmp_path: Path) -> No
 ```
 
 `py/tests/test_files.py`. The TypeScript writer does the same (test "refuses a lost update, writing nothing, and
-names the file", `ts/src/node.test.ts`). The fetch writer sends one request per file and stops at the first that
-fails, so it is not all-or-nothing.
+names the file", `ts/src/node.test.ts`). The fetch writer, per file, `GET`s the URL, runs the same check on the
+body, then sends the text with `If-Match` on the `GET`'s ETag, so a server that keeps ETags refuses a change made in
+between (`412`, a lost update). It stops at the first file that fails, so it is not all-or-nothing.
 
 ## Writing a plain string: `quote`
 
 New values are villanelle text, so a string a program holds must be quoted first. `quote(text)` gives the same
-string text a rendered value has, with backslash, quote, newline, tab and carriage return escaped:
+string text an expanded value has, with backslash, quote, newline, tab and carriage return escaped:
 
 ```ts
     expect(quote('10.0.60.31 "x"\n')).toBe('"10.0.60.31 \\"x\\"\\n"');
@@ -758,8 +772,8 @@ By design (each language's own way):
   `shadowed_at`, `saved_text`); a block is a sequence of its statements (`block[0]`, `len(block)`,
   `list(block).index(fps)`); each
   statement and value kind is its own class for `match`; absent is `None`, not `undefined`.
-- An index outside a block is RangeError in TypeScript and IndexError in Python. A bad name for an override is
-  TypeError in TypeScript and ValueError in Python; the edit errors are `ValueError`s in Python.
+- An index outside a block is RangeError in TypeScript and IndexError in Python. A bad name is MisuseError in
+  TypeScript and ValueError in Python; `BadTextError` is not a `ValueError` (milestone 4).
 - `SaveError` keeps the writer's error as `cause` in TypeScript and as `__cause__` in Python.
 - Places and the diagnostics of a refused edit count UTF-16 code units in both, so a Python offset is not a `str`
   index once a character outside the Basic Multilingual Plane comes before it (Python has no public helper for the

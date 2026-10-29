@@ -2,7 +2,9 @@
 rules just name the tokens. Refuses anything outside the subset (actions, predicates, lexer
 commands and modes, options, labels, wildcards, negation, non-greedy loops, rule arguments), so a
 construct ANTLR resolves silently can never slip past the check. EBNF operators become fresh
-nonterminals with the textbook expansions; EOF is allowed only at the end of the start rule."""
+nonterminals with the textbook expansions; EOF is allowed only at the end of an entry rule. The entry rules are the
+first rule and every other rule that ends in EOF and no rule uses (spec 2.8: the texts an edit takes); each gets its
+own marker token under one Bison start rule, so every entry rule is checked conflict-free on its own."""
 import re, sys
 src = open(sys.argv[1], encoding='utf-8').read()
 
@@ -73,13 +75,20 @@ for r in order:
     alts, k = parse_alts(rules[r], 0, r)
     if k != len(rules[r]): die('unbalanced ) in %s' % r)
     out[r] = alts
-start = order[0]
+referenced = {s for alts in out.values() for a in alts for s in a}
+entries = [order[0]] + [r for r in order[1:] if r not in referenced and all(a and a[-1] == '$EOF' for a in out[r])]
 for name, alts in out.items():
     for a in alts:
         for idx, s in enumerate(a):
-            if s == '$EOF' and not (name == start and idx == len(a) - 1): die('EOF outside the end of the start rule')
+            if s == '$EOF' and not (name in entries and idx == len(a) - 1): die('EOF outside the end of an entry rule')
         a[:] = [s for s in a if s != '$EOF']
         used.update(s for s in a if s in lexer)
+start = order[0]
+if len(entries) > 1:
+    start = 'entry_'
+    markers = ['ENTRY_' + e for e in entries]
+    out = {start: [[m, e] for m, e in zip(markers, entries)], **out}
+    used.update(markers)
 print('%%token %s' % ' '.join(sorted(used)))
 print('%expect 0\n%start ' + start + '\n%%')
 for name, alts in out.items():

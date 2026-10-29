@@ -62,13 +62,19 @@ the resolution's `copy.via`. A **variable text** is its `place`, `override <name
   bounds included) as `[place, declaration, [[copy, winner, [shadowed, ...]], ...]]`: its declaration's variable
   text, then each of its `resolutions ()` with `winner` and `shadowed` as variable texts.
 - `["render"]`: the load-conformance object of `render (graph)` without `files` (`directives`, `unreadable`,
-  `diagnostics`), each argument extended to `[text, origin, definition, [[reference, winner], ...]]`:
+  `diagnostics`), each value extended to `[text, origin, definition, [[reference, winner], ...]]`:
   `definition` its place or `null`; each step of its `chain` as the reference's copy text and the winner's
   variable text. (Before milestone 1 this field was the rendered value's `written`, which meant the end of the
   chain; the expected files did not change.)
 - `["texts"]`: each document whose `text` differs from its `saved text`, as `[path, text]`, documents order.
 - `["save"]`: the graph's `save (writer)` with a recording writer: what the writer got, `[[path, text], ...]` in
   batch order; `[]` when it was not called.
+- `["saveTo", {path: text, ...}]` (milestone 4): the graph's `save (writer)` with a `memory writer` over a map
+  holding these texts, the medium as it is now (the protocol's `save` with `disk`). Output `["ok", [[path, text],
+  ...]]`, the map after, sorted by path; or `["error", token, [path, ...]]` with the error's token and its `paths`
+  (a `lost update error`'s are the conflicting files, spec 4.2).
+- `["diff"]` (milestone 4): render now, then the `diff` from the render of the most recent `["render"]` step to it,
+  as `[[kind, people address], ...]` in the diff's order.
 - `["edit", target, op, ...args]`: the op on the target. An op exists only on the types where it can succeed (spec
   6.5, 6.7), so no case calls one where it is absent (milestone 2 removed `override-no-set-line`, which called `set`
   on an override variable). Output `["ok"]`, `["ok", [text, ...]]` for an op that
@@ -106,6 +112,8 @@ the resolution's `copy.via`. A **variable text** is its `place`, `override <name
 | op `"setOverride"`, with `name`, `text` or `null` | `set override` (`null` is absent) |
 | error `"BadTextError"` | `bad text error` |
 | error `"DetachedError"` | `detached error` |
+| error `"MisuseError"` | `misuse error` (milestone 4: a bad name, spec 2.8) |
+| error `"LostUpdateError"` | `lost update error` (milestone 4, spec 4.2) |
 
 Since milestone 3 only the driver reads these tokens (`conformance/driver/written.py`, `OPS` and `ERRORS`): it sends
 each adapter the spec name, and maps the error group's spec name back to the token. No binding reads a TypeScript

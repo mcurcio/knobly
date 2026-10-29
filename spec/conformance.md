@@ -68,11 +68,13 @@ The levels are cumulative: L2 means L0, L1 and L2. The high level (spec 8) is ou
   codec of its own for these escapes (about 100 lines of Go), or a library that keeps them.
 - A response is one of:
   - `{"id", "ok": value}`: the request's result;
-  - `{"id", "thrown": error}`: the binding raised one of its own errors (a `villanelle error`, spec 2.8). `error` is
-    `{"group": spec name, "code"?: text, "diagnostics"?: [syntax diagnostic, ...]}`: the error group's spec name
-    (`bad text error`, `detached error`, `diagnostic error`, ...: `error groups` in [schema/api.json](schema/api.json));
-    `code` for a `diagnostic error` (its diagnostic's code); `diagnostics` for a `bad text error`, positions in the
-    text the edit was given;
+  - `{"id", "thrown": error}`: the binding raised the class of one of spec 2.8's error groups, of either sort
+    (milestone 4: a program bug too, such as a `misuse error`, since each group has its own class). `error` is
+    `{"group": spec name, "code"?: text, "diagnostics"?: [syntax diagnostic, ...], "paths"?: [text, ...]}`: the error
+    group's spec name (`bad text error`, `detached error`, `misuse error`, `lost update error`, ...: `error groups`
+    in [schema/api.json](schema/api.json)), the most specific group the class belongs to; `code` for a `diagnostic
+    error` (its diagnostic's code); `diagnostics` for a `bad text error`, positions in the text the edit was given;
+    `paths` for a `read error`, `save error` and `lost update error`;
   - `{"id", "fault": text}`: anything else failed (a native error, an unknown op). The case fails.
 - The adapter exits when its standard input closes. If it exits early, or writes a line that is not a response to
   the request, the case fails with a fault and the driver starts a new adapter for the next case.
@@ -80,7 +82,7 @@ The levels are cumulative: L2 means L0, L1 and L2. The high level (spec 8) is ou
 ## 4. Messages
 
 Every object the adapter dumps that the binding holds (a statement, value, variable, place, step, diagnostic,
-directive, argument, block, document, graph, render) carries an `id`: text the adapter chooses, unique for the life
+directive, expanded value, block, document, graph, render) carries an `id`: text the adapter chooses, unique for the life
 of the process. A later request names an object by its id. The adapter keeps every dumped object alive until it
 exits; the same binding object may get several ids.
 
@@ -97,11 +99,11 @@ an edit was given. The adapter never converts.
 | `load` | `files` (path to text), `root`, `extensions` (`[]` or `["include"]`), `overrides`? (name to text) | `{"graph": id}`: a processor with a `memory source` over `files` and the extensions named, then `load (root, overrides)` | L1 |
 | `graph` | `graph` | a **graph** dump | L1 |
 | `edit` | `target` (an id), `member` (a spec member name: `set`, `replace with text`, `remove`, `rename`, `insert statements`, `add statements`, `insert before`, `insert after`, `set override`), `args` (in the member's parameter order; `null` means the argument is absent) | `{"handles": [{"id", "text"}, ...]}` when the member returns handles, else `{}` | L1 |
-| `save` | `graph` | `{"batches": [[[path, text], ...], ...]}`: what a recording writer got, each `write` call one batch, during this one `save (writer)` | L1 |
+| `save` | `graph`, `disk`? (path to text) | without `disk`: `{"batches": [[[path, text], ...], ...]}`, what a recording writer got, each `write` call one batch, during this one `save (writer)`. With `disk`: `save (writer)` with a `memory writer` over a new map holding `disk` (so a file whose text there differs from its saved text is a lost update), then `{"files": [[path, text], ...]}`, the map after, sorted by path | L1 |
 | `quote` | `text` | `quote (text)` | L1 |
 | `render` | `graph`, `key`? (key rules, section 4.3) | a **render** dump of `render (graph)`, its addresses under the key rule | L2 |
 | `diff` | `before`, `after` (render ids), `key`? | `[{"kind", "address": address}, ...]`: `before`'s `diff (after, key?)`, in its order | L2 |
-| `read` | `value` (an argument's id), `reader` (`word`, `string`, `number`, `integer`, `boolean`, `list`, `slice`, `plain`) | the reader's **result** (section 4.4) | L2 |
+| `read` | `value` (an expanded value's id), `reader` (`word`, `string`, `number`, `integer`, `boolean`, `list`, `slice`, `plain`) | the reader's **result** (section 4.4) | L2 |
 | `print` | `target` (an id) | the object's `people form` (contract 2): the language's own to-text conversion | L2 |
 | `format` | `diagnostic` (a located diagnostic's id), `graph`? | `format diagnostic (diagnostic, graph?)` | L2 |
 | `cut` | `text`, `start`, `end` (native offsets) | `text` cut at `start` and `end` with the language's own string slicing (the check that the binding's unit is its language's, contract 1) | L2 |
@@ -135,13 +137,13 @@ them (section 7), so an extra or wrong member there is not yet caught: build to 
 | document | `{"id", "path", "text", "savedText", "syntax": syntax, "block": block, "includedBy": [copy, ...]}`: `includedBy` the copies of `included by ()` |
 | graph | `{"id", "documents": [document, ...], "edges": [{"copy", "specs", "targets"}, ...], "variables": [variable reference + {"wins": [resolution, ...], "shadowedAt": [resolution, ...]}, ...], "diagnostics": [located diagnostic, ...]}`, each list in the graph's own order |
 | address | `{"text": address text, "people": people form}` (spec 7.4) |
-| unreadable | `{"reason", "origin": origin}` |
-| argument | `{"id", "kind", "text", "origin": origin, "definition": place \| null, "chain": [resolution, ...]}`: `definition` the place of the argument's `definition` |
-| directive | `{"id", "name", "address": address, "origin": origin, "values": [argument, ...], "block": [directive, ...] \| null, "unreadable": [unreadable, ...]}` |
+| unreadable | `{"reason", "origin": origin}` (an `unreadable expansion`) |
+| expanded value | `{"id", "kind", "text", "origin": origin, "definition": place \| null, "chain": [resolution, ...]}`: `definition` the place of the value's `definition` (was the `argument` dump) |
+| directive | `{"id", "name", "address": address, "origin": origin, "values": [expanded value, ...], "block": [directive, ...] \| null, "unreadable": [unreadable, ...]}` |
 | render | `{"id", "block": [directive, ...], "unreadable": [unreadable, ...], "diagnostics": [located diagnostic, ...]}` |
 
 A token's kind is its token name as written in [grammar/Villanelle.g4](../grammar/Villanelle.g4), in capitals
-(`WORD`, `SPACE`, `BAD_CHAR`; all 17 are listed in spec 3.1). Every other kind (a node's,
+(`WORD`, `SPACE`, `BAD_CHAR`; all 20 are listed in spec 3.1). Every other kind (a node's,
 a statement's, a value's, a step's), and reasons, are the generated lists' lowercase values (spec 2.10); codes are
 their text (`E2001`).
 
@@ -167,7 +169,7 @@ data file every adapter reads the same way.
 The `read` result is the reader's value, neutral: `{"text": t}`, `{"boolean": b}`, `{"number": n}` (a JSON number;
 negative zero MUST be sent as the string `"-0"`, which JSON numbers cannot always carry, so the driver can fail the
 case), `{"slice": [name, start \| null, end \| null]}` (a `slice value`), `{"index": [name, index]}` (an `index
-value`), `{"value": text}` (an expanded value or argument, by its canonical text), `{"list": [result, ...]}` (a
+value`), `{"value": text}` (an expanded value, by its canonical text), `{"list": [result, ...]}` (a
 list). The driver prints numbers by the number rule of `conformance/contract/format.md`.
 
 ## 5. The driver
@@ -218,7 +220,8 @@ One adapter, in its own language, through its public API only (`spec/binding-gui
 3. Dump each shape of section 4.2 from the binding's objects, positions as the binding reports them.
 4. Build a key rule from its data (section 4.3).
 5. Call a member by its spec name in the binding's casing; turn `null` arguments into the language's absent.
-6. Report the binding's own errors as `thrown` with the group's spec name; everything else as `fault`.
+6. Report every error of a spec 2.8 group as `thrown` with the group's spec name (the most specific: a `lost update
+   error`, not a `save error`); everything else as `fault`.
 
 TypeScript's adapter is under 200 lines and Python's under 300 (about 220 lines of code). A binding keeps its unit tests; it has no conformance
 runner of its own, and CI runs the driver with its adapter after its tests.

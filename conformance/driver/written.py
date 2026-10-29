@@ -24,7 +24,12 @@ OPS: Dict[str, Tuple[str, Tuple[str, ...]]] = {
     "setOverride": ("set override", ("name", "text")),
 }
 # The corpus's error tokens (format.md "Tokens") by error group spec name.
-ERRORS = {"bad text error": "BadTextError", "detached error": "DetachedError"}
+ERRORS = {
+    "bad text error": "BadTextError",
+    "detached error": "DetachedError",
+    "misuse error": "MisuseError",
+    "lost update error": "LostUpdateError",
+}
 SKIP = ("COMMENT", "SPACE", "NEWLINE")
 
 
@@ -57,6 +62,7 @@ class Case:
         self.graph = session.load(case)
         self.previous: Optional[str] = None
         self.returned: Optional[str] = None
+        self.rendered: Optional[str] = None  # the id of the most recent ["render"] step's render
 
     # --- targets ---------------------------------------------------------------------------------------------
 
@@ -208,13 +214,28 @@ class Case:
             return self.references()
         if kind == "render":
             texts = Texts(self.s, self.s.graph(self.graph))
-            return projection(texts, self.s.render(self.graph), links=True)
+            render = self.s.render(self.graph)
+            self.rendered = str(render["id"])
+            return projection(texts, render, links=True)
+        if kind == "diff":
+            if self.rendered is None:
+                raise CaseError("a diff step before any render step")
+            after = self.s.render(self.graph)
+            changes = self.s.request("diff", before=self.rendered, after=after["id"])
+            return [[c["kind"], c["address"]["people"]] for c in changes]
         if kind == "texts":
             dump = self.s.graph(self.graph)
             return [[d["path"], d["text"]] for d in dump["documents"] if d["text"] != d["savedText"]]
         if kind == "save":
             batches = self.s.request("save", graph=self.graph)["batches"]
             return [list(f) for f in batches[-1]] if batches else []
+        if kind == "saveTo":
+            try:
+                saved = self.s.request("save", graph=self.graph, disk=args[0])
+            except Thrown as thrown:
+                group = thrown.error.get("group", "")
+                return ["error", ERRORS.get(group, group), list(thrown.error.get("paths", []))]
+            return ["ok", [list(f) for f in saved["files"]]]
         if kind == "edit":
             return self.edit(args[0], args[1], list(args[2:]))
         if kind == "quote":

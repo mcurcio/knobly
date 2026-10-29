@@ -1,5 +1,5 @@
 {
-  "$comment": "The one home of villanelle's diagnostic codes. Extracted from ts/src/diagnostics.ts and ts/src/syntax/recovery.ts (MESSAGES) and py/src/villanelle/diagnostics.py and py/src/villanelle/syntax/_recovery.py (_MESSAGES) on 2026-10-28: both bindings agree on every code, constant name and message. 'layer' is the layer that owns the code: syntax (parse), written (the low level: the graph's diagnostics list them), rendered (only a render's diagnostics report them; the graph's diagnostics leave them out, spec 6.3), shared (the readers of an expanded value raise them, spec 2.9), include (the include extension). 'message' is the base message (a binding may append ': <detail>'); messages are for people and are not part of the contract (spec 2.3), but generated registries use these. '{nesting depth}' is the limit of that name in api.json. 'unreadable reason' is null for a code that never makes a statement unreadable (readers raise it).",
+  "$comment": "The one home of villanelle's diagnostic codes. Extracted from ts/src/diagnostics.ts and ts/src/syntax/recovery.ts (MESSAGES) and py/src/villanelle/diagnostics.py and py/src/villanelle/syntax/_recovery.py (_MESSAGES) on 2026-10-28: both bindings agree on every code, constant name and message. 'layer' is the layer that owns the code: syntax (parse), written (the low level: the graph's diagnostics list them, one list for the graph, its expansion and its render, spec 6.3; the readers of an expanded value, spec 2.9, raise E4002 and E4004 to E4006), include (the include extension). 'message' is the base message (a binding may append ': <detail>'); messages are for people and are not part of the contract (spec 2.3), but generated registries use these. '{nesting depth}' is the limit of that name in api.json. 'unreadable reason' is null for a code that never makes a statement unreadable (readers raise it).",
   "version": 1,
   "ranges": {
     "1xxx": "lexical",
@@ -24,6 +24,16 @@
       "code": "E3003",
       "was": "include depth",
       "now": "E5007"
+    },
+    {
+      "code": "E2008",
+      "was": "brace on own line",
+      "now": "nothing: a line break is whitespace, so a '{' may start its line (owner, 2026-10-29, Q1)"
+    },
+    {
+      "code": "E4003",
+      "was": "bad escape, found by render",
+      "now": "E1005, found by parse (the BAD_ESCAPE error token)"
     }
   ],
   "rules": [
@@ -72,6 +82,19 @@
       "meaning": "A $ not followed by a variable name."
     },
     {
+      "code": "E1005",
+      "name": "bad escape",
+      "ts": "BadEscape",
+      "py": "BAD_ESCAPE",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "unknown escape",
+      "meaning": "A closed string holding a backslash escape other than the six the language allows (the BAD_ESCAPE error token); placed on the whole string."
+    },
+    {
       "code": "E2001",
       "name": "unexpected token",
       "ts": "UnexpectedToken",
@@ -82,7 +105,7 @@
       ],
       "unreadable reason": "syntax",
       "message": "unexpected token",
-      "meaning": "A token the grammar does not allow here, when no more specific code applies. Also placed in a bad text error's diagnostics by edits and the check of an override, among them at the first token after a line break outside a list in a values text, or at the line break when nothing follows it (spec 2.8, vil-5ya)."
+      "meaning": "A token the grammar does not allow here, when no more specific code applies: among them the end of the text or a '}' where a directive's ';' or block is due. Also placed in a bad text error's diagnostics by an edit's entry rule (spec 2.8): at the first token the entry rule does not allow, or at the end of the text."
     },
     {
       "code": "E2003",
@@ -121,20 +144,7 @@
       ],
       "unreadable reason": "syntax",
       "message": "malformed slice",
-      "meaning": "A malformed slice after a word: a[:], a[1:b c], an unclosed slice."
-    },
-    {
-      "code": "E2008",
-      "name": "brace on own line",
-      "ts": "BraceOnOwnLine",
-      "py": "BRACE_ON_OWN_LINE",
-      "layer": "syntax",
-      "found by": [
-        "parse"
-      ],
-      "unreadable reason": "syntax",
-      "message": "'{' must open on its directive's line",
-      "meaning": "A { that starts its line."
+      "meaning": "A malformed slice after a word: a[:], a[1:b c], an unclosed slice, or a literal bound that is not an integer (a[x], a[1.5])."
     },
     {
       "code": "E2009",
@@ -218,56 +228,52 @@
       "meaning": "An extension threw something other than a diagnostic error."
     },
     {
+      "code": "E3007",
+      "name": "unread copy",
+      "ts": "UnreadCopy",
+      "py": "UNREAD_COPY",
+      "layer": "written",
+      "found by": [
+        "low level"
+      ],
+      "unreadable reason": "unread",
+      "message": "extension copy not read yet",
+      "meaning": "An extension line's copy whose specs are not resolved or whose files are not read yet (it is in the graph's unread ()); the graph's read () reads them. Placed on the extension line's name."
+    },
+    {
       "code": "E4001",
       "name": "non-integer bound",
       "ts": "NonIntegerBound",
       "py": "NON_INTEGER_BOUND",
-      "layer": "rendered",
+      "layer": "written",
       "found by": [
-        "render",
-        "load (an override's text)",
-        "set override (its text)"
+        "low level"
       ],
       "unreadable reason": "value",
       "message": "bound is not an integer",
-      "meaning": "A slice or index bound that is not an integer."
+      "meaning": "A slice or index bound reached through a variable ($n) whose value is not one integer word. A literal bound that is not an integer is E2007, found by parse."
     },
     {
       "code": "E4002",
       "name": "wrong value kind",
       "ts": "WrongValueKind",
       "py": "WRONG_VALUE_KIND",
-      "layer": "shared",
+      "layer": "written",
       "found by": [
-        "readers (expanded value, argument)"
+        "readers (expanded value)"
       ],
       "unreadable reason": null,
       "message": "wrong kind of value",
       "meaning": "A reader asked for a kind the value is not."
     },
     {
-      "code": "E4003",
-      "name": "bad escape",
-      "ts": "BadEscape",
-      "py": "BAD_ESCAPE",
-      "layer": "rendered",
-      "found by": [
-        "render",
-        "load (an override's text)",
-        "set override (its text)"
-      ],
-      "unreadable reason": "value",
-      "message": "unknown escape",
-      "meaning": "A backslash escape other than the six the language allows."
-    },
-    {
       "code": "E4004",
       "name": "not a number",
       "ts": "NotANumber",
       "py": "NOT_A_NUMBER",
-      "layer": "shared",
+      "layer": "written",
       "found by": [
-        "readers (expanded value, argument)"
+        "readers (expanded value)"
       ],
       "unreadable reason": null,
       "message": "not a number",
@@ -278,9 +284,9 @@
       "name": "not an integer",
       "ts": "NotAnInteger",
       "py": "NOT_AN_INTEGER",
-      "layer": "shared",
+      "layer": "written",
       "found by": [
-        "readers (expanded value, argument)"
+        "readers (expanded value)"
       ],
       "unreadable reason": null,
       "message": "not an integer",
@@ -291,9 +297,9 @@
       "name": "not a boolean",
       "ts": "NotABoolean",
       "py": "NOT_A_BOOLEAN",
-      "layer": "shared",
+      "layer": "written",
       "found by": [
-        "readers (expanded value, argument)"
+        "readers (expanded value)"
       ],
       "unreadable reason": null,
       "message": "not true or false",
@@ -304,9 +310,9 @@
       "name": "unknown variable",
       "ts": "UnknownVariable",
       "py": "UNKNOWN_VARIABLE",
-      "layer": "rendered",
+      "layer": "written",
       "found by": [
-        "render"
+        "low level"
       ],
       "unreadable reason": "expansion",
       "message": "unknown variable",
@@ -331,9 +337,9 @@
       "name": "unknown snippet",
       "ts": "UnknownSnippet",
       "py": "UNKNOWN_SNIPPET",
-      "layer": "rendered",
+      "layer": "written",
       "found by": [
-        "render"
+        "low level"
       ],
       "unreadable reason": "expansion",
       "message": "unknown snippet",
@@ -344,9 +350,9 @@
       "name": "snippet arity",
       "ts": "SnippetArity",
       "py": "SNIPPET_ARITY",
-      "layer": "rendered",
+      "layer": "written",
       "found by": [
-        "render"
+        "low level"
       ],
       "unreadable reason": "expansion",
       "message": "wrong number of values for the snippet",
@@ -397,9 +403,9 @@
       "name": "too many directives",
       "ts": "TooManyDirectives",
       "py": "TOO_MANY_DIRECTIVES",
-      "layer": "rendered",
+      "layer": "written",
       "found by": [
-        "render"
+        "low level"
       ],
       "unreadable reason": "expansion",
       "message": "too many directives after expansion",

@@ -120,8 +120,10 @@ where TypeScript or Python break one, section 4 says so.
    processor only loads; every later operation is a method on the object the program holds, within
    its layer (spec 6.2); going up a layer is the upper layer's free function, `render(graph)` (spec
    7.0). Nothing below the rendered layer imports, names or returns a rendered type, not even in a
-   type-only import: an `extension use` holds shared `expanded value`s, and the rendered `argument`
-   builds on that type (spec 2.9, 7.3). Each binding keeps the layers in their own modules and
+   type-only import: an `extension use` holds the low level's `expanded value`s, and a rendered
+   directive holds its `directive expansion`'s own objects (spec 2.9, 7.0). The low level is the one
+   owner of expansion: the extension port, expanded values and their readers live in its layer
+   (milestone 4). Each binding keeps the layers in their own modules and
    checks the direction mechanically, so a wrong import fails the build:
    - **TypeScript.** The rendered layer lives in `ts/src/rendered/`. ESLint's core
      `no-restricted-imports` rule, in `ts/eslint.config.js`, forbids importing `**/rendered/**`
@@ -206,7 +208,7 @@ meets the spec. None has been tried by a binding yet; spec 2.8 and 4.1 hold the 
 
 | Difference | Go (the worked case) | Why |
 |---|---|---|
-| Errors | a member that reads a fact returns the bare value (`d.Name()`, `v.Text()`) and panics on a detached handle; every call that can end in an expected outcome (spec 2.8, "two sorts") returns `(T, error)`: edits (a detached handle's edit returns the `detached error`), `Load`, `Read`, `Save`, `Addresses`, `Diff`, the readers. Misuse and index out of range panic. Each group is a type usable with `errors.As`; `edit error` is matched with `errors.Is` | errors as values are Go's habit; a getter returning `(T, error)` cannot be used in an expression, and a detached getter is a program bug |
+| Errors | a member that reads a fact returns the bare value (`d.Name()`, `v.Text()`) and panics on a detached handle; every call that can end in an expected outcome (spec 2.8, "two sorts") returns `(T, error)`: edits (a detached handle's edit returns the `detached error`), `Load`, `Read`, `Save`, `Addresses`, `Diff`, the readers. Misuse, index out of range and a detached getter panic (the program-bug sort). Each expected-outcome group is a type usable with `errors.As`; a `lost update error` is matched as a `save error` too | errors as values are Go's habit; a getter returning `(T, error)` cannot be used in an expression, and a detached getter is a program bug |
 | Key rule | `func(*rendered.Directive) (key string, ok bool, err error)`: `ok` false is absent, a non-nil `err` ends `Addresses` and `Diff` with that error unchanged | spec 7.1: a key rule may fail |
 | Extension failure | a returned error that is not a `diagnostic error` gives E3006; a panic inside `Specs` is not recovered, and the binding says so | spec 5: recovering a panic would hide a bug as a diagnostic |
 | Absent and empty | a pointer or a `(T, bool)` pair for absent text; a boolean such as `HasBlock()` beside `Body()` | spec 1: absent and empty differ, and Go's `nil` slice is fragile to rely on |
@@ -272,10 +274,10 @@ names. The exact old-to-new tables, with signatures, are the milestones' frozen 
 | `rendered` | `IRendered` (`body`, `unreadable`, `origin`, `diagnostics`, `graph`, `walk()`, `error()`, `addresses()`) | `Rendered` (same, no `walk` method) | M1: `block`, `diff()` |
 | `directive` | `IDirective` (`name`, `args`, `body`, `unreadable`, `parent`, `origin`, `written`, `walk()`, `closest()`, `error()`) | `Directive` (`__match_args__`; no `walk` method) | `args`/`values`, `body`/`block`. M1: `values`, `block`, `walk` in Python |
 | `walk` | `node.walk(visit)`, callback returns `"skip"` or `"stop"` | `walk(node, descend=...)`, a generator | rule 5. M1: a method in Python too |
-| `argument` | `IArgument` | `Argument` | `written` is the end of the chain. M1: `written` (same line), `definition`, `chain`; builds on `expanded value`. M2: union `Argument` of `IWordArgument` ... `IIndexArgument`, each built on its expanded variant; built from `graph.expand()` only |
+| `argument` | `IArgument` | `Argument` | `written` is the end of the chain. M1: `written` (same line), `definition`, `chain`; builds on `expanded value`. M2: union `Argument` of `IWordArgument` ... `IIndexArgument`, each built on its expanded variant; built from `graph.expand()` only. M4: removed: a rendered directive's values are its expansion's `expanded value`s, which carry `written`, `definition`, `chain` |
 | readers | `word()`, `string()`, `number()`, `integer()`, `boolean()`, `items()`, `slice()`, `plain()` | `as_word()`, `as_str()`, `as_number()`, `as_int()`, `as_bool()`, `as_list()`, `as_slice()`, `plain()` | section 3 reader row. M2: `word()` ... `list()` ... `plain()` in both; `items` a property of list variants |
 | `slice value`, `index value` | `ISliceValue`, `IIndexValue` | `SliceValue`, `IndexValue` | Python names clash with low-level `Slice`, `Index` |
-| `unreadable` | `IUnreadable` (`kind` is the reason) | `Unreadable` | M1: `reason` |
+| `unreadable` | `IUnreadable` (`kind` is the reason) | `Unreadable` | M1: `reason`. M4: removed: `IUnreadableExpansion` / `UnreadableExpansion` (reason `unread` added) |
 | `address`, `address step` | `IAddress` (`text`; `toString()` is the `people form`), `IAddressStep` | `Address` (`text`; `str()` is the `people form`), `AddressStep` | |
 | `key rule` | `KeyRule` | `KeyRule` | |
 | `change` | `Change` union with `kind` | `Added`, `Removed`, `Changed`, `Unknown` classes, no `kind` | rule 4. M2: `kind` on the Python classes |

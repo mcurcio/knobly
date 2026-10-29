@@ -1,1 +1,1 @@
-{"tokens":[["WORD","x"]],"cst":["document",0,1,[["directive",0,1,[]]]],"diagnostics":[]}
+{"tokens":[["WORD","x"],["SEMI",";"]],"cst":["document",0,2,[["directive",0,2,[]]]],"diagnostics":[]}

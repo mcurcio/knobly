@@ -43,6 +43,8 @@ reference language"). If a binding and these pages disagree, the binding has a b
 proves the spec wrong; then the spec is corrected and the finding reported.
 
 - [spec.md](spec.md): the normative rules, language-neutral.
+- [expansion.md](expansion.md): the normative scoping and precedence rules: which definition a `$name` or a `use`
+  reaches, what an included file sees, what an override reaches, and the one precedence table.
 - [contract.md](contract.md): the contract at the edges, where a value or an error reaches a program: positions in
   each language's string unit, the text a located thing prints as, numbers, error classes, adapters.
 - [glossary.md](glossary.md): one word per concept, one meaning per word, and each concept's type
@@ -115,5 +117,15 @@ lands.
 Milestone 3 (beads vil-j80, vil-033) settles the rest of root cause 5: one shared driver and an adapter per binding
 ([conformance.md](conformance.md)), the key rule as data, new corpora for rendered addresses, diff order, the
 readers and `format diagnostic`, and the comment in a values text (spec 2.8). Its exact list is
-`.claude/design/consumer-api/round14/frozen-m3.md`. The proposals left stay marked "Proposed (pending owner)". Nothing
-is locked until the owner likes the user APIs (2026-10-27).
+`.claude/design/consumer-api/round14/frozen-m3.md`.
+
+Milestone 4 (beads vil-umh.1 to vil-umh.8 and vil-umh.12) carries out the round 15 review's next steps
+(`.claude/design/consumer-api/round15/review.md`) with the owner's answers of 2026-10-29: Q1, "';' is required and a
+line break is plain whitespace (nginx); directive names cannot start with a digit or '-'" (the grammar); Q2, "Keep
+today's model and write it down in the spec" ([expansion.md](expansion.md)). It also moves the text-only rules into
+the grammar as entry rules (spec 2.8), shows an unread include copy (6.10), adds the lost update error (4.2),
+rebuilds the error classes on the two sorts (2.8, contract 4), makes the low level the one owner of expansion (2.9,
+6.10, 7), and fixes three Python defects (2.9, 4.1, 5). Its exact list is
+`.claude/design/consumer-api/round15/frozen-m4.md`. Q3 (the schema as the source of every signature) is the next
+milestone. The proposals left stay marked "Proposed (pending owner)". Nothing is locked until the owner likes the user
+APIs (2026-10-27).

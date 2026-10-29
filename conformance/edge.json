@@ -9,11 +9,11 @@
 },
 {
 "name": "edge-bom-str",
-"src": "x \"\ufeff\""
+"src": "x \"\ufeff\";"
 },
 {
 "name": "edge-bom-comment",
-"src": "x # \ufeff\ny 1"
+"src": "x; # \ufeff\ny 1;"
 },
 {
 "name": "edge-only-newlines",
@@ -25,7 +25,7 @@
 },
 {
 "name": "edge-nbsp-str",
-"src": "x \"\u00a0\""
+"src": "x \"\u00a0\";"
 },
 {
 "name": "edge-u0080-bare",
@@ -33,35 +33,35 @@
 },
 {
 "name": "edge-uffff-str",
-"src": "x \"\uffff\""
+"src": "x \"\uffff\";"
 },
 {
 "name": "edge-astral-comment",
-"src": "x # \ud83d\ude00\ny 1"
+"src": "x; # \ud83d\ude00\ny 1;"
 },
 {
 "name": "edge-tab-str",
-"src": "x \"\t\""
+"src": "x \"\t\";"
 },
 {
 "name": "edge-tab-comment",
-"src": "x #\ta\ny 1"
+"src": "x; #\ta\ny 1;"
 },
 {
 "name": "edge-ctrl-str",
-"src": "x \"a\u0001b\"\ny 1"
+"src": "x \"a\u0001b\";\ny 1;"
 },
 {
 "name": "edge-ctrl-comment",
-"src": "x # a\u0001b\ny 1"
+"src": "x; # a\u0001b\ny 1;"
 },
 {
 "name": "edge-del-str",
-"src": "x \"a\u007fb\"\ny 1"
+"src": "x \"a\u007fb\";\ny 1;"
 },
 {
 "name": "edge-del-comment",
-"src": "x # a\u007fb\ny 1"
+"src": "x; # a\u007fb\ny 1;"
 },
 {
 "name": "edge-del-bare",
@@ -77,11 +77,11 @@
 },
 {
 "name": "edge-cr-in-comment",
-"src": "x # a\rb\ny 1"
+"src": "x; # a\rb\ny 1;"
 },
 {
 "name": "edge-crlf-comment",
-"src": "x # a\r\ny 1"
+"src": "x; # a\r\ny 1;"
 },
 {
 "name": "edge-backslash-bare",
@@ -89,7 +89,7 @@
 },
 {
 "name": "edge-escape-quote",
-"src": "x \"a\\\"b\" 'c\\'d'"
+"src": "x \"a\\\"b\" 'c\\'d';"
 },
 {
 "name": "edge-escape-eof",
@@ -97,15 +97,15 @@
 },
 {
 "name": "edge-quotes-mixed",
-"src": "x 'a\"b' \"c'd\""
+"src": "x 'a\"b' \"c'd\";"
 },
 {
 "name": "edge-word-chars",
-"src": "x a.b/c@d*e?f:g#h+i-j _z ./ @a"
+"src": "x a.b/c@d*e?f:g#h+i-j _z ./ @a;"
 },
 {
 "name": "edge-word-digit-start",
-"src": "x 0-a 9z -1 -"
+"src": "x 0-a 9z -1 -;"
 },
 {
 "name": "edge-digit-colon",
@@ -113,7 +113,7 @@
 },
 {
 "name": "edge-hash-word-start",
-"src": "x #a b\ny 1"
+"src": "x; #a b\ny 1;"
 },
 {
 "name": "edge-plus-start",
@@ -122,5 +122,33 @@
 {
 "name": "edge-tilde",
 "src": "x ~"
+},
+{
+"name": "edge-bad-escape",
+"src": "x \"a\\qb\";"
+},
+{
+"name": "edge-bad-escape-single",
+"src": "x 'C:\\data';"
+},
+{
+"name": "edge-six-escapes",
+"src": "x \"\\\\ \\\" \\' \\n \\t \\r\";"
+},
+{
+"name": "edge-integer-words",
+"src": "x 0 -0 7 -12 007 1.5 1e3 20hz - -x;"
+},
+{
+"name": "edge-word-bound",
+"src": "x a[i];"
+},
+{
+"name": "edge-float-bound",
+"src": "x a[1.5:2];"
+},
+{
+"name": "edge-digit-word-slice",
+"src": "x 1[0];"
 }
 ]

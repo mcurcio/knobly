@@ -1,16 +1,33 @@
 # The villanelle language
 
-This page describes what a villanelle file may say, and what a program reads after loading it. The grammar file
-[`grammar/Villanelle.g4`](../grammar/Villanelle.g4) is the specification of the syntax; this page explains it in
-plain words and adds the rules the load applies (variables, snippets and included files).
+This page describes what a villanelle file may say, and what a program reads after loading it. It teaches; it is
+not where the rules live. The grammar file [`grammar/Villanelle.g4`](../grammar/Villanelle.g4) is the specification
+of the syntax, and [`spec/expansion.md`](../spec/expansion.md) is the specification of what a `$name`, a `use` and
+an included file reach and which definition wins. Where this page and those two differ, they win.
 
 Every example below is taken from a file or a test that passes. The line under each example names it. "Excerpt"
 means lines were left out; nothing was changed.
 
 ## A file is directives
 
-A directive is a name, then values, then either `;`, the end of the line, or a block in `{ }`. A block holds more
-directives. `#` starts a comment that runs to the end of the line.
+A directive is a name, then values, then either `;` or a block in `{ }`. A block holds more directives. A line
+break is a space like any other (as in nginx), so a long directive may wrap over several lines, and `;` is required
+even on the last line of a file or block. `#` starts a comment that runs to the end of the line.
+
+```conf
+rescale r {
+  range 0.0627
+        0.922;
+  clamp true;
+}
+```
+
+Load case `load-wrapped-line`: `range` has two values. A forgotten `;` joins the next line's statement onto this one
+(`b 2` then `c 3;` is one directive `b` with values `2 c 3`, case `load-missing-semicolon`); only a missing `;` before
+the end of a block or file is an error (E2001).
+
+A directive's name is a word that starts with a letter or one of `_ . / @ * ?`: never a digit or `-`, so a wrapped
+number can never become a directive of its own (`0.922;` alone is E2001, syntax case `digit-name`).
 
 ```conf
 graph {
@@ -34,16 +51,18 @@ A directive's values come in five kinds:
 | Kind | Written as | Example |
 |---|---|---|
 | word | letters, digits and `_ . / @ * ? -`; after the first character also `# + :` (a word that starts with a digit or `-` cannot hold `:`) | `sine`, `0.01`, `/var/www`, `color:hsl` |
-| string | `"..."` or `'...'`, with six escapes: `\\` `\"` `\'` `\n` `\t` `\r` | `"10.0.60.30"`, `"*/2 * * * *"` |
+| string | `"..."` or `'...'`, with six escapes: `\\` `\"` `\'` `\n` `\t` `\r`; any other escape is E1005 | `"10.0.60.30"`, `"*/2 * * * *"` |
 | list | `[` values separated by `,` `]`; may span lines, hold comments, and end with a `,` | `[0.04, 1, 0.5]` |
 | slice | a word with `[start:end]`, either side may be left out (`[:]` is an error) | `hyperhdr_color[144:152]`, `c[144:]` |
 | index | a word with `[n]` | `foo[1]` |
 
-Values are separated by a space or a comment. Two values written touching (`fps$x`, `a"b"`) are an error (E2009),
-never joined.
+Values are separated by spaces, line breaks or comments. Two values written touching (`fps$x`, `a"b"`) are an error
+(E2009), never joined.
 
-Slice and index bounds must be whole numbers written without leading zeros, within ±(2^53-1). Anything else is
-E4001, found when the file is loaded. A string escape other than the six is E4003, also found at load.
+Slice and index bounds must be whole numbers written without leading zeros (`0`, `12`, `-3`) or a `$name`. Any other
+literal bound (`a[i]`, `a[1.5]`) is a syntax error, E2007, and a string escape other than the six is E1005: both are
+found by the parser. A whole number beyond ±(2^53-1), or a variable whose value is not one whole number, is E4001,
+found when the file is loaded.
 
 A number or a boolean is a word that a program asks to read as one: `8080` and `true` are words until a reader
 reads them. Quoting means text: `"8080"` is a string, never a number. The test "plain: one rule for every value;
@@ -70,7 +89,7 @@ Excerpts of [`fixtures/rasl/family_room.conf`](../fixtures/rasl/family_room.conf
 The rasl tests also change the `set` line to `2400` and check that the change list names exactly the two directives
 that use `$pixels`.
 
-The rules:
+The rules (the exact ones, with the one precedence table, are [`spec/expansion.md`](../spec/expansion.md)):
 
 - **Where a `set` is seen.** From its line to the end of the block it is written in, including nested blocks and
   everything spliced in below it. A `$name` before its `set` is unknown.
@@ -87,9 +106,10 @@ The rules:
 - **An unknown name** (no `set` above it, no override) is E5001 at the `$name`, and its directive is kept as
   unreadable (see below). It never quietly becomes nothing.
 - **Overrides from the program win.** A program can give variables values when it loads a file (its `overrides`;
-  rasl's `--set host=...`). An override wins over every `set` of that name, so a `set` acts as the default. It does
-  not win over a snippet parameter: the value written on the `use` line is used (load case
-  `load-snippet-param-beats-override` in `conformance/load/`).
+  rasl's `--set host=...`). An override wins over every `set` of that name, at any depth and in every included
+  file, so a `set` acts as the default. It does not win over a snippet parameter that is the nearest definition: the
+  value written on the `use` line is used (load case `load-snippet-param-beats-override` in `conformance/load/`;
+  [`spec/expansion.md`](../spec/expansion.md) 6 has the whole table).
 - `$` inside a string is plain text; a `$` on its own is E1004; `$x 1;` is a syntax error, because a directive's
   name is a word (cases `var-in-string`, `var-lone-dollar`, `var-as-name`).
 - Any other form of `set` (no `$name`, no value, a block) is E5009 at `set`.
@@ -132,7 +152,7 @@ snippet twinkle $source {
 Excerpts of [`fixtures/rasl/family_room.conf`](../fixtures/rasl/family_room.conf). Each node reads the seven
 directives of the body, with `connect rgb_150;` and `connect white_150;`.
 
-The rules:
+The rules ([`spec/expansion.md`](../spec/expansion.md) has the exact ones):
 
 - **Values bind parameters by position**, and the count must match exactly (E5004 at `use`). A variable holding two
   values counts as two.
@@ -190,7 +210,7 @@ node DdpSink $name {
 Excerpt of [`fixtures/rasl/split/sink.conf`](../fixtures/rasl/split/sink.conf). The program reads two nodes,
 `leds` and `porch`, each with its own `target`.
 
-The rules:
+The rules ([`spec/expansion.md`](../spec/expansion.md) 3, 4 and 7 say exactly what an included file sees):
 
 - **A file is read once per load**, however many places include it, and its syntax errors are reported once. Each
   place gets its own copy of the directives, with its own variables.
@@ -200,7 +220,12 @@ The rules:
   sees the file's own `set` values, not the block's. E5012 is placed on the other line's name, and the include line
   is kept unreadable with kind `extension` (case `load-include-block-not-set`).
 - **An included file's top-level `set` and `snippet`** are seen after the include line in the including block, and
-  count for that block's one-per-name checks.
+  count for that block's one-per-name checks: a file that sets a name cannot be included twice in one block (E5002,
+  load case `load-include-twice-same-block`). The file sees the including block's `set` lines written before the
+  include line, not after (`load-include-sees-includer`).
+- **A file added by an edit is not read until the program asks** (`read()`): until then the include line renders as
+  an unreadable statement with reason `unread` and E3007, so a change list calls what it held `unknown`, not
+  removed.
 - `include` takes exactly one quoted path (E3005, on the first value when it is not quoted, else on the second value,
   or on `include` when there is none; case `load-include-extra-path`). A path that
   matches no file is E3001, and a source that fails to read is E3004, both at `include`.
@@ -223,6 +248,12 @@ Shared by `use` and included files:
 - Up to 16 snippets or included files may be open inside each other; the 17th is E5007. The root file is not counted.
 - More than 100,000 directives after expansion is E5008, and the load stops expanding there.
 - Blocks and lists may nest 100 deep in one file; deeper is E2010.
+
+## When a statement is broken
+
+The parser reads a broken statement as one unreadable statement up to its `;` (or to the end of a block it opens),
+so the statements after its `;` are still read. An unterminated string runs to the end of its line, and the
+statement it is in then runs to the next `;`, which may be on a later line (syntax case `unterminated`).
 
 ## When a line cannot be read
 

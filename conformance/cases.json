@@ -25,7 +25,7 @@
 },
 {
 "name": "slices",
-"src": "x a[0:3] [1, b[2:]] c[:3]"
+"src": "x a[0:3] [1, b[2:]] c[:3];"
 },
 {
 "name": "slice-empty-rejected",
@@ -33,7 +33,7 @@
 },
 {
 "name": "list-multiline",
-"src": "x [a,\n  b, # c\n\n  c,\n]\n"
+"src": "x [a,\n  b, # c\n\n  c,\n];\n"
 },
 {
 "name": "touch-strings",
@@ -53,23 +53,23 @@
 },
 {
 "name": "hash-in-word",
-"src": "x a#b"
+"src": "x a#b;"
 },
 {
 "name": "hash-comment",
-"src": "x a #b"
+"src": "x a; #b"
 },
 {
 "name": "include-glob",
-"src": "include /*.conf"
+"src": "include /*.conf;"
 },
 {
 "name": "block-comment",
-"src": "server {\n  listen 80 # c\n}\n"
+"src": "server {\n  listen 80; # c\n}\n"
 },
 {
 "name": "block-then-dir",
-"src": "x {} y"
+"src": "x {} y;"
 },
 {
 "name": "brace-next-line",
@@ -77,19 +77,19 @@
 },
 {
 "name": "stray-bracket",
-"src": "x ]\ny 1\n"
+"src": "x ];\ny 1;\n"
 },
 {
 "name": "broken-block",
-"src": "server {\n  listen [80\n}\nnext 1\n"
+"src": "server {\n  listen [80\n}\nnext 1;\n"
 },
 {
 "name": "bom",
-"src": "﻿x 1"
+"src": "﻿x 1;"
 },
 {
 "name": "crlf",
-"src": "x 1\r\ny 2"
+"src": "x 1;\r\ny 2;"
 },
 {
 "name": "lone-cr",
@@ -97,7 +97,7 @@
 },
 {
 "name": "unicode-str",
-"src": "x \"é\" # ü"
+"src": "x \"é\"; # ü"
 },
 {
 "name": "emoji-bare",
@@ -105,7 +105,7 @@
 },
 {
 "name": "emoji-str",
-"src": "x \"😀\" y"
+"src": "x \"😀\" y;"
 },
 {
 "name": "ip-port",
@@ -113,7 +113,7 @@
 },
 {
 "name": "colon-word",
-"src": "x color:hsl"
+"src": "x color:hsl;"
 },
 {
 "name": "nul",
@@ -129,14 +129,46 @@
 },
 {
 "name": "last-at-eof",
-"src": "x"
+"src": "x;"
 },
 {
 "name": "last-before-brace",
-"src": "a { b }"
+"src": "a { b; }"
 },
 {
 "name": "unterminated",
-"src": "x \"abc\ny 1\n"
+"src": "x \"abc\ny 1;\n"
+},
+{
+"name": "wrapped-line",
+"src": "ranges 0.0627\n 0.922;\n"
+},
+{
+"name": "wrapped-line-comment",
+"src": "matrix 0.3 0 0 # first row\n       0 0.3 0;\n"
+},
+{
+"name": "digit-name",
+"src": "0.922;\n"
+},
+{
+"name": "dash-name",
+"src": "-x 1;\n"
+},
+{
+"name": "last-no-semi",
+"src": "x 1;\ny 2\n"
+},
+{
+"name": "last-no-semi-in-block",
+"src": "a { b }\nc 1;\n"
+},
+{
+"name": "newline-is-space",
+"src": "x\n1\n2;"
+},
+{
+"name": "block-on-next-line",
+"src": "a\n{\n  b;\n}\n"
 }
 ]
