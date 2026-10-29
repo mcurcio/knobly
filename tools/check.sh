@@ -3,6 +3,8 @@
 #   1. The parser rules, translated to Bison, have 0 conflicts (proves the grammar unambiguous).
 #   2. No two token kinds can match the same text.
 #   3. Each planted bad grammar in tools/planted/ is caught (the checks still bite).
+#   4. spec/schema/ is consistent and generates both bindings' API lists (tools/gen-api.py --check).
+# The public-name check runs in each package's tests (ts/src/api-names.test.ts, py/tests/test_api_names.py).
 # Needs: python3, bison, uv (for interegular).
 set -u
 cd "$(dirname "$0")/.."
@@ -25,4 +27,6 @@ for f in tools/planted/*.g4; do
   if bison_check "$f"; then echo "FAIL planted $(basename "$f"): not caught"; fail=1
   else echo "ok   planted $(basename "$f"): caught"; fi
 done
+if python3 tools/gen-api.py --check > "$tmp/api" 2>&1; then echo "ok   api schema: generates ts and py"
+else echo "FAIL api schema: $(cat "$tmp/api")"; fail=1; fi
 exit $fail
