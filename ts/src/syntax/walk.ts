@@ -5,7 +5,8 @@
 
 import VillanelleParser from "../gen/VillanelleParser.js";
 
-import { type INode, NodeKind } from "./cst.js";
+import type { NodeKind } from "./cst.js";
+import { type INode } from "./cst.js";
 
 /** The parts of an ANTLR token the walk reads (antlr4's typings are incomplete; the cast lives in parse.ts). */
 export interface IAntlrToken {
@@ -29,12 +30,12 @@ export interface IAntlrTree {
 
 /** Grammar rule name -> concept node kind. Every other rule is transparent. */
 const CONCEPTS: Readonly<Record<string, NodeKind>> = {
-  document: NodeKind.Document,
-  directive: NodeKind.Directive,
-  lastDirective: NodeKind.Directive,
-  block: NodeKind.Block,
-  slicedWord: NodeKind.Slice,
-  list: NodeKind.List,
+  document: "document",
+  directive: "directive",
+  lastDirective: "directive",
+  block: "block",
+  slicedWord: "slice",
+  list: "list",
 };
 
 /** Rule index -> concept kind, built once; throws at load if the grammar lost a concept rule. */
@@ -82,7 +83,7 @@ function makeNode(kind: NodeKind, kids: readonly Item[], ctx: IAntlrTree): INode
         last = next;
         i++;
       }
-      children.push({ kind: NodeKind.Error, start: kid.index, end: last.index + 1, children: [] });
+      children.push({ kind: "error", start: kid.index, end: last.index + 1, children: [] });
       lo = Math.min(lo, kid.index);
       hi = Math.max(hi, last.index + 1);
     } else if (kid.tag === "token") {
@@ -101,6 +102,6 @@ function makeNode(kind: NodeKind, kids: readonly Item[], ctx: IAntlrTree): INode
 /** The CST of a `document` parse tree. */
 export function toCst(document: IAntlrTree): INode {
   const [root] = items(document);
-  if (root?.tag !== "node" || root.node.kind !== NodeKind.Document) throw new Error("parse tree root is not a document");
+  if (root?.tag !== "node" || root.node.kind !== "document") throw new Error("parse tree root is not a document");
   return root.node;
 }

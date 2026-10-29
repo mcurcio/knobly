@@ -16,7 +16,7 @@ import { DiagnosticCode, messageOf } from "../diagnostics.js";
 import { MAX_NESTING } from "../gen/api/limits.js";
 import VillanelleParser from "../gen/VillanelleParser.js";
 import type { ITokenRange } from "./cst.js";
-import { TokenKind } from "./tokens.js";
+import type { TokenKind } from "./tokens.js";
 
 
 /** A diagnostic located by token range; parse.ts turns the range into a source span. */
@@ -35,10 +35,10 @@ export function nestingOverflow(kinds: readonly TokenKind[]): number | undefined
   let depth = 0;
   for (let i = 0; i < kinds.length; i++) {
     const kind = kinds[i];
-    if (kind === TokenKind.LBrace || kind === TokenKind.LBrack) {
+    if (kind === "LBRACE" || kind === "LBRACK") {
       depth++;
       if (depth > MAX_NESTING) return i;
-    } else if ((kind === TokenKind.RBrace || kind === TokenKind.RBrack) && depth > 0) {
+    } else if ((kind === "RBRACE" || kind === "RBRACK") && depth > 0) {
       depth--;
     }
   }
@@ -57,10 +57,10 @@ export function classifyError(kinds: readonly TokenKind[], at: number, from: num
   for (let i = from; i < at; i++) {
     const kind = kinds[i];
     closesValue = false;
-    if (kind === TokenKind.LBrack) brackets.push(i > 0 && kinds[i - 1] === TokenKind.Word);
-    else if (kind === TokenKind.RBrack) closesValue = brackets.pop() !== undefined;
-    else if (kind === TokenKind.LBrace) braces++;
-    else if (kind === TokenKind.RBrace && braces > 0) braces--;
+    if (kind === "LBRACK") brackets.push(i > 0 && kinds[i - 1] === "WORD");
+    else if (kind === "RBRACK") closesValue = brackets.pop() !== undefined;
+    else if (kind === "LBRACE") braces++;
+    else if (kind === "RBRACE" && braces > 0) braces--;
   }
   const t = kinds[at]; // undefined at the end of input
   const inBracket = brackets.length > 0;
@@ -68,24 +68,24 @@ export function classifyError(kinds: readonly TokenKind[], at: number, from: num
 
   // The token before `at` on its line, skipping spaces and comments.
   let prev = at - 1;
-  while (prev >= 0 && (kinds[prev] === TokenKind.Space || kinds[prev] === TokenKind.Comment)) prev--;
+  while (prev >= 0 && (kinds[prev] === "SPACE" || kinds[prev] === "COMMENT")) prev--;
   const before = kinds[at - 1];
 
-  if (t === TokenKind.BadChar || (t === TokenKind.Bom && at > 0)) return DiagnosticCode.UnexpectedCharacter;
-  if (t === TokenKind.LoneDollar) return DiagnosticCode.LoneDollar;
-  if (t === TokenKind.UnterminatedString) return DiagnosticCode.UnterminatedString;
+  if (t === "BAD_CHAR" || (t === "BOM" && at > 0)) return DiagnosticCode.UnexpectedCharacter;
+  if (t === "LONE_DOLLAR") return DiagnosticCode.LoneDollar;
+  if (t === "UNTERMINATED_STRING") return DiagnosticCode.UnterminatedString;
   if (inSlice) return DiagnosticCode.BadSlice;
-  if (t === TokenKind.RBrack || (inBracket && (t === TokenKind.RBrace || t === undefined))) {
+  if (t === "RBRACK" || (inBracket && (t === "RBRACE" || t === undefined))) {
     return DiagnosticCode.ExpectedClosingBracket;
   }
-  if (t === TokenKind.LBrace && (prev < 0 || kinds[prev] === TokenKind.Newline)) return DiagnosticCode.BraceOnOwnLine;
+  if (t === "LBRACE" && (prev < 0 || kinds[prev] === "NEWLINE")) return DiagnosticCode.BraceOnOwnLine;
   if (t === undefined && (inBlock || braces > 0)) return DiagnosticCode.ExpectedClosingBrace;
   if (
-    (t === TokenKind.Word || t === TokenKind.String || t === TokenKind.Variable || t === TokenKind.LBrack) &&
-    (before === TokenKind.Word ||
-      before === TokenKind.String ||
-      before === TokenKind.Variable ||
-      (before === TokenKind.RBrack && closesValue))
+    (t === "WORD" || t === "STRING" || t === "VARIABLE" || t === "LBRACK") &&
+    (before === "WORD" ||
+      before === "STRING" ||
+      before === "VARIABLE" ||
+      (before === "RBRACK" && closesValue))
   ) {
     return DiagnosticCode.ValuesTouch;
   }
@@ -211,10 +211,10 @@ class Recovery extends DefaultErrorStrategy {
     let braces = 0;
     for (let i = statementStart(statements, current); i < current; i++) {
       const kind = kinds[i];
-      if (kind === TokenKind.LBrack) brackets++;
-      else if (kind === TokenKind.RBrack) brackets = Math.max(0, brackets - 1);
-      else if (kind === TokenKind.LBrace) braces++;
-      else if (kind === TokenKind.RBrace && braces > 0) braces--;
+      if (kind === "LBRACK") brackets++;
+      else if (kind === "RBRACK") brackets = Math.max(0, brackets - 1);
+      else if (kind === "LBRACE") braces++;
+      else if (kind === "RBRACE" && braces > 0) braces--;
     }
     for (;;) {
       const t = p._input.LA(1);

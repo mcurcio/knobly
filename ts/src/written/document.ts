@@ -9,9 +9,9 @@ import { DiagnosticCode, type IDiagnostic, messageOf } from "../diagnostics.js";
 import { RESERVED, VARIABLE_NAME } from "../gen/api/limits.js";
 import type { IPlace } from "../origin.js";
 import type { ISourcePosition, ISourceSpan } from "../span.js";
-import { type INode, type ISyntax, NodeKind, spanOf, type ValueRef } from "../syntax/cst.js";
+import { type INode, type ISyntax, spanOf, type ValueRef } from "../syntax/cst.js";
 import { parse } from "../syntax/parse.js";
-import { type IToken, TokenKind } from "../syntax/tokens.js";
+import { type IToken } from "../syntax/tokens.js";
 import { requireText } from "../text.js";
 import type { IBinding } from "./bind.js";
 import { BadTextError, DetachedError } from "./errors.js";
@@ -127,7 +127,7 @@ export class Block implements IWrittenBlock {
   }
 }
 
-const TRIVIA: ReadonlySet<string> = new Set([TokenKind.Space, TokenKind.Newline]);
+const TRIVIA: ReadonlySet<string> = new Set(["SPACE", "NEWLINE"]);
 
 export class Document implements IDocument {
   private current: string;
@@ -213,21 +213,21 @@ export class Document implements IDocument {
     let last = node.end - 1;
     while (last > first && TRIVIA.has(tokens[last]?.kind ?? "")) last--;
     let j = last + 1;
-    while (tokens[j]?.kind === TokenKind.Space) j++;
-    if (tokens[j]?.kind === TokenKind.Comment) last = j;
+    while (tokens[j]?.kind === "SPACE") j++;
+    if (tokens[j]?.kind === "COMMENT") last = j;
     // Comment lines directly above, only when the statement starts its line.
     let k = first - 1;
-    while (tokens[k]?.kind === TokenKind.Space) k--;
-    if (k < 0 || tokens[k]?.kind === TokenKind.Newline || tokens[k]?.kind === TokenKind.Bom) {
+    while (tokens[k]?.kind === "SPACE") k--;
+    if (k < 0 || tokens[k]?.kind === "NEWLINE" || tokens[k]?.kind === "BOM") {
       for (;;) {
-        if (tokens[k]?.kind !== TokenKind.Newline) break;
+        if (tokens[k]?.kind !== "NEWLINE") break;
         let m = k - 1;
-        while (tokens[m]?.kind === TokenKind.Space) m--;
-        if (tokens[m]?.kind !== TokenKind.Comment) break;
+        while (tokens[m]?.kind === "SPACE") m--;
+        if (tokens[m]?.kind !== "COMMENT") break;
         const comment = m;
         m--;
-        while (tokens[m]?.kind === TokenKind.Space) m--;
-        if (!(m < 0 || tokens[m]?.kind === TokenKind.Newline || tokens[m]?.kind === TokenKind.Bom)) break;
+        while (tokens[m]?.kind === "SPACE") m--;
+        if (!(m < 0 || tokens[m]?.kind === "NEWLINE" || tokens[m]?.kind === "BOM")) break;
         first = comment;
         k = m;
       }
@@ -294,7 +294,7 @@ export class Document implements IDocument {
     handle.parentHandle = owner;
     handle.detached = false;
     this.statementsByToken.set(node.start, handle);
-    const anatomy = node.kind === NodeKind.Directive ? anatomyOf(tokens, node) : undefined;
+    const anatomy = node.kind === "directive" ? anatomyOf(tokens, node) : undefined;
     const values = (refs: readonly ValueRef[]): ValueHandle[] => refs.map((ref) => this.buildValue(ref, handle, undefined, false, reconcile));
     const block = (claimed: readonly string[]): void => {
       if (anatomy?.block === undefined) {
@@ -367,11 +367,11 @@ export class Document implements IDocument {
     } else if ((handle instanceof SliceValue || handle instanceof IndexValue) && typeof ref !== "number") {
       const inner: number[] = [];
       for (let i = ref.start + 2; i < ref.end - 1; i++) inner.push(i);
-      const colon = inner.findIndex((i) => tokens[i]?.kind === TokenKind.Colon);
+      const colon = inner.findIndex((i) => tokens[i]?.kind === "COLON");
       const boundAt = (i: number | undefined): ValueHandle | undefined => {
         if (i === undefined) return undefined;
         const kindOf = tokens[i]?.kind;
-        return kindOf === TokenKind.Word || kindOf === TokenKind.Variable ? this.buildValue(i, statement, undefined, true, reconcile) : undefined;
+        return kindOf === "WORD" || kindOf === "VARIABLE" ? this.buildValue(i, statement, undefined, true, reconcile) : undefined;
       };
       if (handle instanceof IndexValue) {
         handle.indexHandle = boundAt(inner[0]);
@@ -568,7 +568,7 @@ export class Document implements IDocument {
     if (statement.kind !== "directive") throw refuse();
     const { tokens } = parse(name);
     const [only] = tokens;
-    if (tokens.length !== 1 || only?.kind !== TokenKind.Word || only.text !== name) throw refuse();
+    if (tokens.length !== 1 || only?.kind !== "WORD" || only.text !== name) throw refuse();
     if (RESERVED.has(name) || this.host.extensionNames.has(name)) throw refuse();
     const token = this.parsed.tokens[statement.node.start];
     if (token === undefined) throw new Error("a statement without a name token");
@@ -604,7 +604,7 @@ export class Document implements IDocument {
     const end = this.valueOffsets(last).end;
     if (text.trim() === "") {
       let from = first.ref === undefined ? start : this.tokenIndexOf(first);
-      while (tokens[from - 1]?.kind === TokenKind.Space) from--;
+      while (tokens[from - 1]?.kind === "SPACE") from--;
       this.splice(tokens[from]?.span.start.offset ?? start, end, "", given);
       return;
     }
@@ -640,13 +640,13 @@ export class Document implements IDocument {
     const { tokens } = this.parsed;
     const { start, end } = this.valueOffsets(value);
     if (value.listHandle !== undefined) {
-      const skipped: ReadonlySet<string> = new Set([TokenKind.Space, TokenKind.Newline, TokenKind.Comment]);
+      const skipped: ReadonlySet<string> = new Set(["SPACE", "NEWLINE", "COMMENT"]);
       const ref = value.ref;
       const first = typeof ref === "number" ? ref : ref.start;
       const last = typeof ref === "number" ? ref : ref.end - 1;
       let after = last + 1;
       while (skipped.has(tokens[after]?.kind ?? "")) after++;
-      if (tokens[after]?.kind === TokenKind.Comma) {
+      if (tokens[after]?.kind === "COMMA") {
         const commaEnd = tokens[after]?.span.end.offset ?? end;
         const between = this.current.slice(end, tokens[after]?.span.start.offset ?? end);
         if (/^[ \t]*$/u.test(between)) {
@@ -659,7 +659,7 @@ export class Document implements IDocument {
       }
       let before = first - 1;
       while (skipped.has(tokens[before]?.kind ?? "")) before--;
-      if (tokens[before]?.kind === TokenKind.Comma) {
+      if (tokens[before]?.kind === "COMMA") {
         const commaStart = tokens[before]?.span.start.offset ?? start;
         const between = this.current.slice(tokens[before]?.span.end.offset ?? start, start);
         this.splice(commaStart, end, /^[ \t]*$/u.test(between) ? "" : between.replace(/[ \t]+$/u, ""), []);
@@ -669,7 +669,7 @@ export class Document implements IDocument {
       return;
     }
     let from = this.tokenIndexOf(value);
-    while (tokens[from - 1]?.kind === TokenKind.Space) from--;
+    while (tokens[from - 1]?.kind === "SPACE") from--;
     this.splice(tokens[from]?.span.start.offset ?? start, end, "", []);
   }
 
@@ -749,14 +749,14 @@ export class Document implements IDocument {
 
 function valueKindOf(tokens: readonly IToken[], ref: ValueRef): WrittenValue["kind"] {
   if (typeof ref !== "number") {
-    if (ref.kind === NodeKind.List) return "list";
-    for (let i = ref.start + 2; i < ref.end - 1; i++) if (tokens[i]?.kind === TokenKind.Colon) return "slice";
+    if (ref.kind === "list") return "list";
+    for (let i = ref.start + 2; i < ref.end - 1; i++) if (tokens[i]?.kind === "COLON") return "slice";
     return ref.end - ref.start > 3 ? "index" : "slice";
   }
   switch (tokens[ref]?.kind) {
-    case TokenKind.String:
+    case "STRING":
       return "string";
-    case TokenKind.Variable:
+    case "VARIABLE":
       return "reference";
     default:
       return "word";
@@ -800,27 +800,41 @@ function at(given: string, offset: number, code: DiagnosticCode): IDiagnostic {
   return { code, message: messageOf(code), span: { start: position, end: position } };
 }
 
+/** Tokens that may follow a line break without being values on the next line. */
+const LINE_TRIVIA: ReadonlySet<string> = new Set(["SPACE", "COMMENT", "NEWLINE"]);
+
 /**
  * 2.3's check of a values text: parsed as the values of one directive (`x <text>;`; in a list, `x [<text>];`).
  * Its syntax diagnostics, shifted to the given text; when it is more than values, one E2001 at the first such token.
+ * Outside a list, a line break at list depth 0 is more than values (vil-5ya: it would end the statement there): E2001
+ * at the first token after it that is not a space, comment or line break, or at the line break when only those follow.
+ * The check of an override uses it too (one home).
  */
 export function valuesTextProblems(text: string, inList: boolean): IDiagnostic[] {
   const prefix = inList ? "x [" : "x ";
   const syntax = parse(`${prefix}${text}${inList ? "];" : ";"}`);
   if (syntax.diagnostics.length > 0) return syntax.diagnostics.map((d) => shifted(text, prefix.length, d));
+  const given = syntax.tokens.filter((t) => t.span.start.offset >= prefix.length && t.span.start.offset < prefix.length + text.length);
   let depth = 0;
-  for (const token of syntax.tokens) {
-    const offset = token.span.start.offset;
-    if (offset < prefix.length || offset >= prefix.length + text.length) continue;
-    if (token.kind === TokenKind.LBrack) depth++;
-    if (token.kind === TokenKind.RBrack) depth--;
+  for (const token of given) {
+    if (token.kind === "LBRACK") depth++;
+    if (token.kind === "RBRACK") depth--;
     const more =
-      token.kind === TokenKind.Semi ||
-      token.kind === TokenKind.LBrace ||
-      token.kind === TokenKind.RBrace ||
+      token.kind === "SEMI" ||
+      token.kind === "LBRACE" ||
+      token.kind === "RBRACE" ||
       (inList && depth < 0) ||
-      (!inList && token.kind === TokenKind.Comma && depth === 0);
-    if (more) return [at(text, offset - prefix.length, DiagnosticCode.UnexpectedToken)];
+      (!inList && token.kind === "COMMA" && depth === 0);
+    if (more) return [at(text, token.span.start.offset - prefix.length, DiagnosticCode.UnexpectedToken)];
+  }
+  if (inList) return [];
+  depth = 0;
+  for (const [i, token] of given.entries()) {
+    if (token.kind === "LBRACK") depth++;
+    if (token.kind === "RBRACK") depth--;
+    if (token.kind !== "NEWLINE" || depth !== 0) continue;
+    const next = given.slice(i + 1).find((t) => !LINE_TRIVIA.has(t.kind)) ?? token;
+    return [at(text, next.span.start.offset - prefix.length, DiagnosticCode.UnexpectedToken)];
   }
   return [];
 }
@@ -829,7 +843,7 @@ export function valuesTextProblems(text: string, inList: boolean): IDiagnostic[]
 function boundTextProblems(text: string): IDiagnostic[] {
   const syntax = parse(`x ${text};`);
   const tokens = syntax.tokens.filter((t) => t.span.start.offset >= 2 && t.span.start.offset < 2 + text.length);
-  const bad = tokens.find((t) => t.kind !== TokenKind.Word && t.kind !== TokenKind.Variable);
+  const bad = tokens.find((t) => t.kind !== "WORD" && t.kind !== "VARIABLE");
   if (bad !== undefined) return [at(text, bad.span.start.offset - 2, DiagnosticCode.UnexpectedToken)];
   if (tokens.length !== 1) return [at(text, tokens[1]?.span.start.offset === undefined ? 0 : tokens[1].span.start.offset - 2, DiagnosticCode.UnexpectedToken)];
   return [];
@@ -895,7 +909,7 @@ function ruleProblems(syntax: ISyntax, extensions: ReadonlySet<string>, from: nu
         }
         if (involved) report(shape.fault);
       }
-      if (node.kind !== NodeKind.Directive) return;
+      if (node.kind !== "directive") return;
       const { block } = anatomyOf(tokens, node);
       if (block === undefined || shape.kind === "unreadable") return;
       const params = shape.kind === "snippet" ? parameterTokens(tokens, node) : [];

@@ -7,7 +7,7 @@
 import { DiagnosticCode, DiagnosticError, messageOf } from "./diagnostics.js";
 import type { IExtension } from "./extension.js";
 import { codeError } from "./locate.js";
-import { type IExpandedValue, ValueKind } from "./value.js";
+import { type IExpandedValue } from "./value.js";
 
 /**
  * The include extension. Its one value must be a quoted path or glob (E3005 otherwise, placed on the value);
@@ -22,7 +22,7 @@ export function include(): IExtension {
         const code = DiagnosticCode.IncludeBadPath;
         throw new DiagnosticError({ code, message: messageOf(code), place: origin.place, via: origin.via });
       }
-      const bad: IExpandedValue | undefined = path.kind !== ValueKind.String ? path : extra;
+      const bad: IExpandedValue | undefined = path.kind !== "string" ? path : extra;
       if (bad !== undefined) throw codeError(bad.origin, DiagnosticCode.IncludeBadPath, bad.text);
       return [path.string()];
     },

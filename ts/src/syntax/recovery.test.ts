@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DiagnosticCode } from "../diagnostics.js";
-import { type INode, NodeKind, textOf } from "./cst.js";
+import { type INode, textOf } from "./cst.js";
 import { parse } from "./parse.js";
 import { MAX_NESTING } from "../gen/api/limits.js";
 
@@ -156,10 +156,10 @@ describe("nesting depth guard", () => {
       const syntax = parse(text);
       expect(syntax.diagnostics.map((d) => [d.code, d.span.start.column])).toEqual([["E2010", column]]);
       expect(syntax.root).toEqual({
-        kind: NodeKind.Document,
+        kind: "document",
         start: 0,
         end: syntax.tokens.length,
-        children: [{ kind: NodeKind.Error, start: 0, end: syntax.tokens.length, children: [] }],
+        children: [{ kind: "error", start: 0, end: syntax.tokens.length, children: [] }],
       });
       expect(textOf(syntax, syntax.root)).toBe(text);
     }

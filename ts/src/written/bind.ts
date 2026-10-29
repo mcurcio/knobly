@@ -13,16 +13,15 @@
 import { anatomyOf, type IDirectiveAnatomy, itemsOf } from "../anatomy.js";
 import { DiagnosticCode, DiagnosticError, messageOf } from "../diagnostics.js";
 import type { IExtension } from "../extension.js";
-import { UnreadableReason } from "../gen/api/kinds.js";
+import type { UnreadableReason } from "../gen/api/kinds.js";
 import { MAX_DEPTH, MAX_DIRECTIVES } from "../gen/api/limits.js";
 import { compareCodePoints } from "../graph/order.js";
-import { type IOverride, type IPlace, type IStep, StepKind } from "../origin.js";
+import { type IOverride, type IPlace, type IStep } from "../origin.js";
 import type { ILocatedDiagnostic } from "../report.js";
 import type { ISourceSpan } from "../span.js";
-import { type INode, type ISyntax, NodeKind, spanOf, type ValueRef } from "../syntax/cst.js";
+import { type INode, type ISyntax, spanOf, type ValueRef } from "../syntax/cst.js";
 import { parse } from "../syntax/parse.js";
-import { type IToken, TokenKind } from "../syntax/tokens.js";
-import { ValueKind } from "../value.js";
+import { type IToken } from "../syntax/tokens.js";
 import { decodeString, hasOnlyKnownEscapes, integerOf } from "../values.js";
 import type { Document } from "./document.js";
 import type {
@@ -155,7 +154,7 @@ export function readOverride(
 ): { readonly values: readonly Bound[] } | { readonly problem: { readonly code: DiagnosticCode; readonly span: ISourceSpan } } {
   const syntax = parse(`x ${text}`);
   const [node] = syntax.root.children;
-  if (node?.kind !== NodeKind.Directive) throw new Error("override text was not checked as values");
+  if (node?.kind !== "directive") throw new Error("override text was not checked as values");
   const overrideText: IText = {
     doc: undefined,
     syntax,
@@ -464,10 +463,10 @@ class Walk implements IBindingWithNeeds {
     if (doc === undefined) throw new Error("an override's text has no statements");
     for (const node of scopeNode.children) {
       if (this.stopped) return;
-      if (node.kind !== NodeKind.Directive && node.kind !== NodeKind.Error) continue;
+      if (node.kind !== "directive" && node.kind !== "error") continue;
       const copy = this.copyOf(doc.statementOf(node), context.via);
-      if (node.kind === NodeKind.Error) {
-        context.into.push({ kind: "unreadable", copy, reason: UnreadableReason.Syntax, diagnostic: undefined });
+      if (node.kind === "error") {
+        context.into.push({ kind: "unreadable", copy, reason: "syntax", diagnostic: undefined });
         continue;
       }
       try {
@@ -509,7 +508,7 @@ class Walk implements IBindingWithNeeds {
     this.expanded.set(copy, values);
     if (++this.count > MAX_DIRECTIVES) {
       this.stopped = true;
-      throw this.problem(UnreadableReason.Expansion, DiagnosticCode.TooManyDirectives, text, name.span, via, `more than ${String(MAX_DIRECTIVES)}`);
+      throw this.problem("expansion", DiagnosticCode.TooManyDirectives, text, name.span, via, `more than ${String(MAX_DIRECTIVES)}`);
     }
     const children: BoundItem[] | undefined = anatomy.block === undefined ? undefined : [];
     context.into.push({ kind: "directive", copy, children });
@@ -520,7 +519,7 @@ class Walk implements IBindingWithNeeds {
   /** A `set`, `snippet` or `use` line's text-alone shape (shape.ts, the one home of those rules), or its problem. */
   private wellFormed(anatomy: IDirectiveAnatomy, text: IText, via: readonly IStep[]): void {
     const { fault } = shapeOfAnatomy(text.syntax.tokens, anatomy, NO_EXTENSIONS);
-    if (fault !== undefined) throw this.problem(UnreadableReason.Expansion, fault.code, text, fault.span, via);
+    if (fault !== undefined) throw this.problem("expansion", fault.code, text, fault.span, via);
   }
 
   /** `set $name value...;` (rule 2): binds from this line to the end of the enclosing block. */
@@ -531,7 +530,7 @@ class Walk implements IBindingWithNeeds {
     const variable = tokens[first as number] as IToken;
     const variableName = variable.text.slice(1);
     if (!scope.claim(variableName)) {
-      throw this.problem(UnreadableReason.Expansion, DiagnosticCode.VariableSetTwice, text, variable.span, via, variable.text);
+      throw this.problem("expansion", DiagnosticCode.VariableSetTwice, text, variable.span, via, variable.text);
     }
     const line = copy.statement as unknown as StatementHandle;
     if (!(line instanceof SetLine)) throw new Error("a set line that claims its name is kind set");
@@ -556,7 +555,7 @@ class Walk implements IBindingWithNeeds {
     const line = copy.statement as unknown as StatementHandle;
     const defined = line instanceof SnippetLine && scope.define({ name: name.text, params, block: anatomy.block, text, scope, line });
     if (!defined) {
-      throw this.problem(UnreadableReason.Expansion, DiagnosticCode.SnippetDefinedTwice, text, name.span, via, name.text);
+      throw this.problem("expansion", DiagnosticCode.SnippetDefinedTwice, text, name.span, via, name.text);
     }
   }
 
@@ -580,7 +579,7 @@ class Walk implements IBindingWithNeeds {
     if (list === undefined) this.byUse.set(use, [resolution]);
     else list.push(resolution);
     if (snippet === undefined) {
-      throw this.problem(UnreadableReason.Expansion, DiagnosticCode.UnknownSnippet, text, name.span, via, name.text);
+      throw this.problem("expansion", DiagnosticCode.UnknownSnippet, text, name.span, via, name.text);
     }
     const written: WrittenValue[] = [];
     const values = rest.flatMap((ref) => {
@@ -591,10 +590,10 @@ class Walk implements IBindingWithNeeds {
     });
     if (values.length !== snippet.params.length) {
       const detail = `${name.text} takes ${String(snippet.params.length)}, given ${String(values.length)}`;
-      throw this.problem(UnreadableReason.Expansion, DiagnosticCode.SnippetArity, text, keyword.span, via, detail);
+      throw this.problem("expansion", DiagnosticCode.SnippetArity, text, keyword.span, via, detail);
     }
     if (open.includes(snippet)) {
-      throw this.problem(UnreadableReason.Expansion, DiagnosticCode.ExpansionCycle, text, keyword.span, via, name.text);
+      throw this.problem("expansion", DiagnosticCode.ExpansionCycle, text, keyword.span, via, name.text);
     }
     this.checkDepth(open, text, keyword, via);
     // Parameters are the body block's own bindings (a `set` of one there is E5002, S3-03), stored without the use
@@ -608,7 +607,7 @@ class Walk implements IBindingWithNeeds {
         body.param(param, { variable, values: [value.rebase(via.length, [])], written: writtenValue === undefined ? [] : [writtenValue] });
       }
     });
-    const step: IStep = { kind: StepKind.Use, name: name.text, place: text.place(keyword.span) };
+    const step: IStep = { kind: "use", name: name.text, place: text.place(keyword.span) };
     this.statements(snippet.block, { ...context, text: snippet.text, scope: body, via: [step, ...via], open: [...open, snippet] });
   }
 
@@ -623,12 +622,12 @@ class Walk implements IBindingWithNeeds {
     const forced = this.extensionBlock(anatomy.block, text, scope, via);
     const origin = { place: text.place(name.span), via };
     const fail = (code: DiagnosticCode, detail: string): Problem =>
-      this.problem(UnreadableReason.Extension, code, text, name.span, via, detail);
+      this.problem("extension", code, text, name.span, via, detail);
     try {
       specs.push(...extension.specs({ values: values.map((value) => value.expanded()), origin }));
     } catch (error) {
       specs.length = 0;
-      if (error instanceof DiagnosticError) throw new Problem(UnreadableReason.Extension, error.diagnostic);
+      if (error instanceof DiagnosticError) throw new Problem("extension", error.diagnostic);
       throw fail(DiagnosticCode.ExtensionFailed, `${name.text}: ${reasonOf(error)}`);
     }
     const reads = this.input?.reads;
@@ -647,7 +646,7 @@ class Walk implements IBindingWithNeeds {
     }
     const cycle = found.find((path) => open.includes(path));
     if (cycle !== undefined) {
-      throw this.problem(UnreadableReason.Expansion, DiagnosticCode.ExpansionCycle, text, name.span, via, cycle);
+      throw this.problem("expansion", DiagnosticCode.ExpansionCycle, text, name.span, via, cycle);
     }
     this.checkDepth(open, text, name, via);
     const files: Document[] = [];
@@ -662,7 +661,7 @@ class Walk implements IBindingWithNeeds {
       files.push(asDocument(doc));
     }
     targets.push(...found);
-    const step: IStep = { kind: StepKind.Extension, name: name.text, place: text.place(name.span) };
+    const step: IStep = { kind: "extension", name: name.text, place: text.place(name.span) };
     const spliced = new SpliceScope(scope, forced);
     for (const file of files) {
       this.statements(file.syntax.root, {
@@ -683,14 +682,14 @@ class Walk implements IBindingWithNeeds {
     const doc = text.doc;
     for (const node of block.children) {
       // Already reported by the parser; the broken line may be a `set` the files need, so the include is unreadable.
-      if (node.kind === NodeKind.Error) throw new Problem(UnreadableReason.Syntax, undefined);
-      if (node.kind !== NodeKind.Directive || doc === undefined) continue;
+      if (node.kind === "error") throw new Problem("syntax", undefined);
+      if (node.kind !== "directive" || doc === undefined) continue;
       const anatomy = anatomyOf(tokens, node);
       const name = tokens[anatomy.name];
       if (name === undefined) throw new Error("a directive node has no name token");
       // Kind `extension` (S3-07), placed at the line's name as every other directive-level code is (F1-02).
       if (name.text !== "set") {
-        throw this.problem(UnreadableReason.Extension, DiagnosticCode.ExtensionBlockNotSet, text, name.span, via);
+        throw this.problem("extension", DiagnosticCode.ExtensionBlockNotSet, text, name.span, via);
       }
       this.set(anatomy, this.copyOf(doc.statementOf(node), via), text, own, via);
     }
@@ -701,7 +700,7 @@ class Walk implements IBindingWithNeeds {
   private checkDepth(open: readonly (ISnippet | string)[], text: IText, name: IToken, via: readonly IStep[]): void {
     // `open` holds the root file and every expansion around this place, so its length is this expansion's depth.
     if (open.length > MAX_DEPTH) {
-      throw this.problem(UnreadableReason.Expansion, DiagnosticCode.ExpansionTooDeep, text, name.span, via, `more than ${String(MAX_DEPTH)}`);
+      throw this.problem("expansion", DiagnosticCode.ExpansionTooDeep, text, name.span, via, `more than ${String(MAX_DEPTH)}`);
     }
   }
 
@@ -711,23 +710,23 @@ class Walk implements IBindingWithNeeds {
     const origin = { place: text.written(spanOfRef(syntax, ref)), via };
     const written = text.doc?.valueOf(ref) as unknown as WrittenValue | undefined;
     if (typeof ref !== "number") {
-      if (ref.kind === NodeKind.List) {
+      if (ref.kind === "list") {
         const items = itemsOf(syntax.tokens, ref).flatMap((item) => this.value(text, item, scope, via, copy));
-        return [new Bound({ kind: ValueKind.List, items }, origin, written)];
+        return [new Bound({ kind: "list", items }, origin, written)];
       }
       return [this.slice(text, ref, scope, via, copy, written)];
     }
     const token = syntax.tokens[ref];
     if (token === undefined) throw new Error(`no token ${String(ref)}`);
     switch (token.kind) {
-      case TokenKind.Word:
-        return [new Bound({ kind: ValueKind.Word, text: token.text }, origin, written)];
-      case TokenKind.String:
+      case "WORD":
+        return [new Bound({ kind: "word", text: token.text }, origin, written)];
+      case "STRING":
         if (!hasOnlyKnownEscapes(token.text)) {
-          throw this.problem(UnreadableReason.Value, DiagnosticCode.BadEscape, text, token.span, via, token.text);
+          throw this.problem("value", DiagnosticCode.BadEscape, text, token.span, via, token.text);
         }
-        return [new Bound({ kind: ValueKind.String, value: decodeString(token.text) }, origin, written)];
-      case TokenKind.Variable:
+        return [new Bound({ kind: "string", value: decodeString(token.text) }, origin, written)];
+      case "VARIABLE":
         return this.variable(text, ref, token, scope, via, copy);
       default:
         throw new Error(`not a value token: ${token.kind}`);
@@ -750,9 +749,9 @@ class Walk implements IBindingWithNeeds {
       else list.push(resolution);
     }
     if (winner === undefined) {
-      throw this.problem(UnreadableReason.Expansion, DiagnosticCode.UnknownVariable, text, token.span, via, token.text);
+      throw this.problem("expansion", DiagnosticCode.UnknownVariable, text, token.span, via, token.text);
     }
-    const step: IStep = { kind: StepKind.Variable, name, place: text.place(token.span) };
+    const step: IStep = { kind: "variable", name, place: text.place(token.span) };
     return winner.values.map((value) => value.rebase(0, [step, ...via], resolution));
   }
 
@@ -776,14 +775,14 @@ class Walk implements IBindingWithNeeds {
       return token === undefined || at === undefined ? undefined : this.bound(text, at, token, scope, via, copy);
     };
     const origin = { place: text.written(spanOf(text.syntax, node)), via };
-    const colon = inner.findIndex((i) => tokens[i]?.kind === TokenKind.Colon);
+    const colon = inner.findIndex((i) => tokens[i]?.kind === "COLON");
     if (colon < 0) {
-      return new Bound({ kind: ValueKind.Index, name: name.text, index: bound(0) ?? 0 }, origin, written);
+      return new Bound({ kind: "index", name: name.text, index: bound(0) ?? 0 }, origin, written);
     }
     const start = colon === 0 ? undefined : bound(0);
     const end = colon + 1 < inner.length ? bound(colon + 1) : undefined;
     return new Bound(
-      { kind: ValueKind.Slice, name: name.text, ...(start === undefined ? {} : { start }), ...(end === undefined ? {} : { end }) },
+      { kind: "slice", name: name.text, ...(start === undefined ? {} : { start }), ...(end === undefined ? {} : { end }) },
       origin,
       written,
     );
@@ -791,9 +790,9 @@ class Walk implements IBindingWithNeeds {
 
   /** One slice bound's integer. E4001 at the bound, or for a variable at its value's place via the variable. */
   private bound(text: IText, ref: number, token: IToken, scope: IScopeView, via: readonly IStep[], copy: ICopy | undefined): number {
-    if (token.kind === TokenKind.Word) {
+    if (token.kind === "WORD") {
       const value = integerOf(token.text);
-      if (value === undefined) throw this.problem(UnreadableReason.Value, DiagnosticCode.NonIntegerBound, text, token.span, via, token.text);
+      if (value === undefined) throw this.problem("value", DiagnosticCode.NonIntegerBound, text, token.span, via, token.text);
       return value;
     }
     const values = this.variable(text, ref, token, scope, via, copy);
@@ -804,9 +803,9 @@ class Walk implements IBindingWithNeeds {
     const place = only?.origin.place;
     if (place === undefined || place.kind === "override") {
       // An override is written in no file: the problem is placed on the `$name` that used it.
-      throw this.problem(UnreadableReason.Value, DiagnosticCode.NonIntegerBound, text, token.span, via, token.text);
+      throw this.problem("value", DiagnosticCode.NonIntegerBound, text, token.span, via, token.text);
     }
-    throw new Problem(UnreadableReason.Value, {
+    throw new Problem("value", {
       code: DiagnosticCode.NonIntegerBound,
       message: `${messageOf(DiagnosticCode.NonIntegerBound)}: ${token.text} is ${only?.text ?? ""}`,
       place,

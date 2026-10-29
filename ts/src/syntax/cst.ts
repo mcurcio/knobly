@@ -3,13 +3,13 @@
  */
 
 import type { IDiagnostic } from "../diagnostics.js";
-import { NodeKind } from "../gen/api/kinds.js";
+import type { NodeKind } from "../gen/api/kinds.js";
 import type { ISourcePosition, ISourceSpan } from "../span.js";
 import type { IToken } from "./tokens.js";
 
 /** The node kinds, generated from spec/schema/api.json. An error node is one bad statement, or a run of tokens the
  * parser could not use; it never has children. */
-export { NodeKind };
+export type { NodeKind };
 
 /** A half-open range [start, end) of token indices. */
 export interface ITokenRange {

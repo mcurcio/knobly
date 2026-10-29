@@ -6,7 +6,7 @@
 export { render } from "./render.js";
 export {
   type Change,
-  ChangeKind,
+  type ChangeKind,
   type IAdded,
   type IAddress,
   type IAddressStep,
@@ -19,6 +19,6 @@ export {
   type IUnknown,
   type IUnreadable,
   type KeyRule,
-  UnreadableReason,
+  type UnreadableReason,
   type WalkControl,
 } from "./model.js";

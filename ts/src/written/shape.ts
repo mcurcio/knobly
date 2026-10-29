@@ -8,8 +8,8 @@
 import { DiagnosticCode } from "../diagnostics.js";
 import type { StatementKind } from "../gen/api/kinds.js";
 import type { ISourceSpan } from "../span.js";
-import { type INode, NodeKind } from "../syntax/cst.js";
-import { type IToken, TokenKind } from "../syntax/tokens.js";
+import { type INode } from "../syntax/cst.js";
+import { type IToken } from "../syntax/tokens.js";
 import { anatomyOf, type IDirectiveAnatomy } from "../anatomy.js";
 
 /** A statement's kind by its text alone: one of the generated statement kind list. */
@@ -34,7 +34,7 @@ export interface IShape {
 
 /** The shape of one node of a block, ignoring the one-per-block rules (E5002, E5005). */
 export function shapeOf(tokens: readonly IToken[], node: INode, extensions: ReadonlySet<string>): IShape {
-  if (node.kind !== NodeKind.Directive) return { kind: "unreadable", fault: undefined, claims: undefined };
+  if (node.kind !== "directive") return { kind: "unreadable", fault: undefined, claims: undefined };
   return shapeOfAnatomy(tokens, anatomyOf(tokens, node), extensions);
 }
 
@@ -46,7 +46,7 @@ export function shapeOfAnatomy(tokens: readonly IToken[], anatomy: IDirectiveAna
   const firstToken = typeof first === "number" ? tokens[first] : undefined;
   switch (name.text) {
     case "set": {
-      if (firstToken?.kind !== TokenKind.Variable || rest.length === 0 || anatomy.block !== undefined) {
+      if (firstToken?.kind !== "VARIABLE" || rest.length === 0 || anatomy.block !== undefined) {
         return { kind: "unreadable", fault: { code: DiagnosticCode.BadSet, span: name.span }, claims: undefined };
       }
       return { kind: "set", fault: undefined, claims: firstToken.text.slice(1) };
@@ -56,14 +56,14 @@ export function shapeOfAnatomy(tokens: readonly IToken[], anatomy: IDirectiveAna
       const bad = { kind: "unreadable", fault: { code: DiagnosticCode.BadSnippet, span: name.span }, claims: undefined } as const;
       for (const ref of rest) {
         const token = typeof ref === "number" ? tokens[ref] : undefined;
-        if (token?.kind !== TokenKind.Variable || params.includes(token.text.slice(1))) return bad;
+        if (token?.kind !== "VARIABLE" || params.includes(token.text.slice(1))) return bad;
         params.push(token.text.slice(1));
       }
-      if (firstToken?.kind !== TokenKind.Word || anatomy.block === undefined) return bad;
+      if (firstToken?.kind !== "WORD" || anatomy.block === undefined) return bad;
       return { kind: "snippet", fault: undefined, claims: firstToken.text };
     }
     case "use":
-      if (firstToken?.kind !== TokenKind.Word || anatomy.block !== undefined) {
+      if (firstToken?.kind !== "WORD" || anatomy.block !== undefined) {
         return { kind: "unreadable", fault: { code: DiagnosticCode.BadUse, span: name.span }, claims: undefined };
       }
       return { kind: "use", fault: undefined, claims: undefined };
@@ -115,5 +115,5 @@ export function blockShapes(
 
 /** The statement nodes of a document or block node: its directive and error children. */
 export function statementNodes(container: INode): readonly INode[] {
-  return container.children.filter((child) => child.kind === NodeKind.Directive || child.kind === NodeKind.Error);
+  return container.children.filter((child) => child.kind === "directive" || child.kind === "error");
 }

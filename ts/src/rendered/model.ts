@@ -6,13 +6,13 @@
  */
 
 import type { DiagnosticError } from "../diagnostics.js";
-import type { ChangeKind, UnreadableReason } from "../gen/api/kinds.js";
+import type { UnreadableReason } from "../gen/api/kinds.js";
 import type { IDirectiveOrigin } from "../origin.js";
 import type { ILocatedDiagnostic, ProgramCode } from "../report.js";
 import type { IExpandedValue } from "../value.js";
 import type { IDocumentGraph, IReferenceResolution, IWrittenDirective, Statement, WrittenValue } from "../written/model.js";
 
-export { ChangeKind, UnreadableReason } from "../gen/api/kinds.js";
+export type { ChangeKind, UnreadableReason } from "../gen/api/kinds.js";
 
 /**
  * One value of a directive, after expansion: an expanded value (kind, canonical text, origin, readers) with three
@@ -165,20 +165,20 @@ export interface IRendered {
 }
 
 export interface IAdded {
-  readonly kind: typeof ChangeKind.Added;
+  readonly kind: "added";
   readonly address: IAddress;
   readonly after: IDirective;
 }
 
 export interface IRemoved {
-  readonly kind: typeof ChangeKind.Removed;
+  readonly kind: "removed";
   readonly address: IAddress;
   readonly before: IDirective;
 }
 
 /** Same address; its own values (by text) or whether it has a block differ. */
 export interface IChanged {
-  readonly kind: typeof ChangeKind.Changed;
+  readonly kind: "changed";
   readonly address: IAddress;
   readonly before: IDirective;
   readonly after: IDirective;
@@ -186,7 +186,7 @@ export interface IChanged {
 
 /** It was in `before`; in `after` its block holds an unreadable statement that may be it. */
 export interface IUnknown {
-  readonly kind: typeof ChangeKind.Unknown;
+  readonly kind: "unknown";
   readonly address: IAddress;
   readonly before: IDirective;
 }

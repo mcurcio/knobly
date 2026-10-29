@@ -1,34 +1,12 @@
 /**
- * Our token vocabulary. The values are the token names of grammar/Villanelle.g4, so the grammar is the one
- * source of the names; ANTLR's types never cross the adapter in syntax/parse.ts.
+ * Our token vocabulary. `TokenKind` is generated from grammar/Villanelle.g4's lexer rules (tools/gen-api.py), so the
+ * grammar is the one source of the names; ANTLR's types never cross the adapter in syntax/parse.ts.
  */
 
 import type { ISourceSpan } from "../span.js";
 
-export const TokenKind = {
-  Bom: "BOM",
-  Space: "SPACE",
-  Newline: "NEWLINE",
-  Comment: "COMMENT",
-  /** `$name`: a variable reference (letters, digits and `_` after the `$`). */
-  Variable: "VARIABLE",
-  Word: "WORD",
-  String: "STRING",
-  LBrace: "LBRACE",
-  RBrace: "RBRACE",
-  LBrack: "LBRACK",
-  RBrack: "RBRACK",
-  Semi: "SEMI",
-  Comma: "COMMA",
-  Colon: "COLON",
-  /** Error token: a string literal without its closing quote. Never used by the syntax rules. */
-  UnterminatedString: "UNTERMINATED_STRING",
-  /** Error token: a `$` with no variable name after it. Never used by the syntax rules. */
-  LoneDollar: "LONE_DOLLAR",
-  /** Error token: one character no other token may start with. Never used by the syntax rules. */
-  BadChar: "BAD_CHAR",
-} as const;
-export type TokenKind = (typeof TokenKind)[keyof typeof TokenKind];
+export type { TokenKind } from "../gen/api/kinds.js";
+import type { TokenKind } from "../gen/api/kinds.js";
 
 /**
  * One token. Invariants of every token list `parse` returns:

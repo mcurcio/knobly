@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { DiagnosticCode } from "../diagnostics.js";
-import { NodeKind, spanOf, textOf } from "./cst.js";
+import { spanOf, textOf } from "./cst.js";
 import { parse } from "./parse.js";
-import { TokenKind } from "./tokens.js";
 
 describe("parse", () => {
   it("parses the tracer slice into a directive holding a slice node", () => {
@@ -21,11 +20,11 @@ describe("parse", () => {
       ["SEMI", ";"],
     ]);
     expect(syntax.root).toEqual({
-      kind: NodeKind.Document,
+      kind: "document",
       start: 0,
       end: 9,
       children: [
-        { kind: NodeKind.Directive, start: 0, end: 9, children: [{ kind: NodeKind.Slice, start: 2, end: 8, children: [] }] },
+        { kind: "directive", start: 0, end: 9, children: [{ kind: "slice", start: 2, end: 8, children: [] }] },
       ],
     });
   });
@@ -33,14 +32,14 @@ describe("parse", () => {
   it("parses the index form foo[1]", () => {
     const syntax = parse("connect foo[1];");
     expect(syntax.diagnostics).toEqual([]);
-    expect(syntax.root.children[0]?.children[0]).toMatchObject({ kind: NodeKind.Slice, start: 2, end: 6 });
+    expect(syntax.root.children[0]?.children[0]).toMatchObject({ kind: "slice", start: 2, end: 6 });
   });
 
   it("covers leading and trailing whitespace with the document node", () => {
     const syntax = parse(" \tconnect foo[1]; ");
     expect(syntax.root).toMatchObject({ start: 0, end: syntax.tokens.length });
-    expect(syntax.tokens[0]?.kind).toBe(TokenKind.Space);
-    expect(syntax.tokens.at(-1)?.kind).toBe(TokenKind.Space);
+    expect(syntax.tokens[0]?.kind).toBe("SPACE");
+    expect(syntax.tokens.at(-1)?.kind).toBe("SPACE");
   });
 
   it("reports [:] as one located diagnostic", () => {

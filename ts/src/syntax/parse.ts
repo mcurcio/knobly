@@ -9,19 +9,19 @@ import { DiagnosticCode, type IDiagnostic, messageOf } from "../diagnostics.js";
 import VillanelleLexer from "../gen/VillanelleLexer.js";
 import VillanelleParser from "../gen/VillanelleParser.js";
 import type { ISourcePosition } from "../span.js";
-import { type INode, type ISyntax, NodeKind, spanOf } from "./cst.js";
+import { type INode, type ISyntax, spanOf } from "./cst.js";
 import { type IRawDiagnostic, installRecovery, nestingOverflow } from "./recovery.js";
-import { type IToken, TokenKind } from "./tokens.js";
+import type { IToken, TokenKind } from "./tokens.js";
 import { type IAntlrToken, type IAntlrTree, toCst } from "./walk.js";
 
-/** ANTLR token type -> our TokenKind, from the generated lexer's names; throws at load on a name we do not know. */
+/**
+ * ANTLR token type -> our TokenKind. Both come from grammar/Villanelle.g4 (the generated lexer's symbolic names and
+ * tools/gen-api.py's TokenKind), so a symbolic name is a TokenKind.
+ */
 const KIND_BY_TYPE: ReadonlyMap<number, TokenKind> = (() => {
-  const known = new Set<string>(Object.values(TokenKind));
   const map = new Map<number, TokenKind>();
   VillanelleLexer.symbolicNames.forEach((name, type) => {
-    if (name === null) return;
-    if (!known.has(name)) throw new Error(`grammar token ${name} is not a TokenKind`);
-    map.set(type, name as TokenKind);
+    if (name !== null) map.set(type, name as TokenKind);
   });
   return map;
 })();
@@ -88,7 +88,7 @@ export function parse(text: string): ISyntax {
   // The depth guard runs first: deep enough nesting would overflow the call stack of the recursive parser.
   const tooDeep = nestingOverflow(tokens.map((t) => t.kind));
   if (tooDeep !== undefined) {
-    const root: INode = { kind: NodeKind.Document, start: 0, end: n, children: [{ kind: NodeKind.Error, start: 0, end: n, children: [] }] };
+    const root: INode = { kind: "document", start: 0, end: n, children: [{ kind: "error", start: 0, end: n, children: [] }] };
     const code = DiagnosticCode.NestingTooDeep;
     return located(tokens, root, [{ code, range: { start: tooDeep, end: tooDeep + 1 }, message: messageOf(code) }]);
   }

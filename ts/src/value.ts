@@ -5,13 +5,13 @@
  */
 
 import { DiagnosticCode, type DiagnosticError } from "./diagnostics.js";
-import { ValueKind } from "./gen/api/kinds.js";
+import type { ValueKind } from "./gen/api/kinds.js";
 import { codeError, programError } from "./locate.js";
 import type { IOrigin } from "./origin.js";
 import type { ProgramCode } from "./report.js";
 import { booleanOf, canonicalList, canonicalSlice, canonicalString, integerOf, numberOf } from "./values.js";
 
-export { ValueKind };
+export type { ValueKind };
 
 /**
  * `name[start:end]`, `name[start:]` or `name[:end]`. Bounds are integers (IntegerText, within the safe integer
@@ -19,7 +19,7 @@ export { ValueKind };
  * its value's origin.
  */
 export interface ISliceValue {
-  readonly kind: typeof ValueKind.Slice;
+  readonly kind: "slice";
   readonly name: string;
   readonly start?: number;
   readonly end?: number;
@@ -27,7 +27,7 @@ export interface ISliceValue {
 
 /** `name[index]`: one element (vil-9ze.2). */
 export interface IIndexValue {
-  readonly kind: typeof ValueKind.Index;
+  readonly kind: "index";
   readonly name: string;
   readonly index: number;
 }
@@ -83,24 +83,24 @@ export interface IExpandedValue {
 
 /** What an expanded value holds, by kind; a list holds its items (`TItem`). Package-internal. */
 export type ExpandedData<TItem> =
-  | { readonly kind: typeof ValueKind.Word; readonly text: string }
-  | { readonly kind: typeof ValueKind.String; readonly value: string }
-  | { readonly kind: typeof ValueKind.List; readonly items: readonly TItem[] }
-  | { readonly kind: typeof ValueKind.Slice; readonly name: string; readonly start?: number; readonly end?: number }
-  | { readonly kind: typeof ValueKind.Index; readonly name: string; readonly index: number };
+  | { readonly kind: "word"; readonly text: string }
+  | { readonly kind: "string"; readonly value: string }
+  | { readonly kind: "list"; readonly items: readonly TItem[] }
+  | { readonly kind: "slice"; readonly name: string; readonly start?: number; readonly end?: number }
+  | { readonly kind: "index"; readonly name: string; readonly index: number };
 
 /** The canonical text of a value (spec 2.9). */
 export function canonicalTextOf(data: ExpandedData<{ readonly text: string }>): string {
   switch (data.kind) {
-    case ValueKind.Word:
+    case "word":
       return data.text;
-    case ValueKind.String:
+    case "string":
       return canonicalString(data.value);
-    case ValueKind.List:
+    case "list":
       return canonicalList(data.items.map((item) => item.text));
-    case ValueKind.Slice:
+    case "slice":
       return canonicalSlice(data.name, data);
-    case ValueKind.Index:
+    case "index":
       return canonicalSlice(data.name, data);
   }
 }
@@ -124,13 +124,13 @@ export class ExpandedValue<TItem extends IExpandedValue = IExpandedValue> implem
   }
 
   word(): string {
-    if (this.#data.kind !== ValueKind.Word) throw this.wrongKind("a word");
+    if (this.#data.kind !== "word") throw this.wrongKind("a word");
     return this.#data.text;
   }
 
   string(): string {
-    if (this.#data.kind === ValueKind.Word) return this.#data.text;
-    if (this.#data.kind === ValueKind.String) return this.#data.value;
+    if (this.#data.kind === "word") return this.#data.text;
+    if (this.#data.kind === "string") return this.#data.value;
     throw this.wrongKind("a word or a string");
   }
 
@@ -153,14 +153,14 @@ export class ExpandedValue<TItem extends IExpandedValue = IExpandedValue> implem
   }
 
   items(): readonly TItem[] {
-    if (this.#data.kind !== ValueKind.List) throw this.wrongKind("a list");
+    if (this.#data.kind !== "list") throw this.wrongKind("a list");
     return this.#data.items;
   }
 
   slice(): ISliceValue | IIndexValue {
     const data = this.#data;
-    if (data.kind === ValueKind.Index) return { kind: data.kind, name: data.name, index: data.index };
-    if (data.kind !== ValueKind.Slice) throw this.wrongKind("a slice or an index");
+    if (data.kind === "index") return { kind: data.kind, name: data.name, index: data.index };
+    if (data.kind !== "slice") throw this.wrongKind("a slice or an index");
     return {
       kind: data.kind,
       name: data.name,
@@ -172,14 +172,14 @@ export class ExpandedValue<TItem extends IExpandedValue = IExpandedValue> implem
   plain(): PlainValue {
     const data = this.#data;
     switch (data.kind) {
-      case ValueKind.String:
+      case "string":
         return data.value;
-      case ValueKind.Word:
+      case "word":
         return numberOf(data.text) ?? booleanOf(data.text) ?? data.text;
-      case ValueKind.List:
+      case "list":
         return data.items.map((item) => item.plain());
-      case ValueKind.Slice:
-      case ValueKind.Index:
+      case "slice":
+      case "index":
         return this.slice();
     }
   }

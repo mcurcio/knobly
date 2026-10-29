@@ -5,7 +5,7 @@
 
 import type { ISourceSpan } from "./span.js";
 
-export { StepKind } from "./gen/api/kinds.js";
+export type { StepKind } from "./gen/api/kinds.js";
 import type { StepKind } from "./gen/api/kinds.js";
 
 /** A range of one file's text. */

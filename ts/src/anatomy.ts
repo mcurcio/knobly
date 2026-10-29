@@ -3,9 +3,8 @@
  * The one home of this rule; Python ports it. Package-internal, shared.
  */
 
-import { type INode, NodeKind, type ValueRef } from "./syntax/cst.js";
+import { type INode, type ValueRef } from "./syntax/cst.js";
 import type { IToken } from "./syntax/tokens.js";
-import { TokenKind } from "./syntax/tokens.js";
 
 export interface IDirectiveAnatomy {
   /** Index of the name token (`node.start`, a WORD). */
@@ -16,8 +15,8 @@ export interface IDirectiveAnatomy {
   readonly block: INode | undefined;
 }
 
-const VALUE_TOKENS: ReadonlySet<string> = new Set([TokenKind.Word, TokenKind.String, TokenKind.Variable]);
-const VALUE_NODES: ReadonlySet<string> = new Set([NodeKind.Slice, NodeKind.List]);
+const VALUE_TOKENS: ReadonlySet<string> = new Set(["WORD", "STRING", "VARIABLE"]);
+const VALUE_NODES: ReadonlySet<string> = new Set(["slice", "list"]);
 
 /**
  * Split a directive node. Tokens after the name that no child covers are values when they are WORD, STRING or VARIABLE;
@@ -42,7 +41,7 @@ function split(tokens: readonly IToken[], node: INode): { values: ValueRef[]; bl
     const child = node.children[next];
     if (child !== undefined && child.start === i) {
       if (VALUE_NODES.has(child.kind)) values.push(child);
-      else if (child.kind === NodeKind.Block) block = child;
+      else if (child.kind === "block") block = child;
       next++;
       i = Math.max(child.end, i + 1);
       continue;

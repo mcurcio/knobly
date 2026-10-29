@@ -6,7 +6,7 @@
  */
 
 import type { IOrigin, IStep } from "../origin.js";
-import { type ExpandedData, ExpandedValue, ValueKind } from "../value.js";
+import { type ExpandedData, ExpandedValue } from "../value.js";
 import type { IReferenceResolution, WrittenValue } from "./model.js";
 
 export class Bound {
@@ -38,12 +38,12 @@ export class Bound {
 
   /** The word's text when this is a word; undefined otherwise. Used for variable slice bounds. */
   get wordText(): string | undefined {
-    return this.data.kind === ValueKind.Word ? this.data.text : undefined;
+    return this.data.kind === "word" ? this.data.text : undefined;
   }
 
   /** Its data with each list item made by `item` (the rendered layer's arguments, or plain expanded values). */
   dataWith<T>(item: (bound: Bound) => T): ExpandedData<T> {
-    return this.data.kind === ValueKind.List ? { kind: ValueKind.List, items: this.data.items.map(item) } : this.data;
+    return this.data.kind === "list" ? { kind: "list", items: this.data.items.map(item) } : this.data;
   }
 
   /** The shared expanded value: what an extension use holds. */

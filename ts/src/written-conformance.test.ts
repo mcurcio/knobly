@@ -12,7 +12,6 @@ import type { IOrigin, IPlace, IStep } from "./origin.js";
 import { render } from "./rendered/render.js";
 import { originText, placeText } from "./rendered/testing.js";
 import { type IDocumentWriter, type IFileWrite, memorySource } from "./source.js";
-import { TokenKind } from "./syntax/tokens.js";
 import { quote } from "./text.js";
 import { BadTextError, EditError } from "./written/errors.js";
 import type {
@@ -108,7 +107,7 @@ function valuesOf(statement: Statement): WrittenValue[] {
 function nameAt(doc: IDocument, statement: Statement): [number, number] {
   const offset = statement.place.span.start.offset;
   const token = doc.syntax.tokens.find(
-    (t) => t.span.start.offset >= offset && t.kind !== TokenKind.Comment && t.kind !== TokenKind.Space && t.kind !== TokenKind.Newline,
+    (t) => t.span.start.offset >= offset && t.kind !== "COMMENT" && t.kind !== "SPACE" && t.kind !== "NEWLINE",
   );
   return [token?.span.start.line ?? -1, token?.span.start.column ?? -1];
 }

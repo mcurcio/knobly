@@ -11,12 +11,12 @@
 export type { ISourcePosition, ISourceSpan } from "./span.js";
 export { DiagnosticCode, DiagnosticError, type IDiagnostic } from "./diagnostics.js";
 
-export { type IToken, TokenKind } from "./syntax/tokens.js";
-export { type INode, type ISyntax, type ITokenRange, NodeKind, spanOf, textOf, type ValueRef } from "./syntax/cst.js";
+export { type IToken, type TokenKind } from "./syntax/tokens.js";
+export { type INode, type ISyntax, type ITokenRange, type NodeKind, spanOf, textOf, type ValueRef } from "./syntax/cst.js";
 export { parse } from "./syntax/parse.js";
-export { type IExpandedValue, type IIndexValue, type ISliceValue, type PlainValue, ValueKind } from "./value.js";
+export { type IExpandedValue, type IIndexValue, type ISliceValue, type PlainValue, type ValueKind } from "./value.js";
 
-export { type IDirectiveOrigin, type IOrigin, type IOverride, type IPlace, type IStep, StepKind } from "./origin.js";
+export { type IDirectiveOrigin, type IOrigin, type IOverride, type IPlace, type IStep, type StepKind } from "./origin.js";
 export { Diagnostics, type ILocatable, type ILocatedDiagnostic, type ProgramCode } from "./report.js";
 export { type IDocumentSource, type IDocumentWriter, type IFileWrite, type ILoadContext, memorySource } from "./source.js";
 export type { IExtension, IExtensionUse } from "./extension.js";
@@ -53,7 +53,7 @@ export { BadTextError, DetachedError, EditError, NoSetLineError, ReadError, Save
 
 export {
   type Change,
-  ChangeKind,
+  type ChangeKind,
   type IAdded,
   type IAddress,
   type IAddressStep,
@@ -67,6 +67,6 @@ export {
   type IUnreadable,
   type KeyRule,
   render,
-  UnreadableReason,
+  type UnreadableReason,
   type WalkControl,
 } from "./rendered/index.js";
