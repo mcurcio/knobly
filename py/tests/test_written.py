@@ -438,3 +438,16 @@ def test_a_detached_handle_raises_detached_error_before_the_type_check() -> None
     x.remove()
     with pytest.raises(vl.DetachedError):
         x.set(2400)  # type: ignore[arg-type]
+
+
+# --- a line break in a values text (vil-5ya) ---
+
+
+def test_set_refuses_a_line_break_that_would_split_the_statement() -> None:
+    graph = load({"main.conf": "port 80;\n"})
+    port = directive(graph.root.block[0])
+    with pytest.raises(vl.BadTextError) as raised:
+        port.set("1\n2")
+    [problem] = raised.value.diagnostics
+    assert (problem.code, problem.span.start.line, problem.span.start.column) == ("E2001", 1, 0)
+    assert graph.root.text == "port 80;\n"

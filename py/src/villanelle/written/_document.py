@@ -885,6 +885,27 @@ def values_text_problems(text: str, *, in_list: bool) -> tuple[Diagnostic, ...]:
         )
         if more:
             return (at(text, offset - len(prefix), DiagnosticCode.UNEXPECTED_TOKEN),)
+    if not in_list:
+        return _line_break_problem(text, syntax, starts, len(prefix))
+    return ()
+
+
+_GAP = frozenset({TokenKind.SPACE, TokenKind.COMMENT, TokenKind.NEWLINE})
+
+
+def _line_break_problem(text: str, syntax: Syntax, starts: Sequence[int], shift: int) -> tuple[Diagnostic, ...]:
+    """A line break outside a list ends the statement (vil-5ya, spec 2.8): the first ``NEWLINE`` at list depth 0 of
+    the given text is refused with E2001 at the first token after it that is not a space, comment or line break, or
+    at the line break itself when only those follow."""
+    inside = [i for i in range(len(syntax.tokens)) if shift <= starts[i] < shift + len(text)]
+    depth = 0
+    for n, i in enumerate(inside):
+        kind = syntax.tokens[i].kind
+        depth += (kind is TokenKind.LBRACK) - (kind is TokenKind.RBRACK)
+        if kind is not TokenKind.NEWLINE or depth != 0:
+            continue
+        after = next((j for j in inside[n + 1 :] if syntax.tokens[j].kind not in _GAP), i)
+        return (at(text, starts[after] - shift, DiagnosticCode.UNEXPECTED_TOKEN),)
     return ()
 
 
@@ -964,11 +985,6 @@ def override_text_problems(text: str) -> tuple[Diagnostic, ...]:
     problems = values_text_problems(text, in_list=False)
     if problems:
         return problems
-    # A line break ends a statement: values after one would be a second statement, not this override's values.
-    wrapped = parse(f"x {text}")
-    later = [n for n in wrapped.root.children if n.kind in (NodeKind.DIRECTIVE, NodeKind.ERROR)][1:]
-    if later:
-        return (at(text, starts_of(wrapped)[later[0].start] - 2, DiagnosticCode.UNEXPECTED_TOKEN),)
     syntax = parse(text)
     starts = starts_of(syntax)
     meaningful = [i for i, t in enumerate(syntax.tokens) if t.kind not in _TRIVIA and t.kind is not TokenKind.COMMENT]
