@@ -6,7 +6,6 @@
 {"name": "ports-two-values", "needs": ["values"], "files": {"main.conf": "set $ports 8080 443;\nlisten $ports;\n"}, "root": "main.conf", "steps": [["render"], ["edit", ["value", "main.conf", 1, 7], "replaceWithText", "80"], ["texts"], ["render"]]},
 {"name": "set-bad", "needs": ["values"], "files": {"main.conf": "set $a 1;\nx $a;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "1; x"], ["texts"]]},
 {"name": "detached", "needs": ["values"], "files": {"main.conf": "set $a 1;\nx $a;\n"}, "root": "main.conf", "steps": [["edit", ["value", "main.conf", 1, 2], "replaceWithText", "2"], ["edit", ["previous"], "replaceWithText", "3"], ["texts"]]},
-{"name": "override-no-set-line", "needs": ["values"], "files": {"main.conf": "x $a;\n"}, "root": "main.conf", "overrides": {"a": "1"}, "steps": [["edit", ["override", "a"], "set", "2"], ["texts"]]},
 {"name": "shadowed-next-first", "needs": ["include"], "files": {"main.conf": "include \"f.conf\" {\n    set $a 2;\n}\n", "f.conf": "set $a 1;\nx $a;\n"}, "root": "main.conf", "overrides": {"a": "3"}, "extensions": ["include"], "steps": [["list"], ["references"]]},
 {"name": "declaration-free-and-bound", "needs": [], "files": {"main.conf": "set $a 1;\nx $a $b;\nblk {\n    set $b 2;\n    y $a $b;\n}\n"}, "root": "main.conf", "steps": [["references"], ["list"]]},
 {"name": "snippet-copies", "needs": ["snippet"], "files": {"main.conf": "snippet s $p {\n    body $p;\n}\nuse s 1;\nuse s 2;\n"}, "root": "main.conf", "steps": [["references"], ["render"]]},
@@ -35,5 +34,14 @@
 {"name": "insert-indent-differs", "needs": ["blocks"], "files": {"main.conf": "x {\n  a;\n      b;\n}\n"}, "root": "main.conf", "steps": [["edit", ["block", "main.conf", 0, 0], "insertStatements", 1, "c;"], ["texts"]]},
 {"name": "declaration-nested-set", "needs": ["snippet"], "files": {"main.conf": "snippet s $a {\n    x {\n        set $a 1;\n        y $a;\n    }\n}\nuse s 2;\n"}, "root": "main.conf", "steps": [["references"]]},
 {"name": "set-override-bad-bound", "needs": ["override"], "files": {"main.conf": "a $h;\n"}, "root": "main.conf", "overrides": {"h": "1"}, "steps": [["edit", ["graph"], "setOverride", "h", "1 foo[x]"], ["edit", ["graph"], "setOverride", "h", "1 \"\\q\""], ["render"]]},
-{"name": "set-override-line-break", "needs": ["override"], "files": {"main.conf": "x $a;\n"}, "root": "main.conf", "overrides": {"a": "1"}, "steps": [["edit", ["graph"], "setOverride", "a", "1\n2"], ["render"]]}
+{"name": "set-override-line-break", "needs": ["override"], "files": {"main.conf": "x $a;\n"}, "root": "main.conf", "overrides": {"a": "1"}, "steps": [["edit", ["graph"], "setOverride", "a", "1\n2"], ["render"]]},
+{"name": "set-line-break", "needs": ["directive-values"], "files": {"main.conf": "port 80;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "1\n2"], ["texts"]]},
+{"name": "set-line-break-trailing", "needs": ["directive-values"], "files": {"main.conf": "port 80;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "1\n"], ["texts"]]},
+{"name": "set-line-break-leading", "needs": ["directive-values"], "files": {"main.conf": "port 80;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "\n1"], ["texts"]]},
+{"name": "set-line-break-in-list", "needs": ["directive-values"], "files": {"main.conf": "port 80;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "[1,\n2]"], ["texts"]]},
+{"name": "value-replace-line-break", "needs": ["values"], "files": {"main.conf": "port 80;\n"}, "root": "main.conf", "steps": [["edit", ["value", "main.conf", 0, 5], "replaceWithText", "1\n2"], ["texts"]]},
+{"name": "set-override-trailing-line-break", "needs": ["override"], "files": {"main.conf": "x $a;\n"}, "root": "main.conf", "overrides": {"a": "1"}, "steps": [["edit", ["graph"], "setOverride", "a", "1\n"], ["render"]]},
+{"name": "set-bad-astral", "needs": ["directive-values"], "files": {"main.conf": "x 1;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "\"\ud83d\ude00\" ;"], ["texts"]]},
+{"name": "insert-before-after", "needs": ["blocks"], "files": {"main.conf": "a 1;\nb 2;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 1, 0], "insertBefore", "x;"], ["edit", ["statement", "main.conf", 0, 0], "insertAfter", "y;"], ["texts"]]},
+{"name": "insert-after-nested", "needs": ["blocks"], "files": {"main.conf": "blk {\n    a 1;\n}\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 1, 4], "insertAfter", "b 2;"], ["texts"]]}
 ]

@@ -15,6 +15,9 @@ Where the words come from:
   graph.render()", then "The low level shouldn't "depend on" the middle layer — they should have different domain objects. The middle layer of objects can build on the lower layer domains"; "A overrides" (the word for values a program
   passes in); "A Keep text only, make misuse impossible" (values going in); and "Can "set_values"
   become simply "set"?" (the edit that replaces values).
+- Milestone 2 (beads vil-0vz, vil-9fy, vil-5ya, vil-gxu): the round 13 review's root causes 3 and 4, and the
+  owner's "Yes" of 2026-10-29 to the rendered layer building only on the low level's public objects. The new words
+  below are design choices, not his words.
 
 ## Rules
 
@@ -30,7 +33,12 @@ Where the words come from:
 - **Layer direction** (owner, 2026-10-29: "The low level shouldn't "depend on" the middle layer — they should have different domain objects. The middle layer of objects can build on the lower layer domains"): each layer has its own types. A lower layer never
   imports, names or returns an upper layer's type; an upper layer's type may build on a lower one's
   (an `argument` builds on an `expanded value`).
-- **Kind values** are lowercase words (`"set"`, `"override"`), the same strings in every binding.
+- **Kind values** are lowercase words (`"set"`, `"override"`), the same strings in every binding (token kinds,
+  the grammar's names, aside).
+- **Variants** (spec 2.10): a kind list whose members differ in shape gives one type per member; its spec name is
+  the kind word when that is unambiguous in its layer (`word`, `added`), else the kind word plus the concept
+  (`set variable`, `extension line`, `expanded list`, `list argument`). The union keeps the concept's word
+  (`statement`, `variable`, `expanded value`, `argument`, `change`).
 
 ## The words
 
@@ -68,16 +76,37 @@ in lowercase words; the TypeScript and Python spellings follow from the casing r
 | `save (writer)` | the graph's method that hands changed documents to a writer | the free function `save (graph, writer)` |
 | `diff (after, key?)` | a render's method comparing it (the before) with another render | `processor.diff (before, after, key?)` |
 
+The words milestone 2 adds or changes (new terms, each a design choice; their definitions and reasons are in the
+table at the end):
+
+| Word | Means | Replaces (before milestone 2) |
+|---|---|---|
+| `extension line` | a statement whose name an extension owns (an include line): kind `extension`, its own type | a `written directive` of kind `extension` |
+| `set variable`, `parameter`, `override variable` | the three variable types, one per `variable kind` | `variable`, one type for all three |
+| `expanded word` ... `expanded index` | the five expanded value types, one per value kind but `reference` | `expanded value`, one type |
+| `word argument` ... `index argument` | the five rendered value types, each building on the expanded type of its kind | `argument`, one type |
+| `list ()` | the reader that asks for a list (every value variant; E4002 otherwise) | the reader `items ()` |
+| `items` | a list's items, a property of the list variants in every layer (written `list`, `expanded list`, `list argument`) | `items ()` on a rendered value |
+| `expand ()`, `expansion` | the graph's method, and the snapshot it returns: every copy as read, values expanded and linked, what `render (graph)` builds on (spec 6.10) | the package-internal binding render used to read |
+| `directive expansion`, `unreadable expansion`, `value expansion` | the parts of an expansion: a directive copy, a copy that could not be read, one expanded value with its links | (internal: TypeScript `BoundItem`, `Bound`; Python `BoundItem`, `BoundValue`) |
+| `insert before (text)`, `insert after (text)` | insert statements next to this statement in its block | `insert statements (index, text)` with a worked-out index |
+| `people form` | the text a person reads, a binding's to-text conversion: an address's, and now a place's, an override's, a step's and a diagnostic's (contract 2) | (an address's only) |
+| `villanelle error` | the base class of every error class the package defines (contract 4) | (none) |
+| `memory writer`, `file writer` | the writers named after their medium and port (contract 5) | (no memory writer); `fs writer` |
+
 Words a program might expect but villanelle does not use: `handed` (now `override`), `args`,
-`body`, `reaches`, `overridden` (as a member name), `set values` (now `set`). A new meaning for any word on this page needs
+`body`, `reaches`, `overridden` (as a member name), `set values` (now `set`), `no set line error` (gone),
+`items ()` (now `list ()`), `as_int` and the other `as_` readers (now the spec words), `fs writer` (now `file
+writer`). A new meaning for any word on this page needs
 the owner's approval.
 
 ## Types per layer and binding
 
-The type names after milestone 1. TypeScript keeps its `I` prefix on interfaces until the owner
+The type names after milestone 2. TypeScript keeps its `I` prefix on interfaces until the owner
 answers the binding guide's rule 2 (proposed: drop it, so both bindings spell a type the same way);
-that rename is not part of milestone 1. "Union" means a TypeScript union type or a Python
-`TypeAlias` over classes.
+unions have no prefix. "Union" means a TypeScript union type, or a Python `X: TypeAlias = A | B | ...` over classes
+(so `isinstance(x, X)` works). Every kind list is a TypeScript string-literal type and a Python `StrEnum` of the
+same name (spec 2.10).
 
 ### Shared
 
@@ -85,9 +114,10 @@ that rename is not part of milestone 1. "Union" means a TypeScript union type or
 |---|---|---|
 | `source position` | `ISourcePosition` | `SourcePosition` |
 | `source span` | `ISourceSpan` | `SourceSpan` |
-| `place` (kind `file`) | `IPlace` | `Place` (no `kind` field yet: root cause 3; the schema marks it `later`) |
+| `place` (kind `file`) | `IPlace` | `Place` |
 | `override` (kind `override`, as an origin's place) | `IOverride` | `Override` |
-| `step` | `IStep` | `Step` |
+| `place kind` | `PlaceKind` | `PlaceKind` |
+| `step`, `step kind` | `IStep`, `StepKind` | `Step`, `StepKind` |
 | `origin` | `IOrigin` | `Origin` |
 | `directive origin` | `IDirectiveOrigin` | `DirectiveOrigin` |
 | `diagnostic` | `IDiagnostic` | `Diagnostic` |
@@ -96,11 +126,13 @@ that rename is not part of milestone 1. "Union" means a TypeScript union type or
 | `diagnostic code` | `DiagnosticCode` (constant object and type) | `DiagnosticCode` (`StrEnum`) |
 | `diagnostics` (the sink) | `Diagnostics` | `Diagnostics` |
 | `locatable` | `ILocatable` | `Locatable` (`Protocol`) |
-| `expanded value` | `IExpandedValue` | `ExpandedValue` |
+| `expanded value` | `ExpandedValue` (union) | `ExpandedValue` (union) |
+| `expanded word`, `expanded string`, `expanded list`, `expanded slice`, `expanded index` | `IExpandedWord`, `IExpandedString`, `IExpandedList`, `IExpandedSlice`, `IExpandedIndex` | `ExpandedWord`, `ExpandedString`, `ExpandedList`, `ExpandedSlice`, `ExpandedIndex` |
+| `value kind` | `ValueKind` | `ValueKind` |
 | `slice value`, `index value` | `ISliceValue`, `IIndexValue` | `SliceValue`, `IndexValue` |
 | `plain value` | `PlainValue` | `PlainValue` |
 | `quote` (free function: a plain string as villanelle text) | `quote`, in `ts/src/text.ts` | `quote`, in `villanelle/_text.py`, exported from `villanelle` |
-| errors | `DiagnosticError`, `ReadError`, `EditError`, `BadTextError`, `DetachedError`, `NoSetLineError`, `SaveError` | the same class names |
+| errors (contract 4) | `VillanelleError`, `DiagnosticError`, `ReadError`, `SaveError`, `EditError`, `BadTextError`, `DetachedError` | the same class names |
 
 ### Syntax layer
 
@@ -120,6 +152,9 @@ that rename is not part of milestone 1. "Union" means a TypeScript union type or
 | `load context` | `ILoadContext` | `LoadContext` |
 | `document writer` | `IDocumentWriter` (in `ts/src/source.ts`) | `DocumentWriter` (`Protocol`, in `villanelle/source.py`) |
 | `file write` | `IFileWrite` (in `ts/src/source.ts`) | `FileWrite` (in `villanelle/source.py`) |
+| `memory source`, `memory writer` | `memorySource`, `memoryWriter` | `memory_source`, `memory_writer` |
+| `file source`, `file writer` | `fileSource`, `fileWriter` (`villanelle/node`) | `file_source`, `file_writer` (`villanelle.files`) |
+| `fetch source`, `fetch writer` | `fetchSource`, `fetchWriter` (`villanelle/browser`) | none |
 | `extension` | `IExtension` | `Extension` (`Protocol`) |
 | `extension use` | `IExtensionUse` | `ExtensionUse` |
 
@@ -133,16 +168,23 @@ that rename is not part of milestone 1. "Union" means a TypeScript union type or
 | `document` | `IDocument` | `Document` |
 | `document edge` | `IDocumentEdge` | `DocumentEdge` |
 | `copy` | `ICopy` | `Copy` |
-| `statement` | `Statement` (union) | `Statement` (union) |
-| `written directive` | `IWrittenDirective` | `WrittenDirective` |
+| `statement`, `statement kind` | `Statement` (union), `StatementKind` | `Statement` (union), `StatementKind` |
+| `written directive`, `extension line` | `IWrittenDirective`, `IExtensionLine` | `WrittenDirective`, `ExtensionLine` |
 | `set line`, `snippet line`, `use line`, `unreadable line` | `ISetLine`, `ISnippetLine`, `IUseLine`, `IUnreadableLine` | `SetLine`, `SnippetLine`, `UseLine`, `UnreadableLine` |
 | `written block` | `IWrittenBlock` | `WrittenBlock` |
 | `written value` | `WrittenValue` (union) | `WrittenValue` (union) |
-| `word`, `string`, `list`, `slice`, `index`, `reference` | `IWord`, `IString`, `IList`, `ISlice`, `IIndex`, `IReference` | `Word`, `String`, `List`, `Slice`, `Index`, `Reference` |
-| `variable` | `IVariable` | `Variable` |
+| `word`, `string`, `list`, `slice`, `index`, `reference` | `IWord`, `IString`, `IList`, `ISlice`, `IIndex`, `IReference` | `Word`, `String`, `List`, `Slice`, `Index`, `Reference`, from `villanelle.written` only |
+| `variable`, `variable kind` | `Variable` (union), `VariableKind` | `Variable` (union), `VariableKind` |
+| `set variable`, `parameter`, `override variable` | `ISetVariable`, `IParameter`, `IOverrideVariable` | `SetVariable`, `Parameter`, `OverrideVariable` |
 | `resolution` | `IResolution<T>` | `Resolution[T]` |
 | `reference resolution` | `IReferenceResolution` | `ReferenceResolution` |
+| `expansion` | `IExpansion` | `Expansion` |
+| `directive expansion`, `unreadable expansion`, `value expansion` | `IDirectiveExpansion`, `IUnreadableExpansion`, `IValueExpansion` | `DirectiveExpansion`, `UnreadableExpansion`, `ValueExpansion` |
 | `format diagnostic` (free function; reads the source line from a graph) | `formatDiagnostic`, in `ts/src/written/format.ts` | `format_diagnostic`, in `villanelle/written/format.py` |
+
+The low level's public entry is one module in each binding: `ts/src/written/index.ts` (new) and the package
+`villanelle.written` (its `__all__`). The rendered layer imports the low level from there and nowhere else
+(binding guide rule 8).
 
 ### Rendered tree
 
@@ -151,19 +193,15 @@ that rename is not part of milestone 1. "Union" means a TypeScript union type or
 | `render (graph)` (entry point) | `render(graph)` in `ts/src/rendered/`, re-exported by `"villanelle"` | `render(graph)` in `villanelle.rendered`, re-exported as `villanelle.render` |
 | `rendered` | `IRendered` | `Rendered` |
 | `directive` | `IDirective` | `Directive` |
-| `argument` (builds on `expanded value`) | `IArgument extends IExpandedValue` | `Argument(ExpandedValue)` |
+| `argument` | `Argument` (union) | `Argument` (union) |
+| `word argument`, `string argument`, `list argument`, `slice argument`, `index argument` | `IWordArgument extends IExpandedWord`, ... `IIndexArgument extends IExpandedIndex` | `WordArgument(ExpandedWord)`, ... `IndexArgument(ExpandedIndex)` |
 | `unreadable` | `IUnreadable` | `Unreadable` |
 | `unreadable reason` | `UnreadableReason` | `UnreadableReason` (`StrEnum`) |
 | `address`, `address step` | `IAddress`, `IAddressStep` | `Address`, `AddressStep` |
 | `key rule` | `KeyRule` | `KeyRule` |
 | key options | `IKeyOptions` (`key`) | keyword `key=` |
 | `change` | `Change` (union of `IAdded`, `IRemoved`, `IChanged`, `IUnknown`) | `Change` (union of `Added`, `Removed`, `Changed`, `Unknown`) |
-| `change kind` | `ChangeKind` | none yet (classes without `kind`: root cause 3) |
-| `value kind`, `step kind` | `ValueKind`, `StepKind` | `ValueKind`, `StepKind` |
-
-The kind lists' current spellings differ between the bindings (constant objects and inline literal
-unions in TypeScript; `StrEnum`s, literal strings and classes in Python). [schema/api.json](schema/api.json)
-records each one; unifying them is root cause 3, a later milestone.
+| `change kind` | `ChangeKind` | `ChangeKind` |
 
 ## New terms in milestone 1
 
@@ -180,3 +218,18 @@ records each one; unifying them is root cause 3, a later milestone.
 | `expanded value` | one value after expansion, with kind, canonical text, origin and readers; no low-level handle | the low level must not name the rendered `argument` (owner, 2026-10-29), yet an extension reads expanded values | the rendered `argument`, which now builds on it |
 | `argument type error` | the error group for an argument of the wrong type (`TypeError` in both bindings) | answer 3: misuse of text-only edits raises a clear `TypeError`, which in Python is not the misuse group's `ValueError` | misuse error |
 | `place kind` | the list `file`, `override` | a place says which of the two it is | none (the values existed as `"file"`, `"handed"`) |
+
+## New terms in milestone 2
+
+| Term | Definition | Why it is needed | Existing term it could be |
+|---|---|---|---|
+| `extension line` | a statement whose name an extension owns | include lines get their own type, without `rename` (round 13 root cause 3) | `written directive`, which no longer covers kind `extension` |
+| `set variable`, `override variable` | the variable a `set` line declares; an override as a variable | each variable kind is its own type, so `set` exists only where it succeeds | `variable` (now the union); `parameter` keeps its word |
+| `expanded word` (and string, list, slice, index) | an expanded value of that kind | each value kind is its own type | `expanded value` (now the union) |
+| `word argument` (and string, list, slice, index) | a rendered value of that kind | the same, in the rendered layer | `argument` (now the union) |
+| `expansion`, `expand ()` | the graph's public account of every copy as read, and the method that makes it | the rendered layer may use only public low-level members (owner, 2026-10-29, "Yes") | the package-internal binding (not a public term) |
+| `directive expansion`, `unreadable expansion`, `value expansion` | an expansion's directive copy, unreadable copy, and value with its links | the same | none public |
+| `insert before`, `insert after` | insert statements next to a statement | the review's PostCSS-style edits (root cause 4) | `insert statements` at a worked-out index |
+| `villanelle error` | the package's base error class | one class to catch (root cause 4) | none |
+| `memory writer` | a writer into the map a memory source reads | every binding ships both ports in memory (root cause 4) | none |
+| `list ()` | the reader that asks for a list | `items` became the list variants' property, the same in both layers (vil-gxu) | `items ()` |

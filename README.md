@@ -54,11 +54,11 @@ copied from a test that runs.
 
 | Entry point | TypeScript | Python |
 |---|---|---|
-| the core (no input or output) | `villanelle`: `parse`, `villanelle`, `render`, `quote`, `memorySource`, `Diagnostics`, `formatDiagnostic`, ... | `villanelle`: `parse`, `Processor`, `render`, `quote`, `memory_source`, `Diagnostics`, `format_diagnostic`, ... |
+| the core (no input or output) | `villanelle`: `parse`, `villanelle`, `render`, `quote`, `memorySource`, `memoryWriter`, `Diagnostics`, `formatDiagnostic`, ... | `villanelle`: `parse`, `Processor`, `render`, `quote`, `memory_source`, `memory_writer`, `Diagnostics`, `format_diagnostic`, ... |
 | one layer only | `villanelle` re-exports every layer | `villanelle.written` (the low level), `villanelle.rendered` (the rendered tree) |
 | the include extension | `villanelle/include`: `include()` | `villanelle.include`: `include()` |
-| files on disk | `villanelle/node`: `createFileSource()`, `createFsWriter()` | `villanelle.files`: `file_source()`, `fs_writer()` |
-| files over `fetch` | `villanelle/browser`: `createFetchSource(fetch)`, `createFetchWriter(fetch, options?)` | none |
+| files on disk | `villanelle/node`: `fileSource()`, `fileWriter()` | `villanelle.files`: `file_source()`, `file_writer()` |
+| files over `fetch` | `villanelle/browser`: `fetchSource(fetch)`, `fetchWriter(fetch, options?)` | none |
 
 ## The language is defined by one file
 

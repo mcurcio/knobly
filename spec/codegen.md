@@ -4,7 +4,8 @@
 ([review.md](../.claude/design/consumer-api/round13/review.md#root-cause-5-no-neutral-spec-and-nothing-generated-from-one-source)):
 the schema is written ([schema/api.json](schema/api.json), [schema/diagnostics.json](schema/diagnostics.json)),
 and the binding lanes of milestone 1 write the generator and the public-name check as section
-"Milestone 1" below says. The per-kind type skeletons, the conformance tokens, the plain data
+"Milestone 1" below says. Milestone 2 (bead vil-0vz) changes how every kind list is spelled and makes the schema
+describe each variant (section "Milestone 2"). The per-kind type skeletons, the conformance tokens, the plain data
 records and the shared conformance driver are later milestones and stay proposed.
 
 ## The problem
@@ -68,12 +69,38 @@ generated code, just the source"). Build and test regenerate them.
   generation): for each concept with a binding type, every member the schema lists exists on a real
   object of that type under the binding's casing (or its `spell`), as a property or a method as the
   schema says. TypeScript checks objects made from a loaded graph and a render (interfaces do not
-  exist at run time); Python checks the classes. A member marked `"later": {"<binding>":
-  "<milestone>"}` is not yet in that binding (Python's `kind` on place, override and change waits
-  for root cause 3); both checks skip it in the binding named and check it everywhere else. It fails the build (a design choice: the
+  exist at run time); Python checks the classes. (Milestone 1 had a `"later"` marker for members not yet in a
+  binding; milestone 2 removes it, and the generator's check refuses it.) It fails the build (a design choice: the
   glossary's one-word rule is only a guarantee when a drifting name fails; the owner has not ruled
   on it, question 3 below). The other direction, a public name the schema does not list, is a later
   milestone.
+
+## Milestone 2: one spelling for every kind list, and variants in the schema
+
+| Output | TypeScript | Python |
+|---|---|---|
+| every kind list (spec 2.10), `token kind` included | `ts/src/gen/api/kinds.ts`: `export type StatementKind = "directive" \| ...;`, a string-literal type per list; **no constant objects** | `py/src/villanelle/_api/kinds.py`: a `StrEnum` per list (`StatementKind.SET = "set"`); **no `Literal` aliases** |
+| codes, limits | unchanged | unchanged |
+
+- **`token kind` is generated too,** from `grammar/Villanelle.g4` (its lexer rule names in declaration order,
+  fragments aside), so the hand-written `TokenKind` in `ts/src/syntax/tokens.ts` and
+  `py/src/villanelle/syntax/tokens.py` is deleted and both import the generated one. Its values stay the grammar's
+  names (`WORD`); the Python members have the same names.
+- **What the bindings write by hand from the schema:** one type per variant, with `kind` typed by the generated
+  list. TypeScript: `readonly kind: "set"` on `ISetLine`, and one compile-time test per union that its `kind` is the
+  whole list (`Statement["kind"]` equal to `StatementKind`, less `except`). Python: `kind` returning
+  `StatementKind.SET`, typed `Literal[StatementKind.SET]`. Generating these skeletons stays proposed.
+- **The schema describes the variants** (`spec/schema/api.json` `$comment`): a union concept has `variants`, `kind
+  list` (and `except`) and the members every variant has; each variant concept has `variant of`, `kind`, `py match
+  args`, its own members, and `extends` when it builds on a lower layer's type; `py module` names the only Python
+  module that exports a type when it is not the root. `tools/gen-api.py --check` refuses a union whose variants do
+  not cover its list, a variant its union does not list, a kind list mapping a value to the wrong concept, an error
+  group whose parent is missing, and any member marked `later` (the deferral marker of milestone 1 is gone: every
+  member is present in every binding). It runs a planted broken copy of each, so the check is known to bite.
+- **The public-name checks** (lanes: `ts/src/api-names.test.ts`, `py/tests/test_api_names.py`) read the new shape:
+  a variant has its union's members and its own; each variant's `kind` equals its schema `kind`; Python's
+  `__match_args__` equals `py match args` in snake_case; a concept with `py module` is looked up there and is absent
+  from the package root; the error groups' `parent`s form the class tree; no member is skipped.
 
 ## What stays hand-written
 

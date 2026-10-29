@@ -41,6 +41,8 @@ reference language"). If a binding and these pages disagree, the binding has a b
 proves the spec wrong; then the spec is corrected and the finding reported.
 
 - [spec.md](spec.md): the normative rules, language-neutral.
+- [contract.md](contract.md): the contract at the edges, where a value or an error reaches a program: positions in
+  each language's string unit, the text a located thing prints as, numbers, error classes, adapters.
 - [glossary.md](glossary.md): one word per concept, one meaning per word, and each concept's type
   name in each layer and binding.
 - [schema/api.json](schema/api.json): the concepts and their members (property or method), the kind
@@ -74,9 +76,9 @@ Milestone 1 (bead vil-fy4) settles the round 13 review's root cause 1 (the gloss
 3. Values going in: "A Keep text only, make misuse impossible" (spec 6.9), and "Can "set_values"
    become simply "set"?": the edit that replaces values is `set(text)` (spec 6.5).
 
-The bindings on `feat/low-level-layer` (PR 4) still carry the older names until the milestone 1
-binding work lands; the exact old-to-new table is
-`.claude/design/consumer-api/round14/frozen-m1.md`. The review's root causes 3 (types that carry the
-kinds) and 4 (the contract at the edges), the new corpora and the shared conformance driver are
-later milestones; their proposals stay marked "Proposed (pending owner)". Nothing is locked until the
-owner likes the user APIs (2026-10-27).
+Milestone 2 (beads vil-0vz, vil-9fy, vil-5ya, vil-gxu) settles root cause 3 (types that carry the kinds: spec
+2.10), root cause 4 (the contract at the edges: [contract.md](contract.md)), and the owner's "Yes" of 2026-10-29 to
+the rendered layer building only on the low level's public objects (spec 6.10, 7.0). Its exact old-to-new list is
+`.claude/design/consumer-api/round14/frozen-m2.md`; the bindings carry the older names until its binding work
+lands. The shared corpora and the shared conformance driver are milestone 3; the proposals left stay marked
+"Proposed (pending owner)". Nothing is locked until the owner likes the user APIs (2026-10-27).

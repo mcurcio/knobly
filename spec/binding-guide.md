@@ -8,8 +8,9 @@ worked examples.
 
 Status: the goals in section 1 are the owner's words. The naming and structure rules in section 2
 come from the round 13 review ([review.md](../.claude/design/consumer-api/round13/review.md)); each
-rule says whether milestone 1 (bead vil-fy4) adopted it or it is still **proposed, pending the
-owner**. Section 4 shows the names after milestone 1 and where they still break those rules. API
+rule says whether milestone 1 (bead vil-fy4) or milestone 2 (bead vil-0vz) adopted it, or it is still **proposed,
+pending the owner**. Section 4 shows the names before milestone 1, with each milestone's new name, and where they
+still break those rules. API
 shape changes need the owner's approval; nothing is locked (2026-10-27: "Nothing is locked until I
 see user APIs that I like").
 
@@ -52,8 +53,10 @@ with their sources.
 ## 2. Naming and structure rules
 
 These are the review's rules ([review.md, "Naming and structure rules across languages"](../.claude/design/consumer-api/round13/review.md#naming-and-structure-rules-across-languages)).
-Rules 1, 6 and 8 are adopted by milestone 1 (the glossary and the operation homes rest on them);
-rules 2 to 5 and 7 are **proposed, pending the owner**. A new binding should follow all of them;
+Rules 1, 6 and 8 are adopted by milestone 1 (the glossary and the operation homes rest on them); rule 4 by
+milestone 2 (types carry their kinds, spec 2.10), with rule 8's second check (the rendered layer uses only public
+low-level members); rules 2, 3, 5 and 7 are **proposed, pending the owner** (milestone 2 applies rule 2's module
+context to Python's value classes and rule 3's medium-and-port names to the adapters, nothing more). A new binding should follow all of them;
 where TypeScript or Python break one, section 4 says so.
 
 1. **Spec names change only in casing** (adopted). The words are in [glossary.md](glossary.md). The spec names each concept, member and kind value once in
@@ -78,12 +81,15 @@ where TypeScript or Python break one, section 4 says so.
    (`NewMemorySource`, `NewProcessor`), since a Go type and function cannot share a name. Rust:
    `Type::new`. Java: constructors or a static `of`. A spec name that starts with `make` (`make
    processor`, `make diagnostics`) names the factory of the concept after it.
-4. **One model per language, used in every layer** (proposed as written here; the owner's goal 2
-   is his). Each binding names its model in its README:
-   - TypeScript: discriminated unions, read-only objects, generators for iteration, options objects.
-   - Python: the standard `ast` style: a class per kind with `__match_args__` in the same field
-     order in every layer, frozen slotted records, generators, keyword-only options, tuples for
-     results, a `MutableMapping` where the user edits a map.
+4. **One model per language, used in every layer** (adopted for kinds by milestone 2, spec 2.10; the owner's goal
+   2 is his). Each binding names its model in its README:
+   - TypeScript: discriminated unions narrowed on `kind`, one interface per variant, kind lists as string-literal
+     types, read-only objects, options objects (generators for iteration: proposed, spec 7.5).
+   - Python: the standard `ast` style: a class per variant with `kind` and `__match_args__` in the same field
+     order in every layer, unions as `TypeAlias`, kind lists as `StrEnum`s, frozen slotted records, keyword-only
+     options, tuples for results (a `MutableMapping` where the user edits a map: proposed).
+   - Every variant carries `kind`; an operation exists only on the variants where it can succeed; run-time errors
+     are kept for problems in the user's text (the readers' E4002), never for a type the checker could have caught.
 
    Models for languages without unions or generators (proposed, not yet tried by a binding):
    - Go (1.23 or later, the `go/ast` style): a sealed interface per kind list (an unexported method)
@@ -130,6 +136,25 @@ where TypeScript or Python break one, section 4 says so.
      loads.)
    - **Go, Rust:** one package or crate per layer; the compiler then refuses a cycle.
 
+   **The second check: the rendered layer builds on the public low level only** (owner, 2026-10-29, "Yes"; spec
+   6.10, 7.0). `render(graph)` reads the graph through `expand ()` and the public types, never a package-internal
+   module, member, accessor or class check, so a third party could write it.
+   - **TypeScript.** `ts/src/written/index.ts` (new) is the low level's public entry: it re-exports exactly the
+     written layer's public names, and `ts/src/index.ts` re-exports from it. In `ts/eslint.config.js`, a block for
+     `files: ["src/rendered/**/*.ts"]`, `ignores: ["src/**/*.test.ts"]`: `no-restricted-imports` with the pattern
+     group `["**/written/*", "!**/written/index.js"]`, and `no-restricted-syntax` refusing a cast through `unknown`
+     (`TSAsExpression[typeAnnotation.type="TSUnknownKeyword"]` and `TSAsExpression > TSAsExpression`), the one way
+     to reach a member the public interface does not declare. A planted lint fixture shows each fires.
+   - **Python.** `py/tests/test_layers.py` also reads every module under `villanelle/rendered/` and fails when it
+     imports the low level other than `from villanelle.written import <name>` with `<name>` in
+     `villanelle.written.__all__` (no submodule such as `villanelle.written._bind` or `.model`, no name starting
+     with `_`, relative forms included), or reads an attribute starting with one `_` (dunders aside) on anything but
+     `self` or `cls`, `getattr(x, "_name")` included. Rendered code reads another rendered object through its
+     public members too. A planted source string shows the test bites.
+
+   Cost: the rule polices imports and syntax, not every way to reach a private (TypeScript's `#private` fields are
+   safe; a `Reflect.get` with a string is not caught); review covers the rest.
+
    Prior art: layered architecture's dependency rule, checked the way
    [import-linter](https://import-linter.readthedocs.io/) and eslint-plugin-boundaries check it. The
    bindings use the smaller tools above because an allow-list check (every module but the rendered
@@ -151,10 +176,13 @@ where TypeScript or Python break one, section 4 says so.
 | I/O | `load`, `read`, `save`, sources and writers are async | plain calls | the language's I/O habit. `render` and `diff` are always plain calls |
 | Absent | `undefined` | `None` | the language's no-value |
 | Misuse errors | `TypeError`, `RangeError` | `ValueError`, `IndexError` | the language's own classes (spec 2.8) |
-| How a kind list is spelled | a string-literal type (today: constant objects) | a `StrEnum` | narrowing without an import, against `match` and enums |
+| How a kind list is spelled | a string-literal type | a `StrEnum` | narrowing without an import, against `match` and enums (spec 2.10) |
+| How a variant is matched | `switch (x.kind)` or `if (x.kind === "set")` narrows | `match x: case SetVariable(): ...`, `__match_args__` | the language's own pattern |
 | Options | an options object (`{ key }`) | keyword-only arguments (`key=`) | the language's habit |
 | Iteration | iterators and `for...of` (today: a walk callback) | generators and `for` | the language's habit |
-| Reader names | `word()`, `integer()` | `as_` only where the bare name would shadow a built-in (`as_int`, `as_str`, `as_bool`, `as_list`) | not shadowing `int`, `str` (today Python prefixes all of them). The same reason covers a name a language's conventions give another meaning: in Go, `String()` is `fmt.Stringer` (the `people form` of an address) and `Error()` is the `error` interface, so the readers become `AsString()` and the like, and `error (...)` becomes `Fail(...)` or similar |
+| Reader names | `word()`, `string()`, `number()`, `integer()`, `boolean()`, `list()`, `slice()`, `plain()` | the same words (casing only, vil-gxu, milestone 2) | not a difference in TypeScript and Python: a method named `list` or `string` shadows nothing for the caller (the only trap is an annotation inside the class body, as for `set`: write `builtins.list`). A name a language's conventions give another meaning does differ: in Go, `String()` is `fmt.Stringer` (the `people form`) and `Error()` is the `error` interface, so the readers become `AsString()` and the like, and `error (...)` becomes `Fail(...)` or similar |
+| People form | `toString()` | `__str__` | the language's to-text conversion (contract 2) |
+| Positions | UTF-16 code units | code points | the language's string unit (contract 1); conformance stays UTF-16 |
 | Chained errors | `cause` | `__cause__` | the language's mechanism |
 
 **Must not differ:**
@@ -166,9 +194,8 @@ where TypeScript or Python break one, section 4 says so.
 - what a handle is: one object per written thing, detached handles raising (spec 6.1);
 - every conformance output, byte for byte.
 
-**Positions** are a special case. Today every binding reports UTF-16 units, and a new one must too
-until the owner answers spec 2.1's proposal (each binding reports its own string unit and the
-runners convert).
+**Positions** count the language's own string unit (contract 1): a binding with UTF-8 strings reports bytes, and
+its conformance runner converts to UTF-16.
 
 ### For languages unlike TypeScript and Python (proposed, pending owner)
 
@@ -184,15 +211,15 @@ meets the spec. None has been tried by a binding yet; spec 2.8 and 4.1 hold the 
 | Overrides | an ordered input (`[]Override{{Name, Text}}` or a functional option per value), not a `map` | spec 6.2: the order is kept |
 | Cancellation | `ctx context.Context` first on `Load`, `Read`, `Save`, `Resolve`, `Read` and `Write`; cancellation returns `ctx.Err()`, never a diagnostic | spec 4.1, Proposed |
 | Concurrency | document that a graph is not safe for concurrent use, renders included | spec 4.1 |
-| Positions | UTF-16 offsets in the API today, with a public helper converting to byte offsets | spec 2.1 |
+| Positions | byte offsets of the UTF-8 string (contract 1); the runner converts to UTF-16 | contract 1 |
 
 ## 4. Concept map: TypeScript and Python today
 
 The names on PR 4, before milestone 1. A note in the last column shows a break with section 2 or a
 difference not in section 3, with the review finding that names it
-([findings.json](../.claude/design/consumer-api/round13/findings.json)); "M1:" gives the milestone 1
-name. The exact old-to-new table, with signatures, is the milestone's frozen page,
-`.claude/design/consumer-api/round14/frozen-m1.md`.
+([findings.json](../.claude/design/consumer-api/round13/findings.json)); "M1:" and "M2:" give the milestone 1 and 2
+names. The exact old-to-new tables, with signatures, are the milestones' frozen pages,
+`.claude/design/consumer-api/round14/frozen-m1.md` and `frozen-m2.md`.
 
 ### Processor and I/O
 
@@ -207,10 +234,10 @@ name. The exact old-to-new table, with signatures, is the milestone's frozen pag
 | `quote` | `quote(text)` | `quote(text)` | |
 | `document source` | `IDocumentSource` | `DocumentSource` (a `Protocol`) | rule 2: `I` prefix |
 | `load context` | `ILoadContext` | `LoadContext` | rule 2 |
-| `memory source` | `memorySource(files)` | `memory_source(files)` | rule 3 (Python: a class) |
-| `file source` | `createFileSource()` from `villanelle/node` | `file_source()` from `villanelle.files` | rule 3 |
-| `file writer` | `createFsWriter()` from `villanelle/node` | `fs_writer()` | rule 3; medium named `fs` here, `file` in the source |
-| `fetch source`, `fetch writer` | `createFetchSource(fetch)`, `createFetchWriter(fetch, options)` from `villanelle/browser` | none | MAY in spec 4.3 |
+| `memory source` | `memorySource(files)` | `memory_source(files)` | rule 3 (Python: a class). M2: reads the map live; new `memoryWriter(files)`, `memory_writer(files)` |
+| `file source` | `createFileSource()` from `villanelle/node` | `file_source()` from `villanelle.files` | rule 3. M2: `fileSource()` |
+| `file writer` | `createFsWriter()` from `villanelle/node` | `fs_writer()` | rule 3; medium named `fs` here, `file` in the source. M2: `fileWriter()`, `file_writer()` |
+| `fetch source`, `fetch writer` | `createFetchSource(fetch)`, `createFetchWriter(fetch, options)` from `villanelle/browser` | none | MAY in spec 4.3. M2: `fetchSource`, `fetchWriter` |
 | `document writer` | `IDocumentWriter` | `DocumentWriter` (a `Protocol`) | rule 2 |
 | `file write` | `IFileWrite` | `FileWrite` | |
 | `extension` | `IExtension` | `Extension` (a `Protocol`) | |
@@ -226,12 +253,12 @@ name. The exact old-to-new table, with signatures, is the milestone's frozen pag
 | `set handed` | `graph.setHanded(name, text)`, `graph.handed` | `graph.set_handed(name, text)`, `graph.handed` | M1: `setOverride`/`set_override`, `overrides` |
 | `document` | `IDocument` (`resolvedPath`, `source`, `text`, `syntax`, `body`, `includedBy()`, `replaceWithText()`) | `Document` (`resolved_path`, ..., `included_by()`, `replace_with_text()`) | `body` against `block`; `source` has two meanings. M1: `block`, `savedText` |
 | `document edge`, `copy` | `IDocumentEdge`, `ICopy` | `DocumentEdge`, `Copy` | |
-| `statement` | `Statement` (union on `kind`) | `Statement` (union of classes, `kind` a literal property) | Python low level has no `__match_args__`: rule 4 |
-| `written directive` | `IWrittenDirective` (`kind` `"directive"` or `"extension"`; `setValues`) | `WrittenDirective` (`set_values`) | include lines share the type. M1: `set` on it and on `set line`, `use line`, `variable` |
+| `statement` | `Statement` (union on `kind`) | `Statement` (union of classes, `kind` a literal property) | Python low level has no `__match_args__`: rule 4. M2: `__match_args__` on every class, `kind` a `StatementKind`, `insert before`/`insert after` |
+| `written directive` | `IWrittenDirective` (`kind` `"directive"` or `"extension"`; `setValues`) | `WrittenDirective` (`set_values`) | include lines share the type. M1: `set` on it and on `set line`, `use line`, `variable`. M2: `IExtensionLine` / `ExtensionLine` for kind `extension`, without `rename` |
 | `set line`, `snippet line`, `use line`, `unreadable line` | `ISetLine`, `ISnippetLine`, `IUseLine`, `IUnreadableLine` | `SetLine`, `SnippetLine`, `UseLine`, `UnreadableLine` | |
 | `written block` | `IWrittenBlock` (`.statements`, `directives()`, `insertStatements()`, `addStatements()`) | `WrittenBlock` (a `Sequence`, `directives()`, `insert_statements()`, `add_statements()`) | rule 5 |
-| `written value` | `WrittenValue` (union) of `IWord`, `IString`, `IList`, `ISlice`, `IIndex`, `IReference` | `WrittenValue` of `Word`, `String`, `List`, `Slice`, `Index`, `Reference` | Python's flat namespace makes `List` clash with `typing.List` on `import *` |
-| `variable` | `IVariable` (one type, `kind` `"set"`, `"parameter"`, `"handed"`) | `Variable` | `setValues` on all kinds; `NoSetLineError`. M1: kind `"override"` |
+| `written value` | `WrittenValue` (union) of `IWord`, `IString`, `IList`, `ISlice`, `IIndex`, `IReference` | `WrittenValue` of `Word`, `String`, `List`, `Slice`, `Index`, `Reference` | Python's flat namespace makes `List` clash with `typing.List` on `import *`. M2: the six classes from `villanelle.written` only |
+| `variable` | `IVariable` (one type, `kind` `"set"`, `"parameter"`, `"handed"`) | `Variable` | `setValues` on all kinds; `NoSetLineError`. M1: kind `"override"`. M2: union `Variable` of `ISetVariable`, `IParameter`, `IOverrideVariable` (Python `SetVariable`, `Parameter`, `OverrideVariable`); `NoSetLineError` gone |
 | `resolution`, `reference resolution` | `IResolution<T>`, `IReferenceResolution` | `Resolution[T]`, `ReferenceResolution` | `overridden` here is a list; on a variable it is a method. M1: `shadowed` |
 | `reaches ()`, `overridden ()` | methods | methods | M1: `wins()`, `shadowedAt()` |
 | `resolutions ()` (on a reference) | method, one per copy | method | the rendered `resolutions` is a property counting chain steps |
@@ -243,24 +270,24 @@ name. The exact old-to-new table, with signatures, is the milestone's frozen pag
 | `rendered` | `IRendered` (`body`, `unreadable`, `origin`, `diagnostics`, `graph`, `walk()`, `error()`, `addresses()`) | `Rendered` (same, no `walk` method) | M1: `block`, `diff()` |
 | `directive` | `IDirective` (`name`, `args`, `body`, `unreadable`, `parent`, `origin`, `written`, `walk()`, `closest()`, `error()`) | `Directive` (`__match_args__`; no `walk` method) | `args`/`values`, `body`/`block`. M1: `values`, `block`, `walk` in Python |
 | `walk` | `node.walk(visit)`, callback returns `"skip"` or `"stop"` | `walk(node, descend=...)`, a generator | rule 5. M1: a method in Python too |
-| `argument` | `IArgument` | `Argument` | `written` is the end of the chain. M1: `written` (same line), `definition`, `chain`; builds on `expanded value` |
-| readers | `word()`, `string()`, `number()`, `integer()`, `boolean()`, `items()`, `slice()`, `plain()` | `as_word()`, `as_str()`, `as_number()`, `as_int()`, `as_bool()`, `as_list()`, `as_slice()`, `plain()` | section 3 reader row |
+| `argument` | `IArgument` | `Argument` | `written` is the end of the chain. M1: `written` (same line), `definition`, `chain`; builds on `expanded value`. M2: union `Argument` of `IWordArgument` ... `IIndexArgument`, each built on its expanded variant; built from `graph.expand()` only |
+| readers | `word()`, `string()`, `number()`, `integer()`, `boolean()`, `items()`, `slice()`, `plain()` | `as_word()`, `as_str()`, `as_number()`, `as_int()`, `as_bool()`, `as_list()`, `as_slice()`, `plain()` | section 3 reader row. M2: `word()` ... `list()` ... `plain()` in both; `items` a property of list variants |
 | `slice value`, `index value` | `ISliceValue`, `IIndexValue` | `SliceValue`, `IndexValue` | Python names clash with low-level `Slice`, `Index` |
 | `unreadable` | `IUnreadable` (`kind` is the reason) | `Unreadable` | M1: `reason` |
 | `address`, `address step` | `IAddress` (`text`; `toString()` is the `people form`), `IAddressStep` | `Address` (`text`; `str()` is the `people form`), `AddressStep` | |
 | `key rule` | `KeyRule` | `KeyRule` | |
-| `change` | `Change` union with `kind` | `Added`, `Removed`, `Changed`, `Unknown` classes, no `kind` | rule 4 |
+| `change` | `Change` union with `kind` | `Added`, `Removed`, `Changed`, `Unknown` classes, no `kind` | rule 4. M2: `kind` on the Python classes |
 
 ### Shared pieces
 
 | Spec name | TypeScript | Python | Note |
 |---|---|---|---|
-| `source position`, `source span` | `ISourcePosition`, `ISourceSpan` | `SourcePosition`, `SourceSpan` | UTF-16 in both |
+| `source position`, `source span` | `ISourcePosition`, `ISourceSpan` | `SourcePosition`, `SourceSpan` | UTF-16 in both. M2: code points in Python |
 | `place`, `handed`, `step`, `origin`, `directive origin` | `IPlace`, `IHanded`, `IStep`, `IOrigin`, `IDirectiveOrigin` | `Place`, `Handed`, `Step`, `Origin`, `DirectiveOrigin` | a location is `place`, `written`, `at` or `span`. M1: `override` (`IOverride`, `Override`), and `place` for each |
-| kind lists | `TokenKind`, `NodeKind`, `ValueKind`, `StepKind`, `UnreadableKind`, `ChangeKind` (constant objects) | `StrEnum`s, literal strings on the low level, classes for changes | four mechanisms in Python |
+| kind lists | `TokenKind`, `NodeKind`, `ValueKind`, `StepKind`, `UnreadableKind`, `ChangeKind` (constant objects) | `StrEnum`s, literal strings on the low level, classes for changes | four mechanisms in Python. M2: a generated string-literal type (TypeScript) and `StrEnum` (Python) for every list |
 | `diagnostic`, `located diagnostic` | `IDiagnostic`, `ILocatedDiagnostic` | `Diagnostic`, `LocatedDiagnostic` | |
 | diagnostic codes | `DiagnosticCode.UnterminatedString` | `DiagnosticCode.UNTERMINATED_STRING` | copied by hand: see codegen.md |
-| `diagnostic error`, edit errors, `save error`, `read error` | as spec 2.8 | as spec 2.8; `EditError` is a `ValueError` | no package base error |
+| `diagnostic error`, edit errors, `save error`, `read error` | as spec 2.8 | as spec 2.8; `EditError` is a `ValueError` | no package base error. M2: `VillanelleError` base; `DetachedError` off `EditError` (Python: a `ReferenceError`); `ReadError` not a diagnostic error; `ReadError` and `SaveError` with `paths` (contract 4) |
 | `format diagnostic` | `formatDiagnostic(d, graph?)` | `format_diagnostic(d, graph=None)` | |
 | diagnostics sink (`make diagnostics`, `add`, `report`, `count`, `collect`) | `new Diagnostics(initial)`, `add`, `report`, `length`, `collect(read)` | `Diagnostics(initial)`, `add`, `report`, `len()`, `with problems.collecting():` | `collect` as a context manager is the Python idiom |
 | `error (message, code)` | `error(message, code)` | `error(message, code=...)` | |
@@ -284,7 +311,7 @@ Work in this order. Each step ends with shared cases passing, so progress is mea
    names come from the grammar. Never type a list by hand.
 5. **Write the syntax runner** for `conformance/*.json` ([conformance/format.md](../conformance/format.md))
    and make every case pass. Check the byte rules (escapes above U+007F, one trailing newline) and
-   positions in UTF-16.
+   that the runner converts your positions to UTF-16 (contract 1).
 6. **Write the ports** (spec 4): the source and writer interfaces in your language's form, and
    `memory source`. The runners need nothing else.
 7. **Build the low level** (spec 6): load, handles, statements, values, variables, resolutions,
@@ -294,9 +321,11 @@ Work in this order. Each step ends with shared cases passing, so progress is mea
 8. **Build the rendered tree** (spec 7) and the include extension (spec 5.1). Write the load runner
    for `conformance/load/` ([format](../conformance/load/format.md)), including the `rasl` key
    rule exactly as that page states it.
-9. **Test what the shared cases miss** (spec 9 lists it): readers, `address text`, `format
-   diagnostic`, the sink, `error(...)`, the file adapters, and the known gaps (`-0`, a lone `"\r"`,
-   large numbers). Compare with TypeScript and Python, and report any disagreement as a finding.
+9. **Pass the contract cases** (`conformance/contract/`, [format](../conformance/contract/format.md)): numbers,
+   positions in your string unit, people forms, `format diagnostic`. Then **test what the shared cases miss** (spec
+   9 lists it): the other readers, `address text`, the sink, `error(...)`, the file and memory adapters, the error
+   class tree, and that each operation is absent where it cannot succeed. Compare with TypeScript and Python, and
+   report any disagreement as a finding.
 10. **Write the first-hour program** as a test and as the top of your README (rule 2.7). Read it
     as a newcomer to your language would; anything that needs a cast, a helper you never show, or
     a doc lookup to understand is a defect.

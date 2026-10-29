@@ -75,3 +75,25 @@
   imports `villanelle.syntax`, and `include.py` imports `villanelle.syntax._recovery`. Either the table is relaxed
   (shared helpers that read syntax trees sit in the syntax or written layer) or both checks enforce the whole
   table; a later milestone should pick.
+
+## 2026-10-29, milestone 2 spec (vil-0vz, vil-9fy, vil-5ya, vil-gxu), architect
+
+- The round 13 review (root cause 4) lists `address` among the located things that print as `path:line:col`. An
+  address names a directive by its path of names, not by a file position; its to-text stays the people form of
+  spec 7.4 (`graph > node "leds" > max_count`). `spec/contract.md` 2 says so.
+- Root cause 3 asks for "every closed set ... with lowercase values". `token kind`'s values are the grammar's token
+  names (`WORD`, `BAD_CHAR`), and the grammar is their one home: the spec keeps them as the one exception (spec
+  2.10), and the generator now emits `TokenKind` from `grammar/Villanelle.g4` instead of each binding typing it.
+- The milestone brief says Python's `List` and `String` "clash with typing names". `List` does (`typing.List` on
+  `from villanelle import *`); `typing` has no `String`. The fix moves all six written value classes to
+  `villanelle.written` only, one rule rather than two names (spec 6.6).
+- `spec/spec.md` 2.1 said a lone `"\r"` never ends a line, but TypeScript's `formatDiagnostic`
+  (`ts/src/written/format.ts`) cuts the source line at `/\r\n|\n|\r/u`: a binding bug against the spec, now made
+  explicit (contract 1) with the case `format-lone-cr`. Python's `split("\n")` was right.
+- Spec 2.2 placed a `use` step at "the `use` line's name", which reads as the snippet name; the load expected
+  outputs (`load-snippet-basic`: `use twinkle main.conf:4:9`) place it at the `use` keyword. Spec 2.2 now says
+  the `use` keyword, and the contract case `format-via` follows it (`via use s at main.conf:4:1`).
+- Not ruled: a values text holding a comment outside a list (`set("1 # note")`) puts the statement's `;` inside the
+  comment. Noted on frozen-m2.md section 15 for its own bead.
+- Committing the generator change ahead of the lanes leaves `ts/` and `py/` red on this branch (they still import
+  `ValueKind.List`, the `Literal` aliases and the hand-written `TokenKind`) until both lanes land.

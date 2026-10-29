@@ -27,7 +27,7 @@ not names a binding must use: each runner maps them to its own spelling of the s
   - `statements`: a statement's `replace with text` and `remove`;
   - `save`, `quote`;
   - `directive-values`: `set` on a `written directive` and on a `use line`, a value's `remove`;
-  - `blocks`: `insert statements`, `add statements`;
+  - `blocks`: `insert statements`, `add statements`, and a statement's `insert before` and `insert after`;
   - `rename`: `rename` on a `written directive` and on a `variable`;
   - `document`: a document's `replace with text`;
   - `override`: the graph's `set override`.
@@ -40,6 +40,9 @@ not names a binding must use: each runner maps them to its own spelling of the s
 ## Expected output
 
 A JSON array with one entry per step. Places are `path:line:col` (0-based line, UTF-16 column, the span's start).
+Every position is in UTF-16 units, whatever unit the binding reports (`spec/contract.md` 1): a runner whose binding
+counts code points or bytes converts each position with the text it counts in (the document's text, or for a `bad
+text error`, the text the edit was given).
 A **copy text** is the load-conformance origin text (`conformance/load/format.md`) of `{place, via}`: for a
 statement's copy, `place` is the statement's `place`; for a reference's resolution, the reference's `place` with
 the resolution's `copy.via`. A **variable text** is its `place`, `override <name>` for an override, or `null`.
@@ -64,7 +67,9 @@ the resolution's `copy.via`. A **variable text** is its `place`, `override <name
 - `["texts"]`: each document whose `text` differs from its `saved text`, as `[path, text]`, documents order.
 - `["save"]`: the graph's `save (writer)` with a recording writer: what the writer got, `[[path, text], ...]` in
   batch order; `[]` when it was not called.
-- `["edit", target, op, ...args]`: the op on the target. Output `["ok"]`, `["ok", [text, ...]]` for an op that
+- `["edit", target, op, ...args]`: the op on the target. An op exists only on the types where it can succeed (spec
+  6.5, 6.7), so no case calls one where it is absent (milestone 2 removed `override-no-set-line`, which called `set`
+  on an override variable). Output `["ok"]`, `["ok", [text, ...]]` for an op that
   returns handles (their `text`s), or `["error", name, [[code, line, col], ...]]` with the edit error's token
   (below) and a `bad text error`'s diagnostics, located in the text given (spec 2.8; `[]` for the others).
 - `["quote", text]`: `quote(text)`.
@@ -94,10 +99,11 @@ the resolution's `copy.via`. A **variable text** is its `place`, `override <name
 | op `"rename"`, with `name` | `rename` |
 | op `"insertStatements"`, with `index`, `text` | `insert statements` |
 | op `"addStatements"`, with `text` | `add statements` |
+| op `"insertBefore"`, with `text` | `insert before` (a statement) |
+| op `"insertAfter"`, with `text` | `insert after` (a statement) |
 | op `"setOverride"`, with `name`, `text` or `null` | `set override` (`null` is absent) |
 | error `"BadTextError"` | `bad text error` |
 | error `"DetachedError"` | `detached error` |
-| error `"NoSetLineError"` | `no set line error` |
 
 > **Proposed (pending owner):** spell these tokens with the spec names (`"set override"`, `"bad text error"`) so no
 > runner reads TypeScript names. It changes every case file and runner, so it waits for the owner with the rest of

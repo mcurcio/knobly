@@ -16,10 +16,12 @@ what order, how to work, and what has gone wrong before.
    (owner, 2026-10-27: "Within villanelle I want the spec to win over a reference language").
    `spec/schema/api.json` and `spec/schema/diagnostics.json` are the one home of every fixed list
    and win over the spec's tables.
-4. `spec/binding-guide.md`: the owner's goals, naming rules, allowed differences, the
+4. `spec/contract.md`: the edges (positions per language, people forms, numbers, error
+   classes, adapters).
+5. `spec/binding-guide.md`: the owner's goals, naming rules, allowed differences, the
    concept map, and the new-binding checklist.
-5. `spec/codegen.md` only if the task touches the fixed lists (codes, kinds, limits).
-5. For the reasons behind a rule: `.claude/design/consumer-api/requirements.md` (the owner's dated
+6. `spec/codegen.md` only if the task touches the fixed lists (codes, kinds, limits).
+7. For the reasons behind a rule: `.claude/design/consumer-api/requirements.md` (the owner's dated
    words), `.claude/design/consumer-api/round12/decisions.md`, and
    `.claude/design/consumer-api/round13/review.md`.
 
@@ -87,12 +89,18 @@ Lint, format and typecheck commands are in `ts/README.md` and `py/README.md`.
   an implementation to make a runner pass. A mismatch is a bug in the runner or in the rules.
 - **Skipping.** A runner may skip a case by its `needs` while you build; a finished binding skips
   nothing, and the runner should assert its feature set covers every case.
-- **Positions are UTF-16 today** in both bindings. In Python, an offset is not a `str` index once a
-  character outside the Basic Multilingual Plane comes before it. Convert before slicing.
-- **Known differences with no shared case:** `plain("-0")` (TypeScript `-0`, Python `0`), a lone
-  `"\r"` and integers beyond 2^53-1. Test these yourself when you touch them. (Before milestone 1,
-  `load` accepted an override text such as `"1;"` that `set handed` refused: the spec now has one
-  check of an override, spec 6.3.)
+- **Positions count each language's own string unit** (contract 1, milestone 2): UTF-16 in
+  TypeScript, code points in Python, bytes in a UTF-8 language. The conformance files stay UTF-16:
+  a runner converts with the text the position counts in. Before milestone 2 Python reported UTF-16,
+  so `text[s.start.offset:s.end.offset]` was wrong after an emoji.
+- **Numbers at the edges** (contract 3): no reader returns `-0` (TypeScript used to); `1e400` is
+  E4004, not infinity; beyond 2^53-1 a word is a rounded number but not an integer. The contract
+  cases (`conformance/contract/`) cover them; ECMAScript's `Number::toString` is the print rule, and
+  Python's `repr` of a float is not it.
+- **A lone `"\r"` never ends a line**, also in `format diagnostic`'s source line. Python's
+  `str.splitlines()` and a JavaScript `/\r\n|\n|\r/` both break there.
+- **A values text with a line break outside a list splits the statement** (`set("1\n2")` on `port
+  80;` wrote two statements, vil-5ya). The check of a values text refuses it (spec 2.8).
 - **`written` on a rendered value** meant the end of the chain before milestone 1; the spec now
   calls that `definition`, and `written` is the value on the same line. Code on PR 4 still has the
   old meaning until the milestone 1 binding work lands: `arg.written.replaceWithText(...)` on
@@ -106,16 +114,24 @@ Lint, format and typecheck commands are in `ts/README.md` and `py/README.md`.
 - **`set` is a method name, not only a keyword.** `statement.set(text)` replaces values (it was
   `set_values`). In a Python class that defines `set`, a later annotation `set[str]` in the class
   body resolves to the method: write `builtins.set[str]` there.
-- **Python's low level has no `__match_args__`,** so `match` with positional patterns raises
-  TypeError there, while the rendered tree supports it.
-- **Python separates kinds four ways** (literal strings, `StrEnum`s, classes with no `kind`, a
-  `kind` on one class). Do not add a fifth: follow the binding guide's rule 4.
-- **`from villanelle import *`** replaces `typing.List` with the low-level `List` in Python.
+- **Every variant is its own type, with `kind`** (spec 2.10, milestone 2). An operation that cannot
+  succeed for a variant is absent from it, not a run-time error: no `NoSetLineError`, no `rename`
+  on an extension line. Python's `__match_args__` keep one field order per concept in every layer,
+  so `match` works on the low level too. Before milestone 2 Python's low level had none.
+- **Every kind list is generated** (TypeScript string-literal types, Python `StrEnum`s, token kinds
+  from the grammar). Do not hand-write one, and do not add constant objects or `Literal` aliases.
+- **`from villanelle import *`** replaced `typing.List` with the low-level `List` in Python; since
+  milestone 2 the six written value classes live in `villanelle.written` only.
+- **The rendered layer reads only the public low level** (`graph.expand()`, spec 6.10). A
+  private accessor, a `_name` attribute or an `instanceof` of a low-level class there fails the
+  layer check (binding guide rule 8).
 - **The processor ownership check** (D27) is retired by milestone 1: no operation takes a graph or
   render back to a processor. On PR 4 it still refuses another processor's graph at run time.
 - **Generated parser code is never committed.** `tools/gen.sh` writes it to git-ignored folders.
-- **Python's `EditError` is a `ValueError`,** so a broad `except ValueError` also catches
-  `DetachedError`.
+- **Errors** (contract 4): `VillanelleError` is the one base; `DetachedError` is not an edit error
+  (Python: a `ReferenceError`), so `except ValueError` no longer swallows it; `ReadError` has no
+  diagnostic and no E3004 (a missing root file is not an include failure); `ReadError` and
+  `SaveError` both carry `paths`.
 - **The `rasl` key rule** in the load runner must match `conformance/load/format.md` exactly.
 - **`graph.diagnostics()` leaves out every E4xxx code,** E4001 and E4003 included (decision D11);
   only the render reports them. An earlier draft of the spec said otherwise.

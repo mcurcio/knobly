@@ -82,7 +82,7 @@
       ],
       "unreadable reason": "syntax",
       "message": "unexpected token",
-      "meaning": "A token the grammar does not allow here, when no more specific code applies. Also placed in a bad text error's diagnostics by edits and the check of an override."
+      "meaning": "A token the grammar does not allow here, when no more specific code applies. Also placed in a bad text error's diagnostics by edits and the check of an override, among them at the first token after a line break outside a list in a values text, or at the line break when nothing follows it (spec 2.8, vil-5ya)."
     },
     {
       "code": "E2003",
@@ -188,7 +188,7 @@
       ],
       "unreadable reason": "extension",
       "message": "include resolver failed",
-      "meaning": "The document source rejected while resolving or reading a file. For the root file, load raises a read error carrying this code instead."
+      "meaning": "The document source rejected while resolving or reading a file an extension line names, placed at that line. Never the root file: load raises a read error for it, with no code (spec/contract.md 3)."
     },
     {
       "code": "E3005",
@@ -271,7 +271,7 @@
       ],
       "unreadable reason": null,
       "message": "not a number",
-      "meaning": "A word read as a number that is not a JSON number."
+      "meaning": "A word read as a number that is not a JSON number, or whose value is beyond the double range (1e400, -1e400: spec/contract.md 2)."
     },
     {
       "code": "E4005",
@@ -284,7 +284,7 @@
       ],
       "unreadable reason": null,
       "message": "not an integer",
-      "meaning": "A word read as an integer that is not one."
+      "meaning": "A word read as an integer that is not one, or lies beyond plus or minus 2^53-1."
     },
     {
       "code": "E4006",
