@@ -51,7 +51,7 @@ The core has three layers, each built on the one below:
   ```
 
   `set(text)` replaces a statement's or a variable's values (a line break outside a list is refused, since it would
-  end the statement); `replaceWithText`, `insertStatements`, `addStatements`, `insertBefore`, `insertAfter` and
+  end the statement, and so is a text that ends in a comment, which would swallow the `;` after it); `replaceWithText`, `insertStatements`, `addStatements`, `insertBefore`, `insertAfter` and
   `rename` are the other named edits. Each keeps comments and layout, and given anything but a string it throws a
   `TypeError` naming the member and the parameter. `graph.setOverride(name, text)` changes an override without a
   reload, checked as `load` checks its overrides. `await graph.read()` reads files an edit added, through the
@@ -107,10 +107,11 @@ From the repository root, under Node 24 (`nvm use` reads `.nvmrc`):
 
 ```bash
 corepack pnpm -C ts install
-corepack pnpm -C ts test        # vitest, including the conformance corpus
-corepack pnpm -C ts typecheck
+corepack pnpm -C ts test        # vitest: the binding's own unit tests
+corepack pnpm -C ts typecheck   # the package and its conformance adapter
 corepack pnpm -C ts lint
 corepack pnpm -C ts build       # dist/
+corepack pnpm -C ts conformance # the shared conformance driver, on the build above
 ```
 
 Each script first runs `bash ../tools/gen.sh ts`, which regenerates the parser into `src/gen/`
@@ -125,5 +126,14 @@ Two settings exist because of the generated code:
 - `verbatimModuleSyntax` is off in `tsconfig.json`. With it on, the generated files' type-only
   imports stay in the JavaScript output and fail at run time.
 
-To rewrite the conformance expected files after an intended change, run the tests with
-`VILLANELLE_WRITE_EXPECTED=1`, and review what it writes.
+## Conformance
+
+The shared corpora under [`conformance/`](../conformance/) are run by one driver for every binding
+([spec/conformance.md](../spec/conformance.md)); no test in this package reads them. This binding's part is its
+conformance adapter, [`conformance/adapter.ts`](conformance/adapter.ts): a process that answers the driver's
+requests (one JSON object per line on standard input and output) through the built package's public entry points,
+with positions in UTF-16 units. It claims level L3 (spec/README.md). `corepack pnpm conformance` runs
+`python3 ../conformance/driver/run.py -- node conformance/adapter.ts` (Python 3.9 or later) after `build`; it prints
+TAP, one line per case, and exits 0 when every case at or below the claimed level passes. To run fewer cases, run
+that command yourself with `--corpus NAME` or `--case NAME` before the `--`. The adapter is typechecked and linted with the package but is not
+built or published.

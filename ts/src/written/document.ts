@@ -809,13 +809,34 @@ const LINE_TRIVIA: ReadonlySet<string> = new Set(["SPACE", "COMMENT", "NEWLINE"]
  * Its syntax diagnostics, shifted to the given text; when it is more than values, one E2001 at the first such token.
  * Outside a list, a line break at list depth 0 is more than values (vil-5ya: it would end the statement there): E2001
  * at the first token after it that is not a space, comment or line break, or at the line break when only those follow.
- * The check of an override uses it too (one home).
+ * A text that ends in a comment is more than values (vil-033: the comment would swallow the `;`, `,` or `]` after it):
+ * E2001 at the comment, or at a `;` or block before it, checked before the probe's syntax diagnostics (the comment
+ * swallows the probe's own closing too). The check of an override uses it too (one home).
  */
 export function valuesTextProblems(text: string, inList: boolean): IDiagnostic[] {
   const prefix = inList ? "x [" : "x ";
   const syntax = parse(`${prefix}${text}${inList ? "];" : ";"}`);
-  if (syntax.diagnostics.length > 0) return syntax.diagnostics.map((d) => shifted(text, prefix.length, d));
   const given = syntax.tokens.filter((t) => t.span.start.offset >= prefix.length && t.span.start.offset < prefix.length + text.length);
+  const refuse = (token: IToken): IDiagnostic[] => [at(text, token.span.start.offset - prefix.length, DiagnosticCode.UnexpectedToken)];
+  const comment = given.at(-1);
+  if (comment?.kind === "COMMENT") return refuse(moreThanValues(given, inList) ?? comment);
+  if (syntax.diagnostics.length > 0) return syntax.diagnostics.map((d) => shifted(text, prefix.length, d));
+  const more = moreThanValues(given, inList);
+  if (more !== undefined) return refuse(more);
+  if (inList) return [];
+  let depth = 0;
+  for (const [i, token] of given.entries()) {
+    if (token.kind === "LBRACK") depth++;
+    if (token.kind === "RBRACK") depth--;
+    if (token.kind !== "NEWLINE" || depth !== 0) continue;
+    const next = given.slice(i + 1).find((t) => !LINE_TRIVIA.has(t.kind)) ?? token;
+    return refuse(next);
+  }
+  return [];
+}
+
+/** The first token of a values text that is more than values: a `;` or brace, a `,` outside a list, a `]` closing past it. */
+function moreThanValues(given: readonly IToken[], inList: boolean): IToken | undefined {
   let depth = 0;
   for (const token of given) {
     if (token.kind === "LBRACK") depth++;
@@ -826,18 +847,9 @@ export function valuesTextProblems(text: string, inList: boolean): IDiagnostic[]
       token.kind === "RBRACE" ||
       (inList && depth < 0) ||
       (!inList && token.kind === "COMMA" && depth === 0);
-    if (more) return [at(text, token.span.start.offset - prefix.length, DiagnosticCode.UnexpectedToken)];
+    if (more) return token;
   }
-  if (inList) return [];
-  depth = 0;
-  for (const [i, token] of given.entries()) {
-    if (token.kind === "LBRACK") depth++;
-    if (token.kind === "RBRACK") depth--;
-    if (token.kind !== "NEWLINE" || depth !== 0) continue;
-    const next = given.slice(i + 1).find((t) => !LINE_TRIVIA.has(t.kind)) ?? token;
-    return [at(text, next.span.start.offset - prefix.length, DiagnosticCode.UnexpectedToken)];
-  }
-  return [];
+  return undefined;
 }
 
 /** A slice bound's text: exactly one WORD or `$name` (E2001 otherwise). */

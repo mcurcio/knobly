@@ -25,7 +25,7 @@ interface IExpected {
 
 const EXPECTED = JSON.parse(readFileSync(new URL("expected.json", FIXTURES), "utf8")) as Record<string, IExpected>;
 
-/** The "rasl" key rule of conformance/load/format.md. */
+/** The "rasl" key rule of conformance/keys.json. */
 const RASL_KEY: KeyRule = (d) => {
   if (d.name === "node" && d.parent?.name === "graph") return d.values[1]?.text;
   if (d.name === "connect") return d.values.map((a) => a.text).join(" ");
