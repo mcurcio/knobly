@@ -14,6 +14,7 @@ import run  # noqa: E402
 from common import CaseError  # noqa: E402
 from contract import ecmascript, result  # noqa: E402
 from encode import to_bytes  # noqa: E402
+from syntax import shape  # noqa: E402
 from units import Converter  # noqa: E402
 
 
@@ -57,6 +58,41 @@ class Numbers(unittest.TestCase):
     def test_negative_zero_fails(self) -> None:
         with self.assertRaises(CaseError):
             result("number", {"number": "-0"})
+
+
+class SyntaxShape(unittest.TestCase):
+    SRC = "a\n\u00e9 b"
+    TOKENS = [
+        ["WORD", "a", [0, 0, 0], [0, 1, 1]],
+        ["NEWLINE", "\n", [0, 1, 1], [1, 0, 2]],
+        ["WORD", "\u00e9", [1, 0, 2], [1, 2, 4]],
+        ["SPACE", " ", [1, 2, 4], [1, 3, 5]],
+        ["WORD", "b", [1, 3, 5], [1, 4, 6]],
+    ]
+
+    def dump(self, **change: object) -> "dict[str, object]":
+        d = {"id": "d1", "code": "E2001", "message": "m", "start": [1, 3, 5], "end": [1, 4, 6]}
+        d.update(change)
+        return {"tokens": self.TOKENS, "root": ["document", 0, 5, []], "diagnostics": [d]}
+
+    def test_a_right_dump_passes(self) -> None:
+        self.assertEqual(shape(self.SRC, self.dump(), "byte"), [])
+
+    def test_a_missing_or_extra_member_fails(self) -> None:
+        d = self.dump()
+        del d["diagnostics"][0]["message"]  # type: ignore[index]
+        self.assertTrue(shape(self.SRC, d, "byte"))
+        self.assertTrue(shape(self.SRC, self.dump(extra=1), "byte"))
+        self.assertTrue(shape(self.SRC, {**self.dump(), "more": []}, "byte"))
+
+    def test_a_wrong_line_or_column_fails(self) -> None:
+        self.assertTrue(shape(self.SRC, self.dump(start=[99, 99, 5]), "byte"))
+        bad = [t[:2] + [[0, 2, 2], t[3]] if i == 2 else t for i, t in enumerate(self.TOKENS)]
+        self.assertTrue(shape(self.SRC, {**self.dump(), "tokens": bad}, "byte"))
+
+    def test_a_lone_surrogate_is_three_bytes(self) -> None:
+        tokens = [["BAD_CHAR", "\ud800", [0, 0, 0], [0, 3, 3]]]
+        self.assertEqual(shape("\ud800", {"tokens": tokens, "root": ["document", 0, 1, []], "diagnostics": []}, "byte"), [])
 
 
 def drive(mode: str) -> "tuple[int, str]":

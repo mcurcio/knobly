@@ -2,11 +2,57 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Mapping
+from typing import Any, List, Mapping, Sequence
 
 from common import Session
 from encode import to_bytes
 from units import line_column, native_length
+
+
+SYNTAX_MEMBERS = frozenset({"tokens", "root", "diagnostics"})
+DIAGNOSTIC_MEMBERS = frozenset({"id", "code", "message", "start", "end"})
+
+
+def native_position(src: str, native: int, unit: str) -> List[int]:
+    """``[line, column, offset]`` of the native offset ``native`` in ``src``, all in ``unit``."""
+    at = 0
+    for i, ch in enumerate(src):
+        if at >= native:
+            prefix = src[:i]
+            break
+        at += native_length(ch, unit)
+    else:
+        prefix = src
+    line_start = prefix.rfind("\n") + 1
+    return [prefix.count("\n"), native_length(prefix[line_start:], unit), native]
+
+
+def shape(src: str, dump: Mapping[str, Any], unit: str) -> List[str]:
+    """Spec/conformance.md 4.2: the syntax dump and its diagnostics have exactly their members, and every position's
+    line and column agree with its offset in the input."""
+    problems: List[str] = []
+    if set(dump) != SYNTAX_MEMBERS:
+        return [f"the syntax dump has members {sorted(dump)}, expected {sorted(SYNTAX_MEMBERS)}"]
+
+    def check(what: str, pos: Sequence[int]) -> None:
+        if list(pos) != native_position(src, pos[2], unit):
+            problems.append(f"{what} is at {list(pos)}, expected {native_position(src, pos[2], unit)}")
+
+    for i, token in enumerate(dump["tokens"]):
+        if len(token) != 4:
+            problems.append(f"token {i} has {len(token)} members, expected 4")
+            continue
+        check(f"token {i}'s start", token[2])
+        check(f"token {i}'s end", token[3])
+    for i, d in enumerate(dump["diagnostics"]):
+        if set(d) != DIAGNOSTIC_MEMBERS:
+            problems.append(f"diagnostic {i} has members {sorted(d)}, expected {sorted(DIAGNOSTIC_MEMBERS)}")
+            continue
+        if not isinstance(d["id"], str) or not isinstance(d["message"], str):
+            problems.append(f"diagnostic {i}'s id and message must be text")
+        check(f"diagnostic {i}'s start", d["start"])
+        check(f"diagnostic {i}'s end", d["end"])
+    return problems
 
 
 def lossless(src: str, dump: Mapping[str, Any], unit: str) -> List[str]:
@@ -49,6 +95,9 @@ def lossless(src: str, dump: Mapping[str, Any], unit: str) -> List[str]:
 def run(session: Session, case: Mapping[str, Any]) -> str:
     src = case["src"]
     dump = session.request("parse", text=src)
+    problems = shape(src, dump, session.unit)
+    if problems:
+        return "not the syntax dump's shape: " + "; ".join(problems[:5]) + "\n"
     problems = lossless(src, dump, session.unit)
     if problems:
         return "not lossless: " + "; ".join(problems[:5]) + "\n"

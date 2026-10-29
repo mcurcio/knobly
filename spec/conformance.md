@@ -58,8 +58,14 @@ The levels are cumulative: L2 means L0, L1 and L2. The high level (spec 8) is ou
   character above U+007F, and a lone surrogate, as a `\u` escape.
 - Each response is one line of JSON on the adapter's standard output, UTF-8, answering the request with the same
   `id`, before the next request is sent. A lone surrogate in a string MUST be written as a `\u` escape (JavaScript's
-  `JSON.stringify` does; Python's `json.dumps` does by default). The adapter writes nothing else to standard
-  output; its standard error passes through to the driver's.
+  `JSON.stringify` does; Python's `json.dumps` does by default), so a response stays valid UTF-8 even from a binding
+  that holds the surrogate as WTF-8 bytes. The adapter writes nothing else to standard output; its standard error
+  passes through to the driver's.
+- **The lone-surrogate trap** (three syntax cases, `surrogate-*` in `extra.json`). Many standard JSON libraries
+  replace a lone surrogate with U+FFFD in both directions: Go's `encoding/json` decodes the escape `\ud800` to
+  U+FFFD, and encodes the WTF-8 bytes `ED A0 80` as three U+FFFD characters. The adapter must decode `\ud800` into
+  the binding's own form of it (for Go, its WTF-8 bytes; spec 2.1) and encode that form back as `\ud800`: a string
+  codec of its own for these escapes (about 100 lines of Go), or a library that keeps them.
 - A response is one of:
   - `{"id", "ok": value}`: the request's result;
   - `{"id", "thrown": error}`: the binding raised one of its own errors (a `villanelle error`, spec 2.8). `error` is
@@ -106,7 +112,10 @@ spec name.
 
 ### 4.2 Dumps
 
-The shapes below are exact: members in any order, no other members. `null` stands for absent.
+The shapes below are exact: members in any order, no other members. `null` stands for absent. The driver checks
+the **syntax** dump and its **syntax diagnostic**s exactly: their members, and every position's line and column
+against its offset in the input (`conformance/driver/syntax.py`). The other shapes it checks only as far as it reads
+them (section 7), so an extra or wrong member there is not yet caught: build to the shape, not to the driver.
 
 | Dump | Shape |
 |---|---|
@@ -131,7 +140,10 @@ The shapes below are exact: members in any order, no other members. `null` stand
 | directive | `{"id", "name", "address": address, "origin": origin, "values": [argument, ...], "block": [directive, ...] \| null, "unreadable": [unreadable, ...]}` |
 | render | `{"id", "block": [directive, ...], "unreadable": [unreadable, ...], "diagnostics": [located diagnostic, ...]}` |
 
-Kinds, reasons and codes are the generated lists' lowercase values (spec 2.10) and the codes' text (`E2001`).
+A token's kind is its token name as written in [grammar/Villanelle.g4](../grammar/Villanelle.g4), in capitals
+(`WORD`, `SPACE`, `BAD_CHAR`; all 17 are listed in spec 3.1). Every other kind (a node's,
+a statement's, a value's, a step's), and reasons, are the generated lists' lowercase values (spec 2.10); codes are
+their text (`E2001`).
 
 ### 4.3 Key rules as data
 
@@ -218,4 +230,5 @@ runner of its own, and CI runs the driver with its adapter after its tests.
 - The `cut` check trusts the adapter to cut with the language's own slicing; a cut written by hand defeats it.
 - A dump holds the whole graph each time a step asks for one, so a written case asks the adapter for several large
   objects. The corpora are small; the full run takes about a second per binding.
-- The driver checks the protocol's shapes only as far as it reads them; a member it never reads is not checked.
+- The driver checks the protocol's shapes only as far as it reads them, except the syntax dump (4.2); a member it
+  never reads is not checked.

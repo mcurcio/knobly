@@ -101,7 +101,10 @@ its test suite (`corepack pnpm -C ts test`, `cd py && uv run pytest`); lint, for
 - **Expected outputs are hand-derived.** Never regenerate a file in `conformance/*/expected/` from
   an implementation to make the driver pass. A mismatch is a bug in the binding, its adapter or the rules.
 - **Climb by level, not by skipping.** The driver runs every case at or below the level the adapter
-  claims; there is no per-case skip. A failing case at your claimed level is a red build.
+  claims; there is no per-case skip. A failing case at your claimed level is a red build. That holds for the three
+  `surrogate-*` syntax cases too: a byte-unit binding passes them by holding a lone surrogate as WTF-8 (Go can; Rust's
+  `String` cannot). spec 2.1's proposal for UTF-8 bindings (a skip plus invalid-byte cases) is pending the owner
+  and not in the driver.
 - **The adapter finds and compares nothing.** It dumps objects with ids and applies one member by id;
   the driver finds targets (a statement by its name token, a value by its start), converts positions
   and prints the expected bytes. Logic that creeps into an adapter is logic the next binding copies.

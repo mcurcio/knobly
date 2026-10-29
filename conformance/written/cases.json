@@ -41,6 +41,7 @@
 {"name": "set-line-break-in-list", "needs": ["directive-values"], "files": {"main.conf": "port 80;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "[1,\n2]"], ["texts"]]},
 {"name": "value-replace-line-break", "needs": ["values"], "files": {"main.conf": "port 80;\n"}, "root": "main.conf", "steps": [["edit", ["value", "main.conf", 0, 5], "replaceWithText", "1\n2"], ["texts"]]},
 {"name": "set-override-trailing-line-break", "needs": ["override"], "files": {"main.conf": "x $a;\n"}, "root": "main.conf", "overrides": {"a": "1"}, "steps": [["edit", ["graph"], "setOverride", "a", "1\n"], ["render"]]},
+{"name": "set-override-blank-line-break", "needs": ["override"], "files": {"main.conf": "x $a;\n"}, "root": "main.conf", "overrides": {"a": "1"}, "steps": [["edit", ["graph"], "setOverride", "a", "  \n"], ["render"]]},
 {"name": "set-bad-astral", "needs": ["directive-values"], "files": {"main.conf": "x 1;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "\"\ud83d\ude00\" ;"], ["texts"]]},
 {"name": "insert-before-after", "needs": ["blocks"], "files": {"main.conf": "a 1;\nb 2;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 1, 0], "insertBefore", "x;"], ["edit", ["statement", "main.conf", 0, 0], "insertAfter", "y;"], ["texts"]]},
 {"name": "insert-after-nested", "needs": ["blocks"], "files": {"main.conf": "blk {\n    a 1;\n}\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 1, 4], "insertAfter", "b 2;"], ["texts"]]},
@@ -50,5 +51,8 @@
 {"name": "list-item-replace-comment", "needs": ["values"], "files": {"main.conf": "x [1, 2];\n"}, "root": "main.conf", "steps": [["edit", ["value", "main.conf", 0, 6], "replaceWithText", "3 # note"], ["texts"]]},
 {"name": "set-override-comment", "needs": ["override"], "files": {"main.conf": "x $a;\n"}, "root": "main.conf", "overrides": {"a": "1"}, "steps": [["edit", ["graph"], "setOverride", "a", "1 # note"], ["texts"]]},
 {"name": "set-comment-line-break", "needs": ["directive-values"], "files": {"main.conf": "port 80;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "1 # note\n"], ["texts"]]},
-{"name": "set-comment-in-list", "needs": ["directive-values"], "files": {"main.conf": "port 80;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "[1, # note\n2]"], ["texts"]]}
+{"name": "set-comment-in-list", "needs": ["directive-values"], "files": {"main.conf": "port 80;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "[1, # note\n2]"], ["texts"]]},
+{"name": "set-comment-after-line-break", "needs": ["directive-values"], "files": {"main.conf": "port 80;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "1\n2 # note"], ["texts"]]},
+{"name": "set-comment-after-syntax-error", "needs": ["directive-values"], "files": {"main.conf": "port 80;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "[1 # note"], ["texts"]]},
+{"name": "set-comment-after-semicolon", "needs": ["directive-values"], "files": {"main.conf": "port 80;\n"}, "root": "main.conf", "steps": [["edit", ["statement", "main.conf", 0, 0], "set", "1; # note"], ["texts"]]}
 ]

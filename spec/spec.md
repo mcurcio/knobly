@@ -73,14 +73,21 @@ These are used by more than one layer.
   `start.offset <= end.offset`.
 
 > **Proposed (pending owner), for bindings whose strings are not UTF-16:** `parse` is total over the
-> language's own strings (3.3). A Go or Rust string can hold bytes that are not valid UTF-8 but
-> cannot hold a lone surrogate; a UTF-16 string is the other way round. The proposal: each
-> invalid byte becomes one `BAD_CHAR` token with E1003 at that byte (inside a string or comment it
-> breaks the token, as a raw control character does); the syntax cases `surrogate-bare`,
-> `surrogate-str` and `surrogate-comment` (in `extra.json`) need UTF-16 strings, so a UTF-8 binding
-> skips them and passes matching invalid-byte cases instead, which do not exist yet. Today no rule
-> covers invalid UTF-8, and an adapter that decodes those three cases' requests with a standard JSON
-> decoder gets U+FFFD, not the input.
+> language's own strings (3.3). A UTF-16 string can hold a lone surrogate but not an invalid byte; a Rust `String`
+> is always valid UTF-8, so it can hold neither a lone surrogate nor an invalid byte. A Go `string` is any byte
+> sequence, so it can hold both: a lone surrogate as its 3-byte WTF-8 form (`\ud800` is the bytes `ED A0 80`). The
+> proposal: each invalid byte becomes one `BAD_CHAR` token with E1003 at that byte (inside a string or comment it
+> breaks the token, as a raw control character does), and a binding whose strings cannot hold a lone surrogate
+> skips the syntax cases `surrogate-bare`, `surrogate-str` and `surrogate-comment` (in `extra.json`) and passes
+> matching invalid-byte cases instead, which do not exist yet. Today no rule covers invalid UTF-8, and there is no
+> such skip.
+
+**Today's rule for a lone surrogate** (what the driver checks): the three `surrogate-*` cases are L0 cases like any
+other, with no per-case skip ([conformance.md 2](conformance.md#2-conformance-levels)). In `byte` units a lone
+surrogate counts 3 bytes, its WTF-8 form (`conformance/driver/units.py`). So a Go binding passes them when its
+adapter decodes a request's `\ud800` escape into those 3 bytes and writes them back as `\ud800` (a standard JSON
+codec does neither: [conformance.md 3](conformance.md#3-transport)); a binding on Rust's `String` cannot pass them,
+and so cannot hold L0, until the owner rules on the proposal above.
 
 The two bindings disagreed on a lone `"\r"` (TypeScript's `format diagnostic` cut the source line there) and on
 `-0` (review finding P3); [contract.md](contract.md) rules both, with conformance cases.
@@ -270,16 +277,20 @@ line break outside a list: a line break ends a statement, so the values after it
 the line break that is not a space, a comment or a line break, or at the line break itself when nothing follows it
 (`"1\n"` would put the statement's `;` on a line of its own). A line break inside `[ ]` is allowed: a list may span
 lines (`"[1,\n2]"`). Cases: `set-line-break`, `set-line-break-trailing`, `set-line-break-leading`,
-`set-line-break-in-list`, `value-replace-line-break`, `set-override-line-break`, `set-override-trailing-line-break`.
+`set-line-break-in-list`, `value-replace-line-break`, `set-override-line-break`, `set-override-trailing-line-break`,
+`set-override-blank-line-break` (`"  \n"`: at its line break, before the check of an override finds no value).
 
 **A comment the text ends in** (vil-033) is refused the same way, with E2001 at the comment: a comment runs to the
 end of its line, so the statement's `;` (or a list's `,` or `]`, for a list item's text) written after it would
 become part of the comment (`set ("1 # note")` on `port 80;` used to write `port 1 # note;`, which swallows the
 `;`). This holds for every values text, a list item's `replace with text` included, and for an override's text (one
 check). A comment that a line break follows is the line-break rule's (`"1 # c\n"` is refused at its line break);
-inside `[ ]` a comment followed by a line break is allowed (`"[1, # c\n2]"`). Cases: `set-comment`,
-`set-line-comment`, `value-replace-comment`, `list-item-replace-comment`, `set-override-comment`,
-`set-comment-line-break`, `set-comment-in-list`.
+inside `[ ]` a comment followed by a line break is allowed (`"[1, # c\n2]"`). The comment comes last in the
+table's order: a text with an earlier problem is refused for that problem, as if the comment were followed by a line
+break (`"1\n2 # c"` at its `2`, `"1; # c"` at its `;`, `"[1 # c"` with the syntax diagnostic `"[1"` gets, at the
+text's end). Cases: `set-comment`, `set-line-comment`, `value-replace-comment`, `list-item-replace-comment`,
+`set-override-comment`, `set-comment-line-break`, `set-comment-in-list`, `set-comment-after-line-break`,
+`set-comment-after-semicolon`, `set-comment-after-syntax-error`.
 
 A `diagnostic error`, `read error` and `save error` have the fields of 2.6 and 6.8.
 

@@ -213,7 +213,7 @@ meets the spec. None has been tried by a binding yet; spec 2.8 and 4.1 hold the 
 | Overrides | an ordered input (`[]Override{{Name, Text}}` or a functional option per value), not a `map` | spec 6.2: the order is kept |
 | Cancellation | `ctx context.Context` first on `Load`, `Read`, `Save`, `Resolve`, `Read` and `Write`; cancellation returns `ctx.Err()`, never a diagnostic | spec 4.1, Proposed |
 | Concurrency | document that a graph is not safe for concurrent use, renders included | spec 4.1 |
-| Positions | byte offsets of the UTF-8 string (contract 1); the adapter's `hello` says `"byte"` and the driver converts to UTF-16 | contract 1 |
+| Positions | byte offsets of the UTF-8 string (contract 1); the adapter's `hello` says `"byte"` and the driver converts to UTF-16. A lone surrogate is 3 bytes, its WTF-8 form: a Go `string` holds it, so the `surrogate-*` syntax cases pass with an adapter whose JSON codec keeps `\ud800` escapes (Go's `encoding/json` does not; conformance 3). A Rust `String` cannot hold one, so a Rust binding cannot pass them until spec 2.1's proposal is ruled | contract 1, spec 2.1 |
 
 ## 4. Concept map: TypeScript and Python today
 
@@ -307,13 +307,18 @@ Work in this order. Each step ends with shared cases passing, so progress is mea
    building the layers.
 3. **Generate the parser.** Add your target to `tools/gen.sh` (ANTLR 4.13.2) and keep generated code
    out of git. Wrap the generated parser in an adapter so its types never cross into your API, as
-   `ts/src/syntax/parse.ts` and `py/src/villanelle/syntax/parse.py` do.
+   `ts/src/syntax/parse.ts` and `py/src/villanelle/syntax/parse.py` do. ANTLR 4.13.2 has official targets for Go,
+   Java, C#, C++, Swift, PHP, Dart, JavaScript, TypeScript and Python, but not Rust (`antlr4rust` is a third-party
+   runtime and lags the official releases). How a binding without an official target gets its parser (a
+   third-party runtime, a parser written by hand and held to the syntax corpus, or another generator checked
+   against the grammar) is an open question for the owner; ask before choosing.
 4. **Generate the fixed lists** (codes and messages, kind lists, limits, reserved names) from
    [schema/](schema/) by adding your target to the generator ([codegen.md](codegen.md)); token kind
    names come from the grammar. Never type a list by hand.
 5. **Write the adapter** ([conformance.md 6](conformance.md#6-what-a-binding-writes)): one small program in your
    language that reads the driver's requests on standard input and answers on standard output, through your public
-   API only. Start with `hello` (claim L0, name your string unit) and `parse`, then run the driver:
+   API only. Start with `hello` (claim L0, name your string unit) and `parse`, then run the driver (the adapter can
+   come before step 3: a stub `parse`, or one that delegates to an existing binding, tries the protocol first):
    `python3 conformance/driver/run.py -- <your adapter's command>`. Make every syntax case pass (L0). The driver
    checks the byte rules and converts your positions to UTF-16 (contract 1); your adapter does neither.
 6. **Write the ports** (spec 4): the source and writer interfaces in your language's form, and

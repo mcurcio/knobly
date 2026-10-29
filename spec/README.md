@@ -83,7 +83,9 @@ A binding claims one level; it holds it when every shared case at that level and
 
 ## A new binding's path
 
-1. **Generate**: add the language to `tools/gen.sh` (the parser) and `tools/gen-api.py` (the fixed lists).
+1. **Generate**: add the language to `tools/gen.sh` (the parser; ANTLR 4.13.2 has no official Rust target, an open
+   question in [binding-guide.md 5](binding-guide.md#5-checklist-a-new-binding-start-to-finish)) and
+   `tools/gen-api.py` (the fixed lists). The adapter of step 2 can come first, with a stub `parse`.
 2. **Write the adapter**: one small program that answers the driver's requests through the binding's public API
    ([conformance.md 6](conformance.md#6-what-a-binding-writes)). It starts by answering `hello` and `parse`.
 3. **Run the driver**: `python3 conformance/driver/run.py -- <your adapter's command>`.

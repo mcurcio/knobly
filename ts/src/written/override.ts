@@ -42,7 +42,7 @@ export function checkOverride(name: unknown, text: unknown, caller: IOverrideCal
     const at = positionIn(text, offset);
     return refuse([makeDiagnostic(code, messageOf(code), { start: at, end: at })]);
   };
-  const given = text.trim() === "" ? [] : valuesTextProblems(text, false);
+  const given = valuesTextProblems(text, false);
   if (given.length > 0) throw refuse(given);
   const tokens = parse(`x ${text};`).tokens.filter((t) => t.span.start.offset >= 2 && t.span.start.offset < 2 + text.length);
   const first = tokens.find((t) => t.kind !== "SPACE" && t.kind !== "NEWLINE" && t.kind !== "COMMENT");

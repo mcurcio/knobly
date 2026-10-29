@@ -21,8 +21,9 @@ One JSON object with exactly these keys, in this order:
 {"tokens":[[kind,text],...],"cst":[kind,start,end,[children...]],"diagnostics":[[code,line,column],...]}
 ```
 
-- `tokens`: every token of the input in order, as `[kind, text]`. `kind` is the grammar's token name
-  (`WORD`, `SPACE`, ...). There is no end-of-file token.
+- `tokens`: every token of the input in order, as `[kind, text]`. `kind` is the token's name as written in
+  `grammar/Villanelle.g4`, in capitals (`WORD`, `SPACE`, `BAD_CHAR`; all 17 are listed in `spec/spec.md` 3.1). Node
+  kinds (below) are lowercase. There is no end-of-file token.
 - `cst`: the root node, as `[kind, start, end, children]`. `kind` is a CST node kind (`document`,
   `directive`, `block`, `list`, `slice`, `error`). `start` and `end` are the token range: indices
   into `tokens`, half-open. `children` is an array of nodes in the same 4-element form.
@@ -41,7 +42,9 @@ One JSON object with exactly these keys, in this order:
 
 The driver applies these rules (`conformance/driver/encode.py`); an adapter never writes an expected file's bytes.
 
-An adapter still reads and writes JSON (the protocol's messages), with the mirror traps: three syntax cases
-(`surrogate-*` in `extra.json`) hold lone surrogates, which arrive as `\u` escapes in the request and which a decoder
-for UTF-8 strings replaces (see `spec/spec.md` 2.1); a response must write a lone surrogate as a `\u` escape too, and
-must not turn invalid UTF-8 into U+FFFD.
+An adapter still reads and writes JSON (the protocol's messages). Requests are ASCII, so the trap is not invalid
+UTF-8 but lone surrogates: three syntax cases (`surrogate-*` in `extra.json`) hold them, as `\u` escapes in the
+request. A standard JSON library often replaces one with U+FFFD both when decoding the escape and when encoding the
+binding's form of it (Go's `encoding/json` does). The adapter must decode `\ud800` into the binding's own form (for
+Go, the WTF-8 bytes `ED A0 80`; `spec/spec.md` 2.1) and write it back as `\ud800`
+(`spec/conformance.md` 3).

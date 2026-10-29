@@ -182,3 +182,20 @@
   for `"[1, # c"` TypeScript E2001 at 0:4, Python E2001 at 0:7. Python follows the spec's order; TypeScript reports
   the comment ahead of earlier problems. Needs a ruling and shared cases for a comment after a line break or a
   syntax error.
+- (2026-10-29, milestone 3 fix) Resolved the entry above by the spec: spec 2.8's table is the source of truth, so the
+  comment comes last (TypeScript now re-parses the probe with a line break before its closer, as Python does).
+  frozen-m3.md section 7's "found before the probe's syntax diagnostics are reported" was about the probe's closer
+  being swallowed, not the order of report; the frozen page is left as written. New cases pin it:
+  `set-comment-after-line-break`, `set-comment-after-semicolon`, `set-comment-after-syntax-error`. The override
+  check in TypeScript also skipped the values-text check for a text that trims to empty (`"  \n"` got 0:0, not the
+  line break at 0:2); case `set-override-blank-line-break`.
+- spec 2.1 said "A Go or Rust string ... cannot hold a lone surrogate": wrong for Go (a `string` is any bytes and holds
+  the WTF-8 form). It also said a UTF-8 binding "skips" the `surrogate-*` cases, while the driver and the binding
+  skill have no per-case skip. 2.1 now states today's rule (no skip; a lone surrogate is 3 bytes in byte units, as
+  `conformance/driver/units.py` counts it) apart from the still-pending proposal. Whether to add the skip with
+  invalid-byte cases, or to make WTF-8 the requirement (which a Rust `String` binding cannot meet), is an owner call.
+- spec/conformance.md 4.2 called every dump shape exact, but the driver read only some members (a syntax
+  diagnostic's id, message and end, and every token line and column, were never checked). The driver now checks the
+  syntax dump exactly; 4.2 says the other shapes are checked only as far as the driver reads them. 4.2 also said every
+  kind is lowercase; token kinds are the grammar's capitalised names.
+- ANTLR 4.13.2 has no official Rust target, so binding-guide step 3 has no stated path for Rust: an owner question.
