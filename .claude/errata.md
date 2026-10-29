@@ -408,3 +408,31 @@
   parentheses and checks the snake_case, PascalCase and as-written spellings (`plain`, `PlainValue`, `COLON`) are not
   on the package root, `villanelle.written`, `TokenKind` or an expanded value class. The other entries yield phrases
   that are vacuously absent. A list of identifiers in the schema would make the check exact.
+
+## 2026-10-29, milestone 5 TypeScript lane
+
+- **Doc excerpts that no longer match their cited tests (docs/ is outside this lane's paths):**
+  `docs/low-level-api.md` at "changes nothing when an edit's text is refused" shows `for (const text of [...])` with
+  `set.set(text(given)), given`, which does not compile (the loop variable shadows `text` and `given` is unbound); the
+  test reads `for (const given of [...]) { expect(() => set.set(text(given)), given)...`. `docs/rendered-tree.md` at
+  "keeps a bad line in its place..." still writes `  : x;` with E2001, but under milestone 5 a `:` cannot start a word
+  (E1003); the test now writes `  ~ x;` (E2001, behaviour change 4). `docs/rendered-tree.md` at "gives E3006 when an
+  extension throws..." still writes `pull;\npull x;` with `test/bad-pull` at 1:5; a WORD head is a plain directive now,
+  so the test writes `@pull;\n@pull x;` (1:6). `docs/rendered-tree.md`'s rasl excerpt shows `const OVERRIDES = {
+  leds_host: '"10.0.70.1"' }` and `rendered(..., options?: { overrides?: Readonly<Record<string, string>> })`, a type
+  error under config text; the test and helper now read `text('"10.0.70.1"')` and `Record<string, ConfigText>` (the
+  `return render(await processor.load(path, options));` line matches). The tests were made to match every other cited
+  line (`quote("10.0.70.1")` in the tracer, the `unread` line in "reads an include line an edit added once").
+- **TypeScript's kind change under a value's `set` uses `Object.setPrototypeOf`**, the JavaScript form of Python's
+  `__class__` assignment (the state pattern the frozen page names): the six value classes keep their inner slots on the
+  shared base and `kind` is each class's getter, so the same object reports the new kind and only the new kind's
+  members. MDN warns that changing a prototype deoptimises that object; a value handle is not on a hot path. Design
+  call inside the frozen page's "the object's `kind` and members are the new kind's".
+- **`remove()` of a slice's or index's name is unspecified.** The name is now a written value, so it has `remove()`,
+  which deletes the name token and leaves `[0~3]` (a list holding a `~`: a syntax error in the document, and the edit
+  is not refused). Removing an index's only bound (`a[]`) had the same gap before. Spec 6.6 could refuse it (misuse
+  error or `bad text error`) or say what is left; not changed in this lane.
+- **Red first was not observed for TypeScript through the driver**: the binding at 50977f8 does not build against the
+  new grammar (`tsc`: three `"COLON"` comparisons), as the frozen page says, so the first driver run was after the
+  change (371 of 371). The binding's own new tests (removed names, config text type tests, value `set`, the natural
+  rasl loop, `@` statements, render of a non-graph) were written with the change, not before it.
