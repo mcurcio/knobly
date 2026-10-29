@@ -20,7 +20,7 @@ EXPECTED: dict[str, dict[str, Any]] = json.loads((FIXTURES / "expected.json").re
 
 
 def rasl_key(d: vl.Directive) -> str | None:
-    """The "rasl" key rule of conformance/load/format.md."""
+    """The "rasl" key rule of conformance/keys.json."""
     if d.name == "node" and d.parent is not None and d.parent.name == "graph":
         return d.values[1].text if len(d.values) > 1 else None
     if d.name == "connect":

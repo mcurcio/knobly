@@ -50,7 +50,8 @@ own style: `Processor` for `villanelle()`, `walk()` as a generator, `match` on o
 
   `set(text)`, `replace_with_text(text)`, `insert_before(text)`, `insert_after(text)`,
   `insert_statements(index, text)`, `add_statements(text)` and `rename(name)` are the edits; a values text with a
-  line break outside a list is refused, since it would end the statement. `graph.read()` reads files an edit
+  line break outside a list, or one that ends in a comment, is refused (`BadTextError`, E2001), since either would
+  end the statement or swallow its `;`. `graph.read()` reads files an edit
   added, through the graph's own source; `graph.save(writer)` hands the changed files to a writer in one batch
   (`memory_writer(files)` writes into the same map a `memory_source(files)` reads; `file_writer()` to disk), and
   `graph.expand()` gives every copy as read, which the rendered layer builds on. A variable's `references()` are
@@ -86,11 +87,10 @@ Diagnostic codes are the same as in TypeScript. Offsets and columns count code p
 ([spec/contract.md](../spec/contract.md) 1), so `text[span.start.offset:span.end.offset]` is a span's text
 (TypeScript counts UTF-16 code units; the two differ after a character outside the Basic Multilingual Plane). A
 place prints as `main.conf:4:5` (`str(place)`, counting from 1), as do diagnostics and steps. Every error class the
-package defines is under `VillanelleError`. The conformance corpus stays in UTF-16 units and the test runners
-convert. For every case in `conformance/`, the two packages produce byte-identical tokens, trees and diagnostics; for every case in `conformance/load/` the same
-directives, addresses, origins, diagnostics and change lists; and for every case in `conformance/written/` the
-same documents, variables, resolutions, edit results and saved texts; `conformance/contract/` checks the number
-readers, positions, people forms and `format_diagnostic`.
+package defines is under `VillanelleError`. The shared cases in `conformance/` stay in UTF-16 units; one shared
+driver ([spec/conformance.md](../spec/conformance.md)) runs every corpus against this package through its adapter,
+`conformance/adapter.py`, converts positions, and compares. The Python package claims level L3 (syntax, low level,
+rendered tree, extensions) and passes every case, as the TypeScript package does.
 
 ## Build and test
 
@@ -102,7 +102,12 @@ uv run ruff check
 uv run ruff format --check
 uv run mypy
 uv run --python 3.11 pytest   # the oldest supported Python
+python3 ../conformance/driver/run.py -- uv run --locked python conformance/adapter.py   # the shared cases
 ```
+
+`pytest` runs this package's own unit tests; the shared cases run only through the driver (after `pytest` or
+`bash ../tools/gen.sh py` has generated the parser). The driver prints TAP and ends with the count per level and
+whether the claimed level holds.
 
 `tests/conftest.py` first runs `bash ../tools/gen.sh py`, which regenerates the parser into
 `src/villanelle/_gen/` and the API lists (diagnostic codes and messages, kind lists, limits, from

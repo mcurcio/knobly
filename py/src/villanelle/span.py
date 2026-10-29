@@ -1,8 +1,8 @@
 """Source positions and spans, shared by tokens, values and diagnostics (spec/contract.md 1).
 
 - ``offset`` and ``column`` count code points, Python's own string unit: ``text[start.offset:end.offset]`` is the
-  text of the span. (TypeScript counts UTF-16 code units; the conformance corpus stays in UTF-16 and the runners
-  convert.)
+  text of the span. (TypeScript counts UTF-16 code units; the conformance corpus stays in UTF-16 and the shared
+  driver converts.)
 - ``line`` and ``column`` are 0-based. A line ends after each "\\n" (so "\\r\\n" ends one line); a lone "\\r" does not.
 """
 

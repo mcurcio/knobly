@@ -858,10 +858,16 @@ def _shifted(given: str, shift: int, d: Diagnostic) -> Diagnostic:
 def values_text_problems(text: str, *, in_list: bool) -> tuple[Diagnostic, ...]:
     """2.3's check of a values text: parsed as the values of one directive (``x <text>;``; in a list,
     ``x [<text>];``). Its syntax diagnostics, shifted to the given text; when it is more than values, one E2001 at
-    the first such token (D16)."""
+    the first such token (D16). A comment the text ends in is more than values (vil-033, spec 2.8): it would swallow
+    the probe's closer as it would the statement's ``;`` (or a list's ``,`` or ``]``), so the probe is parsed again
+    with a line break before the closer, and the comment is refused after every earlier problem."""
     prefix = "x [" if in_list else "x "
-    wrapped = f"{prefix}{text}{'];' if in_list else ';'}"
-    syntax = parse(wrapped)
+    closer = "];" if in_list else ";"
+    syntax = parse(f"{prefix}{text}{closer}")
+    last = len(syntax.tokens) - 1
+    comment = starts_of(syntax)[last] - len(prefix) if syntax.tokens[last].kind is TokenKind.COMMENT else None
+    if comment is not None:
+        syntax = parse(f"{prefix}{text}\n{closer}")
     if syntax.diagnostics:
         return tuple(_shifted(text, len(prefix), d) for d in syntax.diagnostics)
     starts = starts_of(syntax)
@@ -881,9 +887,10 @@ def values_text_problems(text: str, *, in_list: bool) -> tuple[Diagnostic, ...]:
         )
         if more:
             return (at(text, offset - len(prefix), DiagnosticCode.UNEXPECTED_TOKEN),)
-    if not in_list:
-        return _line_break_problem(text, syntax, starts, len(prefix))
-    return ()
+    broken = _line_break_problem(text, syntax, starts, len(prefix)) if not in_list else ()
+    if broken or comment is None:
+        return broken
+    return (at(text, comment, DiagnosticCode.UNEXPECTED_TOKEN),)
 
 
 _GAP = frozenset({TokenKind.SPACE, TokenKind.COMMENT, TokenKind.NEWLINE})
