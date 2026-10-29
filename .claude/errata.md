@@ -384,3 +384,27 @@
 - **Docs quote tests that do not exist yet in that form**: `docs/low-level-api.md` and `docs/rendered-tree.md` now
   show `text(...)` around every edit argument and the `@` spellings; the lanes must make the cited tests match, or
   report the doc wrong here. `py/README.md`'s skip-list workaround is in the Python lane's paths: it must go there.
+
+## 2026-10-29, milestone 5 Python lane
+
+- **Doc excerpts that no longer match a test that type-checks** (outside `py/`, so not changed here):
+  `docs/rendered-tree.md` (rasl fixture excerpt) passes `overrides = {"leds_host": '"10.0.0.9"'}`, a plain str where
+  `load` now takes `ConfigText`; the test has `vl.quote("10.0.0.9")`. `docs/rendered-tree.md`
+  (`test_a_variable_value_has_its_set_place_and_the_variable_step`) shows `SourcePosition(12, 0, 12)`; with `@set` the
+  `2284` starts at offset and column 13, and the note below it still says `set $pixels 2284;`.
+  `docs/low-level-api.md` (tracer excerpt) shows `doc.replace_with_text(kept)` with `kept = doc.text`, a plain str; the
+  test has `doc.replace_with_text(vl.text(kept))` (frozen page F: every call site passes `text(...)` or `quote(...)`).
+- **E4007's place when a `$name` holds several values.** Frozen page C says "at the value's place via the variable when
+  it has one value in a file, else at the `$name`"; the corpus (`load-var-subscript-not-word`, `y $t[0~1]` with
+  `@set $t a b;`) places it at the first value (`main.conf:1:8 < variable t`). The Python binding follows the corpus
+  and the existing E4001 rule for a bound (the first value's place when it is written in a file; the `$name` when there
+  is no value or it is an override), through one helper for both codes.
+- **A value's `set` splices the given text as given** (as `replace with text` does), so a text with a leading or
+  trailing gap that `valueText` allows (`" 5 "`, `"5 # c\n"`) keeps its spaces or comment in the file. The handle is
+  kept for the first value built inside the replaced range. Design call; the spec says only "replaces the value's
+  range".
+- **The removed-names check reads api.json's prose entries.** `removed in milestone 5` lists names in sentences
+  (`"plain (the expanded value reader), plain value"`); the Python test splits each entry at commas outside
+  parentheses and checks the snake_case, PascalCase and as-written spellings (`plain`, `PlainValue`, `COLON`) are not
+  on the package root, `villanelle.written`, `TokenKind` or an expanded value class. The other entries yield phrases
+  that are vacuously absent. A list of identifiers in the schema would make the check exact.
