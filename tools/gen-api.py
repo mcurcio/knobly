@@ -16,8 +16,8 @@ What comes from where:
           token kinds are read from grammar/Villanelle.g4 (its lexer rule names, fragments aside, in
           declaration order), their one home.
   limits  spec/schema/api.json "limits", "reserved names" and "patterns": each one whose binding
-          spelling is an UPPER_SNAKE_CASE name (Number.MAX_SAFE_INTEGER, ProgramCode and
-          check_program_code are the language's or hand-written, so they are skipped).
+          spelling is an UPPER_SNAKE_CASE name (Number.MAX_SAFE_INTEGER is the language's, so it is
+          skipped).
 
 Names follow spec/binding-guide.md rule 1: a spec name is lowercase words (spaces or hyphens); a
 binding changes only the casing. Where diagnostics.json also spells a code's binding name, the

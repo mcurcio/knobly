@@ -114,7 +114,8 @@ language's to-text conversion ([contract.md 2](contract.md#2-people-forms-the-te
   it, and the message names the overridden variable.
 - Only `code` and the position are part of the contract. `message` is for people and MAY differ
   between bindings.
-- A `program code` is a program's own code, `<namespace>/<name>` (for example `rasl/unknown-node`).
+- A `program code` is a program's own code, `<namespace>/<name>` (for example `rasl/unknown-node`): both parts
+  non-empty and without whitespace, the `program code` pattern of `spec/schema/api.json`.
   It never collides with villanelle's codes, which start with `E`. Every operation that takes a
   program code MUST refuse one without `/` with a misuse error.
 - Every code is an error. There are no warning codes.
@@ -226,7 +227,7 @@ Every binding maps these groups onto its own error classes (a copy of `error gro
 | `villanelle error` (base) | never by itself: the parent of every class below that the package defines | `VillanelleError` | `VillanelleError` |
 | `diagnostic error` | 2.6 | `DiagnosticError` | `DiagnosticError` |
 | `read error` | `load` cannot resolve the root to exactly one file, or cannot read it; `paths`, the source's failure as the cause; no diagnostic, no code | `ReadError` | `ReadError` |
-| `argument type error` | an argument of the wrong type: an edit, `quote`, `set override` or a `load` override given anything but text (6.9); `save` given something that is not a document writer | `TypeError` | `TypeError` |
+| `argument type error` | an argument of the wrong type: an edit, `quote`, `set override` or a `load` override given anything but text (6.9); `save` given something that is not a document writer; a key rule that returns anything but text or absent (7.4) | `TypeError` | `TypeError` |
 | `edit error` (base) | an edit refused; nothing changed | `EditError` | `EditError` (also a `ValueError`) |
 | `bad text error` | the text given to an edit, or an override's text (6.3), is not what it takes | `BadTextError` | `BadTextError` |
 | `detached error` | a member of a detached handle was used; not an edit error | `DetachedError` | `DetachedError` (also a `ReferenceError`) |
@@ -806,7 +807,7 @@ A `variable` is a union (2.10) over the `variable kind` list, one type per kind.
 | Member | Contract |
 |---|---|
 | `kind`, `name` | |
-| `references ()` | the references whose `declaration` it is, reached or not, in document order (always empty for an override variable: an override is never a declaration) |
+| `references ()` | the references whose `declaration` it is, reached or not, in document order (always empty for an override variable: an override is never a declaration). Lexical only: a `$name` in an included file has no declaration (it is resolved per copy), so a variable used only there has no references; every use, per copy, is in `wins ()` and `shadowed at ()` |
 | `wins ()` | the resolutions in which it wins, in walk order |
 | `shadowed at ()` | the resolutions in which another variable wins, in walk order |
 
@@ -1039,7 +1040,8 @@ adds three links to the low level, `written`, `definition` and `chain`, taken fr
   lands at two addresses.
 - A `key rule` takes a rendered directive and returns text or absent. It is the program's rule for
   naming a directive among its siblings, so it keeps its address when lines move. It may fail
-  (7.1).
+  (7.1). One that returns anything else (a number, say) makes `addresses` and `diff` raise the
+  `argument type error`.
 
 > **Known gap:** a key holding a lone surrogate is written `\udxxx` (lowercase) by TypeScript and
 > raw by Python's `json.dumps`. No corpus covers `address text` or `people form` yet (section 9);

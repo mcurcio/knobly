@@ -90,7 +90,8 @@ class WordArgument(_Links, ExpandedWord):
 
 @final
 class StringArgument(_Links, ExpandedString):
-    """A string value of a directive; ``string()`` is its decoded text."""
+    """A string value of a directive; ``string()`` is its decoded text. Its match field is ``text``, the canonical
+    text with its quotes: ``case StringArgument('"10.0.60.30"'):``, or read ``string()`` in a guard."""
 
     __match_args__ = ("text",)
     __slots__ = ("_chain", "_definition", "_written")

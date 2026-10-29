@@ -5,6 +5,7 @@
 import { type DiagnosticCode, messageOf } from "./diagnostics.js";
 import { DiagnosticError } from "./errors.js";
 import type { IOrigin, IPlace, IStep } from "./origin.js";
+import { PROGRAM_CODE } from "./gen/api/limits.js";
 import { makeLocated, type ProgramCode } from "./report.js";
 
 /**
@@ -17,8 +18,6 @@ export function locate(origin: IOrigin): { readonly place: IPlace; readonly via:
   if (step === undefined) throw new Error(`override ${origin.place.variable} has no variable step`);
   return { place: step.place, via: rest };
 }
-
-const PROGRAM_CODE = /^[^/\s]+\/\S+$/;
 
 /** A program's located error. @throws TypeError when `code` is not `<namespace>/<name>`. */
 export function programError(origin: IOrigin, message: string, code: ProgramCode): DiagnosticError {

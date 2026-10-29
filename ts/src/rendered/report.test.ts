@@ -52,7 +52,7 @@ describe("Diagnostics", () => {
     const loaded = await loadText("a x;\n");
     const directive = only(loaded.block);
     const arg = only(directive.values);
-    for (const code of ["E5001", "nope", "/x", "x/", ""] as ProgramCode[]) {
+    for (const code of ["E5001", "nope", "/x", "x/", "", "rasl/ bad name", "a b/c"] as ProgramCode[]) {
       expect(() => directive.error("m", code), code).toThrow(TypeError);
       expect(() => arg.error("m", code), code).toThrow(TypeError);
       expect(() => loaded.error("m", code), code).toThrow(TypeError);

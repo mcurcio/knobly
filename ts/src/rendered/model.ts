@@ -149,8 +149,9 @@ export interface IDirective {
  * The program's rule for naming a directive among its siblings, so it keeps its address when lines move (React's
  * list `key`). Passed to `IRendered.addresses` and `IRendered.diff` (D4); called once per directive of the render,
  * parents before children, with the rendered directive (D5). What it throws propagates (a program bug, not a config
- * problem). rasl names a node by its id:
- * `(d) => (d.name === "node" && d.parent?.name === "graph" ? d.values[1]?.text : undefined)`.
+ * problem). It returns a string or undefined; anything else makes `addresses` and `diff` throw a TypeError. rasl
+ * names a node by its id, a word, read with `word()` (an argument's `text` is its canonical text: a string's keeps
+ * its quotes): `(d) => (d.name === "node" && d.parent?.name === "graph" ? d.values[1]?.word() : undefined)`.
  */
 export type KeyRule = (directive: IDirective) => string | undefined;
 
@@ -182,13 +183,14 @@ export interface IRendered {
   /**
    * Every directive's address under `options.key`, in walk order (the map's order). The key rule is called once per
    * directive, parents before children; what it throws propagates. The one home of the address rule; `diff` uses it.
+   * @throws TypeError when the key rule returns anything but a string or undefined
    */
   addresses(options?: IKeyOptions): ReadonlyMap<IDirective, IAddress>;
   /**
    * What differs from this render (the before) to `after`, by address under `options.key` (D4): removed and unknown
    * in this render's walk order, then added and changed in `after`'s. A directive missing from `after` is "unknown",
    * not "removed", when its block in `after` (or the top level) holds an unreadable statement. Any two renders may be
-   * compared. @throws whatever the key rule throws
+   * compared. @throws whatever the key rule throws, and TypeError when it returns anything but a string or undefined
    */
   diff(after: IRendered, options?: IKeyOptions): readonly Change[];
 }

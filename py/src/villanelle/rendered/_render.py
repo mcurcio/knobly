@@ -78,13 +78,18 @@ class Rendered:
     def addresses(self, *, key: KeyRule | None = None) -> Mapping[Directive, Address]:
         """Every directive's address under ``key``, in walk order (the mapping's order). The key rule is called once
         per directive, parents before children; what it raises propagates. The one home of the address rule (D4);
-        ``diff`` uses it. Without a key rule, a directive is named by its position among same-name siblings."""
+        ``diff`` uses it. Without a key rule, a directive is named by its position among same-name siblings. Raises
+        TypeError when the key rule returns anything but a str or None."""
         out: dict[Directive, Address] = {}
 
         def name(container: Sequence[Directive], parent: tuple[AddressStep, ...]) -> None:
             occurrences: dict[tuple[str, str | None], int] = {}
             for directive in container:
                 key_text = None if key is None else key(directive)
+                if key_text is not None and not isinstance(key_text, str):
+                    raise TypeError(
+                        f"a key rule returns a str or None, not {type(key_text).__name__}: {directive.name}"
+                    )
                 slot = (directive.name, key_text)
                 occurrence = occurrences.get(slot, 0)
                 occurrences[slot] = occurrence + 1
@@ -101,7 +106,7 @@ class Rendered:
         """What differs from this render to ``after``, by address under ``key`` (D4): removed and unknown in this
         render's walk order, then added and changed in ``after``'s. A directive missing from ``after`` is Unknown, not
         Removed, when its block in ``after`` (or the top level) holds an unreadable statement. Raises whatever the key
-        rule raises."""
+        rule raises, and TypeError when it returns anything but a str or None."""
         old = self.addresses(key=key)
         new = after.addresses(key=key)
         gone: list[Change] = []

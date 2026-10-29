@@ -4,12 +4,12 @@ and programs all report into (round 11 review finding 2; R14's report helper). P
 
 from __future__ import annotations
 
-import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Protocol
 
+from villanelle._api.limits import PROGRAM_CODE
 from villanelle.diagnostics import DiagnosticCode
 from villanelle.errors import DiagnosticError
 from villanelle.origin import Place, Step
@@ -109,11 +109,7 @@ class Diagnostics:
 _CODES = frozenset(code.value for code in DiagnosticCode)
 
 
-_PROGRAM_CODE = re.compile(r"[^/\s]+/\S+")
-"""``<namespace>/<name>``: both parts non-empty, no whitespace (S2-08, the same pattern as TypeScript's)."""
-
-
 def check_program_code(code: str) -> None:
     """Raise ValueError unless ``code`` is ``<namespace>/<name>`` (a program's own code; villanelle's are its own)."""
-    if not isinstance(code, str) or _PROGRAM_CODE.fullmatch(code) is None:
+    if not isinstance(code, str) or PROGRAM_CODE.match(code) is None:
         raise ValueError(f'a program\'s code is "<namespace>/<name>", such as "rasl/unknown-node": {code!r}')

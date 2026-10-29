@@ -184,6 +184,7 @@ where TypeScript or Python break one, section 4 says so.
 | People form | `toString()` | `__str__` | the language's to-text conversion (contract 2) |
 | Positions | UTF-16 code units | code points | the language's string unit (contract 1); conformance stays UTF-16 |
 | Chained errors | `cause` | `__cause__` | the language's mechanism |
+| A written block's statements (until rule 5 is decided) | `block.statements`, an array; the block itself is not iterable | the block is a `Sequence` (`for s in block`, `block[0]`) | the milestone 1 shapes, kept while rule 5 (one container shape in every layer, proposed) waits for the owner; a rendered block is an array or tuple in both |
 
 **Must not differ:**
 

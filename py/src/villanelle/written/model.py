@@ -881,7 +881,9 @@ class _Variable:
         raise NotImplementedError
 
     def references(self) -> tuple[Reference, ...]:
-        """The ``$name``s written to read it, by where they are written (``Reference.declaration``)."""
+        """The ``$name``s written to read it, by where they are written (``Reference.declaration``), in document
+        order. Lexical only: a ``$name`` in an included file has no declaration (it is resolved per copy), so it is
+        not here; every use, per copy, is in ``wins()`` and ``shadowed_at()``."""
         from villanelle.written import _document
 
         graph = self._graph_of()

@@ -5,6 +5,7 @@ and ``memory_source``."""
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from typing import cast
 
 import pytest
 
@@ -582,6 +583,17 @@ def test_an_exception_from_the_key_rule_propagates_from_addresses_and_diff() -> 
     with pytest.raises(LookupError, match="bad key"):
         first.addresses(key=key)
     with pytest.raises(LookupError, match="bad key"):
+        first.diff(rendered(p), key=key)
+
+
+@pytest.mark.parametrize("returned", [1, b"a", ["a"]])
+def test_a_key_rule_returning_anything_but_a_str_or_none_raises_type_error(returned: object) -> None:
+    p = processor({"main.conf": "a;\n"})
+    first = rendered(p)
+    key = cast("vl.KeyRule", lambda d: returned)
+    with pytest.raises(TypeError, match="key rule"):
+        first.addresses(key=key)
+    with pytest.raises(TypeError, match="key rule"):
         first.diff(rendered(p), key=key)
 
 

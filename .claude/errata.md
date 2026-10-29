@@ -136,3 +136,19 @@
   root file <path>: <reason>` (messages are not contract). The records (`IPlace`, `IOverride`, `IStep`,
   `IDiagnostic`, `ILocatedDiagnostic`) are small class instances now, so `toEqual` against a literal still holds but
   `toStrictEqual` does not.
+
+## 2026-10-29, milestone 2 review fixes (one fix agent)
+
+- `spec/schema/api.json` "program code" said `^[^/]+/.+$` (whitespace allowed) while both bindings refused
+  whitespace (`[^/\s]+/\S+`). The schema now holds the shipped pattern, `^[^/\s]+/\S+$` (a revisable choice), as the
+  generated `PROGRAM_CODE` of both bindings' limits modules; spec 2.3 points at it.
+- spec 7.4 did not say what a key rule returning something other than text or absent does (both bindings kept it in
+  the address). It is now the `argument type error` (`TypeError` in both), listed on `addresses` and `diff`.
+- spec 6.7 `references ()` did not say it is lexical: a use in an included file has no declaration, so a variable
+  used only there has no references. The row says so now. The review asked for one glossary word for "uses" across
+  the lexical and per-copy views, or a rename (`declaredReferences`): an owner call, not made.
+- `spec/binding-guide.md` section 3 had no row for the written block's shape (TypeScript `.statements`, Python a
+  `Sequence`); by its own rule that is a defect. A row now records it as allowed until rule 5 (proposed) is decided.
+- The frozen page gives `StringArgument` the match field `("text",)`, the canonical quoted text, so
+  `case StringArgument("10.0.60.30")` never matches. The review proposes a `value` field (the decoded text) as the
+  first match field. Kept as frozen (the docstring and py/README now say it); changing it is an owner call.

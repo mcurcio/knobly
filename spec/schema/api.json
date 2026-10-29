@@ -244,10 +244,10 @@
       "py": "VARIABLE_NAME"
     },
     "program code": {
-      "regex": "^[^/]+/.+$",
-      "means": "<namespace>/<name>, a program's own diagnostic code; villanelle's codes start with E",
-      "ts": "ProgramCode",
-      "py": "check_program_code"
+      "regex": "^[^/\\s]+/\\S+$",
+      "means": "<namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace; villanelle's codes start with E",
+      "ts": "PROGRAM_CODE",
+      "py": "PROGRAM_CODE"
     }
   },
   "error groups": [
@@ -323,7 +323,7 @@
     {
       "name": "argument type error",
       "sort": "program bug",
-      "raised when": "an argument of the wrong type: anything but text where villanelle text is taken (spec 6.9), a writer that is not a document writer",
+      "raised when": "an argument of the wrong type: anything but text where villanelle text is taken (spec 6.9), a writer that is not a document writer, a key rule that returns anything but text or absent (spec 7.4)",
       "ts": "TypeError",
       "py": "TypeError"
     },
@@ -2504,7 +2504,10 @@
             }
           ],
           "returns": "map of directive to address",
-          "order": "walk order"
+          "order": "walk order",
+          "errors": [
+            "argument type error"
+          ]
         },
         {
           "name": "diff",
@@ -2526,7 +2529,10 @@
             "ts": "diff(after, { key })",
             "py": "diff(after, /, *, key=None)"
           },
-          "note": "lives on the render because it compares two renders; any two renders may be compared"
+          "note": "lives on the render because it compares two renders; any two renders may be compared",
+          "errors": [
+            "argument type error"
+          ]
         }
       ],
       "note": "made only by render (graph)"

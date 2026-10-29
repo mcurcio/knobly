@@ -93,6 +93,16 @@ describe("key rule", () => {
     expect(() => loaded.diff(loaded, { key })).toThrow(boom);
   });
 
+  it("throws a TypeError from addresses() and diff when it returns anything but a string or undefined", async () => {
+    const processor = processorOf({ "main.conf": "a;\n" });
+    const loaded = await rendered(processor, "main.conf");
+    for (const returned of [1, null, ["a"], { toString: () => "a" }]) {
+      const key = (() => returned) as unknown as KeyRule;
+      expect(() => loaded.addresses({ key }), String(returned)).toThrow(TypeError);
+      expect(() => loaded.diff(loaded, { key }), String(returned)).toThrow(TypeError);
+    }
+  });
+
   it("is called only for readable directives", async () => {
     const names: string[] = [];
     const loaded = await loadText("a $nope;\nb;\n");

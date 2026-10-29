@@ -75,3 +75,17 @@ def test_the_split_fixtures_sinks_take_their_include_blocks_values_and_the_overr
         ("variable", "host"),
         ("extension", "include"),
     ]
+
+
+def test_an_edit_loop_edits_a_line_an_included_file_shares_between_two_copies_once() -> None:
+    graph = vl.Processor(source=file_source(), extensions=[include()]).load(str(FIXTURES / "split" / "main.conf"))
+    # sink.conf is included twice: both rendered max_counts share the one written $pixels of its line. Editing it twice
+    # would use a handle the first edit detached, so keep the ones already edited.
+    edited: set[vl.WrittenValue] = set()
+    for d in vl.render(graph).walk():
+        match d:
+            case vl.Directive("max_count", [arg]) if arg.written not in edited:
+                edited.add(arg.written)
+                arg.written.replace_with_text("2400")
+    assert len(edited) == 1
+    assert "    max_count 2400;\n" in graph.documents[str(FIXTURES / "split" / "sink.conf")].text

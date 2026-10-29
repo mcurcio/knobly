@@ -106,9 +106,9 @@ class TestSpanOfAndTextOf:
         assert span_of(empty, empty.root) == SourceSpan(pos(0, 0, 0), pos(0, 0, 0))
 
     @pytest.mark.parametrize(("start", "end"), [(-1, 0), (0, 6), (3, 2)])
-    def test_raise_value_error_outside_the_tokens_or_when_start_exceeds_end(self, start: int, end: int) -> None:
+    def test_raise_index_error_outside_the_tokens_or_when_start_exceeds_end(self, start: int, end: int) -> None:
         rng = Node(NodeKind.ERROR, start, end, ())
-        with pytest.raises(ValueError):
+        with pytest.raises(IndexError):
             span_of(self.syntax, rng)
-        with pytest.raises(ValueError):
+        with pytest.raises(IndexError):
             text_of(self.syntax, rng)

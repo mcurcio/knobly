@@ -23,7 +23,10 @@ def format_diagnostic(diagnostic: LocatedDiagnostic, graph: DocumentGraph | None
         # A line ends at "\n" only ("\r\n" loses its "\r"); never splitlines(), which also breaks at a lone "\r".
         source_lines = document.text.split("\n")
         if start.line < len(source_lines):
-            line = source_lines[start.line].removesuffix("\r")
+            line = source_lines[start.line]
+            # Only a "\r" that a "\n" follows is part of the line end; a lone "\r" ending the text stays.
+            if start.line < len(source_lines) - 1:
+                line = line.removesuffix("\r")
             width = end.column - start.column if end.line == start.line else len(line) - start.column
             # Tabs stay tabs so the caret lines up under the same characters; every other character becomes a space.
             pad = "".join("\t" if char == "\t" else " " for char in line[: start.column])

@@ -55,7 +55,7 @@ def test_collecting_lets_any_other_exception_through() -> None:
     assert len(problems) == 0
 
 
-@pytest.mark.parametrize("code", ["E5001", "unknown-node", "/x", "rasl/", "", "a b/c", "a/b c"])
+@pytest.mark.parametrize("code", ["E5001", "unknown-node", "/x", "rasl/", "", "a b/c", "a/b c", "rasl/ bad name"])
 def test_a_program_code_needs_a_namespace(code: str) -> None:
     load = loaded()
     directive = max_count(load)

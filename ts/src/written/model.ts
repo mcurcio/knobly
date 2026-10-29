@@ -301,7 +301,11 @@ export type Variable = ISetVariable | IParameter | IOverrideVariable;
 export interface IVariableBase {
   readonly kind: VariableKind;
   readonly name: string;
-  /** The references whose `declaration` it is, reached or not, in document order. */
+  /**
+   * The references whose `declaration` it is, reached or not, in document order. Lexical only: a `$name` whose
+   * declaration is in its own file, found by where it is written. A use in an included file has no declaration (it
+   * is resolved per copy), so it is not here: every use, per copy, is in `wins()` and `shadowedAt()`.
+   */
   references(): readonly IReference[];
   /** The resolutions in which it wins, in walk order. */
   wins(): readonly IReferenceResolution[];

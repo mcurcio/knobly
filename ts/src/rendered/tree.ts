@@ -106,6 +106,7 @@ export class Rendered implements IRendered {
    * The one home of the address rule (D4): each directive is named by its name, what the key rule returns for it,
    * and its occurrence among the earlier directives of its container (a block, or the top level, spliced files and
    * snippets included) with that name and key. The key rule is called once per directive, parents first.
+   * @throws TypeError when the key rule returns anything but a string or undefined
    */
   addresses(options?: IKeyOptions): ReadonlyMap<IDirective, IAddress> {
     const key = options?.key;
@@ -113,7 +114,10 @@ export class Rendered implements IRendered {
     const name = (block: readonly IDirective[], parent: Address | undefined): void => {
       const occurrences = new Map<string, number>();
       for (const directive of block) {
-        const keyText = key?.(directive);
+        const keyText: unknown = key?.(directive);
+        if (keyText !== undefined && typeof keyText !== "string") {
+          throw new TypeError(`a key rule returns a string or undefined, not ${typeof keyText}: ${directive.name}`);
+        }
         const slot = JSON.stringify([directive.name, keyText ?? null]);
         const occurrence = occurrences.get(slot) ?? 0;
         occurrences.set(slot, occurrence + 1);

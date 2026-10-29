@@ -12,13 +12,17 @@ from villanelle._api.limits import MAX_SAFE_INTEGER
 _INTEGER_TEXT = re.compile(r"-?(?:0|[1-9][0-9]*)")
 """IntegerText: ``'-'? Digits``, Digits being ``0`` or a non-zero digit then digits."""
 
+_SAFE_DIGITS = len(str(MAX_SAFE_INTEGER))
+"""The most digits a word within ±(2**53 - 1) has. A longer word is never converted with ``int``: CPython refuses
+digit strings beyond its conversion limit (4300 digits) with a bare ValueError."""
+
 _NUMBER_TEXT = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?")
 """NumberText: a JSON number (RFC 8259 section 6)."""
 
 
 def integer_of(word: str) -> int | None:
     """The integer a word spells, or None when it is not an IntegerText or lies outside ±(2**53 - 1)."""
-    if not _INTEGER_TEXT.fullmatch(word):
+    if not _INTEGER_TEXT.fullmatch(word) or len(word.lstrip("-")) > _SAFE_DIGITS:
         return None
     value = int(word)
     return value if abs(value) <= MAX_SAFE_INTEGER else None
@@ -30,7 +34,7 @@ def number_of(word: str) -> int | float | None:
     float rounded to the nearest double; never ``-0.0`` (any zero reads as zero, ``1e-400`` included)."""
     if not _NUMBER_TEXT.fullmatch(word):
         return None
-    if not any(c in word for c in ".eE"):
+    if not any(c in word for c in ".eE") and len(word.lstrip("-")) <= _SAFE_DIGITS:
         value = int(word)
         if abs(value) <= MAX_SAFE_INTEGER:
             return value

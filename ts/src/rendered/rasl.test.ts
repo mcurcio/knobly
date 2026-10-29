@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 import { include } from "../include.js";
 import { fileSource } from "../node.js";
 import type { IDirective, IRendered, KeyRule } from "./model.js";
-import { villanelle } from "../written/index.js";
+import { villanelle, type WrittenValue } from "../written/index.js";
 import type { IDocumentSource } from "../source.js";
 import { rendered } from "./testing.js";
 
@@ -98,5 +98,23 @@ describe("rasl's configs", () => {
       if (d.name === "target" && host === "") host = d.values[0]?.text ?? "";
     });
     expect(host).toBe('"10.0.60.30"');
+  });
+
+  it("edits a line an included file shares between two copies once, keeping the written values already edited", async () => {
+    const processor = villanelle({ source: fileSource(), extensions: [include()] });
+    const path = fileURLToPath(new URL("split/main.conf", FIXTURES));
+    const loaded = await rendered(processor, path);
+    // sink.conf is included twice: both rendered `max_count`s share the one written `$pixels` of its line. Editing
+    // it twice would use a handle the first edit detached, so keep the ones already edited.
+    const edited = new Set<WrittenValue>();
+    loaded.walk((d) => {
+      const arg = d.values[0];
+      if (d.name !== "max_count" || arg === undefined || edited.has(arg.written)) return;
+      edited.add(arg.written);
+      arg.written.replaceWithText("2400");
+    });
+    expect(edited.size).toBe(1);
+    const sink = loaded.graph.documents.get(fileURLToPath(new URL("split/sink.conf", FIXTURES)));
+    expect(sink?.text).toContain("    max_count 2400;\n");
   });
 });
