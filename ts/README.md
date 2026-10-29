@@ -12,10 +12,13 @@ It is not on npm. Releases attach the `npm pack` tarball to the GitHub Release (
 
 | Import | What it has |
 |---|---|
-| `villanelle` | The core. It does no input or output |
+| `villanelle` | The core. It does no input or output; `memorySource(files)` and `memoryWriter(files)` keep texts in one object |
 | `villanelle/include` | `include()`: the include extension |
-| `villanelle/node` | `createFileSource()` and `createFsWriter()`: files on disk |
-| `villanelle/browser` | `createFetchSource(fetch)` and `createFetchWriter(fetch, options?)`: files over `fetch` |
+| `villanelle/node` | `fileSource()` and `fileWriter()`: files on disk |
+| `villanelle/browser` | `fetchSource(fetch)` and `fetchWriter(fetch, options?)`: files over `fetch` |
+
+Adapters are named by medium (`memory`, `file`, `fetch`) and port (`source`, `writer`). A memory source reads the
+object it was given at every call, so a memory writer over the same object saves into what the next load reads.
 
 The core has three layers, each built on the one below:
 
@@ -31,35 +34,57 @@ The core has three layers, each built on the one below:
   only text: write a program string with `quote()`, a number as its text.
 
   ```ts
-  const graph = await villanelle({ source: createFileSource() }).load("main.conf", { overrides: { port: "8080" } });
+  const graph = await villanelle({ source: fileSource() }).load("main.conf", { overrides: { port: "8080" } });
   const server = graph.root.block.directives("server")[0];
   server?.set(quote("10.0.60.31")); // replaces the statement's values (not the language's `set` line)
   graph.setOverride("port", "9090");
-  await graph.save(createFsWriter());
+  await graph.save(fileWriter());
   ```
 
-  `set(text)` replaces a statement's or a variable's values; `replaceWithText`, `insertStatements`,
-  `addStatements` and `rename` are the other named edits. Each keeps comments and layout, and given anything but a
-  string it throws a `TypeError` naming the member and the parameter. `graph.setOverride(name, text)` changes an
-  override without a reload, checked as `load` checks its overrides. `await graph.read()` reads files an edit
-  added, through the source the graph was loaded with; `await graph.save(writer)` hands the changed files to a
-  writer in one batch. The low level never imports the rendered tree (`pnpm lint` checks it). Reference:
-  [docs/low-level-api.md](../docs/low-level-api.md) (still in the names before milestone 1).
-- **The rendered tree.** `render(graph)` builds on the low level: it expands variables, snippets and included
-  files into directives (`block`, `values`, `walk`), each value with its readers (`word()`, `number()`,
-  `integer()`, `boolean()`, `items()`, `slice()`, `plain()`), its origin, and `written` (the value on its own
-  line), `definition` (where it is written) and `chain` (the `$name` steps between) leading back to the low level.
+  Statements, values and variables are unions narrowed by `kind` (`"directive"`, `"extension"`, `"set"`,
+  `"snippet"`, `"use"`, `"unreadable"`; `"set"`, `"parameter"`, `"override"`), and each kind has only the members
+  that can succeed on it: an include line (`IExtensionLine`) has no `rename`, a parameter no `set`, an override
+  variable no `place`, `rename` or `set` (use `graph.setOverride`). So narrowing needs no cast:
+
+  ```ts
+  for (const s of graph.root.block.statements) if (s.kind === "set") s.variable.set("2");
+  ```
+
+  `set(text)` replaces a statement's or a variable's values (a line break outside a list is refused, since it would
+  end the statement); `replaceWithText`, `insertStatements`, `addStatements`, `insertBefore`, `insertAfter` and
+  `rename` are the other named edits. Each keeps comments and layout, and given anything but a string it throws a
+  `TypeError` naming the member and the parameter. `graph.setOverride(name, text)` changes an override without a
+  reload, checked as `load` checks its overrides. `await graph.read()` reads files an edit added, through the
+  source the graph was loaded with; `await graph.save(writer)` hands the changed files to a writer in one batch.
+  `graph.expand()` gives the expansion: each directive copy with its values expanded and what won over each
+  `$name`. The low level never imports the rendered tree (`pnpm lint` checks it). Reference:
+  [docs/low-level-api.md](../docs/low-level-api.md) (still in the names before milestone 2).
+- **The rendered tree.** `render(graph)` builds on the low level's public objects only (`graph.expand()`; `pnpm
+  lint` refuses a rendered module importing anything under `written/` but `written/index.js`): it gives the
+  directives (`block`, `values`, `walk`), each value an `Argument` narrowed by `kind` (a list has `items`, a slice
+  `name`, `start`, `end`, an index `name`, `index`) with its readers (`word()`, `string()`, `number()`,
+  `integer()`, `boolean()`, `list()`, `slice()`, `plain()`), its origin, and `written` (the value on its own line),
+  `definition` (where it is written) and `chain` (the `$name` steps between) leading back to the low level.
   `rendered.addresses({ key })` names each directive under a key rule, and `before.diff(after, { key })` lists what
   changed between two renders. `Diagnostics` collects problems; `formatDiagnostic` prints one with its source line.
-  Reference: [docs/rendered-tree.md](../docs/rendered-tree.md) (still in the names before milestone 1).
+  Reference: [docs/rendered-tree.md](../docs/rendered-tree.md) (still in the names before milestone 2).
 
 Every example in those pages is copied from a test that runs. The language is
 [docs/language.md](../docs/language.md).
 
 Problems are diagnostics with stable codes (`DiagnosticCode`: 1xxx lexical, 2xxx syntax, 3xxx
 files and extensions, 4xxx values, 5xxx expansion); a program's own codes are
-`<namespace>/<name>`. Lines and columns are 0-based; offsets and columns count UTF-16 code units.
-Only a diagnostic's code and place are a contract, not its message.
+`<namespace>/<name>`. Lines and columns are 0-based; offsets and columns count UTF-16 code units, JavaScript's
+string unit, so `text.slice(start.offset, end.offset)` is the spanned text. Only a diagnostic's code and place are a
+contract, not its message. A place, an override, a step and a diagnostic print as people read them (`String(place)`
+is `main.conf:4:5`, 1-based), the same text `formatDiagnostic` starts with. Numbers follow
+[spec/contract.md](../spec/contract.md) 3: no reader returns negative zero, and `1e400` is not a number (E4004;
+`plain()` reads it as text).
+
+Every error class villanelle defines extends `VillanelleError`: `DiagnosticError` (a reader's or a program's
+located problem), `ReadError` (`load` cannot read the root file; `paths`, `cause`), `SaveError` (the writer
+failed; `paths`, `cause`), `EditError` and its `BadTextError` (an edit refused, nothing changed), and
+`DetachedError` (a handle whose tokens are gone). Program bugs use `TypeError` and `RangeError`.
 
 ## Build and test
 

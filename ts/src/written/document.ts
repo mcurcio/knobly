@@ -577,7 +577,7 @@ export class Document implements IDocument {
   }
 
   /**
-   * `IVariable.rename`: its `$name` token only (2.3). Refused: not `[A-Za-z0-9_]+` (E2001 at 0:0); a second `set`
+   * `ISetVariable.rename` and `IParameter.rename`: its `$name` token only (2.3). Refused: not `[A-Za-z0-9_]+` (E2001 at 0:0); a second `set`
    * of the name in its block (E5002), by the text-alone rules. The variable keeps its handle.
    */
   renameVariable(token: number, name: string, keep: Handle): void {

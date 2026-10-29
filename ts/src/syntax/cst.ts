@@ -40,7 +40,7 @@ export interface ISyntax {
 
 /**
  * A reference to one value of a directive or list: the index of a WORD, STRING or VARIABLE token, or a `slice` or
- * `list` node. The binding expands it into an expanded value (a rendered `IArgument`).
+ * `list` node. The binding expands it into an expanded value (a rendered `Argument`).
  */
 export type ValueRef = number | INode;
 
