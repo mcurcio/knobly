@@ -1,0 +1,11 @@
+[
+{"name": "address-keys", "key": "pins", "files": {"main.conf": "pin \"a\\\"b\";\npin x;\npin x;\npin;\nother 1;\nother 2;\nconnect;\npin \"\u00e9\";\n"}, "root": "main.conf"},
+{"name": "address-parent-rule", "key": "rasl", "files": {"main.conf": "graph {\n  node A one { x 1; }\n  node B;\n}\nnode C two;\n"}, "root": "main.conf"},
+{"name": "diff-order", "files": {"main.conf": "a 1;\nb 1;\nc 1;\nd {\n  e 1;\n}\n"}, "root": "main.conf", "after": {"main.conf": "x 1;\nb 2;\na 1;\nd {\n  e 2;\n  f 1;\n}\n"}},
+{"name": "diff-alone", "files": {"main.conf": "a {\n  b 1;\n  c {\n    d 1;\n  }\n}\n"}, "root": "main.conf", "after": {"main.conf": "e {\n  f 1;\n}\n"}},
+{"name": "diff-unknown-order", "files": {"main.conf": "g {\n  a 1;\n  b 2;\n}\nh 1;\n"}, "root": "main.conf", "after": {"main.conf": "g {\n  a 1;\n  z x\"y\";\n}\nk 1;\n"}},
+{"name": "diff-keyed-move", "key": "rasl", "files": {"main.conf": "connect a b;\nconnect c d;\n"}, "root": "main.conf", "after": {"main.conf": "connect c d;\nconnect a b;\n"}},
+{"name": "diff-positional-move", "files": {"main.conf": "connect a b;\nconnect c d;\n"}, "root": "main.conf", "after": {"main.conf": "connect c d;\nconnect a b;\n"}},
+{"name": "diff-block-presence", "files": {"main.conf": "d;\n"}, "root": "main.conf", "after": {"main.conf": "d {\n}\n"}},
+{"name": "diff-key-duplicate", "key": "rasl", "files": {"main.conf": "connect a b;\nconnect a b;\n"}, "root": "main.conf", "after": {"main.conf": "connect a b;\n"}}
+]

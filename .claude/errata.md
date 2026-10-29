@@ -152,3 +152,25 @@
 - The frozen page gives `StringArgument` the match field `("text",)`, the canonical quoted text, so
   `case StringArgument("10.0.60.30")` never matches. The review proposes a `value` field (the decoded text) as the
   first match field. Kept as frozen (the docstring and py/README now say it); changing it is an owner call.
+
+## 2026-10-29, milestone 3 spec lane (vil-j80, vil-033)
+
+- The round 13 review's root cause 5 gave the adapter "find a target". `spec/conformance.md` moves target finding
+  into the shared driver (the adapter dumps objects with ids; the driver finds the target in the dump), so the target
+  rules and the position conversion they need have one home. A design choice of milestone 3, revisable.
+- `conformance/load/format.md` said the `after` load is "by the same processor". The driver loads it as a second
+  `load` (a second processor); spec 7.1 lets `diff` compare any two renders, and every load case passes either way
+  with both bindings. The format page now says so.
+- Latent bug in the Python written runner (deleted by the milestone 3 Python lane): `name_at` and `starts_at`
+  compared code-point columns with the corpus's UTF-16 columns. No case had a character above U+FFFF before a target.
+  The driver converts before it compares.
+- spec 2.8's check of a values text did not cover a comment the text ends in (vil-033; frozen-m2.md section 15 had
+  noted it as unruled). Both bindings accepted `set("1 # note")` and wrote `port 1 # note;`; a list item's
+  `replace with text` with `"3 # note"` was refused, but with E2004 at the text's end, an artifact of the check's
+  probe `x [<text>];`. The spec now refuses every such text with E2001 at the comment.
+- `spec/codegen.md` said "the three case formats under `conformance/`"; there were four (syntax, load, written,
+  contract), and milestone 3 adds a fifth (rendered).
+- "Adapter" already named the source and writer adapters (spec 4.3, contract 5) and, in binding-guide step 3, the
+  wrapper around the generated parser. The review's word for the per-binding conformance program is kept as
+  `conformance adapter` in the glossary; the unqualified word keeps its port meaning. An owner call if he wants
+  another word.

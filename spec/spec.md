@@ -66,7 +66,7 @@ These are used by more than one layer.
 - A `source position` has `offset`, `line` and `column`, all counting from 0.
 - `offset` and `column` count **the binding's own string unit**: UTF-16 code units in TypeScript, code points in
   Python, so cutting the program's string at a reported position gives the right text
-  ([contract.md 1](contract.md#1-positions)). Every conformance output stays in UTF-16 units; each runner converts.
+  ([contract.md 1](contract.md#1-positions)). Every conformance output stays in UTF-16 units; the shared driver converts ([conformance.md](conformance.md)).
 - A line ends after each `"\n"`. `"\r\n"` ends one line. A lone `"\r"` does **not** end a line, in positions and
   in `format diagnostic` alike.
 - A `source span` is a half-open range `[start, end)` of two positions, with
@@ -79,8 +79,8 @@ These are used by more than one layer.
 > breaks the token, as a raw control character does); the syntax cases `surrogate-bare`,
 > `surrogate-str` and `surrogate-comment` (in `extra.json`) need UTF-16 strings, so a UTF-8 binding
 > skips them and passes matching invalid-byte cases instead, which do not exist yet. Today no rule
-> covers invalid UTF-8, and a runner that decodes those three cases with a standard JSON decoder
-> gets U+FFFD, not the input.
+> covers invalid UTF-8, and an adapter that decodes those three cases' requests with a standard JSON
+> decoder gets U+FFFD, not the input.
 
 The two bindings disagreed on a lone `"\r"` (TypeScript's `format diagnostic` cut the source line there) and on
 `-0` (review finding P3); [contract.md](contract.md) rules both, with conformance cases.
@@ -256,12 +256,12 @@ from the document. Which codes each edit checks, and where it places them:
 | Edit | Codes | Placed at |
 |---|---|---|
 | `replace with text`, `insert statements`, `add statements` (statements) | the text's syntax diagnostics; then the text-alone rules (E5002, E5005, E5009, E5010, E5011) for every statement the new text touches, checked in the document as it would be after the edit | the syntax diagnostic's span; a rule's fault at its place in the given text, or 0:0 when the fault lies in a statement already there (a `set` inserted before an existing `set` of the same name) |
-| `replace with text` (a value), `set` | the text's syntax diagnostics, then E2001 at the first token that is more than values (a `;`, a block, or anything after a line break outside a list: the check of a values text, below), then the same text-alone rules | as above |
+| `replace with text` (a value), `set` | the text's syntax diagnostics, then E2001 at the first token that is more than values (a `;`, a block, anything after a line break outside a list, or a comment the text ends in: the check of a values text, below), then the same text-alone rules | as above |
 | a slice bound's `replace with text` | E2001 unless the text is exactly one word or `$name` | 0:0 |
 | `set` on a `set line` with empty text; `remove` of a `set` line's last value | E5009 | 0:0 (of an empty text) |
 | `rename` (a directive) | E2001 when the name is not one word, is `set`, `snippet`, `use` or a registered extension's name, or the line is an extension line | 0:0 |
 | `rename` (a variable) | E2001 when the name is not letters, digits and `_`; E5002 when it would make a second `set` of a name in its block | 0:0 |
-| `set override`, and each override `load` takes (the check of an override, 6.3) | the text's syntax diagnostics; E2001 by the check of a values text (so `"1;"` is refused at its `;`, `"1\n2"` at its `2`, `"1\n"` at its line break), at a `$name`, or at 0:0 for no value; then E4003 or E4001 at the value the override reader refuses | as stated |
+| `set override`, and each override `load` takes (the check of an override, 6.3) | the text's syntax diagnostics; E2001 by the check of a values text (so `"1;"` is refused at its `;`, `"1\n2"` at its `2`, `"1\n"` at its line break, `"1 # c"` at its comment), at a `$name`, or at 0:0 for no value; then E4003 or E4001 at the value the override reader refuses | as stated |
 
 **The check of a values text** (one home; vil-5ya). A text given as a line's values, outside a list (`set`, a
 value's `replace with text` when the value is not a list item, an override), is refused with E2001 when it holds a
@@ -271,6 +271,15 @@ the line break that is not a space, a comment or a line break, or at the line br
 (`"1\n"` would put the statement's `;` on a line of its own). A line break inside `[ ]` is allowed: a list may span
 lines (`"[1,\n2]"`). Cases: `set-line-break`, `set-line-break-trailing`, `set-line-break-leading`,
 `set-line-break-in-list`, `value-replace-line-break`, `set-override-line-break`, `set-override-trailing-line-break`.
+
+**A comment the text ends in** (vil-033) is refused the same way, with E2001 at the comment: a comment runs to the
+end of its line, so the statement's `;` (or a list's `,` or `]`, for a list item's text) written after it would
+become part of the comment (`set ("1 # note")` on `port 80;` used to write `port 1 # note;`, which swallows the
+`;`). This holds for every values text, a list item's `replace with text` included, and for an override's text (one
+check). A comment that a line break follows is the line-break rule's (`"1 # c\n"` is refused at its line break);
+inside `[ ]` a comment followed by a line break is allowed (`"[1, # c\n2]"`). Cases: `set-comment`,
+`set-line-comment`, `value-replace-comment`, `list-item-replace-comment`, `set-override-comment`,
+`set-comment-line-break`, `set-comment-in-list`.
 
 A `diagnostic error`, `read error` and `save error` have the fields of 2.6 and 6.8.
 
@@ -1044,8 +1053,8 @@ adds three links to the low level, `written`, `definition` and `chain`, taken fr
   `argument type error`.
 
 > **Known gap:** a key holding a lone surrogate is written `\udxxx` (lowercase) by TypeScript and
-> raw by Python's `json.dumps`. No corpus covers `address text` or `people form` yet (section 9);
-> the load cases cover the people form of plain keys.
+> raw by Python's `json.dumps`. The rendered corpus covers `address text` and the `people form` with escapes
+> (`address-keys`), but no case holds a lone surrogate in a key (section 9).
 
 ### 7.5 Walking
 
@@ -1105,39 +1114,35 @@ buildable purely on top of the layers above.
 
 ## 9. Conformance
 
-The shared cases in `conformance/` are how a binding proves it meets this page. A binding meets a
-section when its runner produces every expected file of that section's cases **byte for byte**. The
-expected outputs were derived by hand from the rules, not generated by an implementation: a runner
-that disagrees has found a bug in itself or in the rules, never a reason to rewrite an expected
-file. A rule found wrong is reported as a finding against this page.
+The shared cases in `conformance/` are how a binding proves it meets this page. The shared driver
+(`conformance/driver/run.py`) runs every case against the binding's adapter and compares each output with its expected
+one **byte for byte**; the protocol, the driver and the levels are [conformance.md](conformance.md). The expected
+outputs were derived by hand from the rules, not generated by an implementation: an output that disagrees is a bug in
+the binding, its adapter or the rules, never a reason to rewrite an expected file. A rule found wrong is reported as a
+finding against this page.
 
-| Case files | Format | Covers |
-|---|---|---|
-| `conformance/cases.json`, `extra.json`, `depth.json`, `edge.json`, `tracer.json`, `variables.json`, with `conformance/expected/` | [conformance/format.md](../conformance/format.md) | 2.1 (positions in UTF-16), 2.4 (1xxx and 2xxx codes), 2.5 (nesting), 3 |
-| `conformance/load/cases.json`, `conformance/load/expected/` | [conformance/load/format.md](../conformance/load/format.md) | 2.2, 2.4 (3xxx to 5xxx), 4.3 (`memory source`), 5, 6.2 (`load` with `overrides`), 7.0 (`render (graph)`), 7.1, 7.2, 7.3 (canonical text and origins), 7.4 (people form, with the `rasl` key rule), 7.6 |
-| `conformance/written/cases.json`, `conformance/written/expected/` | [conformance/written/format.md](../conformance/written/format.md) | 6.3 to 6.9, by its `needs` tokens: `values`, `directive-values`, `statements`, `blocks`, `rename`, `document`, `override`, `save`, `quote`, `include`, `snippet`; 2.8's check of a values text; and 7.3's `definition` and `chain` |
-| `conformance/contract/cases.json` (expected results inline) | [conformance/contract/format.md](../conformance/contract/format.md) | [contract.md](contract.md) 1 (positions in the binding's unit), 2 (people forms, `format diagnostic`), 3 (numbers) |
+| Corpus | Format | Level | Covers |
+|---|---|---|---|
+| `syntax`: `conformance/cases.json`, `extra.json`, `depth.json`, `edge.json`, `tracer.json`, `variables.json`, with `conformance/expected/` | [conformance/format.md](../conformance/format.md) | L0 | 2.1 (positions in UTF-16), 2.4 (1xxx and 2xxx codes), 2.5 (nesting), 3 |
+| `written`: `conformance/written/cases.json`, `conformance/written/expected/` | [conformance/written/format.md](../conformance/written/format.md) | L1 (L2 for a case that renders, L3 with include) | 6.3 to 6.9, by its `needs` tokens: `values`, `directive-values`, `statements`, `blocks`, `rename`, `document`, `override`, `save`, `quote`, `include`, `snippet`; 2.8's check of a values text (line breaks and comments); and 7.3's `definition` and `chain` |
+| `load`: `conformance/load/cases.json`, `conformance/load/expected/` | [conformance/load/format.md](../conformance/load/format.md) | L2 (L3 with include) | 2.2, 2.4 (3xxx to 5xxx), 4.3 (`memory source`), 5, 6.2 (`load` with `overrides`), 7.0 (`render (graph)`), 7.1, 7.2, 7.3 (canonical text and origins), 7.4 (people form, with the `rasl` key rule), 7.6 |
+| `rendered`: `conformance/rendered/cases.json`, `conformance/rendered/expected/` | [conformance/rendered/format.md](../conformance/rendered/format.md) | L2 | 7.4 (`address text` with escapes, keys from data, occurrences, an empty and an absent key, a rule on the parent), 7.6 (the order of a diff, unknown, a directive listed alone, a block's presence) |
+| `contract`: `conformance/contract/cases.json` (expected results inline) | [conformance/contract/format.md](../conformance/contract/format.md) | L2 | 2.9 (every reader, its results and codes), [contract.md](contract.md) 1 (positions in the binding's unit), 2 (people forms, `format diagnostic` with tabs, a character outside the Basic Multilingual Plane, `"\r\n"` and no graph), 3 (numbers) |
 
-Rules for every runner:
+Rules for every binding:
 
-- A runner MAY skip a case whose `needs` it does not implement yet. A finished binding skips nothing,
-  and its runner SHOULD assert that its feature set covers every case's needs.
-- Every output follows the byte rules of `conformance/format.md`: no extra whitespace, every
-  character above U+007F as a lowercase `\uXXXX` UTF-16 escape, one trailing newline.
+- The driver runs every case at or below the level the binding claims; a case above it is skipped. A binding
+  builds a layer, raises its claim, and skips nothing at its claimed level. (The `needs` tokens of the written and
+  load cases stay as a record of what each case uses; the driver reads `include` from them for the level.)
+- Every output follows the byte rules of `conformance/format.md`, applied by the driver.
 
-Not covered by any shared case today (each binding tests these on its own): the readers other than the number
-readers of the contract cases (2.9); `address text` and keys needing escapes in the `people form`; the
-diagnostics sink; `error (...)`; the memory writer, the file and fetch adapters; the error class tree and `paths`
-(contract 4); that an operation is absent where it cannot succeed (2.10: a type test per binding); `expand ()`
-itself, beyond the renders built from it; an override's text refused at `load` (`"1;"`: the `set override` case
-covers the check, no case covers `load` refusing it);
-`quote` of a character a string cannot hold (6.9); paths whose sort differs between code points
-and UTF-16 units (4.1); comment ownership across a blank line or over several comment lines (6.5);
-the override order after `set override` (6.2); `argument type error` for a value that is not text
-(6.9); the same-line `written` of a rendered value (7.3); a commented extension line in a written-case copy
-text (`conformance/written/format.md`).
-
-> **Proposed (pending owner):** conformance levels a binding claims (L0 syntax, L1 low level, L2
-> rendered tree, L3 extensions, L4 adapters); new corpora for readers, addresses and formatting;
-> one shared driver with a small adapter per binding. See [review.md, root cause 5](../.claude/design/consumer-api/round13/review.md#root-cause-5-no-neutral-spec-and-nothing-generated-from-one-source)
-> and [codegen.md](codegen.md).
+Not covered by any shared case today (each binding tests these on its own): the diagnostics sink; `error (...)`; the
+memory writer, the file and fetch adapters (L4); the error class tree and `paths` (contract 4); that an operation is
+absent where it cannot succeed (2.10: a type test per binding); `expand ()` itself, beyond the renders built from it;
+an override's text refused at `load` (`"1;"`: the `set override` case covers the check, no case covers `load`
+refusing it); `quote` of a character a string cannot hold (6.9); paths whose sort differs between code points and
+UTF-16 units (4.1); comment ownership across a blank line or over several comment lines (6.5); the override order
+after `set override` (6.2); `argument type error` for a value that is not text (6.9) or a key rule returning
+something other than text (7.4); the same-line `written` of a rendered value (7.3); a key holding a lone surrogate
+(7.4, known gap); a commented extension line in a written-case copy text (`conformance/written/format.md`); a
+statements text that ends in a comment (`replace with text` on a statement whose text has no `;`).

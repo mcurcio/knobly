@@ -30,9 +30,11 @@ binding maps it once. [spec.md](spec.md) holds everything else and points here.
   ends a line, in positions and in `format diagnostic`'s source line alike (a binding MUST NOT use a library split
   that breaks at `"\r"`, U+2028 or other characters: Python's `str.splitlines` does, JavaScript's `/\r\n|\n|\r/`
   does).
-- **The conformance corpus stays in UTF-16 units** (round 11 decision D-S3-1). Every runner converts its binding's
-  positions to UTF-16 before it prints them, using the text the position counts in (the document's text, or the
-  text given to an edit). A Python runner counts a character above U+FFFF as two units there.
+- **The conformance corpus stays in UTF-16 units** (round 11 decision D-S3-1). A binding's adapter reports every
+  position in the binding's own unit and names the unit in its `hello`; the shared driver converts each one to UTF-16
+  before it prints it, in one place (`conformance/driver/units.py`, [conformance.md](conformance.md) section 4), using
+  the text the position counts in (the document's text, or the text given to an edit). A character above U+FFFF
+  counts two units there.
 - Cost: TypeScript and Python report different offsets and columns for the same place when a character outside the
   Basic Multilingual Plane comes before it on its line. A Python program talking to an editor over LSP (whose
   default unit is UTF-16) converts, as pygls already does.
@@ -69,7 +71,8 @@ The review listed `address` among the things that print as `path:line:col`; an a
 path of names, not a file position, so its people form stays the one spec 7.4 gives (an erratum on the review).
 
 Conformance: `conformance/contract/cases.json` cases `print-place`, `print-override`, `print-step`,
-`print-located-diagnostic`, `print-syntax-diagnostic`, `format-lone-cr` and `format-via`.
+`print-located-diagnostic`, `print-syntax-diagnostic`, `format-lone-cr`, `format-lone-cr-at-end`, `format-via`,
+`format-tab-before`, `format-astral-before` (its carets' column by unit), `format-crlf` and `format-no-graph`.
 
 ## 3. Numbers
 
@@ -91,14 +94,16 @@ The values are ruled here, the same in every binding:
 - Slice and index bounds are integer words, or E4001 (spec 2.9).
 - A conformance case prints a number by one rule so that both bindings give the same bytes: an integer in decimal;
   a double as ECMAScript's `Number::toString` (shortest round trip; `1e+21` from 10^21 up, `1e-7` below 10^-6).
-  A Python runner writes that form itself; `repr` of a `float` differs (`1e+16` against `10000000000000000`,
-  `100.0` against `100`).
+  The shared driver writes that form (`conformance/driver/contract.py`); Python's `repr` of a `float` differs
+  (`1e+16` against `10000000000000000`, `100.0` against `100`), so an adapter sends the number itself, never its
+  text.
 
 Before milestone 2, TypeScript read `-0` as negative zero and Python as `0` (review finding P3), and both read
 `1e400` as infinity. Both are behaviour changes, listed on the frozen page.
 
 Conformance: `conformance/contract/cases.json`, every case of kind `reader` (`zero-*`, `int-*`, `number-*`,
-`plain-*`).
+`integer-*`, `plain-*`; milestone 3 added every other reader of spec 2.9: `word-*`, `string-*`, `boolean-*`,
+`list-*`, `slice-*`).
 
 ## 4. Errors
 
@@ -188,12 +193,12 @@ only).
 - Factories keep each binding's present convention (lowercase functions in both); the binding guide's rule 3
   (Python classes such as `MemorySource()`) is still a proposal pending the owner.
 
-Conformance: none shared (the runners use `memory source` throughout; spec 9 lists the adapters as tested per
-binding).
+Conformance: none shared (the adapters use `memory source` throughout; L4 has no shared cases yet, and spec 9 lists
+the adapters as tested per binding).
 
 ## 6. What this page does not cover
 
 - Error values for languages without exceptions, and cancellation: the proposals in spec 2.8 and 4.1 stand.
 - Invalid UTF-8 in a binding whose strings are bytes: spec 2.1's proposal stands.
 - The address text's escaping of a lone surrogate (spec 7.4's known gap).
-- A shared driver and an adapter protocol for the runners: milestone 3.
+- Shared cases for the adapters (L4): [conformance.md](conformance.md) section 7.

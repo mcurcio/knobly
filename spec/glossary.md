@@ -233,3 +233,15 @@ The low level's public entry is one module in each binding: `ts/src/written/inde
 | `villanelle error` | the package's base error class | one class to catch (root cause 4) | none |
 | `memory writer` | a writer into the map a memory source reads | every binding ships both ports in memory (root cause 4) | none |
 | `list ()` | the reader that asks for a list | `items` became the list variants' property, the same in both layers (vil-gxu) | `items ()` |
+
+## New terms in milestone 3
+
+These are words of the conformance tooling, not of the API: no binding exports them.
+
+| Term | Definition | Why it is needed | Existing term it could be |
+|---|---|---|---|
+| `conformance adapter` | the small program each binding writes that answers the driver's requests through its public API ([conformance.md](conformance.md)); "the adapter" on that page | the review's root cause 5: "a binding writes one small adapter" | the per-binding conformance runner, which it replaces. Not the source and writer adapters of spec 4.3 (memory, file, fetch), which keep the word unqualified |
+| `driver` | `conformance/driver/run.py`, the one program that runs every case and compares | the same | the runners |
+| `conformance level` (L0 to L4) | how much of the spec a binding claims to meet, cumulative | a binding climbs them in order, and CI checks the claim | the `needs` tokens, which stay as a record |
+| `key rule data` | a key rule written as data in `conformance/keys.json` | a case cannot hold a function (root cause 5: "the "rasl" key rule becomes data") | the `"rasl"` rule each runner wrote by hand |
+| `dump` | the neutral JSON shape of a binding object the adapter sends | the driver finds targets and compares; the adapter only describes | none |

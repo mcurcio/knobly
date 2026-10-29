@@ -4,6 +4,7 @@
 #   2. No two token kinds can match the same text.
 #   3. Each planted bad grammar in tools/planted/ is caught (the checks still bite).
 #   4. spec/schema/ is consistent and generates both bindings' API lists (tools/gen-api.py --check).
+#   5. The shared conformance driver's own test (conformance/driver/test_driver.py; spec/conformance.md).
 # The public-name check runs in each package's tests (ts/src/api-names.test.ts, py/tests/test_api_names.py).
 # Needs: python3, bison, uv (for interegular).
 set -u
@@ -29,4 +30,6 @@ for f in tools/planted/*.g4; do
 done
 if python3 tools/gen-api.py --check > "$tmp/api" 2>&1; then echo "ok   api schema: generates ts and py"
 else echo "FAIL api schema: $(cat "$tmp/api")"; fail=1; fi
+if python3 conformance/driver/test_driver.py > "$tmp/driver" 2>&1; then echo "ok   conformance driver: self-test"
+else echo "FAIL conformance driver: $(cat "$tmp/driver")"; fail=1; fi
 exit $fail

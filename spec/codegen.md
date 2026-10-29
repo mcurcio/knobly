@@ -5,8 +5,9 @@
 the schema is written ([schema/api.json](schema/api.json), [schema/diagnostics.json](schema/diagnostics.json)),
 and the binding lanes of milestone 1 write the generator and the public-name check as section
 "Milestone 1" below says. Milestone 2 (bead vil-0vz) changes how every kind list is spelled and makes the schema
-describe each variant (section "Milestone 2"). The per-kind type skeletons, the conformance tokens, the plain data
-records and the shared conformance driver are later milestones and stay proposed.
+describe each variant (section "Milestone 2"). Milestone 3 (bead vil-j80) builds the shared conformance driver
+([conformance.md](conformance.md)); it is written once by hand, not generated (section "Milestone 3"). The per-kind
+type skeletons and the plain data records stay proposed.
 
 ## The problem
 
@@ -18,7 +19,8 @@ Every fixed list in villanelle is typed out by hand in each binding and again in
   value");
 - about 9 kind lists (token, node, statement, value, variable, step, unreadable reason, change, place);
 - 4 limits and the reserved names;
-- each binding's conformance runner, about 300 lines each.
+- each binding's conformance runner, about 300 lines each (replaced in milestone 3 by one shared driver and a small
+  adapter per binding).
 
 A third binding would copy all of it a third time, and nothing checks that the copies agree except
 the shared cases, which do not cover every list. The parser already avoids this: `tools/gen.sh`
@@ -33,10 +35,10 @@ This proposal does the same for the API's fixed lists.
 | Per-kind type skeletons | statement, value, change and `plain` kinds, each mapped to the type it gives | TypeScript: the union members. Python: one class per kind with `__match_args__` in a fixed field order. Go: a sealed interface and one struct per kind. Bodies stay hand-written |
 | Member signatures | each type's members (below) | the public-name check, and for a language with error values, which members return `(T, error)` and which take a context |
 | Diagnostic code registry | `diagnostics.json`: code, spec name, message, owning layer, found by, unreadable reason, placement rule, retired codes | the code constants, the message table, and the code table in [spec.md 2.4](spec.md#24-the-diagnostic-code-registry) |
-| Conformance tokens | the token-to-spec-name table of `conformance/written/format.md` | each runner's op and error mapping |
+| Conformance tokens | the token-to-spec-name table of `conformance/written/format.md` | nothing since milestone 3: the driver maps the tokens to spec names once, and each adapter spells a spec name in its casing |
 | Limits and reserved names | the schema | constants |
 | Plain data records | place, span, position, step, origin, address step, file write | read-only records (TypeScript interfaces, Python frozen slotted dataclasses) |
-| Conformance driver | the three case formats under `conformance/` | one shared driver, plus a small adapter interface each binding fills in: load files, find a target, apply one operation, dump the result |
+| Conformance driver | the case formats under `conformance/` | built in milestone 3, by hand, once: `conformance/driver/`; each binding writes one adapter that dumps its objects and applies one operation by id ([conformance.md](conformance.md)) |
 | Public-name check | the schema's concepts and members, and each binding's casing rule | a test that lists the binding's exports and fails on a name the schema does not have, or a missing one |
 
 Generated files are not committed, as with the parser (owner, 2026-10-23: "Don't commit the
@@ -183,11 +185,19 @@ What it gives up: no ready-made generators, so each language's template is writt
 (roughly a page each). The schema does not describe the handles' behaviour, so the spec and the
 shared cases still carry that.
 
+## Milestone 3: the shared driver
+
+Nothing new is generated. The driver (`conformance/driver/run.py`, Python's standard library like this generator)
+reads the corpora's manifest (`conformance/corpora.json`) and the key rules (`conformance/keys.json`); an adapter reads
+nothing from `spec/schema/` either: it spells each spec name it is sent (a member, a reader) in its binding's casing,
+the rule this generator already follows. The schema's shape did not change, so `tools/gen-api.py` did not either.
+`tools/check.sh` runs the driver's own test (`conformance/driver/test_driver.py`).
+
 ## Questions for the owner
 
 1. Build this, or keep copying the lists by hand with a test that compares them? Milestone 1 builds
-   the lists' generator, as the review's next steps said; the type skeletons and the shared driver
-   wait for an answer.
+   the lists' generator, as the review's next steps said; milestone 3 built the shared driver by hand; the type
+   skeletons wait for an answer.
 2. Where does the schema live? Settled as a design choice, not his words: `spec/schema/`, since the
    top-level `spec/` is canonical (owner, 2026-10-27: "Within villanelle I want the spec to win over
    a reference language").

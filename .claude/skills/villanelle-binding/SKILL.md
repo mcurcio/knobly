@@ -1,6 +1,6 @@
 ---
 name: villanelle-binding
-description: Use when adding a new language binding to villanelle (Go, Rust, Java, any language beyond ts/ and py/), or when changing the public API shape of any villanelle binding - renaming or moving a type, member, function, error, kind or module in ts/ or py/, adding an operation, or changing what a layer (syntax, low level / written, rendered tree) exposes. Also use when writing or fixing a conformance runner, or when the TypeScript and Python bindings disagree.
+description: Use when adding a new language binding to villanelle (Go, Rust, Java, any language beyond ts/ and py/), or when changing the public API shape of any villanelle binding - renaming or moving a type, member, function, error, kind or module in ts/ or py/, adding an operation, or changing what a layer (syntax, low level / written, rendered tree) exposes. Also use when writing or fixing a binding's conformance adapter, the shared conformance driver or a corpus, or when the TypeScript and Python bindings disagree.
 ---
 
 # villanelle language bindings
@@ -20,8 +20,9 @@ what order, how to work, and what has gone wrong before.
    classes, adapters).
 5. `spec/binding-guide.md`: the owner's goals, naming rules, allowed differences, the
    concept map, and the new-binding checklist.
-6. `spec/codegen.md` only if the task touches the fixed lists (codes, kinds, limits).
-7. For the reasons behind a rule: `.claude/design/consumer-api/requirements.md` (the owner's dated
+6. `spec/conformance.md`: the conformance levels, the adapter protocol and the shared driver.
+7. `spec/codegen.md` only if the task touches the fixed lists (codes, kinds, limits).
+8. For the reasons behind a rule: `.claude/design/consumer-api/requirements.md` (the owner's dated
    words), `.claude/design/consumer-api/round12/decisions.md`, and
    `.claude/design/consumer-api/round13/review.md`.
 
@@ -44,9 +45,17 @@ member or removed member:
 
 ## Workflow: a new binding
 
-Follow the checklist in `spec/binding-guide.md` section 5. In short: pick one model, get the
-first-hour program approved, generate the parser, pass the syntax cases, then the written cases,
-then the load cases, then write the first-hour program as a test.
+Follow the checklist in `spec/binding-guide.md` section 5. In short: pick one model and get the
+first-hour program approved, then:
+
+1. **Generate**: the parser (`tools/gen.sh`) and the fixed lists (`tools/gen-api.py`).
+2. **Write the adapter**: one small program answering the driver's requests through your public API
+   (`spec/conformance.md` section 6). Start a new one from the TypeScript or Python adapter
+   (`ts/conformance/adapter.ts`, `py/conformance/adapter.py`); each is under 300 lines.
+3. **Run the driver**: `python3 conformance/driver/run.py -- <your adapter's command>`.
+4. **Climb the levels**: claim L0 in `hello`, make the syntax cases pass, then build the low level (L1),
+   the rendered tree (L2) and include (L3), raising the claim as each level's cases pass. Then write
+   the first-hour program as a test, and add the driver with your adapter to CI.
 
 For a language with error values, no exceptions, UTF-8 strings or no cyclic imports (Go, Rust),
 read the binding guide's "For languages unlike TypeScript and Python" table and the spec's
@@ -64,43 +73,60 @@ owner the planned choice with the first-hour program.
 
 ## Running the shared cases
 
-From the repo root (Node from `.nvmrc`; on the owner's Mac set
-`ANTLR_JAR_DIR=/Volumes/Dock/Home/.cache/antlr`; Java 11+ is needed to generate the parser):
+One driver runs every corpus (`conformance/corpora.json`) against a binding's adapter and compares every output with
+its expected one; no binding has a conformance runner of its own. From the repo root (Node from `.nvmrc`; on the
+owner's Mac set `ANTLR_JAR_DIR=/Volumes/Dock/Home/.cache/antlr`; Java 11+ is needed to generate the parser):
 
 ```bash
-# TypeScript: regenerates the parser, then runs every test, the three runners included:
-#   ts/src/conformance.test.ts          syntax cases (conformance/*.json)
-#   ts/src/written-conformance.test.ts  conformance/written/
-#   ts/src/load-conformance.test.ts     conformance/load/
+# TypeScript: build first (the adapter imports ts/dist/), then run the driver with the adapter.
 nvm use
-corepack pnpm -C ts install
-corepack pnpm -C ts test
+corepack pnpm -C ts install && corepack pnpm -C ts build
+(cd ts && python3 ../conformance/driver/run.py -- node conformance/adapter.ts)
 
-# Python: tests/conftest.py regenerates the parser first; the runners are
-#   tests/test_conformance.py, test_written_conformance.py, test_load_conformance.py
-cd py && uv run pytest
+# Python: generate the parser first (pytest's conftest.py also does), then the driver.
+bash tools/gen.sh py
+(cd py && python3 ../conformance/driver/run.py -- uv run --locked python conformance/adapter.py)
+
+# One corpus or case, or the cases up to a level while you climb:
+python3 conformance/driver/run.py --corpus written --case set-comment -- <adapter...>
+python3 conformance/driver/run.py --level 1 -- <adapter...>
 ```
 
-Lint, format and typecheck commands are in `ts/README.md` and `py/README.md`.
+The output is TAP: `not ok` lines carry the first difference. Each package's own unit tests stay in
+its test suite (`corepack pnpm -C ts test`, `cd py && uv run pytest`); lint, format and typecheck commands are in
+`ts/README.md` and `py/README.md`. `bash tools/check.sh` runs the driver's own test.
 
 ## Traps found in review
 
 - **Expected outputs are hand-derived.** Never regenerate a file in `conformance/*/expected/` from
-  an implementation to make a runner pass. A mismatch is a bug in the runner or in the rules.
-- **Skipping.** A runner may skip a case by its `needs` while you build; a finished binding skips
-  nothing, and the runner should assert its feature set covers every case.
+  an implementation to make the driver pass. A mismatch is a bug in the binding, its adapter or the rules.
+- **Climb by level, not by skipping.** The driver runs every case at or below the level the adapter
+  claims; there is no per-case skip. A failing case at your claimed level is a red build.
+- **The adapter finds and compares nothing.** It dumps objects with ids and applies one member by id;
+  the driver finds targets (a statement by its name token, a value by its start), converts positions
+  and prints the expected bytes. Logic that creeps into an adapter is logic the next binding copies.
+- **Negative zero cannot cross JSON as a number** (`JSON.stringify(-0)` is `0`): an adapter sends
+  `"-0"` for it, so the driver fails the case (`spec/conformance.md` 4.4).
+- **`null` in a case's edit arguments means absent**: TypeScript's adapter passes `undefined`
+  (`setOverride(name, undefined)` removes the override), Python's `None`.
+- **The adapter's standard output is the protocol.** Log to standard error only; one stray `print`
+  is a fault for the case in flight.
 - **Positions count each language's own string unit** (contract 1, milestone 2): UTF-16 in
   TypeScript, code points in Python, bytes in a UTF-8 language. The conformance files stay UTF-16:
-  a runner converts with the text the position counts in. Before milestone 2 Python reported UTF-16,
-  so `text[s.start.offset:s.end.offset]` was wrong after an emoji.
+  the driver converts with the text the position counts in, from the unit the adapter's `hello` names.
+  Before milestone 2 Python reported UTF-16, so `text[s.start.offset:s.end.offset]` was wrong after an
+  emoji; before milestone 3 Python's written runner also matched targets by code-point column against
+  the corpus's UTF-16 column (no case had an astral character before a target, so it never showed).
 - **Numbers at the edges** (contract 3): no reader returns `-0` (TypeScript used to); `1e400` is
   E4004, not infinity; beyond 2^53-1 a word is a rounded number but not an integer. The contract
-  cases (`conformance/contract/`) cover them; ECMAScript's `Number::toString` is the print rule, and
-  Python's `repr` of a float is not it.
+  cases (`conformance/contract/`) cover them; ECMAScript's `Number::toString` is the print rule, which
+  the driver applies, so an adapter sends the number, never its text.
 - **A lone `"\r"` never ends a line**, also in `format diagnostic`'s source line. Python's
   `str.splitlines()` and a JavaScript `/\r\n|\n|\r/` both break there.
 - **A values text with a line break outside a list splits the statement** (`set("1\n2")` on `port
-  80;` wrote two statements, vil-5ya). The check of a values text refuses it (spec 2.8).
+  80;` wrote two statements, vil-5ya). The check of a values text refuses it (spec 2.8). So does a
+  comment the text ends in (`set("1 # note")` wrote `port 1 # note;`, whose `;` the comment swallowed,
+  vil-033), at the comment, list items included.
 - **`written` on a rendered value** meant the end of the chain before milestone 1; the spec now
   calls that `definition`, and `written` is the value on the same line. Code on PR 4 still has the
   old meaning until the milestone 1 binding work lands: `arg.written.replaceWithText(...)` on
@@ -132,7 +158,8 @@ Lint, format and typecheck commands are in `ts/README.md` and `py/README.md`.
   (Python: a `ReferenceError`), so `except ValueError` no longer swallows it; `ReadError` has no
   diagnostic and no E3004 (a missing root file is not an include failure); `ReadError` and
   `SaveError` both carry `paths`.
-- **The `rasl` key rule** in the load runner must match `conformance/load/format.md` exactly.
+- **The `rasl` key rule is data** (`conformance/keys.json`, sent in `render` and `diff`). The adapter
+  builds its key rule from the data (`spec/conformance.md` 4.3); it never names `rasl`.
 - **`graph.diagnostics()` leaves out every E4xxx code,** E4001 and E4003 included (decision D11);
   only the render reports them. An earlier draft of the spec said otherwise.
 - **The low level never imports the rendered layer,** not even a type (owner, 2026-10-29: "The low

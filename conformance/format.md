@@ -1,6 +1,8 @@
 # Conformance expected-output format, v0
 
-The TypeScript and Python parsers must produce these files byte for byte from the same input.
+Every binding's `parse` must give these files byte for byte from the same input. The shared driver
+([spec/conformance.md](../spec/conformance.md)) sends each case's `src` to the binding's adapter (`parse`), checks the
+tree is lossless, prints the result by the rules below and compares it with the expected file.
 
 ## Files
 
@@ -37,15 +39,9 @@ One JSON object with exactly these keys, in this order:
   `\r`, and a lowercase `\u00xx` for the remaining control characters).
 - The file ends with one `"\n"`.
 
-TypeScript: `JSON.stringify(value)`, then replace each code unit in U+0080 to U+FFFF with its
-`\uXXXX` escape. Python: `json.dumps(value, ensure_ascii=True, separators=(",", ":"))`. Both
-give the same bytes.
+The driver applies these rules (`conformance/driver/encode.py`); an adapter never writes an expected file's bytes.
 
-Other languages: write the rule above directly rather than trusting a JSON library's defaults.
-Strings are escaped as UTF-16 code units, so a language with UTF-8 strings converts each character
-above U+FFFF to its surrogate pair before escaping. Check the library against these traps (Go's
-`encoding/json` has the first two): `<`, `>` and `&` must stay raw (Go: `SetEscapeHTML(false)`);
-invalid UTF-8 must not become U+FFFD; `\b` and `\f` must be the short escapes; hex digits must be
-lowercase; and no newline may follow the value except the one at the end. Reading the case files
-has the mirror trap: three syntax cases (`surrogate-*` in `extra.json`) hold lone surrogates, which
-a decoder for UTF-8 strings replaces (see `spec/spec.md` 2.1).
+An adapter still reads and writes JSON (the protocol's messages), with the mirror traps: three syntax cases
+(`surrogate-*` in `extra.json`) hold lone surrogates, which arrive as `\u` escapes in the request and which a decoder
+for UTF-8 strings replaces (see `spec/spec.md` 2.1); a response must write a lone surrogate as a `\u` escape too, and
+must not turn invalid UTF-8 into U+FFFD.

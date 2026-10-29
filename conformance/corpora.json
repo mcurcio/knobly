@@ -1,0 +1,47 @@
+{
+  "$comment": "Every corpus the shared driver runs (spec/conformance.md section 4). 'cases': the case files, each a JSON array of cases with a unique 'name' across the corpus. 'expected': the directory of <name>.json expected files, or null when each case holds its result inline ('expect'). 'level': the conformance level (spec/README.md) of a case in this corpus; a case that uses the include extension ('extensions' holds \"include\", or 'needs' holds \"include\") is L3, and a written case whose steps render ('render', or a 'rendered' target) is L2. 'format': the page that says what the expected output is.",
+  "corpora": [
+    {
+      "name": "syntax",
+      "format": "conformance/format.md",
+      "cases": [
+        "conformance/cases.json",
+        "conformance/extra.json",
+        "conformance/depth.json",
+        "conformance/edge.json",
+        "conformance/tracer.json",
+        "conformance/variables.json"
+      ],
+      "expected": "conformance/expected",
+      "level": 0
+    },
+    {
+      "name": "written",
+      "format": "conformance/written/format.md",
+      "cases": ["conformance/written/cases.json"],
+      "expected": "conformance/written/expected",
+      "level": 1
+    },
+    {
+      "name": "load",
+      "format": "conformance/load/format.md",
+      "cases": ["conformance/load/cases.json"],
+      "expected": "conformance/load/expected",
+      "level": 2
+    },
+    {
+      "name": "rendered",
+      "format": "conformance/rendered/format.md",
+      "cases": ["conformance/rendered/cases.json"],
+      "expected": "conformance/rendered/expected",
+      "level": 2
+    },
+    {
+      "name": "contract",
+      "format": "conformance/contract/format.md",
+      "cases": ["conformance/contract/cases.json"],
+      "expected": null,
+      "level": 2
+    }
+  ]
+}

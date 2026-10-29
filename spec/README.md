@@ -33,7 +33,9 @@ flowchart LR
   P --> B["a binding<br/>ts/ · py/ · next"]
   GL --> B
   DG --> B
-  B -->|runner| C
+  B --> A["the binding's adapter<br/>(one small program)"]
+  A -->|"JSON lines"| D["conformance/driver/<br/>one shared driver"]
+  D -->|"compares with"| C
 ```
 
 This folder is canonical (owner, 2026-10-27: "Within villanelle I want the spec to win over a
@@ -52,8 +54,11 @@ proves the spec wrong; then the spec is corrected and the finding reported.
   two files ([codegen.md](codegen.md)).
 - [binding-guide.md](binding-guide.md): the owner's goals, the naming and structure rules, what may
   differ per language, the TypeScript and Python concept map, and a checklist for a new binding.
-- `conformance/`: the shared cases. A binding proves it meets the spec by producing every expected
-  file byte for byte ([spec.md 9](spec.md#9-conformance) lists which case files cover which section).
+- [conformance.md](conformance.md): the conformance levels (below), the adapter protocol a binding implements, and the
+  shared driver that runs every case against it.
+- `conformance/`: the shared cases and the driver. A binding proves it meets the spec when the driver, run against its
+  adapter, finds every output equal to its expected one byte for byte ([spec.md 9](spec.md#9-conformance) lists
+  which corpus covers which section).
 - [codegen.md](codegen.md): what is generated from the schema, where it goes, and what stays
   hand-written.
 - The skill `.claude/skills/villanelle-binding/SKILL.md` is the agent's entry point for adding a
@@ -62,6 +67,29 @@ proves the spec wrong; then the spec is corrected and the finding reported.
 The reference pages for programs using villanelle are separate:
 [low-level-api.md](../docs/low-level-api.md), [rendered-tree.md](../docs/rendered-tree.md) and
 [language.md](../docs/language.md).
+
+## Conformance levels
+
+A binding claims one level; it holds it when every shared case at that level and below passes
+([conformance.md 2](conformance.md#2-conformance-levels)).
+
+| Level | What |
+|---|---|
+| L0 | syntax: tokens, the lossless tree, syntax diagnostics |
+| L1 | the low level: load, edit, save |
+| L2 | the rendered tree: render, readers, addresses, diff, and the contract at the edges |
+| L3 | extensions: include |
+| L4 | adapters: memory writer, file and fetch (no shared cases yet) |
+
+## A new binding's path
+
+1. **Generate**: add the language to `tools/gen.sh` (the parser) and `tools/gen-api.py` (the fixed lists).
+2. **Write the adapter**: one small program that answers the driver's requests through the binding's public API
+   ([conformance.md 6](conformance.md#6-what-a-binding-writes)). It starts by answering `hello` and `parse`.
+3. **Run the driver**: `python3 conformance/driver/run.py -- <your adapter's command>`.
+4. **Climb the levels**: claim L0, then build each layer and raise the claim as its cases pass, to L3.
+
+[binding-guide.md 5](binding-guide.md#5-checklist-a-new-binding-start-to-finish) is the full checklist.
 
 ## Status
 
@@ -80,5 +108,10 @@ Milestone 2 (beads vil-0vz, vil-9fy, vil-5ya, vil-gxu) settles root cause 3 (typ
 2.10), root cause 4 (the contract at the edges: [contract.md](contract.md)), and the owner's "Yes" of 2026-10-29 to
 the rendered layer building only on the low level's public objects (spec 6.10, 7.0). Its exact old-to-new list is
 `.claude/design/consumer-api/round14/frozen-m2.md`; the bindings carry the older names until its binding work
-lands. The shared corpora and the shared conformance driver are milestone 3; the proposals left stay marked
-"Proposed (pending owner)". Nothing is locked until the owner likes the user APIs (2026-10-27).
+lands.
+
+Milestone 3 (beads vil-j80, vil-033) settles the rest of root cause 5: one shared driver and an adapter per binding
+([conformance.md](conformance.md)), the key rule as data, new corpora for rendered addresses, diff order, the
+readers and `format diagnostic`, and the comment in a values text (spec 2.8). Its exact list is
+`.claude/design/consumer-api/round14/frozen-m3.md`. The proposals left stay marked "Proposed (pending owner)". Nothing
+is locked until the owner likes the user APIs (2026-10-27).

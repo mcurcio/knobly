@@ -196,7 +196,8 @@ where TypeScript or Python break one, section 4 says so.
 - every conformance output, byte for byte.
 
 **Positions** count the language's own string unit (contract 1): a binding with UTF-8 strings reports bytes, and
-its conformance runner converts to UTF-16.
+its adapter reports them as they are and names its unit in `hello`; the shared driver converts to UTF-16
+([conformance.md](conformance.md)).
 
 ### For languages unlike TypeScript and Python (proposed, pending owner)
 
@@ -212,7 +213,7 @@ meets the spec. None has been tried by a binding yet; spec 2.8 and 4.1 hold the 
 | Overrides | an ordered input (`[]Override{{Name, Text}}` or a functional option per value), not a `map` | spec 6.2: the order is kept |
 | Cancellation | `ctx context.Context` first on `Load`, `Read`, `Save`, `Resolve`, `Read` and `Write`; cancellation returns `ctx.Err()`, never a diagnostic | spec 4.1, Proposed |
 | Concurrency | document that a graph is not safe for concurrent use, renders included | spec 4.1 |
-| Positions | byte offsets of the UTF-8 string (contract 1); the runner converts to UTF-16 | contract 1 |
+| Positions | byte offsets of the UTF-8 string (contract 1); the adapter's `hello` says `"byte"` and the driver converts to UTF-16 | contract 1 |
 
 ## 4. Concept map: TypeScript and Python today
 
@@ -310,23 +311,22 @@ Work in this order. Each step ends with shared cases passing, so progress is mea
 4. **Generate the fixed lists** (codes and messages, kind lists, limits, reserved names) from
    [schema/](schema/) by adding your target to the generator ([codegen.md](codegen.md)); token kind
    names come from the grammar. Never type a list by hand.
-5. **Write the syntax runner** for `conformance/*.json` ([conformance/format.md](../conformance/format.md))
-   and make every case pass. Check the byte rules (escapes above U+007F, one trailing newline) and
-   that the runner converts your positions to UTF-16 (contract 1).
+5. **Write the adapter** ([conformance.md 6](conformance.md#6-what-a-binding-writes)): one small program in your
+   language that reads the driver's requests on standard input and answers on standard output, through your public
+   API only. Start with `hello` (claim L0, name your string unit) and `parse`, then run the driver:
+   `python3 conformance/driver/run.py -- <your adapter's command>`. Make every syntax case pass (L0). The driver
+   checks the byte rules and converts your positions to UTF-16 (contract 1); your adapter does neither.
 6. **Write the ports** (spec 4): the source and writer interfaces in your language's form, and
-   `memory source`. The runners need nothing else.
+   `memory source`. The adapter needs nothing else.
 7. **Build the low level** (spec 6): load, handles, statements, values, variables, resolutions,
-   edits, save, quote. Write the written runner for `conformance/written/`
-   ([format](../conformance/written/format.md)). Skip by `needs` while you build; finish with an
-   assertion that your feature set covers every case.
-8. **Build the rendered tree** (spec 7) and the include extension (spec 5.1). Write the load runner
-   for `conformance/load/` ([format](../conformance/load/format.md)), including the `rasl` key
-   rule exactly as that page states it.
-9. **Pass the contract cases** (`conformance/contract/`, [format](../conformance/contract/format.md)): numbers,
-   positions in your string unit, people forms, `format diagnostic`. Then **test what the shared cases miss** (spec
-   9 lists it): the other readers, `address text`, the sink, `error(...)`, the file and memory adapters, the error
-   class tree, and that each operation is absent where it cannot succeed. Compare with TypeScript and Python, and
-   report any disagreement as a finding.
+   edits, save, quote. Add `load`, `graph`, `edit`, `save` and `quote` to the adapter and claim L1.
+8. **Build the rendered tree** (spec 7) and the include extension (spec 5.1). Add `render`, `diff`, `read`, `print`,
+   `format` and `cut`, and the key rule built from data (conformance.md 4.3); claim L2, then L3. The load, rendered
+   and contract corpora cover render, addresses, diff order, every reader, people forms and `format diagnostic`.
+9. **Test what the shared cases miss** (spec 9 lists it): the sink, `error(...)`, the file and memory adapters (L4
+   has no shared cases yet), the error class tree, and that each operation is absent where it cannot succeed.
+   Compare with TypeScript and Python, and report any disagreement as a finding. Add the driver with your adapter to
+   CI, after your package's tests (`.github/workflows/ci.yml`).
 10. **Write the first-hour program** as a test and as the top of your README (rule 2.7). Read it
     as a newcomer to your language would; anything that needs a cast, a helper you never show, or
     a doc lookup to understand is a defect.

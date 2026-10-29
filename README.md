@@ -94,7 +94,7 @@ It needs `python3`, `bison` and `uv`.
 | `tools/` | The soundness checks (`check.sh`), the planted bad grammars they must catch, and the parser generator script (`gen.sh`) |
 | `ts/` | The TypeScript package, npm name `villanelle` ([`ts/README.md`](ts/README.md)) |
 | `py/` | The Python package, PyPI name `villanelle` ([`py/README.md`](py/README.md)) |
-| `conformance/` | Test cases both packages must pass, and the expected output for each: syntax cases (format in [`conformance/format.md`](conformance/format.md)), load cases in `conformance/load/` (format in [`conformance/load/format.md`](conformance/load/format.md)) and low-level cases in `conformance/written/` (format in [`conformance/written/format.md`](conformance/written/format.md)) |
+| `conformance/` | Test cases every package must pass, with the expected output for each, and the one driver that runs them against each package's adapter ([`spec/conformance.md`](spec/conformance.md)): syntax cases ([`conformance/format.md`](conformance/format.md)), low-level cases in `conformance/written/`, load cases in `conformance/load/`, addresses and diff order in `conformance/rendered/`, and readers, positions and formatting in `conformance/contract/`; `conformance/corpora.json` lists them |
 | `fixtures/rasl/` | rasl's real config files, which each package's rasl test loads ([`fixtures/rasl/README.md`](fixtures/rasl/README.md)) |
 | `docs/` | The language ([`docs/language.md`](docs/language.md)), the low level ([`docs/low-level-api.md`](docs/low-level-api.md)) and the rendered tree ([`docs/rendered-tree.md`](docs/rendered-tree.md)) |
 | `.github/` | CI and the release build (`workflows/ci.yml`, `release-build.sh`) |
@@ -146,8 +146,8 @@ gh variable set RELEASE_ENABLED --body true -R mcurcio/villanelle
 
 ## Status
 
-The TypeScript and Python packages are built from the grammar and pass the same syntax, load and low-level
-conformance cases. Both have the syntax tree, the low level (the files as written, editable and saved back) and the
+The TypeScript and Python packages are built from the grammar and pass the same conformance cases, run by one
+shared driver (`python3 conformance/driver/run.py -- <adapter>`, [`spec/conformance.md`](spec/conformance.md)). Both have the syntax tree, the low level (the files as written, editable and saved back) and the
 rendered tree; the high-level API, where a program declares its directives, is deferred (`vil-xlo`). No release has
 been made yet. The grammar design was done in [mcurcio/rasl#2](https://github.com/mcurcio/rasl/pull/2), where this
 language began as `@rasl/config`.

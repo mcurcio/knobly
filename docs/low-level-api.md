@@ -433,7 +433,7 @@ the graph's life (B5, D28)". `countingSource` is a memory source that counts eac
 
 `load` and `setOverride` run the same check of an override (spec 6.3), so they refuse the same texts with the same
 errors. The text must be one or more values without a `$name`, on one line (a line break ends the values, as it
-ends a statement, so `"1\n2"` is refused at its `2`). Anything else is a `BadTextError` located in the text, and
+ends a statement, so `"1\n2"` is refused at its `2`), not ending in a comment (`"1 # note"` is refused at its `#`). Anything else is a `BadTextError` located in the text, and
 nothing changes; a text that is not a string is a `TypeError`, and a name that is not letters, digits and `_` is a
 TypeError (Python: ValueError):
 
@@ -471,7 +471,9 @@ it first (`String(n)`, Python `str(n)`).
 Every edit except a document's `replaceWithText` checks its text first, and **a refused edit changes nothing**:
 
 - A values text must be values only: its own syntax errors keep their codes; a `;` or a block in it is one E2001 at
-  that token. A slice bound takes exactly one word or `$name`.
+  that token. A line break outside a list is E2001 too (it would end the statement), and so is a comment the text
+  ends in, at the comment (`set("1 # note")` would write `port 1 # note;`, and the comment would swallow the `;`;
+  a list item's text is checked the same way). A slice bound takes exactly one word or `$name`.
 - A statements text is read as a file; its syntax errors keep their codes. An empty text is zero statements.
 - Then the rules a file alone must keep are checked on the block the edit would make: a second `set` of a name in
   one block (E5002), a second snippet of a name (E5005), a malformed `set`, `snippet` or `use` (E5009 to E5011). A
