@@ -20,7 +20,8 @@ language's own names; each section shows TypeScript first, then Python.
 
 **About the examples.** Every code example is copied from a test that passes, named under it. The tests import
 from the package's source files (`./processor.js`, `../rendered/render.js`); the examples write the imports a
-program would write (`villanelle`, `villanelle/include`). "Excerpt" means lines were left out; nothing else was changed.
+program would write (`villanelle`, `villanelle/written`, `villanelle/rendered`, `villanelle/include`; in Python
+`import villanelle as vl` and `from villanelle import rendered, written`). "Excerpt" means lines were left out; nothing else was changed.
 Config texts in prose come from the tests or from the shared cases in
 [`conformance/written/`](../conformance/written/), which both packages must pass byte for byte.
 
@@ -51,11 +52,13 @@ TypeScript:
 ```ts
 import { readFileSync } from "node:fs";
 
-import { type IDirective, type IDocumentWriter, type IFileWrite, type IPlace, type IRendered, memorySource, quote, render, text, villanelle } from "villanelle";
+import { type DocumentWriter, type FileWrite, type Place, memorySource, quote, text } from "villanelle";
+import { type Directive, type Rendered, render } from "villanelle/rendered";
+import { villanelle } from "villanelle/written";
 import { include } from "villanelle/include";
 
 /** 1-based `file:line`, as design.md §1 prints it. */
-const lineOf = (place: IPlace): string => `${place.resolvedPath}:${String(place.span.start.line + 1)}`;
+const lineOf = (place: Place): string => `${place.resolvedPath}:${String(place.span.start.line + 1)}`;
 
   const config = villanelle({ source: memorySource(FILES), extensions: [include()] });
   const graph = await config.load("main.conf", { overrides: { leds_host: quote("10.0.70.1") } });
@@ -92,7 +95,7 @@ which wins there.
 Python:
 
 ```python
-    config = vl.Processor(source=vl.memory_source(FILES), extensions=[include()])
+    config = written.Processor(source=vl.memory_source(FILES), extensions=[include()])
     return config.load("main.conf", overrides={"leds_host": vl.quote("10.0.70.1")})
 
     files = [
@@ -104,7 +107,7 @@ Python:
         (
             v.name,
             v.kind,
-            "override" if isinstance(v, vl.OverrideVariable) else line_of(v.place),
+            "override" if isinstance(v, written.OverrideVariable) else line_of(v.place),
             [line_of(r.reference.place) for r in v.wins()],
             [(line_of(r.reference.place), None if r.winner is None else r.winner.kind) for r in v.shadowed_at()],
         )
@@ -172,7 +175,7 @@ The same in Python:
 
 ```python
     read = max_count.chain[0]
-    assert isinstance(read.winner, vl.SetVariable)
+    assert isinstance(read.winner, written.SetVariable)
     read.winner.set(vl.text("2400"))  # (2)
     writer = Recorder()
     assert graph.save(writer) == ["main.conf"]
@@ -200,8 +203,8 @@ parameter, and its value is on the `use` line: `read.values[0].replaceWithText(.
 ### Edit a directive inside the included file, and undo
 
 ```python
-    node = node_named(vl.render(graph), "porch").written  # (4): `node DdpSink $name {` in sink.conf
-    assert node is node_named(vl.render(graph), "leds").written
+    node = node_named(rendered.render(graph), "porch").written  # (4): `node DdpSink $name {` in sink.conf
+    assert node is node_named(rendered.render(graph), "leds").written
     assert len(node.copies()) == 2
     doc = node.document
     kept = doc.text
@@ -286,24 +289,26 @@ The first token decides the kind: a statement whose name starts with `@` is one 
 directive, whatever its name (`use epoll;` is a directive named `use`).
 
 Every statement has `document`, `parent` (the statement whose block holds it), `place`, `text`, `copies()`,
-`replaceWithText(text)` and `remove()`. A block has `statements`, `directives(name?)`, `insertStatements(index,
-text)` and `addStatements(text)`. In Python the names are `snake_case`, a block is itself a sequence of its
-statements, and each kind is its own class, so `match` narrows it:
+`replaceWithText(text)` and `remove()`. A block is itself the sequence of its statements, in both languages (one
+block shape in every layer, spec 2.11): `for (const s of block)` / `for s in block`, `block.length` / `len(block)`,
+`block.at(i)` / `block[i]`, then `directives(name?)`, `walk(...)` (every statement at any depth),
+`insertStatements(index, text)` and `addStatements(text)`. In Python the names are `snake_case`, and each kind is its
+own class, so `match` narrows it:
 
 ```python
-def describe(statement: vl.Statement) -> str:
+def describe(statement: written.Statement) -> str:
     match statement:
-        case vl.WrittenDirective(name, values, block):
+        case written.WrittenDirective(name, values, block):
             return f"directive {name} {len(values)} {block is not None}"
-        case vl.ExtensionLine(name, values, _):
+        case written.ExtensionLine(name, values, _):
             return f"extension {name} {values[0].text}"
-        case vl.SetLine(variable, values):
+        case written.SetLine(variable, values):
             return f"set ${variable.name} {len(values)}"
-        case vl.SnippetLine(name, parameters, block):
+        case written.SnippetLine(name, parameters, block):
             return f"snippet {name} {len(parameters)} {len(block)}"
-        case vl.UseLine(snippet_name, values):
+        case written.UseLine(snippet_name, values):
             return f"use {snippet_name} {len(values)}"
-        case vl.UnreadableLine(text):
+        case written.UnreadableLine(text):
             return f"unreadable {text}"
         case _:
             assert_never(statement)
@@ -332,7 +337,7 @@ handle: the same object stays in its statement, now with the new text, and takes
 and detaches the handle.
 
 ```python
-def value_kind(value: vl.WrittenValue) -> str:
+def value_kind(value: written.WrittenValue) -> str:
     match value:
         case written.Word(text) | written.String(text):
             return f"{value.kind} {text}"
@@ -366,8 +371,8 @@ edges that splice that document in.
 ## Variables and what each `$name` reads
 
 A **variable** is a `set` line's `$name`, a snippet's parameter, or an override the program gives. Its `kind` is
-`set`, `parameter` or `override`, and each kind is its own type (TypeScript: `ISetVariable`, `IParameter`,
-`IOverrideVariable`, the union `Variable`; Python: `SetVariable`, `Parameter`, `OverrideVariable`), with only the
+`set`, `parameter` or `override`, and each kind is its own type (TypeScript: `SetVariable`, `Parameter`,
+`OverrideVariable`, the union `Variable`; Python: `SetVariable`, `Parameter`, `OverrideVariable`), with only the
 members that can succeed on it. Narrow by `kind` (TypeScript) or with `match` / `isinstance` (Python) before using
 them:
 
@@ -403,8 +408,8 @@ in an include line's block wins over every `set` inside the files it splices in;
 }
 ```
 
-`f.conf` is `set $a 1;` then `x $a;`, and `a` is an override: the `$a` on `x` reads the override, and its
-`shadowed` lists main.conf's `set $a 2;` first, then f.conf's `set $a 1;`.
+`f.conf` is `@set $a 1;` then `x $a;`, and `a` is an override: the `$a` on `x` reads the override, and its
+`shadowed` lists main.conf's `@set $a 2;` first, then f.conf's `@set $a 1;`.
 
 A `use` line has the same pair for its snippet: `snippet` by where it is written, `snippets()` per copy.
 
@@ -503,7 +508,7 @@ and column, as `parse` places them), with the same codes a load gives:
 
 ```ts
     const graph = await load({ "main.conf": "@set $a 1;\n" });
-    const [set] = graph.root.block.statements;
+    const [set] = graph.root.block;
     if (set?.kind !== "set") throw new Error("not a set line");
     for (const given of ["1; x", "{", "", "\"open"]) {
       expect(() => set.set(text(given)), given).toThrow(BadTextError);
@@ -548,14 +553,14 @@ villanelle keeps the file's own layout; there is no formatter.
 
 ```ts
     const graph = await villanelle({ source: memorySource({ "main.conf": "b {\n    a 1;\n    # about c\n    c 3;\n}\n" }) }).load("main.conf");
-    const [b] = graph.root.block.statements as [IWrittenDirective];
+    const [b] = [...graph.root.block] as [WrittenDirective];
     const block = b.block;
     if (block === undefined) throw new Error("no block");
-    const [a, c] = block.statements;
+    const [a, c] = block;
     const made = block.insertStatements(1, text("x 1;\ny 2;"));
     expect(made.map((s) => s.text)).toEqual(["x 1;", "y 2;"]);
     expect(graph.root.text).toBe("b {\n    a 1;\n    x 1;\n    y 2;\n    # about c\n    c 3;\n}\n");
-    expect(block.statements).toEqual([a, ...made, c]);
+    expect([...block]).toEqual([a, ...made, c]);
     expect(c?.text).toBe("# about c\n    c 3;");
     expect(() => block.insertStatements(9, text("z;"))).toThrow(RangeError);
     expect(() => block.insertStatements(0, text("z {"))).toThrow(BadTextError);
@@ -573,7 +578,7 @@ them renamed too edits each of `variable.references()`:
 
 ```ts
     const graph = await villanelle({ source: memorySource({ "main.conf": "@set $a 1;\n@snippet s $p { x $p; }\ny $a;\n" }) }).load("main.conf");
-    const [set, snippet] = graph.root.block.statements as [ISetLine, ISnippetLine];
+    const [set, snippet] = [...graph.root.block] as [SetLine, SnippetLine];
     const variable = set.variable;
     const [parameter] = snippet.parameters;
     variable.rename("b");
@@ -595,16 +600,16 @@ the same text, at its new place.
 ```ts
     const graph = await load({ "main.conf": "@set $a 1;\nb 2 3;\nc { d 4; }\n" });
     const body = graph.root.block;
-    const [set, b, c] = body.statements as [ISetLine, IWrittenDirective, IWrittenDirective];
+    const [set, b, c] = [...body] as [SetLine, WrittenDirective, WrittenDirective];
     const [two, three] = b.values;
-    const d = c.block?.statements[0];
+    const d = c.block?.at(0);
     set.set(text("100 200"));
     expect(graph.root.text).toBe("@set $a 100 200;\nb 2 3;\nc { d 4; }\n");
-    expect(body.statements[0]).toBe(set);
-    expect(body.statements[1]).toBe(b);
+    expect(body.at(0)).toBe(set);
+    expect(body.at(1)).toBe(b);
     expect(b.values[0]).toBe(two);
     expect(b.values[1]).toBe(three);
-    expect(c.block?.statements[0]).toBe(d);
+    expect(c.block?.at(0)).toBe(d);
 ```
 
 Excerpt of `ts/src/written/written.test.ts`, test "keeps one handle per statement and value across an edit
@@ -641,7 +646,7 @@ take the comments with it, and a line left empty goes too:
 
 ```ts
     const graph = await load({ "main.conf": "# far\n\n# near\n  b 2; # end\nc;\n" });
-    const [b] = graph.root.block.statements;
+    const [b] = graph.root.block;
     expect(b?.text).toBe("# near\n  b 2; # end");
     expect(b?.place.span.start).toMatchObject({ line: 2, column: 0 });
     b?.remove();
@@ -664,7 +669,7 @@ Every unsaved text stays, and no file is read twice:
     const { source, reads } = countingSource({ "main.conf": MAIN, "part.conf": "p 1;\n", "other.conf": "o 1;\n" });
     const processor = villanelle({ source, extensions: [include()] });
     const graph = await processor.load("main.conf");
-    const [a] = graph.root.block.statements as [IWrittenDirective];
+    const [a] = [...graph.root.block] as [WrittenDirective];
     a.set(text("2"));
     const [line] = graph.root.block.addStatements(text('@include "part.conf";'));
     expect(line?.kind).toBe("extension");
@@ -782,9 +787,12 @@ By design (each language's own way):
 
 - TypeScript's `load`, `read`, `save` and writers are async (promises); Python's are plain calls.
 - Python names are `snake_case` (`replace_with_text`, `insert_statements`, `included_by`, `set_override`,
-  `shadowed_at`, `saved_text`); a block is a sequence of its statements (`block[0]`, `len(block)`,
-  `list(block).index(fps)`); each
-  statement and value kind is its own class for `match`; absent is `None`, not `undefined`.
+  `shadowed_at`, `saved_text`); a block is a `Sequence` (`block[0]`, `len(block)`, `list(block).index(fps)`) where
+  TypeScript's is an `Iterable` with `length` and `at(i)`; each statement and value kind is its own class for
+  `match`; absent is `None`, not `undefined`.
+- Each layer is its own import path (milestone 6): `villanelle` (config text, the ports, the memory adapters, the
+  error classes), `villanelle/written` / `villanelle.written` (this page), `villanelle/rendered` /
+  `villanelle.rendered`, `villanelle/syntax` / `villanelle.syntax`. Type names are the same in both languages.
 - An index outside a block is RangeError in TypeScript and IndexError in Python. A bad name is MisuseError in
   TypeScript and ValueError in Python; `BadTextError` is not a `ValueError` (milestone 4).
 - `SaveError` keeps the writer's error as `cause` in TypeScript and as `__cause__` in Python.

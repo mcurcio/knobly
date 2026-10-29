@@ -90,8 +90,13 @@ A **position** is `[line, column, offset]`, in the binding's own unit (the `unit
 driver converts every position to UTF-16 units with the text it counts in: the document's current text, or the text
 an edit was given. The adapter never converts.
 
+Sections 4.1 and 4.2 are generated from [schema/protocol.json](schema/protocol.json), the one home of the messages
+(`python3 tools/gen-api.py docs`; `tools/check.sh` fails when they are stale). Each adapter's message types are
+generated from the same file.
+
 ### 4.1 Requests
 
+<!-- generated: adapter requests (tools/gen-api.py docs) -->
 | `op` | Parameters | `ok` result | Level |
 |---|---|---|---|
 | `hello` | `protocol`: 1 | `{"protocol": 1, "binding": name, "unit": "utf-16" \| "code point" \| "byte", "level": 0 to 4}` | all |
@@ -107,6 +112,7 @@ an edit was given. The adapter never converts.
 | `print` | `target` (an id) | the object's `people form` (contract 2): the language's own to-text conversion | L2 |
 | `format` | `diagnostic` (a located diagnostic's id), `graph`? | `format diagnostic (diagnostic, graph?)` | L2 |
 | `cut` | `text`, `start`, `end` (native offsets) | `text` cut at `start` and `end` with the language's own string slicing (the check that the binding's unit is its language's, contract 1) | L2 |
+<!-- end generated -->
 
 Every text the driver sends as an edit's `text`, an override's text or a `load` override is JSON text; the adapter
 passes it on as `config text` through its binding's own `text (raw)` (spec 6.9, milestone 5), never through a cast, so
@@ -123,28 +129,44 @@ the **syntax** dump and its **syntax diagnostic**s exactly: their members, and e
 against its offset in the input (`conformance/driver/syntax.py`). The other shapes it checks only as far as it reads
 them (section 7), so an extra or wrong member there is not yet caught: build to the shape, not to the driver.
 
-| Dump | Shape |
+<!-- generated: adapter dumps (tools/gen-api.py docs) -->
+| Shape | Members |
 |---|---|
-| place | `{"id", "path", "start": position, "end": position}` (a `place`, spec 2.2) |
-| override | `{"id", "override": name}` (an origin's place for a value from an override) |
-| step | `{"id", "kind", "name", "place": place}` |
+| position | `[integer, integer, integer]` ([line, column, offset], in the binding's own unit) |
+| place | `{"id", "path": text, "start": position, "end": position}` (a place (spec 2.2)) |
+| override | `{"id", "override": text}` (an origin's place for a value from an override) |
+| step | `{"id", "kind": text, "name": text, "place": place}` |
 | origin | `{"place": place \| override, "via": [step, ...]}` |
-| syntax diagnostic | `{"id", "code", "message", "start": position, "end": position}` |
-| located diagnostic | `{"id", "code", "message", "place": place \| override, "via": [step, ...]}` |
-| syntax | `{"tokens": [[kind, text, start position, end position], ...], "root": node, "diagnostics": [syntax diagnostic, ...]}`; a node is `[kind, start, end, [node, ...]]` (token indices, half-open) |
-| variable reference | `{"id", "name", "kind", "place": place \| null}` (`null` for an override variable) |
-| resolution | `{"reference": {"id", "place"}, "via": [step, ...], "winner": variable reference \| null, "shadowed": [variable reference, ...]}`: a reference resolution, `via` its copy's |
-| written value | `{"id", "kind", "place", "text"}`, and by kind: `list` `"items": [written value, ...]`; `slice` `"name"`: written value (milestone 5: a word or a reference), `"start"`, `"end"`: written value or `null`; `index` `"name"`, `"index"`: written value; `reference` `"declaration"`: variable reference or `null`, `"resolutions": [resolution, ...]` |
-| statement | `{"id", "kind", "place", "text"}`, with `"values": [written value, ...]` on a written directive, extension line, set line and use line, and `"block": block \| null` on a written directive, extension line and snippet line |
+| syntax diagnostic | `{"id", "code": text, "message": text, "start": position, "end": position}` |
+| located diagnostic | `{"id", "code": text, "message": text, "place": place \| override, "via": [step, ...]}` |
+| token | `[text, text, position, position]` ([kind, text, start, end]) |
+| node | `[text, integer, integer, [node, ...]]` ([kind, start, end, children]: token indices, half-open) |
+| syntax | `{"tokens": [token, ...], "root": node, "diagnostics": [syntax diagnostic, ...]}` |
+| variable reference | `{"id", "name": text, "kind": text, "place": place \| null}` (place null for an override variable) |
+| reference place | `{"id", "place": place}` |
+| resolution | `{"reference": reference place, "via": [step, ...], "winner": variable reference \| null, "shadowed": [variable reference, ...]}` (a reference resolution; via is its copy's) |
+| written value | `{"id", "kind": text, "place": place, "text": text}`; by `kind`: `list` `{"items": [written value, ...]}`; `slice` `{"name": written value, "start": written value \| null, "end": written value \| null}`; `index` `{"name": written value, "index": written value}`; `reference` `{"declaration": variable reference \| null, "resolutions": [resolution, ...]}` (a slice's or index's name is a word or a reference (milestone 5)) |
+| statement | `{"id", "kind": text, "place": place, "text": text}`; by `kind`: `directive` `{"values": [written value, ...], "block": block \| null}`; `extension` `{"values": [written value, ...], "block": block \| null}`; `set` `{"values": [written value, ...]}`; `use` `{"values": [written value, ...]}`; `snippet` `{"block": block \| null}` |
 | block | `{"id", "statements": [statement, ...]}` |
-| copy | `{"place": the copy's statement's place, "via": [step, ...]}` |
-| document | `{"id", "path", "text", "savedText", "syntax": syntax, "block": block, "includedBy": [copy, ...]}`: `includedBy` the copies of `included by ()` |
-| graph | `{"id", "documents": [document, ...], "edges": [{"copy", "specs", "targets"}, ...], "variables": [variable reference + {"wins": [resolution, ...], "shadowedAt": [resolution, ...]}, ...], "diagnostics": [located diagnostic, ...]}`, each list in the graph's own order |
-| address | `{"text": address text, "people": people form}` (spec 7.4) |
-| unreadable | `{"reason", "origin": origin}` (an `unreadable expansion`) |
-| expanded value | `{"id", "kind", "text", "origin": origin, "definition": place \| null, "chain": [resolution, ...]}`: `definition` the place of the value's `definition` (was the `argument` dump) |
-| directive | `{"id", "name", "address": address, "origin": origin, "values": [expanded value, ...], "block": [directive, ...] \| null, "unreadable": [unreadable, ...]}` |
+| copy | `{"place": place, "via": [step, ...]}` (place is the copy's statement's place) |
+| document | `{"id", "path": text, "text": text, "savedText": text, "syntax": syntax, "block": block, "includedBy": [copy, ...]}` (includedBy: the copies of included by ()) |
+| edge | `{"copy": copy, "specs": [text, ...], "targets": [text, ...]}` |
+| graph variable | `{"id", "name": text, "kind": text, "place": place \| null, "wins": [resolution, ...], "shadowedAt": [resolution, ...]}` (a variable reference with its wins and shadowed at) |
+| graph | `{"id", "documents": [document, ...], "edges": [edge, ...], "variables": [graph variable, ...], "diagnostics": [located diagnostic, ...]}` (each list in the graph's own order) |
+| address | `{"text": text, "people": text}` (an address's text and its people form (spec 7.4)) |
+| unreadable | `{"reason": text, "origin": origin}` (an unreadable expansion) |
+| expanded value | `{"id", "kind": text, "text": text, "origin": origin, "definition": place \| null, "chain": [resolution, ...]}` (definition: the place of the value's definition) |
+| directive | `{"id", "name": text, "address": address, "origin": origin, "values": [expanded value, ...], "block": [directive, ...] \| null, "unreadable": [unreadable, ...]}` |
 | render | `{"id", "block": [directive, ...], "unreadable": [unreadable, ...], "diagnostics": [located diagnostic, ...]}` |
+| change | `{"kind": text, "address": address}` |
+| handle | `{"id", "text": text}` |
+| key rule | `{"directive": text, "parent"?: text \| null, "key": ["value", integer] \| ["join", text]}` (one rule of a key rule as data (spec/conformance.md 4.3)) |
+| reader result | exactly one of `{"text": text}`, `{"boolean": boolean}`, `{"number": number \| "-0"}`, `{"slice": [text, integer \| null, integer \| null]}`, `{"index": [text, integer]}`, `{"value": text}`, `{"list": [reader result, ...]}` (exactly one member: a reader's value (spec/conformance.md 4.4); negative zero is the string "-0") |
+| hello result | `{"protocol": integer, "binding": text, "unit": "utf-16" \| "code point" \| "byte", "level": integer}` |
+| loaded | `{"graph"}` |
+| edited | `{"handles"?: [handle, ...]}` (handles only when the member returns handles) |
+| saved | `{"batches"?: [[[text, text], ...], ...], "files"?: [[text, text], ...]}` (batches without disk; files with disk) |
+<!-- end generated -->
 
 A token's kind is its token name as written in [grammar/Villanelle.g4](../grammar/Villanelle.g4), in capitals
 (`WORD`, `SPACE`, `BAD_CHAR`; all 21 are listed in spec 3.1). Every other kind (a node's,
@@ -221,11 +243,15 @@ One adapter, in its own language, through its public API only (`spec/binding-gui
 
 1. Read requests line by line; answer each with one line (section 3).
 2. Keep a list of the objects it has dumped; an id is an index into it.
-3. Dump each shape of section 4.2 from the binding's objects, positions as the binding reports them.
+3. Dump each shape of section 4.2 from the binding's objects, positions as the binding reports them, typed by the
+   generated message shapes (milestone 6: `ts/conformance/shapes.ts`, `py/conformance/shapes.py`, from
+   [schema/protocol.json](schema/protocol.json); codegen.md section 5), so the adapter's compiler checks each dump.
 4. Build a key rule from its data (section 4.3).
-5. Call a member by its spec name in the binding's casing; turn `null` arguments into the language's absent.
+5. Call a member by its spec name in the binding's casing, looked up in the generated `SPELLING` table (never a
+   casing function of its own); turn `null` arguments into the language's absent.
 6. Report every error of a spec 2.8 group as `thrown` with the group's spec name (the most specific: a `lost update
-   error`, not a `save error`); everything else as `fault`.
+   error`, not a `save error`), looked up by the error's class name in the generated `ERROR_GROUP_OF_CLASS` table
+   (never a regular expression over the name); everything else as `fault`.
 
 TypeScript's adapter is under 200 lines and Python's under 300 (about 220 lines of code). A binding keeps its unit tests; it has no conformance
 runner of its own, and CI runs the driver with its adapter after its tests.
@@ -238,4 +264,6 @@ runner of its own, and CI runs the driver with its adapter after its tests.
 - A dump holds the whole graph each time a step asks for one, so a written case asks the adapter for several large
   objects. The corpora are small; the full run takes about a second per binding.
 - The driver checks the protocol's shapes only as far as it reads them, except the syntax dump (4.2); a member it
-  never reads is not checked.
+  never reads is not checked. Since milestone 6 each adapter's own compiler checks its dumps against the generated shapes
+  (codegen.md section 5), which catches a wrong or missing member at build time; an extra member a dynamic language
+  adds at run time is still not caught.

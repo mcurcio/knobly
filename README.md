@@ -42,12 +42,14 @@ villanelle has three layers, each built on the one below; a program can work at 
   between two renders. Reference: [docs/rendered-tree.md](docs/rendered-tree.md).
 
 ```ts
+  // import { memorySource, quote } from "villanelle"; import { villanelle } from "villanelle/written";
   const config = villanelle({ source: memorySource(FILES), extensions: [include()] });
   const graph = await config.load("main.conf", { overrides: { leds_host: quote("10.0.70.1") } });
 ```
 
 ```python
-    config = vl.Processor(source=vl.memory_source(FILES), extensions=[include()])
+    # import villanelle as vl; from villanelle import written
+    config = written.Processor(source=vl.memory_source(FILES), extensions=[include()])
     return config.load("main.conf", overrides={"leds_host": vl.quote("10.0.70.1")})
 ```
 
@@ -55,10 +57,15 @@ villanelle has three layers, each built on the one below; a program can work at 
 [`fixtures/rasl/split`](fixtures/rasl/split/), change `$pixels`, save, and render.) Every example in the docs is
 copied from a test that runs.
 
+Each layer is its own import path, and every name has exactly one (milestone 6; [spec/binding-guide.md](spec/binding-guide.md)
+rule 9). Type names carry no prefix (`DocumentGraph`, `Rendered`), the same in both languages.
+
 | Entry point | TypeScript | Python |
 |---|---|---|
-| the core (no input or output) | `villanelle`: `parse`, `villanelle`, `render`, `quote`, `text`, `memorySource`, `memoryWriter`, `Diagnostics`, `formatDiagnostic`, ... | `villanelle`: `parse`, `Processor`, `render`, `quote`, `text`, `memory_source`, `memory_writer`, `Diagnostics`, `format_diagnostic`, ... |
-| one layer only | `villanelle` re-exports every layer | `villanelle.written` (the low level), `villanelle.rendered` (the rendered tree) |
+| what every layer shares, and the ports | `villanelle`: `quote`, `text`, `ConfigText`, `memorySource`, `memoryWriter`, `Diagnostics`, the error classes, `DocumentSource`, `Place`, ... | `villanelle`: `quote`, `text`, `ConfigText`, `memory_source`, `memory_writer`, `Diagnostics`, the error classes, `DocumentSource`, `Place`, ... |
+| the syntax tree | `villanelle/syntax`: `parse`, `spanOf`, `textOf`, `Syntax`, `Token`, `Node`, `TokenKind`, ... | `villanelle.syntax`: `parse`, `span_of`, `text_of`, `Syntax`, `Token`, `Node`, `TokenKind`, ... |
+| the low level | `villanelle/written`: `villanelle`, `formatDiagnostic`, `DocumentGraph`, `Statement`, `StatementKind`, ... | `villanelle.written`: `Processor`, `format_diagnostic`, `DocumentGraph`, `Statement`, `StatementKind`, ... |
+| the rendered tree | `villanelle/rendered`: `render`, `Rendered`, `Directive`, `KeyRule`, ... | `villanelle.rendered`: `render`, `Rendered`, `Directive`, `KeyRule`, ... |
 | the include extension | `villanelle/include`: `include()` | `villanelle.include`: `include()` |
 | files on disk | `villanelle/node`: `fileSource()`, `fileWriter()` | `villanelle.files`: `file_source()`, `file_writer()` |
 | files over `fetch` | `villanelle/browser`: `fetchSource(fetch)`, `fetchWriter(fetch, options?)` | none |
@@ -74,7 +81,8 @@ in `.claude/errata.md`).
 
 The API every language binding offers on top of the parsers is specified, language-neutrally, in
 [`spec/`](spec/README.md): the layers, one word per concept ([`spec/glossary.md`](spec/glossary.md)),
-and the machine-readable lists in [`spec/schema/`](spec/schema/). The spec wins over either
+and the schema in [`spec/schema/`](spec/schema/), from which each binding's declarations (every public signature,
+kind list, error class and diagnostic code) are generated ([`spec/codegen.md`](spec/codegen.md)). The spec wins over either
 binding's code (owner, 2026-10-27: "Within villanelle I want the spec to win over a reference
 language").
 
@@ -84,10 +92,14 @@ The grammar is checked to be unambiguous, so every valid file has exactly one pa
 tools/check.sh
 ```
 
-The script runs three checks:
+The script runs these checks:
 - it translates the parser rules to Bison and requires 0 conflicts, for the document rule and each entry rule;
 - it checks that no two token kinds can match the same text;
-- it confirms that both checks still catch the planted bad grammars in `tools/planted/`.
+- it confirms that both checks still catch the planted bad grammars in `tools/planted/`;
+- it checks the API schema (every type resolves, the layer direction, the error tree), renders both bindings'
+  declarations, checks the generated docs tables are current, and validates the schema files against their JSON
+  Schema, each check also run against planted broken copies;
+- it runs the kind lint's and the conformance driver's own tests.
 
 It needs `python3`, `bison` and `uv`.
 
@@ -96,7 +108,7 @@ It needs `python3`, `bison` and `uv`.
 | Path | What it is |
 |---|---|
 | `grammar/` | The grammar (`Villanelle.g4`) and its EBNF view |
-| `tools/` | The soundness checks (`check.sh`), the planted bad grammars they must catch, and the parser generator script (`gen.sh`) |
+| `tools/` | The soundness checks (`check.sh`), the planted bad grammars they must catch, the parser generator script (`gen.sh`), the API generator (`gen-api.py`: a loader in `api/loader.py` and one emitter per language) and the kind lint (`lint/`) |
 | `ts/` | The TypeScript package, npm name `villanelle` ([`ts/README.md`](ts/README.md)) |
 | `py/` | The Python package, PyPI name `villanelle` ([`py/README.md`](py/README.md)) |
 | `conformance/` | Test cases every package must pass, with the expected output for each, and the one driver that runs them against each package's adapter ([`spec/conformance.md`](spec/conformance.md)): syntax cases ([`conformance/format.md`](conformance/format.md)), low-level cases in `conformance/written/`, load cases in `conformance/load/`, addresses and diff order in `conformance/rendered/`, and readers, positions and formatting in `conformance/contract/`; `conformance/corpora.json` lists them |
@@ -110,9 +122,11 @@ It needs `python3`, `bison` and `uv`.
 
 ## Build and test
 
-The generated parsers are not committed (owner, 2026-10-23: "Don't commit the generated code, just
-the source"). `tools/gen.sh ts` and `tools/gen.sh py` write them to `ts/src/gen/` and
-`py/src/villanelle/_gen/` (both ignored by git), and every build and test runs it first. It needs
+The generated parsers and API declarations are not committed (owner, 2026-10-23: "Don't commit the generated
+code, just the source"). `tools/gen.sh ts` and `tools/gen.sh py` write them to `ts/src/gen/` (with
+`ts/conformance/shapes.ts`) and `py/src/villanelle/_gen/` and `_api/` (with `py/conformance/shapes.py`), all ignored
+by git, and every build and test runs it first. The generated docs tables are the one committed output
+(`python3 tools/gen-api.py docs`; [spec/codegen.md](spec/codegen.md) section 6). It needs
 Java 11+ and `curl`: it downloads the ANTLR 4.13.2 jar once, checks its sha256, and caches it in
 `$ANTLR_JAR_DIR` (default `~/.cache/antlr`).
 

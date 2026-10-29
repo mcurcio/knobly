@@ -55,8 +55,9 @@ with their sources.
 These are the review's rules ([review.md, "Naming and structure rules across languages"](../.claude/design/consumer-api/round13/review.md#naming-and-structure-rules-across-languages)).
 Rules 1, 6 and 8 are adopted by milestone 1 (the glossary and the operation homes rest on them); rule 4 by
 milestone 2 (types carry their kinds, spec 2.10), with rule 8's second check (the rendered layer uses only public
-low-level members); rules 2, 3, 5 and 7 are **proposed, pending the owner** (milestone 2 applies rule 2's module
-context to Python's value classes and rule 3's medium-and-port names to the adapters, nothing more). A new binding should follow all of them;
+low-level members); rules 2 and 5, and rule 9 (one namespace per layer), by milestone 6 (owner, 2026-10-29, "Yes,
+rename now"); rules 3 and 7 are **proposed, pending the owner** (milestone 2 applies rule 3's medium-and-port names to
+the adapters, nothing more). A new binding should follow all of them;
 where TypeScript or Python break one, section 4 says so.
 
 1. **Spec names change only in casing** (adopted). The words are in [glossary.md](glossary.md). The spec names each concept, member and kind value once in
@@ -73,8 +74,11 @@ where TypeScript or Python break one, section 4 says so.
    | kind value `set` | `"set"` | `StatementKind.SET` (value `"set"`) | `StatementKindSet` |
    | factory `make processor` | `villanelle(...)` (rule 3) | `Processor(...)` | `NewProcessor(...)` |
 
-2. **No language prefixes on type names** (proposed). No `I` on interfaces. Where a short name would clash with
-   a built-in, the module gives the context (`written.String`), not a prefix.
+2. **No language prefixes on type names** (adopted, milestone 6). No `I` on interfaces: `DocumentGraph`,
+   `WrittenDirective`, `Rendered`. Where a short name would clash with a built-in, the module gives the context
+   (`written.String`, `written.List`), not a prefix. A binding derives every name from its spec name with its
+   casing rule; the generator does it once for every binding (codegen.md section 3), so no binding stores a
+   spelling.
 3. **One factory convention per binding, the language's own constructor idiom** (proposed). TypeScript:
    lowercase nouns, no `create` (`fileSource()`, `include()`). Python: public classes
    (`FileSource()`, `Include()`), as jinja2's `FileSystemLoader`. Go: `New` plus the concept
@@ -83,8 +87,9 @@ where TypeScript or Python break one, section 4 says so.
    processor`, `make diagnostics`) names the factory of the concept after it.
 4. **One model per language, used in every layer** (adopted for kinds by milestone 2, spec 2.10; the owner's goal
    2 is his). Each binding names its model in its README:
-   - TypeScript: discriminated unions narrowed on `kind`, one interface per variant, kind lists as string-literal
-     types, read-only objects, options objects (generators for iteration: proposed, spec 7.5).
+   - TypeScript: discriminated unions narrowed on `kind`, one interface per variant, kind lists as `as const`
+     objects with the string-literal union derived from them (milestone 6, spec 2.10), read-only objects, options
+     objects, blocks iterable with `for...of` and indexed with `at` (generators for `walk`: proposed, spec 7.5).
    - Python: the standard `ast` style: a class per variant with `kind` and `__match_args__` in the same field
      order in every layer, unions as `TypeAlias`, kind lists as `StrEnum`s, frozen slotted records, keyword-only
      options, tuples for results (a `MutableMapping` where the user edits a map: proposed).
@@ -105,8 +110,9 @@ where TypeScript or Python break one, section 4 says so.
    - Java (21 or later): `sealed interface` plus `record` per kind, matched with `switch` patterns;
      `Stream` or `Iterable`; builders for options; unchecked exceptions for program bugs and checked
      ones (or a result type) for expected outcomes.
-5. **Containers have one shape** (proposed). A block can be iterated and indexed in every layer,
-   and both layers offer the same walk (spec 7.5).
+5. **Containers have one shape** (adopted, milestone 6). A block can be iterated and indexed in every layer, has
+   `directives (name?)` and `walk`, and nothing else is a container's own member (spec 2.11): the written block, the
+   expansion block and the rendered block. `walk` lives on the block (spec 7.5), not on the render or a directive.
 6. **Properties and methods** (adopted). A fact the object holds, or can work out cheaply on its
    own, is a property. Anything worked out across the whole graph, that can fail, or that takes
    arguments, is a method. The same concept is the same kind of member in every layer. The graph's
@@ -162,11 +168,26 @@ where TypeScript or Python break one, section 4 says so.
    bindings use the smaller tools above because an allow-list check (every module but the rendered
    ones and the entry point) also catches an indirect import, with no new dependency.
 
-   **Module layout.** Milestone 1 gives each layer its own module (`written` and `rendered` in both
-   bindings) with the shared pieces of spec 2 in modules both import, and keeps today's top-level
-   exports. The rest is **proposed** (pending owner): the same short module names in every binding
-   as public entry points, and a small top level (`villanelle/written`, `villanelle/rendered`,
-   `villanelle/file`).
+9. **One namespace per layer** (adopted, milestone 6; owner, 2026-10-29, "Yes, rename now"). Each layer is its own
+   public import path, and every public name has exactly one: the package root holds the shared and io layers
+   (positions, places, diagnostics and the sink, error classes, config text, the ports and the memory adapters); the
+   syntax, written and rendered layers are their own paths; an adapter keeps its own path (the file and fetch
+   adapters, the include extension). A name is never re-exported under a second path, and no old name is kept.
+
+   | Layer | TypeScript | Python |
+   |---|---|---|
+   | shared, io | `villanelle` | `villanelle` |
+   | syntax | `villanelle/syntax` (package subpath export) | `villanelle.syntax` (subpackage) |
+   | written (the low level) | `villanelle/written` | `villanelle.written` |
+   | rendered | `villanelle/rendered` | `villanelle.rendered` |
+   | file adapters | `villanelle/node` | `villanelle.files` |
+   | fetch adapters | `villanelle/browser` | none (MAY, spec 4.3) |
+   | include extension | `villanelle/include` | `villanelle.include` |
+
+   The exact names per path are generated (`PUBLIC_NAMES`, codegen.md section 4), and each binding's name test
+   compares every path's exports with them, both ways. Python users import the subpackage as the namespace (`from
+   villanelle import rendered, written`, then `written.Processor`, `rendered.render`), which also keeps
+   `written.List` from shadowing `typing.List`.
 
 ## 3. What may differ, and what must not
 
@@ -181,15 +202,15 @@ where TypeScript or Python break one, section 4 says so.
 | Index out of range | `RangeError` | `IndexError` | the language's own classes (spec 2.8) |
 | Config text (M5) | `ConfigText`, a branded string (`string & { readonly [brand]: true }`, the brand a `unique symbol`) | `ConfigText = NewType("ConfigText", str)` | each language's named-string idiom (spec 6.9); a language with neither (Go) uses a defined type, `type ConfigText string` |
 | A value handle that changes kind under `set` (M5) | the same object reports the new `kind`; a narrowed variable is stale | the object's class becomes the new kind's (`__class__` assignment; the six value classes share one slot layout) | spec 6.1: one object, a type per kind; each language keeps both as far as it can |
-| How a kind list is spelled | a string-literal type | a `StrEnum` | narrowing without an import, against `match` and enums (spec 2.10) |
-| How a variant is matched | `switch (x.kind)` or `if (x.kind === "set")` narrows | `match x: case SetVariable(): ...`, `__match_args__` | the language's own pattern |
+| How a kind list is spelled | an `as const` object and its derived string-literal union (`StatementKind.Set`, `"set"`) | a `StrEnum` (`StatementKind.SET`) | each language's enumeration that the checker sees through (spec 2.10, milestone 6) |
+| How a variant is matched | `switch (x.kind)` or `if (x.kind === StatementKind.Set)` narrows | `match x: case SetVariable(): ...`, `__match_args__` | the language's own pattern |
 | Options | an options object (`{ key }`) | keyword-only arguments (`key=`) | the language's habit |
 | Iteration | iterators and `for...of` (today: a walk callback) | generators and `for` | the language's habit |
 | Reader names | `word()`, `string()`, `number()`, `integer()`, `boolean()`, `list()`, `slice()` (milestone 5 deleted `plain()`) | the same words (casing only, vil-gxu, milestone 2) | not a difference in TypeScript and Python: a method named `list` or `string` shadows nothing for the caller (the only trap is an annotation inside the class body, as for `set`: write `builtins.list`). A name a language's conventions give another meaning does differ: in Go, `String()` is `fmt.Stringer` (the `people form`) and `Error()` is the `error` interface, so the readers become `AsString()` and the like, and `error (...)` becomes `Fail(...)` or similar |
 | People form | `toString()` | `__str__` | the language's to-text conversion (contract 2) |
 | Positions | UTF-16 code units | code points | the language's string unit (contract 1); conformance stays UTF-16 |
 | Chained errors | `cause` | `__cause__` | the language's mechanism |
-| A written block's statements (until rule 5 is decided) | `block.statements`, an array; the block itself is not iterable | the block is a `Sequence` (`for s in block`, `block[0]`) | the milestone 1 shapes, kept while rule 5 (one container shape in every layer, proposed) waits for the owner; a rendered block is an array or tuple in both |
+| A block (rule 5, spec 2.11) | `Iterable` (`for...of`, `[...block]`), `length`, `at(i)` (absent out of range) | a `Sequence` (`for s in block`, `len(block)`, `block[i]`, `IndexError` out of range) | each language's read-only sequence; a live written block cannot be a frozen array |
 
 **Must not differ:**
 
@@ -226,7 +247,9 @@ The names on PR 4, before milestone 1. A note in the last column shows a break w
 difference not in section 3, with the review finding that names it
 ([findings.json](../.claude/design/consumer-api/round13/findings.json)); "M1:" and "M2:" give the milestone 1 and 2
 names. The exact old-to-new tables, with signatures, are the milestones' frozen pages,
-`.claude/design/consumer-api/round14/frozen-m1.md` and `frozen-m2.md`.
+`.claude/design/consumer-api/round14/frozen-m1.md` and `frozen-m2.md`. Milestone 6 drops every TypeScript `I` prefix
+(`IDocumentGraph` is `DocumentGraph`) and moves each name to its layer's import path (rule 9); its full list is
+`.claude/design/consumer-api/round15/frozen-m6.md`, "Behaviour changes".
 
 ### Processor and I/O
 
@@ -279,7 +302,7 @@ names. The exact old-to-new tables, with signatures, are the milestones' frozen 
 | `directive` | `IDirective` (`name`, `args`, `body`, `unreadable`, `parent`, `origin`, `written`, `walk()`, `closest()`, `error()`) | `Directive` (`__match_args__`; no `walk` method) | `args`/`values`, `body`/`block`. M1: `values`, `block`, `walk` in Python |
 | `walk` | `node.walk(visit)`, callback returns `"skip"` or `"stop"` | `walk(node, descend=...)`, a generator | rule 5. M1: a method in Python too |
 | `argument` | `IArgument` | `Argument` | `written` is the end of the chain. M1: `written` (same line), `definition`, `chain`; builds on `expanded value`. M2: union `Argument` of `IWordArgument` ... `IIndexArgument`, each built on its expanded variant; built from `graph.expand()` only. M4: removed: a rendered directive's values are its expansion's `expanded value`s, which carry `written`, `definition`, `chain` |
-| readers | `word()`, `string()`, `number()`, `integer()`, `boolean()`, `items()`, `slice()`, `plain()` | `as_word()`, `as_str()`, `as_number()`, `as_int()`, `as_bool()`, `as_list()`, `as_slice()`, `plain()` | section 3 reader row. M2: `word()` ... `list()` ... `plain()` in both; `items` a property of list variants |
+| readers | `word()`, `string()`, `number()`, `integer()`, `boolean()`, `items()`, `slice()`, `plain()` | `as_word()`, `as_str()`, `as_number()`, `as_int()`, `as_bool()`, `as_list()`, `as_slice()`, `plain()` | section 3 reader row. M2: `word()` ... `list()` ... `plain()` in both; `items` a property of list variants. M5: `plain()` deleted in both (the readers are `word()`, `string()`, `number()`, `integer()`, `boolean()`, `list()`, `slice()`) |
 | `slice value`, `index value` | `ISliceValue`, `IIndexValue` | `SliceValue`, `IndexValue` | Python names clash with low-level `Slice`, `Index` |
 | `unreadable` | `IUnreadable` (`kind` is the reason) | `Unreadable` | M1: `reason`. M4: removed: `IUnreadableExpansion` / `UnreadableExpansion` (reason `unread` added) |
 | `address`, `address step` | `IAddress` (`text`; `toString()` is the `people form`), `IAddressStep` | `Address` (`text`; `str()` is the `people form`), `AddressStep` | |
@@ -318,12 +341,14 @@ Work in this order. Each step ends with shared cases passing, so progress is mea
    runtime and lags the official releases). How a binding without an official target gets its parser (a
    third-party runtime, a parser written by hand and held to the syntax corpus, or another generator checked
    against the grammar) is an open question for the owner; ask before choosing.
-4. **Generate the fixed lists** (codes and messages, kind lists, limits, reserved names) from
-   [schema/](schema/) by adding your target to the generator ([codegen.md](codegen.md)); token kind
-   names come from the grammar. Never type a list by hand.
+4. **Write your emitter** ([codegen.md](codegen.md) section 10): `tools/api/emit_<lang>.py`, rendering the
+   loader's model in your language: the kind lists, codes, rules, error tree, one declaration per concept (each
+   trait of codegen.md section 3 in your idiom), the names table and the adapter's message shapes. Register it in
+   `tools/gen-api.py` and `tools/gen.sh`, and keep its output out of git. Never type a list, a signature or a name
+   by hand: your classes implement the generated declarations.
 5. **Write the adapter** ([conformance.md 6](conformance.md#6-what-a-binding-writes)): one small program in your
    language that reads the driver's requests on standard input and answers on standard output, through your public
-   API only. Start with `hello` (claim L0, name your string unit) and `parse`, then run the driver (the adapter can
+   API only, typed by your emitter's generated message shapes and spelling table. Start with `hello` (claim L0, name your string unit) and `parse`, then run the driver (the adapter can
    come before step 3: a stub `parse`, or one that delegates to an existing binding, tries the protocol first):
    `python3 conformance/driver/run.py -- <your adapter's command>`. Make every syntax case pass (L0). The driver
    checks the byte rules and converts your positions to UTF-16 (contract 1); your adapter does neither.

@@ -1,7 +1,10 @@
 # villanelle language-binding specification
 
 Status: this page is canonical (owner, 2026-10-27: "Within villanelle I want the spec to win over a
-reference language"). It describes the API after milestone 5 (beads vil-umh.6, vil-umh.12 and vil-umh.14: raw single
+reference language"). It describes the API after milestone 6 (beads vil-umh.9, vil-umh.10, vil-umh.11 and
+vil-umh.13: the schema is the source of every public signature, kind lists are generated enumerations (2.10), one
+namespace per layer without an `I` prefix (binding guide rules 1 and 2), one block shape in every layer (2.11);
+`.claude/design/consumer-api/round15/frozen-m6.md`), milestone 5 (beads vil-umh.6, vil-umh.12 and vil-umh.14: raw single
 quotes, no `plain` reader, the `~` slice separator and subscripts on variables, `@` statements, a value's `set` that
 keeps its handle, config text as its own type) and milestone 4 (beads vil-umh.1 to vil-umh.8 and vil-umh.12, the
 round 15 review's next steps: `.claude/design/consumer-api/round15/`), built on milestone 2 (beads vil-0vz, vil-9fy,
@@ -20,8 +23,9 @@ or names its open question.
 
 This page is the one home of the rules a binding must follow. Each concept's one word, and its type
 name in each layer and binding, is in [glossary.md](glossary.md). Every fixed list (kind lists,
-error groups, limits, reserved names, diagnostic codes) has its one home in [schema/](schema/): the
-tables on this page are copies for reading, and the schema wins where they differ. How to turn the
+error groups, limits, reserved names, diagnostic codes) and every public signature has its one home in
+[schema/](schema/): each binding's declarations are generated from it ([codegen.md](codegen.md)), the code table of
+2.4 is generated, the other tables on this page are copies for reading, and the schema wins where they differ. How to turn the
 rules into a binding in a given language (names, idiom, what may differ) is in
 [binding-guide.md](binding-guide.md). The syntax is [grammar/Villanelle.g4](../grammar/Villanelle.g4); which
 definition a `$name` or a `use` reaches, and which one wins, is [expansion.md](expansion.md) (normative); the
@@ -146,45 +150,49 @@ start its line; a bad escape is found by parse, E1005). Ranges: 1xxx lexical, 2x
 extensions, 4xxx values, 5xxx expansion, 6xxx reserved for the high level.
 
 A binding MUST expose every code below, by its value and by a name. The "found by" column says
-which operation reports it. This table is a copy of [schema/diagnostics.json](schema/diagnostics.json),
-which also holds each code's message and owning layer; the schema wins.
+which operation reports it: `parse`, `edit` (in a `bad text error`'s diagnostics, 2.8), `load and read`, `low
+level` (worked out from the current texts), `readers` (2.9) or `include extension`. The table is generated from
+[schema/diagnostics.json](schema/diagnostics.json) (`python3 tools/gen-api.py docs`; `tools/check.sh` fails when it
+is stale), which also holds each code's message and owning layer.
 
+<!-- generated: diagnostic codes (tools/gen-api.py docs) -->
 | Code | Spec name | Found by | Unreadable reason | Meaning |
 |---|---|---|---|---|
 | E1001 | `unterminated string` | parse | syntax | A string reaches the end of its line or of the text without its closing quote. |
 | E1003 | `unexpected character` | parse | syntax | A character no token may start with, or a byte-order mark after the first character. |
 | E1004 | `lone dollar` | parse | syntax | A `$` not followed by a variable name. |
 | E1005 | `bad escape` | parse | syntax | A closed double-quoted string holding a backslash escape other than the six (the `BAD_ESCAPE` error token), placed on the string. A single-quoted string is raw: it has no escapes (milestone 5). |
-| E2001 | `unexpected token` | parse | syntax | A token the grammar does not allow here, when no more specific code applies: among them the end of the text or a `}` where a directive's `;` or block is due. |
+| E2001 | `unexpected token` | parse | syntax | A token the grammar does not allow here, when no more specific code applies: among them the end of the text or a `}` where a directive's `;` or block is due. Also an edit's bad text error, from its entry rule (2.8): at the first token the entry rule does not allow, or at the end of the text. |
 | E2003 | `expected closing brace` | parse | syntax | The text ends inside a block. |
 | E2004 | `expected closing bracket` | parse | syntax | A stray `]`, or a `[` list with no matching `]`. |
 | E2007 | `bad slice` | parse | syntax | A malformed slice after a slice name (a word or a `$name`): `a[~]`, `a[1~b c]`, an unclosed slice, or a literal bound that is not an integer (`a[i]`, `a[1.5]`, `a[1:3]`, whose `1:3` is one word). |
 | E2009 | `values touch` | parse | syntax | Two values with nothing between them, such as `a"b"`. |
 | E2010 | `nesting too deep` | parse | syntax | Blocks and lists nested deeper than 100 levels. |
-| E3001 | `include not found` | load, read | extension | An extension's spec matched no file. |
-| E3004 | `include resolver failed` | load, read | extension | The document source rejected while resolving or reading a file. For the root file, `load` fails instead (6.2). |
+| E3001 | `include not found` | load and read | extension | An extension's spec matched no file. |
+| E3004 | `include resolver failed` | load and read | extension | The document source rejected while resolving or reading a file. For the root file, `load` fails instead (6.2). |
 | E3005 | `include bad path` | include extension | extension | An `include` whose values are not exactly one quoted path. |
-| E3006 | `extension failed` | load, read | extension | An extension threw something other than a diagnostic error, or returned something other than a list of texts. |
+| E3006 | `extension failed` | load and read | extension | An extension threw something other than a diagnostic error, or returned something other than a list of texts. |
 | E3007 | `unread copy` | low level | unread | An extension line's copy whose specs are not resolved or whose files are not read yet (it is in `unread ()`); `read ()` reads them. Placed on the extension line's name. |
 | E3008 | `unknown extension` | low level | extension | A statement written `@name` where `name` is no language statement (`set`, `snippet`, `use`) and no registered extension's name (milestone 5). Placed on the `@name`; the statement is an `unreadable line`. |
-| E4001 | `non-integer bound` | low level | value | A slice or index bound reached through a variable that is not one integer word, or a literal integer beyond the integer range. |
+| E4001 | `non-integer bound` | low level | value | A slice or index bound reached through a variable that is not one integer word, or a literal integer beyond the integer range. A literal bound that is not an integer is E2007, found by parse. |
 | E4002 | `wrong value kind` | readers | none | A reader asked for a kind the value is not. |
-| E4007 | `bad slice name` | low level | value | A slice or index whose name is a `$name` that does not hold exactly one `WORD` or `AT_WORD`, the words the grammar's `sliceName` takes (`$src[0~3]` with `$src` a string, a list, two values, or a number-like word such as `5`, `1.5`, `-` or `07:30`); placed as E4001 is (milestone 5). |
-| E4004 | `not a number` | readers | none | A word read as a number that is not a JSON number. |
-| E4005 | `not an integer` | readers | none | A word read as an integer that is not one. |
+| E4004 | `not a number` | readers | none | A word read as a number that is not a JSON number, or one beyond the double range (`1e400`; contract 2). |
+| E4005 | `not an integer` | readers | none | A word read as an integer that is not one, or one beyond plus or minus 2^53-1. |
 | E4006 | `not a boolean` | readers | none | A word other than `true` or `false`, read as a boolean. |
+| E4007 | `bad slice name` | low level | value | A slice or index whose name is a `$name` that does not hold exactly one `WORD` or `AT_WORD`, the words the grammar's `sliceName` takes (`$src[0~3]` with `$src` a string, a list, two values, or a number-like word such as `5`, `1.5`, `-` or `07:30`); placed as E4001 is (milestone 5). |
 | E5001 | `unknown variable` | low level | expansion | A `$name` with no `set` visible and no override. |
-| E5002 | `variable set twice` | low level | expansion | Two `set` lines for one name in one block. |
+| E5002 | `variable set twice` | low level, edit | expansion | Two `set` lines for one name in one block. |
 | E5003 | `unknown snippet` | low level | expansion | A `use` naming no visible snippet. |
 | E5004 | `snippet arity` | low level | expansion | A `use` with a different number of values than its snippet's parameters. |
-| E5005 | `snippet defined twice` | low level | expansion | Two `snippet` lines for one name in one block. |
+| E5005 | `snippet defined twice` | low level, edit | expansion | Two `snippet` lines for one name in one block. |
 | E5006 | `expansion cycle` | low level | expansion | A `use` or extension line that reaches itself again. |
 | E5007 | `expansion too deep` | low level | expansion | `use` and extension lines nested deeper than 16. |
 | E5008 | `too many directives` | low level | expansion | More than 100,000 directives after expansion. |
-| E5009 | `bad set` | low level | expansion | A `set` line that is not `@set $name value...;`. |
-| E5010 | `bad snippet` | low level | expansion | A malformed `snippet` line (`@snippet name $p... { ... }`), or one naming a parameter twice. |
-| E5011 | `bad use` | low level | expansion | A `use` line that is not `@use name value...;`. |
+| E5009 | `bad set` | low level, edit | expansion | A `set` line that is not `@set $name value...;`. |
+| E5010 | `bad snippet` | low level, edit | expansion | A malformed `snippet` line (`@snippet name $p... { ... }`), or one naming a parameter twice. |
+| E5011 | `bad use` | low level, edit | expansion | A `use` line that is not `@use name value...;`. |
 | E5012 | `extension block not set` | low level | extension | An extension line whose block holds a line other than `@set`. |
+<!-- end generated -->
 
 Every code but the readers' is in the one diagnostics list: the `document graph`'s `diagnostics` (6.3), which the
 `expansion` and the `rendered` tree show unchanged (6.10, 7.1). "Low level" codes are found when the list is worked
@@ -208,7 +216,12 @@ layer owns each code.
 
 ### 2.5 Limits and reserved names
 
-A copy of `limits` and `reserved names` in [schema/api.json](schema/api.json).
+A copy of `limits`, `keywords` and `reserved names` in [schema/api.json](schema/api.json). Each binding exports them
+from the layer that owns them, generated as the **rules module** (milestone 6, bead vil-umh.10; codegen.md): the
+syntax layer `MAX_NESTING`; the written layer `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED` and
+`VARIABLE_NAME`; the package root `PROGRAM_CODE`. The keywords are one generated list (`Keyword`) with one dispatch
+table from keyword to statement kind (`STATEMENT_OF_KEYWORD`), which every binding's statement classification reads;
+no binding compares a keyword's text by hand.
 
 - Nesting of blocks and lists: at most 100 levels (E2010).
 - Nesting of `use` and extension lines: at most 16 (E5007).
@@ -450,11 +463,26 @@ at the edges (zero, beyond 2^53-1, beyond the double range) in [contract.md 3](c
 
 Every closed set of the API is one named list in [schema/api.json](schema/api.json) (`kinds`), with lowercase
 values (round 13 root cause 3). The one exception is `token kind`, whose values are the grammar's token names
-(`WORD`, `BAD_CHAR`) because the grammar is their one home. Each list is generated into each binding: TypeScript a
-string-literal type (`StatementKind`, so `s.kind === "set"` narrows without an import), Python a `StrEnum`
-(`StatementKind.SET`, whose value is `"set"`). No binding spells a list any other way: no TypeScript constant
-objects, no Python `Literal` aliases, no classes told apart without a `kind`. (`DiagnosticCode` keeps its constant
-object: codes are a registry of `E` numbers, not a kind list.)
+(`WORD`, `BAD_CHAR`) because the grammar is their one home. Each list is generated into each binding as a real
+enumeration (milestone 6, bead vil-umh.11; owner, 2026-10-29, asked for "proper enumerations instead of hardcoded
+strings" and picked "Yes, generate both"):
+
+- **TypeScript:** an `as const` object and the string-literal union derived from it, under one name:
+  `export const StatementKind = { Directive: "directive", ..., Set: "set", ... } as const;` and
+  `export type StatementKind = (typeof StatementKind)[keyof typeof StatementKind];`. A program may write either
+  `s.kind === StatementKind.Set` or `s.kind === "set"`: both are checked by the compiler and both narrow. Not a
+  TypeScript `enum` (a nominal type with its own run-time object, outside the language's erasable subset). Keys are
+  the value in PascalCase (`StatementKind.Set`); `TokenKind`'s keys are the token names (`TokenKind.WORD`).
+- **Python:** a `StrEnum` (`StatementKind.SET`, whose value is `"set"`), as before.
+- **Inside each binding** a `kind`, `reason` or `code` is compared only with a member, never with a string literal,
+  so a renamed or misspelled value fails to compile (TypeScript) or to import (Python) instead of comparing false
+  (Python's `s.kind == "sett"` passes `mypy --strict` against a `StrEnum`). A lint refuses the literal form in both
+  bindings (codegen.md section 7). Programs using a binding are free to write either form.
+
+This reverses the milestone 2 rule ("no TypeScript constant objects"), which made the string-literal type the only
+spelling. No binding spells a list any other way: no Python `Literal` aliases, no classes told apart without a
+`kind`. `DiagnosticCode` has the same two forms (an `as const` object keyed by each code's name in PascalCase, and
+the union of the `E` codes).
 
 A list is one of two sorts (the schema's `kind rule`):
 
@@ -483,8 +511,34 @@ field order in every layer**, so `match` works on the low level as on the render
 rendered directive are both `("name", "values", "block")`; a written `list` and an `expanded list` are both
 `("items",)`. Each section gives its order; the schema (`py match args`) holds them all.
 
-**TypeScript narrowing.** A union narrows on `kind`; a program never casts (`as ISetLine`). A filter narrows too,
-since TypeScript infers the predicate: `block.statements.filter((s) => s.kind === "set")` is `ISetLine[]`.
+**TypeScript narrowing.** A union narrows on `kind`; a program never casts (`as SetLine`). A filter narrows too,
+since TypeScript infers the predicate: `[...block].filter((s) => s.kind === StatementKind.Set)` is `SetLine[]`.
+
+### 2.11 Blocks: one shape in every layer
+
+A block is the statements or directives of one level, in written order (milestone 6, bead vil-umh.13; owner,
+2026-10-29, "Yes, rename now", for "one block shape (iterate, index, directives(name), walk) in every layer"). Every
+block has the same members, whatever it holds:
+
+| Member | Contract |
+|---|---|
+| `iterate` | its items in written order (TypeScript `Symbol.iterator`, so `for...of` and `[...block]`; Python `__iter__`) |
+| `count` | how many items (TypeScript `length`; Python `len(block)`) |
+| `at (index)` | the item at a 0-based index (TypeScript `at(i)`, absent out of range, as an array's `at`; Python `block[i]`, `IndexError` out of range, as a `Sequence`) |
+| `directives (name?)` | its directives, of that name when given, in written order |
+| `walk` | every item at any depth below it, depth-first in written order (7.5's order; the block's owner is not visited): TypeScript `walk(visit)`, the callback returning `"skip"` (`WalkControl.Skip`) or `"stop"`; Python `walk(*, descend=None)`, a generator |
+
+The three blocks:
+
+| Block | Layer | Items | `directives (name?)` gives | Where |
+|---|---|---|---|---|
+| `written block` | written | statements (6.5) | `written directive`s | a document's `block`, a written directive's, extension line's or snippet line's `block` |
+| `expansion block` | written | `directive expansion`s (6.10) | the same | an expansion's `block`, a directive expansion's `block` |
+| `rendered block` | rendered | `directive`s (7.2) | the same | a render's `block`, a directive's `block` |
+
+A written block is live (a handle: it follows edits, and its items are worked out from the current text when
+asked); the expansion and rendered blocks are snapshots of one working-out. The syntax layer has no block: a
+`block` node is a node like any other, with `children` (3.2).
 
 
 ## 3. Syntax layer
@@ -902,14 +956,16 @@ uses `set override`). Docs keep saying "not the language's `set` line" where the
 variable kind (for example to `declared`) would separate the kind from the edit; it is not done here, since it
 changes a kind value programs and the conformance cases print.
 
-A `written block` (a document's top level, or a statement's block):
+A `written block` (a document's top level, or a statement's block) is a block (2.11) of statements: iterated and
+indexed in order, `directives (name?)` (its statements of kind `directive`, of that name when given) and `walk` (its
+statements at any depth: a written directive's, extension line's and snippet line's blocks included). It adds:
 
 | Member | Contract |
 |---|---|
-| `statements` | in order |
-| `directives (name?)` | its statements of kind `directive`, of that name when given |
-| `insert statements (index, text)` | insert before `statements[index]` (`index` equal to the count appends), placed and indented as below; returns the new statements. `bad text error`; index out of range |
+| `insert statements (index, text)` | insert before the statement at `index` (`index` equal to the count appends), placed and indented as below; returns the new statements. `bad text error`; index out of range |
 | `add statements (text)` | `insert statements(count, text)` |
+
+(Milestone 6 removed the `statements` member: the block itself is iterated and indexed, as in every layer.)
 
 **Comment ownership** (round 12 decision D15, after LibCST's leading lines and Roslyn's trivia). A
 statement owns:
@@ -937,7 +993,7 @@ only `# c` go below it on lines of their own, and the first one then owns `# c` 
   unit. The unit is the leading whitespace of the document's first line that starts with spaces or
   tabs followed by something else; four spaces when no line does. At a document's top level with
   no statements: no indentation.
-- Place: before `statements[index]` and its owned comments, on lines of their own; when that
+- Place: before the statement at `index` and its owned comments, on lines of their own; when that
   statement shares its line with an earlier one, between the two, ending with a line break and the
   target's indentation. Appending goes after the last statement's owned range. Into `{}` (or only
   whitespace between the braces): the lines between `{` and `}`, then the parent's indentation
@@ -948,10 +1004,8 @@ only `# c` go below it on lines of their own, and the first one then owns `# c` 
   statements text are replaced by it. A values text (`set`, a value's `replace with text`)
   goes in as given.
 
-> **Proposed (pending owner):** blocks are iterable and indexable in every layer with one `walk`, and `statements
-> of (kind, name?)`. See [review.md, naming rule 5](../.claude/design/consumer-api/round13/review.md#naming-and-structure-rules-across-languages).
-> (Settled in milestone 2: `insert before` and `insert after` above; include lines as `extension line`; no cast is
-> needed, since a filter on `kind` narrows, 2.10.)
+(Settled in milestone 2: `insert before` and `insert after` above; include lines as `extension line`; no cast is
+needed, since a filter on `kind` narrows, 2.10. Settled in milestone 6: one block shape in every layer, 2.11.)
 
 ### 6.6 Values
 
@@ -1109,7 +1163,7 @@ follows [expansion.md](expansion.md).
 
 | Member | Contract |
 |---|---|
-| `block` | the top-level readable directive copies, in written order, as `directive expansion`s |
+| `block` | the top-level readable directive copies, in written order: an `expansion block` (2.11) of `directive expansion`s |
 | `unreadable` | the top-level copies that could not be read, as `unreadable expansion`s |
 | `diagnostics` | the graph's `diagnostics` (6.3), the one list |
 
@@ -1120,7 +1174,7 @@ follows [expansion.md](expansion.md).
 | `written` | the `written directive` it is a copy of (was `statement`: one name for the link, vil-umh.8) |
 | `origin` | a directive origin: its name's place and the copy's `via` |
 | `values` | its values, expanded, as `expanded value`s with their links (2.9), in order (a reference gives every value it reaches) |
-| `block` | its block's readable directive copies; absent when written without a block |
+| `block` | its block's readable directive copies, an `expansion block` (2.11); absent when written without a block |
 | `unreadable` | its block's copies that could not be read; empty when none |
 
 `unreadable expansion`: `reason` (`unreadable reason`, 2.4: `syntax`, `expansion`, `value`, `extension`, or
@@ -1132,7 +1186,7 @@ these same objects (7.2).
 Python `__match_args__`: `directive expansion` `("written", "values", "block")`, `unreadable expansion`
 `("reason", "written")`.
 
-Cost: the rendered directive still mirrors the directive expansion (it adds `parent`, `name`, `walk`, `closest`,
+Cost: the rendered directive still mirrors the directive expansion (it adds `parent`, `name`, `closest`,
 an address and `error`), so two directive types of one shape exist, one per layer. The values and unreadables are
 one family each, shared by both (vil-umh.8; before milestone 4 there were three value families, 22 types).
 
@@ -1174,12 +1228,11 @@ its rendered module and MAY re-export it at its top level.
 
 | Member | Contract |
 |---|---|
-| `block` | the top-level readable directives |
+| `block` | the top-level readable directives, a `rendered block` (2.11); `block.walk` visits every directive (7.5) |
 | `unreadable` | top-level statements that could not be read, as `unreadable expansion`s (6.10); their siblings stay |
 | `origin` | a `directive origin`: the root file at 0:0, zero width, `via` empty: where a problem with no line of its own is placed |
 | `diagnostics` | the graph's `diagnostics` (6.3), the one list |
 | `graph` | the graph it was rendered from |
-| `walk (visit)` | every directive, depth-first in written order (7.5) |
 | `error (message, code)` | returns (does not raise) a `diagnostic error` for a problem of the whole file. `code` is required, a program code; misuse error for a code without `/` |
 | `addresses (key?)` | every directive's `address` under the key rule, in walk order. The key rule is called once per directive, parents before children. A key rule may fail; `addresses` and `diff` then fail with that failure unchanged, not wrapped. This is the one home of the address rule; `diff` uses it |
 | `diff (after, key?)` | what differs from this render (the before) to `after`, another render (7.6). Any two renders may be compared, whichever graph or processor made them |
@@ -1190,12 +1243,11 @@ its rendered module and MAY re-export it at its top level.
 |---|---|
 | `name` | |
 | `values` | its values: its directive expansion's `expanded value`s (2.9), the same objects |
-| `block` | its block's readable directives; absent when written without a block |
+| `block` | its block's readable directives, a `rendered block` (2.11); absent when written without a block |
 | `unreadable` | its block's statements that could not be read, as `unreadable expansion`s; empty when none |
 | `parent` | the enclosing directive; absent at the top level |
 | `origin` | a directive origin: where its name was written, and the uses and includes that brought it |
 | `written` | the `written directive` this is a copy of: the same object for every copy of one line (its directive expansion's `written`) |
-| `walk (visit)` | every directive inside this one, not itself (7.5) |
 | `closest (predicate)` | this directive or its nearest enclosing one that matches |
 | `error (message, code)` | returns a `diagnostic error` placed on its name (`code` as on `rendered`) |
 
@@ -1243,19 +1295,14 @@ in `frozen-m4.md`).
 
 ### 7.5 Walking
 
-`walk` visits every directive below its start, depth-first in written order (pre-order: a
-directive, then everything in its block, then its next sibling). The start itself is never
-visited: walking a `rendered` visits every directive, walking a directive visits those inside it. A
-binding MUST let the caller skip a directive's block and stop early. Whether to descend is decided
-after the directive is visited and before its block: a callback's answer, or in a generator form,
-the `descend` question asked when the caller asks for the next directive. `walk` is a method of
-the rendered tree and of a directive in every binding (6.2's rule). TypeScript takes a callback that
-may return `"skip"` or `"stop"`; Python's `walk(descend=...)` is a generator with a `descend`
-predicate, stopped with `break`.
-
-> **Proposed (pending owner):** `walk({ descend })` is a generator in both bindings, offered on
-> both layers, with `closest`, `directives (name?)` and `statements of (kind, name?)`. See
-> [review.md, naming rule 5](../.claude/design/consumer-api/round13/review.md#naming-and-structure-rules-across-languages).
+`walk` is a member of every block (2.11). It visits every item below the block, depth-first in written order
+(pre-order: an item, then everything in its block, then its next sibling); the block's owner is never visited:
+`rendered.block.walk` visits every directive, `directive.block.walk` those inside the directive. A binding MUST let
+the caller skip an item's block and stop early. Whether to descend is decided after the item is visited and before
+its block: a callback's answer, or in a generator form, the `descend` question asked when the caller asks for the
+next item. TypeScript takes a callback that may return `WalkControl.Skip` or `WalkControl.Stop` (`"skip"`,
+`"stop"`); Python's `walk(descend=...)` is a generator with a `descend` predicate, stopped with `break`. (Before
+milestone 6 `walk` was a method of the render and of a directive; it moved onto the block, its one home.)
 
 ### 7.6 Diff
 

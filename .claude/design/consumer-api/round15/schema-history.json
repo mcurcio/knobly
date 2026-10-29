@@ -1,0 +1,235 @@
+{
+  "disagreements": [
+    {
+      "what": "the check of an override's text",
+      "ts": "load used readHanded (written/bind.ts): accepts \"1;\", throws TypeError without a position; setHanded used handedValues (written/graph.ts): refuses \"1;\" with a located BadTextError",
+      "py": "the same split: _bind.read_handed (ValueError) against _graph.set_handed (BadTextError)",
+      "spec picks": "one check (spec 6.3), the set handed behaviour: \"1;\" refused with BadTextError E2001 at 0:1, from load and set override alike"
+    },
+    {
+      "what": "a non-text argument to an edit",
+      "ts": "not checked at run time: the type checker refuses a number, but a JavaScript caller or a cast passes it on to the parser",
+      "py": "not checked: set_values(2400) fails inside the library (written/model.py)",
+      "spec picks": "argument type error (TypeError in both) with the message above (owner, 2026-10-29: \"A Keep text only, make misuse impossible\")"
+    },
+    {
+      "what": "misuse error class",
+      "ts": "TypeError",
+      "py": "ValueError",
+      "spec picks": "MisuseError in TypeScript, outside VillanelleError; ValueError in Python (milestone 4, spec 2.8): TypeError is now only the argument type error"
+    },
+    {
+      "what": "walk",
+      "ts": "a method on IRendered and IDirective, taking a callback",
+      "py": "a free function walk(node, descend=...)",
+      "spec picks": "a method in both (root cause 2: every later operation is a method on the object held); callback against generator stays an allowed difference until the walk proposal (spec 7.5) is answered"
+    },
+    {
+      "what": "place kind",
+      "ts": "IPlace.kind 'file', IHanded.kind 'handed'",
+      "py": "Place and Handed have no kind field",
+      "spec picks": "kind on both; settled in milestone 2 (Python Place.kind PlaceKind.FILE, Override.kind PlaceKind.OVERRIDE)"
+    },
+    {
+      "what": "change kind",
+      "ts": "Change has kind",
+      "py": "Added, Removed, Changed, Unknown have no kind",
+      "spec picks": "kind on every variant; settled in milestone 2"
+    },
+    {
+      "what": "a written value's kind list",
+      "ts": "rendered ValueKind lacks 'reference'; written values use inline literals including it",
+      "py": "the same",
+      "spec picks": "one value kind list with 'reference', generated as one type per binding; an expanded value's variants never have it (settled in milestone 2)"
+    },
+    {
+      "what": "save error message",
+      "ts": "\"the writer rejected: ...\"",
+      "py": "\"the writer raised: ...\"",
+      "spec picks": "messages are not part of the contract; no change"
+    },
+    {
+      "what": "-0 and a lone carriage return",
+      "ts": "integer('-0') is -0",
+      "py": "as_int('-0') is 0",
+      "spec picks": "settled in milestone 2 (spec/contract.md 2): every reader gives 0 for any zero, never -0; a lone carriage return never ends a line, also in format diagnostic's source line (TypeScript cut the line there)"
+    },
+    {
+      "what": "the type of an extension use's values",
+      "ts": "IArgument (a rendered type, imported by the low level and the include extension)",
+      "py": "Argument (the same)",
+      "spec picks": "expanded value, a shared type the rendered argument builds on (spec 2.9, 5; owner, 2026-10-29)"
+    },
+    {
+      "what": "a values text holding a line break outside a list",
+      "ts": "set (\"1\\n2\") on port 80; writes port 1\\n2; (two statements)",
+      "py": "the same",
+      "spec picks": "refused with bad text error E2001 (vil-5ya; spec 2.8): one check of a values text, the one an override's text goes through"
+    }
+  ],
+  "removed in milestone 1": [
+    {
+      "name": "processor read (graph)",
+      "now": "document graph read ()"
+    },
+    {
+      "name": "processor render (graph)",
+      "now": "render (graph), the rendered layer's free function; the low level has no render member"
+    },
+    {
+      "name": "processor diff (before, after, key?)",
+      "now": "rendered diff (after, key?)"
+    },
+    {
+      "name": "save (graph, writer)",
+      "now": "document graph save (writer)"
+    },
+    {
+      "name": "set handed (name, text)",
+      "now": "set override (name, text)"
+    },
+    {
+      "name": "set values (text)",
+      "now": "set (text) (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\")"
+    },
+    {
+      "name": "walk (node, descend?) (Python free function)",
+      "now": "rendered walk, directive walk"
+    },
+    {
+      "name": "the processor ownership check (round 12 D27)",
+      "now": "nothing: no operation takes a graph or render back to a processor"
+    }
+  ],
+  "removed in milestone 2": [
+    {
+      "name": "no set line error",
+      "now": "nothing: set exists only on set variable, rename only on set variable and parameter"
+    },
+    {
+      "name": "written directive of kind extension",
+      "now": "extension line, its own type; it has no rename"
+    },
+    {
+      "name": "variable (one type for three kinds)",
+      "now": "the union variable: set variable, parameter, override variable"
+    },
+    {
+      "name": "expanded value (one type)",
+      "now": "the union expanded value: expanded word, string, list, slice, index"
+    },
+    {
+      "name": "argument (one type)",
+      "now": "the union argument: word, string, list, slice, index argument"
+    },
+    {
+      "name": "items () (reader)",
+      "now": "list () (reader, every variant) and items (property, list variants)"
+    },
+    {
+      "name": "Python reader names as_word, as_str, as_number, as_int, as_bool, as_list, as_slice",
+      "now": "word, string, number, integer, boolean, list, slice: casing only (vil-gxu)"
+    },
+    {
+      "name": "TypeScript kind constant objects (NodeKind, ValueKind, StepKind, UnreadableReason, ChangeKind, TokenKind)",
+      "now": "string-literal types of the same names"
+    },
+    {
+      "name": "Python Literal aliases for statement, variable and place kinds",
+      "now": "StrEnums StatementKind, VariableKind, PlaceKind"
+    },
+    {
+      "name": "read error as a diagnostic error (its diagnostic, E3004 at the root path)",
+      "now": "read error under villanelle error, with paths and a cause"
+    },
+    {
+      "name": "save error files",
+      "now": "save error paths"
+    },
+    {
+      "name": "detached error as an edit error (and in Python a ValueError)",
+      "now": "under villanelle error (Python: and ReferenceError)"
+    },
+    {
+      "name": "createFileSource, createFsWriter, createFetchSource, createFetchWriter (TypeScript); fs_writer (Python)",
+      "now": "fileSource, fileWriter, fetchSource, fetchWriter; file_writer"
+    },
+    {
+      "name": "the rendered layer's package-internal access to the graph's binding (TypeScript graph.binding(), instanceof DocumentGraph; Python written._bind, written._document, written._graph and private attributes)",
+      "now": "document graph expand (), a public member"
+    },
+    {
+      "name": "Python List, String, Word, Slice, Index, Reference at the package root",
+      "now": "villanelle.written only"
+    },
+    {
+      "name": "Python's UTF-16 positions",
+      "now": "code points (spec/contract.md 1)"
+    }
+  ],
+  "removed in milestone 4": [
+    {
+      "name": "value expansion",
+      "now": "expanded value, which carries written, definition and chain itself"
+    },
+    {
+      "name": "argument, word argument, string argument, list argument, slice argument, index argument",
+      "now": "expanded value and its five variants: a rendered directive's values are its directive expansion's expanded values"
+    },
+    {
+      "name": "unreadable (rendered)",
+      "now": "unreadable expansion: the rendered tree lists the expansion's own objects"
+    },
+    {
+      "name": "directive expansion statement, unreadable expansion statement",
+      "now": "written, the one name of the link to the written statement"
+    },
+    {
+      "name": "edit error",
+      "now": "nothing: bad text error is the only edit refusal and sits directly under villanelle error"
+    },
+    {
+      "name": "detached error under villanelle error",
+      "now": "detached error is a program bug, outside villanelle error"
+    },
+    {
+      "name": "misuse error as TypeError (TypeScript)",
+      "now": "MisuseError, outside VillanelleError, so it is told apart from an argument type error"
+    },
+    {
+      "name": "the render-only diagnostic codes (E4xxx, E5001, E5003, E5004, E5008 left out of the graph's diagnostics)",
+      "now": "one list: the graph's diagnostics are the expansion's and the render's"
+    },
+    {
+      "name": "E2008 brace on own line, E4003 bad escape",
+      "now": "retired (diagnostics.json): a line break is whitespace; a bad escape is E1005, found by parse"
+    }
+  ],
+  "removed in milestone 5": [
+    {
+      "name": "plain (the expanded value reader), plain value",
+      "now": "nothing: a word is untyped until a typed reader (word, string, number, integer, boolean, list, slice) decides; owner, 2026-10-29: \"the raw strings are raw/plain/tokens until some schema-aware layer decides\""
+    },
+    {
+      "name": "COLON (token kind)",
+      "now": "TILDE, the slice separator (name[1~3]); ':' is a word character in every word"
+    },
+    {
+      "name": "reserved directive names (set, snippet, use and each extension's name at a line's start)",
+      "now": "language and extension statements are written @set, @snippet, @use, @include; reserved names are only the names no extension may take"
+    },
+    {
+      "name": "slice name and index name as text",
+      "now": "a word or reference value"
+    },
+    {
+      "name": "text as the type of an edit's or override's text parameter",
+      "now": "config text, made only by quote or text"
+    },
+    {
+      "name": "escapes in a single-quoted string",
+      "now": "a single-quoted string is raw; only a double-quoted string has the six escapes"
+    }
+  ],
+  "$comment": "Moved out of spec/schema/api.json in milestone 6 (bead vil-umh.9): the names each milestone removed and the disagreements between the bindings that the spec settled. History, not a rule: nothing reads it."
+}

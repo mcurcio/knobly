@@ -28,7 +28,7 @@ flowchart LR
   G["grammar/Villanelle.g4<br/>the language"] -->|tools/gen.sh| P["generated parser<br/>(per language, not committed)"]
   S["spec.md<br/>what every binding must do"] --> DG["binding-guide.md<br/>how to make it idiomatic"]
   W["glossary.md<br/>one word per concept"] --> S
-  SC["schema/<br/>api.json, diagnostics.json"] -->|tools/gen.sh| GL["generated lists<br/>(kinds, codes, limits; not committed)"]
+  SC["schema/<br/>api.json, diagnostics.json, protocol.json"] -->|tools/gen.sh| GL["generated declarations<br/>(interfaces, records, errors, kinds, codes, rules, names; not committed)"]
   S --> C["conformance/<br/>shared cases, byte-for-byte"]
   P --> B["a binding<br/>ts/ · py/ · next"]
   GL --> B
@@ -49,11 +49,12 @@ proves the spec wrong; then the spec is corrected and the finding reported.
   each language's string unit, the text a located thing prints as, numbers, error classes, adapters.
 - [glossary.md](glossary.md): one word per concept, one meaning per word, and each concept's type
   name in each layer and binding.
-- [schema/api.json](schema/api.json): the concepts and their members (property or method), the kind
-  lists, error groups, limits, reserved names and name patterns.
-  [schema/diagnostics.json](schema/diagnostics.json): every diagnostic code with its name, message,
-  owning layer and the operations that find it. Each binding's fixed lists are generated from these
-  two files ([codegen.md](codegen.md)).
+- [schema/api.json](schema/api.json): every concept with its typed members (in the closed type grammar of
+  codegen.md section 2), the kind lists, keywords, error groups, limits, reserved names, name patterns and free
+  functions. [schema/diagnostics.json](schema/diagnostics.json): every diagnostic code with its name, message,
+  owning layer and the operations that find it. [schema/protocol.json](schema/protocol.json): the adapter
+  protocol's messages. [schema/api.schema.json](schema/api.schema.json): the JSON Schema the three match. Each
+  binding's declarations, and the adapter's message types, are generated from them ([codegen.md](codegen.md)).
 - [binding-guide.md](binding-guide.md): the owner's goals, the naming and structure rules, what may
   differ per language, the TypeScript and Python concept map, and a checklist for a new binding.
 - [conformance.md](conformance.md): the conformance levels (below), the adapter protocol a binding implements, and the
@@ -137,6 +138,13 @@ behind one sigil, `@set`, `@snippet`, `@use`, `@include`, so no directive name i
 written value's `set`, which keeps its handle ("the natural loop should work", spec 6.1), and config text as its own
 type ("Yes, its own type", spec 6.9), and settles three milestone 4 leftovers (spec 2.8's reworded entry-rule rule,
 a `set` text with no value, `render` given a non-graph). Its exact list is
-`.claude/design/consumer-api/round15/frozen-m5.md`. Q3 (the schema as the source of every signature) is the next
-milestone. The proposals left stay marked "Proposed (pending owner)". Nothing is locked until the owner likes the user
+`.claude/design/consumer-api/round15/frozen-m5.md`.
+
+Milestone 6 (beads vil-umh.9, vil-umh.10, vil-umh.11 and vil-umh.13) applies the owner's answers of 2026-10-29 on Q3
+("Yes, with idiom expressed as typed per-language traits; start after the scoping and layer decisions"), on
+enumerations ("Yes, generate both") and on namespaces ("Yes, rename now"): the schema is typed and is the source of
+every public signature, generated per language by one loader and one emitter each ([codegen.md](codegen.md)); kind
+lists are real enumerations in both bindings, compared by member inside them (spec 2.10); each layer is its own
+import path, type names have no prefix, and every layer's block has one shape (binding guide rules 2, 5 and 9, spec
+2.11). Its exact list is `.claude/design/consumer-api/round15/frozen-m6.md`. The proposals left stay marked "Proposed (pending owner)". Nothing is locked until the owner likes the user
 APIs (2026-10-27).

@@ -1,205 +1,253 @@
-# Generating a binding's basics from one schema
+# Generating each binding's declarations from one schema
 
-**Status.** Milestone 1 (bead vil-fy4) does the schema half of the round 13 review's root cause 5
-([review.md](../.claude/design/consumer-api/round13/review.md#root-cause-5-no-neutral-spec-and-nothing-generated-from-one-source)):
-the schema is written ([schema/api.json](schema/api.json), [schema/diagnostics.json](schema/diagnostics.json)),
-and the binding lanes of milestone 1 write the generator and the public-name check as section
-"Milestone 1" below says. Milestone 2 (bead vil-0vz) changes how every kind list is spelled and makes the schema
-describe each variant (section "Milestone 2"). Milestone 3 (bead vil-j80) builds the shared conformance driver
-([conformance.md](conformance.md)); it is written once by hand, not generated (section "Milestone 3"). The per-kind
-type skeletons and the plain data records stay proposed.
+**Status.** Milestone 6 (beads vil-umh.9, vil-umh.10, vil-umh.11, vil-umh.13) makes the schema the source of every
+public signature. The owner's answers it rests on, quoted:
 
-## The problem
+- Q3 of the round 15 review (2026-10-29), "Should the schema become the source of every public signature?": he picked
+  "Yes, with idiom expressed as typed per-language traits; start after the scoping and layer decisions" (those landed
+  in milestones 4 and 5).
+- Enumerations (2026-10-29): "Yes, generate both": TypeScript `as const` objects with derived string-literal types,
+  Python internals comparing enum members, one generated keyword list and dispatch table, a lint against comparing
+  `.kind`, `.reason` or `.code` with a string literal.
+- Namespaces (2026-10-29): "Yes, rename now": one namespace per layer, no `I` prefix, one block shape.
+- His first ask (2026-10-28): a "clean, easy to comprehend API design", "idiomatic in each language", "consistent
+  across layers", and codegen "so we dont have to maintain n languages by hand".
 
-Every fixed list in villanelle is typed out by hand in each binding and again in the docs:
+Earlier milestones generated only the fixed lists (milestone 1: codes, kinds, limits; milestone 2: one spelling per
+list); milestone 3 wrote the shared conformance driver by hand. What each binding builds against is
+[frozen-m6.md](../.claude/design/consumer-api/round15/frozen-m6.md).
 
-- 32 diagnostic codes with names and messages (`ts/src/diagnostics.ts`, messages in
-  `ts/src/syntax/recovery.ts`; Python's
-  `py/src/villanelle/diagnostics.py` says it "mirrors the TypeScript package's registry value for
-  value");
-- about 9 kind lists (token, node, statement, value, variable, step, unreadable reason, change, place);
-- 4 limits and the reserved names;
-- each binding's conformance runner, about 300 lines each (replaced in milestone 3 by one shared driver and a small
-  adapter per binding).
-
-A third binding would copy all of it a third time, and nothing checks that the copies agree except
-the shared cases, which do not cover every list. The parser already avoids this: `tools/gen.sh`
-generates both parsers from `grammar/Villanelle.g4`, and the token kind names come from the grammar.
-This proposal does the same for the API's fixed lists.
-
-## What could be generated
-
-| Piece | From | Gives each binding |
-|---|---|---|
-| Kind lists | the schema's closed sets | TypeScript: a string-literal type per list. Python: a `StrEnum` per list. Go: a typed string and a `const` block. The values are the spec's lowercase words |
-| Per-kind type skeletons | statement, value and change kinds, each mapped to the type it gives | TypeScript: the union members. Python: one class per kind with `__match_args__` in a fixed field order. Go: a sealed interface and one struct per kind. Bodies stay hand-written |
-| Member signatures | each type's members (below) | the public-name check, and for a language with error values, which members return `(T, error)` and which take a context |
-| Diagnostic code registry | `diagnostics.json`: code, spec name, message, owning layer, found by, unreadable reason, placement rule, retired codes | the code constants, the message table, and the code table in [spec.md 2.4](spec.md#24-the-diagnostic-code-registry) |
-| Conformance tokens | the token-to-spec-name table of `conformance/written/format.md` | nothing since milestone 3: the driver maps the tokens to spec names once, and each adapter spells a spec name in its casing |
-| Limits and reserved names | the schema | constants |
-| Plain data records | place, span, position, step, origin, address step, file write | read-only records (TypeScript interfaces, Python frozen slotted dataclasses) |
-| Conformance driver | the case formats under `conformance/` | built in milestone 3, by hand, once: `conformance/driver/`; each binding writes one adapter that dumps its objects and applies one operation by id ([conformance.md](conformance.md)) |
-| Public-name check | the schema's concepts and members, and each binding's casing rule | a test that lists the binding's exports and fails on a name the schema does not have, or a missing one |
-
-Generated files are not committed, as with the parser (owner, 2026-10-23: "Don't commit the
-generated code, just the source"). Build and test regenerate them.
-
-## Milestone 1: what is generated, where it goes
-
-| Output | TypeScript | Python |
-|---|---|---|
-| diagnostic codes: the constant per code (name in the binding's casing) and the message table | `ts/src/gen/api/codes.ts`: `DiagnosticCode` (constant object and type) and `MESSAGES` | `py/src/villanelle/_api/codes.py`: `DiagnosticCode` (`StrEnum`) and `MESSAGES` |
-| kind lists, in each binding's spelling today (root cause 3 changes the spelling later, in the generator only) | `ts/src/gen/api/kinds.ts`: a constant object and type for `node kind`, `value kind`, `step kind`, `unreadable reason`, `change kind`; a union type for `statement kind`, `variable kind`, `place kind` | `py/src/villanelle/_api/kinds.py`: a `StrEnum` for the first five, a `Literal` alias for the other three |
-| limits, reserved words, the variable-name pattern | `ts/src/gen/api/limits.ts` | `py/src/villanelle/_api/limits.py` |
-
-- **The generator** is one script with no dependency beyond the language it runs in (Python 3's
-  standard library, which every CI job and the owner's Mac have), called by `tools/gen.sh ts|py`
-  after the parser, so every build, test, lint and typecheck regenerates the lists exactly as they
-  regenerate the parser. The hand-written registries (`ts/src/diagnostics.ts`'s list, the
-  `MESSAGES` tables in `recovery.ts` and `_recovery.py`, `py/src/villanelle/diagnostics.py`, the
-  limit and reserved-name constants) are deleted and their users import the generated modules.
-  Token kind names stay where they are: the grammar is their one home.
-- **Where it goes, and why there.** TypeScript's output sits under `ts/src/gen/`, already ignored by
-  git and by ESLint and still typechecked. Python's goes to a new `py/src/villanelle/_api/`, not
-  under `_gen/`: mypy is told to skip `villanelle._gen` (`follow_imports = "skip"`), which would
-  turn every generated `StrEnum` into `Any`. `_api/` is added to `py/.gitignore` and to the
-  hatchling `artifacts` lists, as `_gen/` is, so the wheel and sdist carry it.
-- **Not committed.** The owner's rule of 2026-10-23 covers it, and nothing needs a committed copy:
-  CI builds from a clean checkout and every package script, and `py/tests/conftest.py`, run
-  `tools/gen.sh` first. So no freshness check is needed either: a stale copy cannot exist.
-- **The public-name check** (a test per binding, reading `spec/schema/api.json` directly, no
-  generation): for each concept with a binding type, every member the schema lists exists on a real
-  object of that type under the binding's casing (or its `spell`), as a property or a method as the
-  schema says. TypeScript checks objects made from a loaded graph and a render (interfaces do not
-  exist at run time); Python checks the classes. (Milestone 1 had a `"later"` marker for members not yet in a
-  binding; milestone 2 removes it, and the generator's check refuses it.) It fails the build (a design choice: the
-  glossary's one-word rule is only a guarantee when a drifting name fails; the owner has not ruled
-  on it, question 3 below). The other direction, a public name the schema does not list, is a later
-  milestone.
-
-## Milestone 2: one spelling for every kind list, and variants in the schema
-
-| Output | TypeScript | Python |
-|---|---|---|
-| every kind list (spec 2.10), `token kind` included | `ts/src/gen/api/kinds.ts`: `export type StatementKind = "directive" \| ...;`, a string-literal type per list; **no constant objects** | `py/src/villanelle/_api/kinds.py`: a `StrEnum` per list (`StatementKind.SET = "set"`); **no `Literal` aliases** |
-| codes, limits | unchanged | unchanged |
-
-- **`token kind` is generated too,** from `grammar/Villanelle.g4` (its lexer rule names in declaration order,
-  fragments aside), so the hand-written `TokenKind` in `ts/src/syntax/tokens.ts` and
-  `py/src/villanelle/syntax/tokens.py` is deleted and both import the generated one. Its values stay the grammar's
-  names (`WORD`); the Python members have the same names.
-- **What the bindings write by hand from the schema:** one type per variant, with `kind` typed by the generated
-  list. TypeScript: `readonly kind: "set"` on `ISetLine`, and one compile-time test per union that its `kind` is the
-  whole list (`Statement["kind"]` equal to `StatementKind`, less `except`). Python: `kind` returning
-  `StatementKind.SET`, typed `Literal[StatementKind.SET]`. Generating these skeletons stays proposed.
-- **The schema describes the variants** (`spec/schema/api.json` `$comment`): a union concept has `variants`, `kind
-  list` (and `except`) and the members every variant has; each variant concept has `variant of`, `kind`, `py match
-  args`, its own members, and `extends` when it builds on a lower layer's type; `py module` names the only Python
-  module that exports a type when it is not the root. `tools/gen-api.py --check` refuses a union whose variants do
-  not cover its list, a variant its union does not list, a kind list mapping a value to the wrong concept, an error
-  group whose parent is missing, and any member marked `later` (the deferral marker of milestone 1 is gone: every
-  member is present in every binding). It runs a planted broken copy of each, so the check is known to bite.
-- **The public-name checks** (lanes: `ts/src/api-names.test.ts`, `py/tests/test_api_names.py`) read the new shape:
-  a variant has its union's members and its own; each variant's `kind` equals its schema `kind`; Python's
-  `__match_args__` equals `py match args` in snake_case; a concept with `py module` is looked up there and is absent
-  from the package root; the error groups' `parent`s form the class tree; no member is skipped.
-
-## What stays hand-written
-
-- The algorithms: binding variables and snippets, edits and where text goes, render, diff. The
-  shared cases check them; generating them would cost more than writing them.
-- Everything that makes a binding feel native: async or sync, iteration, error classes, options,
-  module layout, docs and examples. The owner wants each binding idiomatic. On JSON Schema as a way
-  to declare configuration, he said "it can't be the only one because it is not conducive to
-  building natural APIs that are idiomatic in each target language" (2026-10-26). The same holds
-  for generating an API: generating only fixed lists and data records keeps that line.
-
-## Schema format options
-
-The schema has to describe closed lists of words, records with a few field types, and a table of
-codes. It is read by small generators at build time and never shipped.
-
-| Option | What it is | Fit for villanelle | Cost |
-|---|---|---|---|
-| **JSON data checked by a JSON Schema** | Hand-written `api.json` and `diagnostics.json`, with a JSON Schema that checks their shape | Good. Every language reads JSON with its standard library, so a generator needs no extra tools. The owner: "JSON scheme is a nice foundation, where it works." (2026-10-25) | The generators are small scripts written by hand, one template per language |
-| tree-sitter `node-types.json` | A file tree-sitter writes from a grammar, listing node types and their fields | Good prior art for the shape of a kinds list, and the model for deriving node kinds from the grammar | Made by tree-sitter from its own grammar, so not directly usable with the ANTLR grammar |
-| TypeSpec | Microsoft's language for describing APIs, emitting OpenAPI and others | Overkill: aimed at HTTP services, needs Node and its compiler | A new tool and language for 3 small lists |
-| Smithy | Amazon's interface language for services and SDKs | Powerful code generators, but built around services and operations over a network | Java toolchain, service-shaped model |
-| Protocol Buffers | Google's schema for messages on the wire | Generates records and enums in many languages | Its records are wire messages, not the read-only handles villanelle needs; it brings a runtime library, against the no-third-party-dependency rule (2026-10-25) |
-| WebIDL | The browser's interface language | Describes objects and methods precisely | Browser and JavaScript centred; no mainstream Python generator |
-
-### Recommendation
-
-Use **JSON data files checked by a JSON Schema**, with one small generator per language:
+## 1. What comes from where
 
 ```text
 spec/schema/
-  api.json                     # kind lists, records and their fields, limits, reserved names,
-                               # each concept's spec name and its members (property or method)
-  diagnostics.json             # code, spec name, message, owning layer, retired codes
-  api.schema.json              # proposed, not written: the JSON Schema that checks the two above
-tools/gen.sh ts|py             # runs the parser generator, then the list generator; output git-ignored
+  api.json            concepts with typed members, kind lists, keywords, limits, patterns, error groups, free functions
+  diagnostics.json    the diagnostic codes: name, layer, found by, reason, message, meaning, summary, placement
+  protocol.json       the adapter protocol's requests, results and dump shapes (spec/conformance.md 4)
+  api.schema.json     the JSON Schema (2020-12) all three must match
+tools/
+  gen-api.py          the command: ts | py | docs | --check
+  api/loader.py       reads and checks the three files into one language-neutral model
+  api/emit_ts.py      the TypeScript emitter
+  api/emit_py.py      the Python emitter
+  api/emit_docs.py    the Markdown tables
+  api/validate.py     the JSON Schema check (tools/check.sh runs it through uv, with jsonschema)
+  lint/               the kind lint: kind-rule.mjs (ESLint selectors), kind_lint.py (Python ast)
 ```
 
-What `api.json` carries, so that a binding unlike TypeScript and Python (the Go review's list) can be
-planned from it:
+`tools/gen.sh ts|py` runs the parser generator, then `tools/gen-api.py ts|py`; every TypeScript package script and
+`py/tests/conftest.py` run `tools/gen.sh` first, so generated code is never stale and never committed (owner,
+2026-10-23: "Don't commit the generated code, just the source"). The one committed output is the docs tables
+(section 6).
 
-- per type: `layer` (shared, syntax, written, rendered), and `nature`: `handle` (one object per
-  thing, identity holds, may detach), `snapshot` (plain data from one working-out) or `record`
-  (plain data); the layer direction then follows (a type may name only its own layer or a lower one);
-- per member: `kind` (`property`, `method` or `factory`), parameters with whether each is optional,
-  the result type with whether it may be absent and whether empty text counts as present, `errors`
-  (the error groups of spec 2.8 it can raise), `io` (true when it goes through a port, so it may be
-  asynchronous or take a context), `detachable`, and `order` (the stated order of a returned list,
-  as text, or the spec section that states it);
-- per number: its range (`integer`: ±(2^53-1)).
+## 2. The closed type grammar
 
-A sketch of `diagnostics.json`:
+Every type in `api.json` (a property's `type`, a method's `returns`, a parameter's `type`, an `extends`, an error
+field) is text in this grammar, and every name in it must resolve: a free-text type cannot pass the loader, and the
+JSON Schema refuses any character outside the grammar's alphabet.
 
-```json
-{
-  "retired": ["E2006", "E3002", "E3003"],
-  "codes": [
-    {
-      "code": "E1001",
-      "name": "unterminated string",
-      "layer": "syntax",
-      "found by": ["parse"],
-      "unreadable reason": "syntax",
-      "message": "unterminated string"
-    }
-  ]
-}
+```text
+type      = union
+union     = postfix { " or " postfix }
+postfix   = primary { "[]" }                            a list, in order
+primary   = "(" type ")"
+          | "function" [ " of " postfix { " and " postfix } ] " to " type
+          | [ "writable " ] "map of " postfix [ " to " postfix ]      one argument: text keys
+          | name [ " of " postfix { " and " postfix } ]               type arguments of a generic concept
+name      = "text" | "integer" | "number" | "boolean" | "nothing" | "absent"
+          | a concept | a kind list | "diagnostic code" | an error group | a type parameter in scope
 ```
 
-A binding's generator turns `"unterminated string"` into its casing (`UnterminatedString`,
-`UNTERMINATED_STRING`) by the same rule as every other spec name
-([binding-guide.md, rule 1](binding-guide.md#2-naming-and-structure-rules)).
+Examples: `written block or absent`, `(resolution of snippet line)[]`, `map of directive to address`, `function of
+directive to text or absent`, `block of statement and written directive`. `absent` is a type, so "may be absent" is
+part of the type (`statement or absent`), not a flag beside it. A map keeps insertion order in every binding.
 
-Why this one: it needs no new toolchain, it is plain data any language can read, and it matches the
-size of the problem. The other formats are built to describe network services or whole APIs, which
-is more than villanelle needs and pulls the bindings toward one generated shape. tree-sitter's
-`node-types.json` is the model for the kinds part.
+Prior art: the Language Server Protocol's `metaModel.json`, which describes LSP's types as data (`or`, `array`,
+`map`, `reference`, `base` kinds) for its TypeScript, Python, Rust and C# generators. villanelle writes the same tree
+as short text because the owner reads the schema; the loader parses it into the metaModel's shape.
 
-What it gives up: no ready-made generators, so each language's template is written by hand once
-(roughly a page each). The schema does not describe the handles' behaviour, so the spec and the
-shared cases still carry that.
+The loader also checks what a shape check cannot see:
 
-## Milestone 3: the shared driver
+- every name resolves, in the right scope (a type parameter only inside its concept or member);
+- **the layer direction** (spec 5): a member type names only its own layer or one its layer may import, so the low
+  level cannot name a rendered type even in a signature;
+- every union's variants cover its kind list (less `except`), each variant names its union, each kind list's
+  `variants` map back;
+- the error groups form a tree on spec 2.8's two sorts: every expected outcome under the base, no program bug under
+  any group, each root with a per-language base;
+- every option parameter has an options record, every trait is from the closed list, every limit a message names
+  exists, every `found by` is from its closed list;
+- no two public names derive the same identifier in one namespace (the casing rule stays one-to-one).
 
-Nothing new is generated. The driver (`conformance/driver/run.py`, Python's standard library like this generator)
-reads the corpora's manifest (`conformance/corpora.json`) and the key rules (`conformance/keys.json`); an adapter reads
-nothing from `spec/schema/` either: it spells each spec name it is sent (a member, a reader) in its binding's casing,
-the rule this generator already follows. The schema's shape did not change, so `tools/gen-api.py` did not either.
-`tools/check.sh` runs the driver's own test (`conformance/driver/test_driver.py`).
+Each check is planted: `tools/gen-api.py --check` breaks a copy of the schema twelve ways (an unresolved type, a
+broken type, a layer-direction breach, a free-text type, a missing variant, a wrong kind, a bad parent, a bug under
+the base, an unknown trait, a spelling collision, an unknown found-by, a bad protocol type) and fails unless each is
+refused. `tools/api/validate.py` does the same for the JSON Schema (a per-language spelling, a free-text type, an
+unknown trait, a `spell` note, an unknown found-by).
 
-## Questions for the owner
+## 3. Idiom as typed traits, spellings derived
 
-1. Build this, or keep copying the lists by hand with a test that compares them? Milestone 1 builds
-   the lists' generator, as the review's next steps said; milestone 3 built the shared driver by hand; the type
-   skeletons wait for an answer.
-2. Where does the schema live? Settled as a design choice, not his words: `spec/schema/`, since the
-   top-level `spec/` is canonical (owner, 2026-10-27: "Within villanelle I want the spec to win over
-   a reference language").
-3. Should the public-name check fail the build (the review's proposal), or only report? Milestone 1
-   makes it fail; he may still choose otherwise.
+The schema stores no binding spelling. Every identifier is derived from a spec name by the casing rule (binding
+guide rule 1), written once in `tools/api/loader.py` (`words`, `pascal`, `camel`, `snake`, `upper_snake`) and used by
+every emitter, the names module and the adapters' spelling table: types `PascalCase` in both (no prefix: rule 2);
+members `camelCase` / `snake_case`; enum members `PascalCase` / `UPPER_SNAKE_CASE`; constants `UPPER_SNAKE_CASE`.
+
+Where the languages' idioms differ, the schema says what the member **is**, from a closed list, and each emitter
+knows its language's form. Milestone 5's 31 prose `spell` notes are gone.
+
+| Trait or field | Means | TypeScript | Python |
+|---|---|---|---|
+| `trait: people form` | the text a person reads (contract 2) | `toString()` | `__str__` |
+| `trait: iterate` | the items in order | `[Symbol.iterator]()` | `__iter__` |
+| `trait: count` | how many | `length` | `__len__` |
+| `trait: index` | the item at an index | `at(i)`, absent out of range | `__getitem__`, `IndexError` out of range |
+| `trait: walk` | depth-first visit (spec 7.5) | `walk(visit)`, callback returns `WalkControl` | `walk(*, descend=None)`, a generator |
+| `trait: collect` | run reads, record a diagnostic error | `collect(read)` | `collecting()`, a context manager |
+| `io: true` | goes through a port | returns a `Promise` | a plain call |
+| `passed: keyword` | an argument named at the call | positional | keyword-only |
+| `passed: option` (with the member's `options` record) | an optional setting | one options object (`load(path, { overrides })`) | keyword-only (`load(path, *, overrides=None)`) |
+| `factory` | how a concept is made | `package function` (`villanelle(...)`) or `constructor` | `constructor` (`Processor(...)`) |
+| `nature: named type`, `brand` | a string with its own type (spec 6.9) | a branded string | a `NewType` of `str` |
+| `nature: named type`, `pattern` | text of a stated form | a template literal type (`${string}/${string}`) | `str` |
+| list `[]` | in order | `readonly T[]` | `tuple[T, ...]` as a result, `Sequence[T]` as a parameter |
+| `map` | keyed, ordered | `ReadonlyMap` as a result, `Readonly<Record>` as a parameter (`writable`: `Record`) | `Mapping` (`writable`: `MutableMapping`) |
+| `module` (io only) | an adapter's own import path | `villanelle/node`, `villanelle/browser`, `villanelle/include` | `villanelle.files`, `villanelle.include` |
+| `languages` | exists in some bindings only | options records, `WalkControl`, `fetch` | `Collecting` |
+| error group `ts` / `py` | the root's base, or the language's own class | `{"base": "Error"}`, `{"builtin": "TypeError"}` | `{"base": "Exception"}`, `{"builtin": "ValueError"}` |
+
+Python methods take their parameters positional-only (`/`): a hand-written class that also accepts them by keyword
+still satisfies the Protocol, so the generated signature never forbids what a binding allows.
+
+## 4. What each emitter generates
+
+**TypeScript** (`ts/src/gen/api/`, git-ignored, typechecked, not linted; `ts/conformance/shapes.ts`, git-ignored,
+typechecked and linted with the adapter):
+
+| Module | Holds |
+|---|---|
+| `kinds.ts` | every kind list as an `as const` object plus the union derived from it (spec 2.10); `Keyword`, `STATEMENT_OF_KEYWORD`, `statementOfKeyword(word)` |
+| `codes.ts` | `DiagnosticCode` (`as const` object and union), `MESSAGES`, `CODE_FACTS` (name, layer, found by, reason, typed per code), `ReasonOf<C>`, `describe(code, detail?)` |
+| `limits.ts` | the rules module: `MAX_NESTING`, `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`, `PROGRAM_CODE` |
+| `errors.ts` | the error class tree (spec 2.8): each class's base, fields, constructor, message and `name`; `argumentTypeMessage(member, parameter, got)` |
+| `shared.ts`, `syntax.ts`, `io.ts`, `written.ts`, `rendered.ts` | per layer: one interface per handle, port, record and snapshot (each variant with every member of its union, `kind` a literal); union types; callback types; options objects; the generic `Block<TItem, TDirective>`; a `<Module>Functions` interface per import path listing its free functions |
+| `names.ts` | `PUBLIC_NAMES` (every public name per import path, values and types apart) and `ERROR_GROUP_OF_CLASS` |
+| `ts/conformance/shapes.ts` | every request, result and dump of the adapter protocol as a type; `PROTOCOL`; `SPELLING` (each spec name the driver sends, in camelCase) |
+
+**Python** (`py/src/villanelle/_api/`, git-ignored, checked by ruff and `mypy --strict`; `py/conformance/shapes.py`,
+git-ignored, checked the same):
+
+| Module | Holds |
+|---|---|
+| `kinds.py` | every kind list as a `StrEnum`; `Keyword`, `STATEMENT_OF_KEYWORD`, `statement_of_keyword(word)` |
+| `codes.py` | `DiagnosticCode`, `MESSAGES`, `CodeFacts`, `CODE_FACTS`, `Described`, `describe(code, detail=None)` |
+| `limits.py` | the rules module, as TypeScript's (patterns end in `\Z`, the text's end) |
+| `errors.py` | the error class tree; `argument_type_message(member, parameter, got)` |
+| `shared.py`, `syntax.py`, `io.py`, `written.py`, `rendered.py` | per layer: a `Protocol` per handle, port and interface (variants with `kind: Literal[...]`); a frozen slotted `@dataclass` per plain record or snapshot (only properties: `eq=False` for a snapshot, field order the match args, a fixed `kind` as a property); union and callback `TypeAlias`es; `ConfigText`; the generic `Block` Protocol; a `<Module>Functions` Protocol per module |
+| `names.py` | `PUBLIC_NAMES` (each module's `__all__`), `ERROR_GROUP_OF_CLASS`, `MATCH_ARGS` |
+| `py/conformance/shapes.py` | the protocol's `TypedDict`s, `PROTOCOL`, `SPELLING` (in snake_case) |
+
+How a binding uses them (frozen-m6.md has the per-file list):
+
+- **TypeScript:** each layer's public entry (`villanelle/syntax`, `villanelle/written`, `villanelle/rendered`, and
+  the package root for the shared and io layers) re-exports the generated interfaces as its public types; each
+  hand-written class `implements` its interface, so a drifted or missing member is a compile error. The
+  hand-written interface files go.
+- **Python:** each hand-written handle class subclasses its generated `Protocol` (PEP 544's explicit form, so mypy
+  checks every member at the class); records and snapshots are the generated dataclasses, re-exported; the error
+  tree, kinds, codes and rules are imported from `_api`. A module is checked against its `<Module>Functions`
+  Protocol (`_: SyntaxFunctions = villanelle.syntax`, mypy's modules-as-protocols).
+- **Both:** the public-name test is one comparison per import path, both ways, against `PUBLIC_NAMES` (TypeScript
+  reads a module's exports, types included, through the compiler API; Python compares `__all__`). The adapters read
+  `SPELLING` and `ERROR_GROUP_OF_CLASS` instead of writing the casing rule or matching class names by regex.
+
+## 5. The adapter protocol
+
+`protocol.json` holds every request (parameters, which are optional, the result, the level), every result and dump
+shape (fields, fields by `kind`, tuples, exactly-one-of), the edit members and the readers. Its types use the same
+grammar with the wire's own atoms (`text`, `integer`, `number`, `boolean`, `json`, `id`, `null`, `position`), quoted
+literals (`"utf-16"`) and `tuple of A and B`. Keys are the wire's own spellings (`savedText`, `includedBy`): data,
+not a binding's names. spec/conformance.md 4.1 and 4.2 are generated from it; each request's prose (`params note`,
+`note`) stays with it, and the loader refuses a note that does not name each parameter.
+
+The driver does not yet check every dump against these shapes (spec/conformance.md 7); the generated types make an
+adapter's dumps checked by its own compiler instead.
+
+## 6. The docs tables: the one committed output
+
+Four Markdown tables are generated between `<!-- generated: NAME (tools/gen-api.py docs) -->` and
+`<!-- end generated -->`: the code registry in spec 2.4, the error-code table in docs/rendered-tree.md, and the
+adapter's requests and dumps in spec/conformance.md 4.1 and 4.2. They are committed, unlike the code, because nothing
+builds the docs: GitHub shows the files as they are. `python3 tools/gen-api.py docs` rewrites them and
+`tools/check.sh` fails when one is stale, so no table can drift from its source (round 15 found three copies of the
+code table disagreeing on 8 of 32 meanings and 14 of 32 found-by entries). Prior art: `cog` and the "generated
+section" markers of rustfmt's and Prettier's option docs.
+
+## 7. The kind lint
+
+Inside each binding a `kind`, `reason` or `code` is compared with a generated member, never a string literal (spec
+2.10):
+
+- **TypeScript:** `tools/lint/kind-rule.mjs` exports `KIND_RULE`, three `no-restricted-syntax` selectors (an `===`,
+  `!==`, `==` or `!=` with `.kind`, `.reason` or `.code` on one side and a literal on the other, either order; a
+  `switch` on one of them with a literal `case`). `ts/eslint.config.js` spreads it over `src/**/*.ts` and
+  `conformance/*.ts`.
+- **Python:** `tools/lint/kind_lint.py PATH...` (standard library `ast`): an `==` or `!=` with a `str` constant,
+  an `in` / `not in` with a tuple, list or set holding one, and a `match x.kind:` with a string `case`. The Python
+  package's tests run it over `src/` and `conformance/` and fail on any finding. `tools/check.sh` runs its self-test
+  (planted comparisons caught, member comparisons left alone).
+
+The rule is for the bindings' own code. A program using a binding may write `s.kind === "set"`: it is checked by
+the compiler, and TypeScript narrows on it.
+
+## 8. What stays hand-written
+
+The algorithms (binding variables and snippets, edits and where text goes, expansion, render, addresses, diff),
+the parser glue, the I/O adapters, each binding's module layout below its public entries, and docs prose with
+examples. Generating these would cost more than writing them, and the owner wants each binding idiomatic: on JSON
+Schema as the way to declare configuration, "it can't be the only one because it is not conducive to building
+natural APIs that are idiomatic in each target language" (2026-10-26). The traits of section 3 are how idiom is
+kept while the shapes are generated.
+
+## 9. Prior art, and why the generator is still bespoke
+
+The generator follows the **compiler-plugin** shape of `protoc`: one front end reads and checks the source into a
+neutral descriptor (`tools/api/loader.py`, like protoc's `FileDescriptorSet`), and one back end per language renders
+it (`emit_ts.py`, `emit_py.py`, like `protoc-gen-<lang>` plugins). A new binding adds one emitter; nothing else
+changes. Its data model follows the **LSP `metaModel.json`** (a typed, language-neutral description that feeds
+`vscode-languageserver-types` and `lsprotocol`), its traits follow **Smithy traits** (facts about a shape that each
+code generator reads its own way), and the registry follows TypeScript's `diagnosticMessages.json` and Babel's
+`@babel/types` definitions, both generated into declarations and docs.
+
+Why not one of those tools as is:
+
+| Tool | Why not |
+|---|---|
+| JSON Schema or OpenAPI generators (quicktype, openapi-generator, datamodel-code-generator) | They generate data shapes: no methods, handles, ports, generics, traits or error trees, and they own the output's idiom. The JSON Schema is used for what it is good at, checking the schema files' shape (`api.schema.json`) |
+| Smithy | A service model (operations over a network) with a Java toolchain; villanelle's API is in-process handles. Its trait idea is used |
+| Protocol Buffers | Wire messages with a runtime library each binding must ship, against the owner's no-third-party-dependency rule (2026-10-25). Its plugin architecture is used |
+| TypeSpec | Its core is protocol-neutral, but a custom emitter is written in TypeScript against its compiler, a Node toolchain for the Python-only `tools/`, and the per-language idiom would still be written by hand in each emitter |
+| LSP metaModel generators | Written for LSP's own model (requests and notifications), not reusable outside it. Its model shape is used |
+
+So the bespoke part is small: about 850 lines of loader and 550 to 700 lines per emitter, in Python's standard
+library (the same toolchain as the driver and the grammar checks), for a schema of 79 concepts, 10 kind lists, 34
+codes and 13 protocol requests.
+
+## 10. A new binding
+
+A new binding is **one emitter and one adapter** (binding guide section 5): add `tools/api/emit_<lang>.py`
+rendering the loader's model in the language's idiom (each trait of section 3, the casing rule's output, the error
+tree on the language's own base classes, the protocol shapes), register it in `tools/gen-api.py`, and point
+`tools/gen.sh` at its output directory. The adapter (spec/conformance.md 6) is then written against the generated
+shapes and spelling table.
+
+## 11. Costs
+
+- The schema is bigger than the lists it was: every member is typed, and a change to a public signature is a schema
+  change first. That is the point (the schema is the one home), but it is a step a binding author must not skip.
+- Generated interfaces are flat (each variant repeats its union's members), which is plain to read and costs nothing
+  at run time.
+- Python records are generated dataclasses: a hand-written record with private fields must move them out or become a
+  handle with a Protocol.
+- Behaviour is not in the schema: the spec and the shared cases still carry it.
+- The driver checks dumps only as far as it reads them; the generated shapes move the rest of that check to each
+  adapter's compiler, not to the driver (spec/conformance.md 7).

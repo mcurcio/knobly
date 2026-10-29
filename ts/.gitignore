@@ -2,3 +2,4 @@
 src/gen/
 dist/
 node_modules/
+conformance/shapes.ts

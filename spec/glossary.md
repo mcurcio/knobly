@@ -101,34 +101,36 @@ the owner's approval.
 
 ## Types per layer and binding
 
-The type names after milestone 2. TypeScript keeps its `I` prefix on interfaces until the owner
-answers the binding guide's rule 2 (proposed: drop it, so both bindings spell a type the same way);
-unions have no prefix. "Union" means a TypeScript union type, or a Python `X: TypeAlias = A | B | ...` over classes
-(so `isinstance(x, X)` works). Every kind list is a TypeScript string-literal type and a Python `StrEnum` of the
-same name (spec 2.10).
+The type names after milestone 6: both bindings spell a type the same way, with no prefix (binding guide rule 2;
+owner, 2026-10-29, "Yes, rename now"), and each name is imported from its layer's path (rule 9: the shared and io
+rows below from `villanelle`, the syntax layer from `villanelle/syntax` / `villanelle.syntax`, the low level from
+`villanelle/written` / `villanelle.written`, the rendered tree from `villanelle/rendered` / `villanelle.rendered`).
+Every name is generated from its spec name ([codegen.md](codegen.md)). "Union" means a TypeScript union type, or a
+Python `X: TypeAlias = A | B | ...` over classes (so `isinstance(x, X)` works). Every kind list is a TypeScript
+`as const` object with its derived string-literal type, and a Python `StrEnum`, of the same name (spec 2.10).
 
 ### Shared
 
 | Spec name | TypeScript | Python |
 |---|---|---|
-| `source position` | `ISourcePosition` | `SourcePosition` |
-| `source span` | `ISourceSpan` | `SourceSpan` |
-| `place` (kind `file`) | `IPlace` | `Place` |
-| `override` (kind `override`, as an origin's place) | `IOverride` | `Override` |
+| `source position` | `SourcePosition` | `SourcePosition` |
+| `source span` | `SourceSpan` | `SourceSpan` |
+| `place` (kind `file`) | `Place` | `Place` |
+| `override` (kind `override`, as an origin's place) | `Override` | `Override` |
 | `place kind` | `PlaceKind` | `PlaceKind` |
-| `step`, `step kind` | `IStep`, `StepKind` | `Step`, `StepKind` |
-| `origin` | `IOrigin` | `Origin` |
-| `directive origin` | `IDirectiveOrigin` | `DirectiveOrigin` |
-| `diagnostic` | `IDiagnostic` | `Diagnostic` |
-| `located diagnostic` | `ILocatedDiagnostic` | `LocatedDiagnostic` |
+| `step`, `step kind` | `Step`, `StepKind` | `Step`, `StepKind` |
+| `origin` | `Origin` | `Origin` |
+| `directive origin` | `DirectiveOrigin` | `DirectiveOrigin` |
+| `diagnostic` | `Diagnostic` | `Diagnostic` |
+| `located diagnostic` | `LocatedDiagnostic` | `LocatedDiagnostic` |
 | `program code` | `ProgramCode` (a template literal type) | `str` (checked at run time) |
 | `diagnostic code` | `DiagnosticCode` (constant object and type) | `DiagnosticCode` (`StrEnum`) |
 | `diagnostics` (the sink) | `Diagnostics` | `Diagnostics` |
-| `locatable` | `ILocatable` | `Locatable` (`Protocol`) |
+| `locatable` | `Locatable` | `Locatable` (`Protocol`) |
 | `expanded value` | `ExpandedValue` (union) | `ExpandedValue` (union) |
-| `expanded word`, `expanded string`, `expanded list`, `expanded slice`, `expanded index` | `IExpandedWord`, `IExpandedString`, `IExpandedList`, `IExpandedSlice`, `IExpandedIndex` | `ExpandedWord`, `ExpandedString`, `ExpandedList`, `ExpandedSlice`, `ExpandedIndex` |
+| `expanded word`, `expanded string`, `expanded list`, `expanded slice`, `expanded index` | `ExpandedWord`, `ExpandedString`, `ExpandedList`, `ExpandedSlice`, `ExpandedIndex` | `ExpandedWord`, `ExpandedString`, `ExpandedList`, `ExpandedSlice`, `ExpandedIndex` |
 | `value kind` | `ValueKind` | `ValueKind` |
-| `slice value`, `index value` | `ISliceValue`, `IIndexValue` | `SliceValue`, `IndexValue` |
+| `slice value`, `index value` | `SliceValue`, `IndexValue` | `SliceValue`, `IndexValue` |
 | `quote` (free function: a plain string as villanelle text) | `quote`, in `ts/src/text.ts` | `quote`, in `villanelle/_text.py`, exported from `villanelle` |
 | `text` (free function: plain text taken as config text, milestone 5) | `text`, in `ts/src/text.ts` | `text`, in `villanelle/_text.py`, exported from `villanelle` |
 | `config text` (milestone 5) | `ConfigText`, a branded string, in `ts/src/text.ts` | `ConfigText`, a `NewType` of `str`, in `villanelle/_text.py`, exported from `villanelle` |
@@ -139,48 +141,49 @@ same name (spec 2.10).
 
 | Spec name | TypeScript | Python |
 |---|---|---|
-| `syntax` | `ISyntax` | `Syntax` |
-| `token` | `IToken` | `Token` |
-| `node` | `INode` | `Node` |
-| `token range` | `ITokenRange` | `TokenRange` |
+| `syntax` | `Syntax` | `Syntax` |
+| `token` | `Token` | `Token` |
+| `node` | `Node` | `Node` |
+| `token range` | `TokenRange` | `TokenRange` |
 | `token kind`, `node kind` | `TokenKind`, `NodeKind` | `TokenKind`, `NodeKind` |
 
 ### Ports and extensions
 
 | Spec name | TypeScript | Python |
 |---|---|---|
-| `document source` | `IDocumentSource` | `DocumentSource` (`Protocol`) |
-| `load context` | `ILoadContext` | `LoadContext` |
-| `document writer` | `IDocumentWriter` (in `ts/src/source.ts`) | `DocumentWriter` (`Protocol`, in `villanelle/source.py`) |
-| `file write` | `IFileWrite` (in `ts/src/source.ts`) | `FileWrite` (in `villanelle/source.py`) |
+| `document source` | `DocumentSource` | `DocumentSource` (`Protocol`) |
+| `load context` | `LoadContext` | `LoadContext` |
+| `document writer` | `DocumentWriter` | `DocumentWriter` (`Protocol`) |
+| `file write` | `FileWrite` | `FileWrite` |
 | `memory source`, `memory writer` | `memorySource`, `memoryWriter` | `memory_source`, `memory_writer` |
 | `file source`, `file writer` | `fileSource`, `fileWriter` (`villanelle/node`) | `file_source`, `file_writer` (`villanelle.files`) |
 | `fetch source`, `fetch writer` | `fetchSource`, `fetchWriter` (`villanelle/browser`) | none |
-| `extension` | `IExtension` | `Extension` (`Protocol`) |
-| `extension use` | `IExtensionUse` | `ExtensionUse` |
+| `extension` | `Extension` | `Extension` (`Protocol`) |
+| `extension use` | `ExtensionUse` | `ExtensionUse` |
 
 ### Low level (written)
 
 | Spec name | TypeScript | Python |
 |---|---|---|
-| `processor` | `IProcessor` (made by `villanelle(...)`) | `Processor` |
-| load options | `ILoadOptions` (`overrides`) | keyword `overrides=` |
-| `document graph` | `IDocumentGraph` | `DocumentGraph` |
-| `document` | `IDocument` | `Document` |
-| `document edge` | `IDocumentEdge` | `DocumentEdge` |
-| `copy` | `ICopy` | `Copy` |
+| `processor` | `Processor` (made by `villanelle(...)`) | `Processor` |
+| load options | `LoadOptions` (`overrides`) | keyword `overrides=` |
+| `document graph` | `DocumentGraph` | `DocumentGraph` |
+| `document` | `Document` | `Document` |
+| `document edge` | `DocumentEdge` | `DocumentEdge` |
+| `copy` | `Copy` | `Copy` |
 | `statement`, `statement kind` | `Statement` (union), `StatementKind` | `Statement` (union), `StatementKind` |
-| `written directive`, `extension line` | `IWrittenDirective`, `IExtensionLine` | `WrittenDirective`, `ExtensionLine` |
-| `set line`, `snippet line`, `use line`, `unreadable line` | `ISetLine`, `ISnippetLine`, `IUseLine`, `IUnreadableLine` | `SetLine`, `SnippetLine`, `UseLine`, `UnreadableLine` |
-| `written block` | `IWrittenBlock` | `WrittenBlock` |
+| `written directive`, `extension line` | `WrittenDirective`, `ExtensionLine` | `WrittenDirective`, `ExtensionLine` |
+| `set line`, `snippet line`, `use line`, `unreadable line` | `SetLine`, `SnippetLine`, `UseLine`, `UnreadableLine` | `SetLine`, `SnippetLine`, `UseLine`, `UnreadableLine` |
+| `written block` | `WrittenBlock` | `WrittenBlock` |
+| `expansion block` (milestone 6) | `ExpansionBlock` | `ExpansionBlock` |
 | `written value` | `WrittenValue` (union) | `WrittenValue` (union) |
-| `word`, `string`, `list`, `slice`, `index`, `reference` | `IWord`, `IString`, `IList`, `ISlice`, `IIndex`, `IReference` | `Word`, `String`, `List`, `Slice`, `Index`, `Reference`, from `villanelle.written` only |
+| `word`, `string`, `list`, `slice`, `index`, `reference` | `Word`, `String`, `List`, `Slice`, `Index`, `Reference` | `Word`, `String`, `List`, `Slice`, `Index`, `Reference`, from `villanelle.written` only |
 | `variable`, `variable kind` | `Variable` (union), `VariableKind` | `Variable` (union), `VariableKind` |
-| `set variable`, `parameter`, `override variable` | `ISetVariable`, `IParameter`, `IOverrideVariable` | `SetVariable`, `Parameter`, `OverrideVariable` |
-| `resolution` | `IResolution<T>` | `Resolution[T]` |
-| `reference resolution` | `IReferenceResolution` | `ReferenceResolution` |
-| `expansion` | `IExpansion` | `Expansion` |
-| `directive expansion`, `unreadable expansion` | `IDirectiveExpansion`, `IUnreadableExpansion` | `DirectiveExpansion`, `UnreadableExpansion` |
+| `set variable`, `parameter`, `override variable` | `SetVariable`, `Parameter`, `OverrideVariable` | `SetVariable`, `Parameter`, `OverrideVariable` |
+| `resolution` | `Resolution<T>` | `Resolution[T]` |
+| `reference resolution` | `ReferenceResolution` | `ReferenceResolution` |
+| `expansion` | `Expansion` | `Expansion` |
+| `directive expansion`, `unreadable expansion` | `DirectiveExpansion`, `UnreadableExpansion` | `DirectiveExpansion`, `UnreadableExpansion` |
 | `expanded value` and its variants, `extension`, `extension use` (the low level since milestone 4) | as above | as above |
 | `format diagnostic` (free function; reads the source line from a graph) | `formatDiagnostic`, in `ts/src/written/format.ts` | `format_diagnostic`, in `villanelle/written/format.py` |
 
@@ -193,13 +196,14 @@ The low level's public entry is one module in each binding: `ts/src/written/inde
 | Spec name | TypeScript | Python |
 |---|---|---|
 | `render (graph)` (entry point) | `render(graph)` in `ts/src/rendered/`, re-exported by `"villanelle"` | `render(graph)` in `villanelle.rendered`, re-exported as `villanelle.render` |
-| `rendered` | `IRendered` | `Rendered` |
-| `directive` | `IDirective` | `Directive` |
+| `rendered` | `Rendered` | `Rendered` |
+| `directive` | `Directive` | `Directive` |
+| `rendered block` (milestone 6) | `RenderedBlock` | `RenderedBlock` |
 | `unreadable reason` | `UnreadableReason` | `UnreadableReason` (`StrEnum`) |
-| `address`, `address step` | `IAddress`, `IAddressStep` | `Address`, `AddressStep` |
+| `address`, `address step` | `Address`, `AddressStep` | `Address`, `AddressStep` |
 | `key rule` | `KeyRule` | `KeyRule` |
-| key options | `IKeyOptions` (`key`) | keyword `key=` |
-| `change` | `Change` (union of `IAdded`, `IRemoved`, `IChanged`, `IUnknown`) | `Change` (union of `Added`, `Removed`, `Changed`, `Unknown`) |
+| key options | `KeyOptions` (`key`) | keyword `key=` |
+| `change` | `Change` (union of `Added`, `Removed`, `Changed`, `Unknown`) | `Change` (union of `Added`, `Removed`, `Changed`, `Unknown`) |
 | `change kind` | `ChangeKind` | `ChangeKind` |
 
 ## New terms in milestone 1
@@ -262,6 +266,20 @@ error`, and `statement` as the name of the link on a directive or unreadable exp
 
 Removed in milestone 5: `plain` (the reader) and `plain value`; the `COLON` token kind; reserved directive names;
 escapes in a single-quoted string.
+
+## New terms in milestone 6
+
+| Term | Definition | Why it is needed | Existing term it could be |
+|---|---|---|---|
+| block (the shape) | what every block has: iterate, count, `at (index)`, `directives (name?)`, `walk` (spec 2.11) | the owner's "one block shape (iterate, index, directives(name), walk) in every layer" (2026-10-29) | `written block`, which is now one of three |
+| `expansion block`, `rendered block` | the block of directive expansions (6.10) and of rendered directives (7.1) | the expansion's and the render's blocks were plain lists, so they had no `directives` or `walk` | a list of directives, which they replace |
+| `walk control` (TypeScript only) | what a walk's callback returns: `skip` or `stop` | TypeScript's walk takes a callback; the values were a bare string type | the `"skip" \| "stop"` union it names |
+| keyword, `Keyword` | a language statement's word after `@` (`set`, `snippet`, `use`), one generated list with its dispatch table to the statement kind | "one generated keyword list and dispatch table" (owner, 2026-10-29) | the `reserved names` words, which are now read from it |
+| type grammar, trait | the closed grammar every schema type is written in, and the typed facts that say how a member looks in each language ([codegen.md](codegen.md) 2, 3) | the owner's "idiom expressed as typed per-language traits" (Q3, 2026-10-29) | `spell`, the prose notes they replace |
+| rules module | the generated limits, reserved words and patterns, exported by the layer that owns each (spec 2.5) | the round 15 finding that the validation rules were not exported | the generated `limits` file, which it is |
+
+Removed in milestone 6: every TypeScript `I` prefix; the written block's `statements` member; `walk` on the render
+and on a directive (now `block.walk`); the one flat namespace of each binding.
 
 ## New terms in milestone 3
 

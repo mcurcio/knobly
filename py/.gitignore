@@ -3,3 +3,4 @@ src/villanelle/_gen/
 src/villanelle/_api/
 dist/
 .venv/
+conformance/shapes.py

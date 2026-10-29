@@ -455,3 +455,38 @@
 - The nine older plants in `tools/planted/` are still copies of older grammars (some headed `@rasl/config grammar`);
   they still bite. Two milestone-5 plants were added beside them, and `tools/planted-tokens/` holds the token-check
   plants.
+
+## 2026-10-29, milestone 6 (spec, schema, generator lane)
+
+- **spec 2.4 and `diagnostics.json` disagreed** (round 15 finding: 8 meanings, 14 found-by entries). Resolved by
+  taking the spec's wording (the newer, milestone 5 text) as each code's `meaning`, adding the schema-only facts that
+  are true (E2001 also in a bad text error; E4001's literal-bound note; E4004's and E4005's range clauses), and a
+  closed `found by` list: E5002, E5005, E5009 to E5011 are `low level, edit` (the spec said `low level`, the schema
+  `load, edits`), E5006, E5007 and E5012 `low level` (the schema said `load`). The table in spec 2.4 and the
+  user guide's table in docs/rendered-tree.md are now generated from `diagnostics.json`.
+- **`diagnostic` was in the syntax layer, but `bad text error` (shared) carries it**: a layer-direction breach the
+  new loader refuses. Moved to the shared layer (where TypeScript's `IDiagnostic` already lives,
+  `ts/src/diagnostics.ts`).
+- **Seven undefined types in api.json** (`definition`, `result`, `function`, `key rule`, `locatable`, `program code`,
+  `token range`, plus `map of text` and `text or absent[]`): each is now a concept, a type parameter or a type
+  expression of the closed grammar. `resolution` is generic (`resolution of snippet line`, `resolution of variable`),
+  as both bindings already were.
+- **`statement.parent` said `statement`**; both bindings and spec 6.5 give the statement whose block holds it, so it
+  is now `written directive or extension line or snippet line or absent`.
+- **`slice value`'s `start` and `end`**: TypeScript's `ISliceValue` has optional members (`start?: number`), its
+  `IExpandedSlice` `number | undefined`. The generated `SliceValue` uses `number | undefined` like every absent
+  member; the TypeScript lane changes `ISliceValue` (no run-time change). Found by a scratch assignability check of
+  every hand-written TypeScript type against its generated interface (the other mismatches are the approved block
+  shape and its cascade).
+- **The two public-name tests read sections the schema no longer has** (`ts/src/api-names.test.ts` reads
+  `removed in milestone 5`, `ts`, `spell`; `py/tests/test_api_names.py` the same): both fail to collect at this
+  commit. Every other test passes (TypeScript 222, Python 433) and the shared driver passes all 375 cases with both
+  adapters. The lanes replace both tests with the generated `PUBLIC_NAMES` comparison (frozen-m6.md).
+- **"One block shape in every layer" has no syntax-layer block**: a `block` node is a node with `children`. Design
+  call: the shape is given to the written block, the expansion's block and the rendered block (spec 2.11); the
+  owner may want a syntax-layer view too.
+- **`walk` moves from the render and the directive onto the block** (spec 7.5, 2.11). Keeping both would be two
+  homes for one operation; design call recorded in frozen-m6.md "Behaviour changes".
+- **TypeScript `MAX_SAFE_INTEGER` is now generated** in `limits.ts` (equal to `Number.MAX_SAFE_INTEGER`): the
+  schema's `integer range` limit had a TypeScript spelling naming the language constant, the one per-language
+  spelling the casing rule could not derive.

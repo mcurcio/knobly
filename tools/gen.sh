@@ -2,7 +2,8 @@
 # Generate the parser for one target language from grammar/Villanelle.g4.
 #   bash tools/gen.sh ts   -> ts/src/gen/              (TypeScript, each file prefixed "// @ts-nocheck")
 #   bash tools/gen.sh py   -> py/src/villanelle/_gen/  (Python 3, plus an empty __init__.py)
-# Then the API lists from spec/schema/ (tools/gen-api.py): ts/src/gen/api/ or py/src/villanelle/_api/.
+# Then the API declarations from spec/schema/ (tools/gen-api.py): ts/src/gen/api/ and ts/conformance/shapes.ts, or
+# py/src/villanelle/_api/ and py/conformance/shapes.py (spec/codegen.md section 4).
 # Generated code is never committed (owner, 2026-10-23: "Don't commit the generated code, just the source"):
 # build and test run this first, and every run regenerates.
 # Needs: Java 11+, curl, python3 (3.9+). The ANTLR jar is cached in $ANTLR_JAR_DIR (default ${XDG_CACHE_HOME:-$HOME/.cache}/antlr)
@@ -56,5 +57,5 @@ else
 fi
 for f in "$tmp"/*; do mv -f "$f" "$out/"; done
 
-# The API lists (diagnostic codes and messages, kind lists, limits) from spec/schema/: spec/codegen.md.
+# The API declarations (kinds, codes, rules, errors, per-layer interfaces, names, adapter shapes): spec/codegen.md.
 python3 tools/gen-api.py "$1"

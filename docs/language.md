@@ -101,11 +101,11 @@ that use `$pixels`.
 
 The rules (the exact ones, with the one precedence table, are [`spec/expansion.md`](../spec/expansion.md)):
 
-- **Where a `set` is seen.** From its line to the end of the block it is written in, including nested blocks and
-  everything spliced in below it. A `$name` before its `set` is unknown.
-- **One `set` per name per block** (E5002, placed on the second `$name`). A nested block may set the same name again;
+- **Where a `@set` is seen.** From its line to the end of the block it is written in, including nested blocks and
+  everything spliced in below it. A `$name` before its `@set` is unknown.
+- **One `@set` per name per block** (E5002, placed on the second `$name`). A nested block may set the same name again;
   inside that block its own value is used.
-- **A variable is always a whole value.** `port $ports dev;` with `set $ports 8080 443;` reaches the program as
+- **A variable is always a whole value.** `port $ports dev;` with `@set $ports 8080 443;` reaches the program as
   three values: `8080 443 dev`. In a list, `[$ports, 1]` becomes `[8080, 443, 1]`. (Test: "rule 4: $name as a
   value", "becomes all its values in a directive and in a list", `ts/src/rendered/rules.test.ts`.) A variable is never
   joined to other text: `fps$x` and `$x"y"` are two values touching (E2009; syntax conformance cases
@@ -115,12 +115,12 @@ The rules (the exact ones, with the one precedence table, are [`spec/expansion.m
 - **As a slice's name** a variable must hold one word: `$src[0~3]` with `@set $src leds;` is `leds[0~3]`, and a
   snippet's parameter works the same way (load cases `load-var-subscript`, `load-snippet-param-subscript`). A string,
   a list or two values there is E4007 (`load-var-subscript-not-word`).
-- **Values keep their kind.** `set $b $a;` copies `$a`'s values (strings stay strings, lists stay lists).
-- **An unknown name** (no `set` above it, no override) is E5001 at the `$name`, and its directive is kept as
+- **Values keep their kind.** `@set $b $a;` copies `$a`'s values (strings stay strings, lists stay lists).
+- **An unknown name** (no `@set` above it, no override) is E5001 at the `$name`, and its directive is kept as
   unreadable (see below). It never quietly becomes nothing.
 - **Overrides from the program win.** A program can give variables values when it loads a file (its `overrides`;
-  rasl's `--set host=...`). An override wins over every `set` of that name, at any depth and in every included
-  file, so a `set` acts as the default. It does not win over a snippet parameter that is the nearest definition: the
+  rasl's `--set host=...`). An override wins over every `@set` of that name, at any depth and in every included
+  file, so a `@set` acts as the default. It does not win over a snippet parameter that is the nearest definition: the
   value written on the `@use` line is used (load case `load-snippet-param-beats-override` in `conformance/load/`;
   [`spec/expansion.md`](../spec/expansion.md) 6 has the whole table).
 - `$` inside a string is plain text; a `$` on its own is E1004; `$x 1;` is a syntax error, because a directive's
@@ -169,15 +169,15 @@ The rules ([`spec/expansion.md`](../spec/expansion.md) has the exact ones):
 
 - **Values bind parameters by position**, and the count must match exactly (E5004 at `@use`). A variable holding two
   values counts as two.
-- **A snippet is seen** from its line to the end of its block, like a `set`. One definition per name per block
+- **A snippet is seen** from its line to the end of its block, like a `@set`. One definition per name per block
   (E5005, at the second name).
 - **Snippet names are their own namespace.** `@use universe;` looks only for a snippet called `universe`, never at a
   directive of that name.
 - **The body sees the variables where the snippet is written**, plus its parameters; never the variables of the
-  block where it is used. It sees a `set` written after the snippet but before the `use`.
+  block where it is used. It sees a `@set` written after the snippet but before the `use`.
 - **A body exports nothing.** A `set` or `snippet` inside a body is seen only inside it.
 - A parameter is the body's own variable: `@set` of a parameter's name in the body is E5002. An override from the
-  program or a `set` in an include line's block never replaces a parameter (load cases `load-snippet-param-beats-override`
+  program or a `@set` in an include line's block never replaces a parameter (load cases `load-snippet-param-beats-override`
   and `load-include-block-param`).
 - An unknown snippet name is E5003, at the name. Any other form of `snippet` (no name, no block, a parameter written
   twice) is E5010 at `@snippet`; a `@use` with a block or a name that is not a word is E5011 at `@use`.

@@ -14,14 +14,15 @@ what order, how to work, and what has gone wrong before.
 2. `spec/glossary.md`: one word per concept, and each concept's type name per layer and binding.
 3. `spec/spec.md`: what every binding must do. This wins over either binding's code
    (owner, 2026-10-27: "Within villanelle I want the spec to win over a reference language").
-   `spec/schema/api.json` and `spec/schema/diagnostics.json` are the one home of every fixed list
-   and win over the spec's tables.
+   `spec/schema/api.json`, `diagnostics.json` and `protocol.json` are the one home of every public
+   signature, fixed list and adapter message, and win over the spec's tables.
 4. `spec/contract.md`: the edges (positions per language, people forms, numbers, error
    classes, adapters).
 5. `spec/binding-guide.md`: the owner's goals, naming rules, allowed differences, the
    concept map, and the new-binding checklist.
 6. `spec/conformance.md`: the conformance levels, the adapter protocol and the shared driver.
-7. `spec/codegen.md` only if the task touches the fixed lists (codes, kinds, limits).
+7. `spec/codegen.md` whenever the task touches a public name, signature, kind, code, error class or the
+   adapter protocol: every one of them is generated from the schema (milestone 6).
 8. For the reasons behind a rule: `.claude/design/consumer-api/requirements.md` (the owner's dated
    words), `.claude/design/consumer-api/round12/decisions.md`, and
    `.claude/design/consumer-api/round13/review.md`.
@@ -39,21 +40,28 @@ member or removed member:
 - A "Proposed (pending owner)" note in the spec is not agreed. Do not build it until the owner
   answers the question it links to.
 - No compatibility aliases or deprecated names (repo and global rule).
-- Change the spec, both bindings, the reference docs (`docs/low-level-api.md`,
-  `docs/rendered-tree.md`) and any affected conformance format in the same change. A change to
-  one binding alone is a divergence.
+- Change the schema first (`spec/schema/api.json`; `python3 tools/gen-api.py --check` refuses an unresolved type,
+  a layer-direction breach or a name collision), then the spec, both bindings, the reference docs
+  (`docs/low-level-api.md`, `docs/rendered-tree.md`) and any affected conformance format in the same change. A
+  change to one binding alone is a divergence; a signature written by hand instead of generated is a defect.
 
 ## Workflow: a new binding
 
 Follow the checklist in `spec/binding-guide.md` section 5. In short: pick one model and get the
 first-hour program approved, then:
 
-1. **Generate**: the parser (`tools/gen.sh`) and the fixed lists (`tools/gen-api.py`).
-2. **Write the adapter**: one small program answering the driver's requests through your public API
-   (`spec/conformance.md` section 6). Start a new one from the TypeScript or Python adapter
-   (`ts/conformance/adapter.ts`, `py/conformance/adapter.py`); each is under 300 lines.
-3. **Run the driver**: `python3 conformance/driver/run.py -- <your adapter's command>`.
-4. **Climb the levels**: claim L0 in `hello`, make the syntax cases pass, then build the low level (L1),
+1. **Generate the parser** (`tools/gen.sh`).
+2. **Write an emitter**: `tools/api/emit_<lang>.py`, rendering the loader's model (`tools/api/loader.py`) in your
+   language's idiom: kind lists, codes, rules, the error tree, one declaration per concept with each trait of
+   `spec/codegen.md` section 3 in your form, the names table, the adapter's message shapes and spelling table. Start
+   from `emit_ts.py` or `emit_py.py`; register it in `tools/gen-api.py` and point `tools/gen.sh` at its output. Your
+   classes implement what it generates; you write no signature, list or name by hand.
+3. **Write the adapter**: one small program answering the driver's requests through your public API
+   (`spec/conformance.md` section 6), typed by your generated shapes, spelling members with the generated
+   `SPELLING` and naming error groups with `ERROR_GROUP_OF_CLASS`. Start a new one from the TypeScript or Python
+   adapter (`ts/conformance/adapter.ts`, `py/conformance/adapter.py`); each is under 300 lines.
+4. **Run the driver**: `python3 conformance/driver/run.py -- <your adapter's command>`.
+5. **Climb the levels**: claim L0 in `hello`, make the syntax cases pass, then build the low level (L1),
    the rendered tree (L2) and include (L3), raising the claim as each level's cases pass. Then write
    the first-hour program as a test, and add the driver with your adapter to CI.
 
@@ -68,8 +76,9 @@ owner the planned choice with the first-hour program.
    it, do not quietly match either.
 2. Make the change in both `ts/` and `py/`.
 3. Run both test suites (below), then lint and typecheck for each package you changed.
-4. Update the glossary, `spec/schema/api.json` and the concept map in the binding guide if a name
-   changed.
+4. Update the glossary and the concept map in the binding guide if a name changed (the schema already changed
+   first). If a diagnostic code or the adapter protocol changed, run `python3 tools/gen-api.py docs` and commit the
+   regenerated tables; `bash tools/check.sh` fails while one is stale.
 
 ## Running the shared cases
 
@@ -165,8 +174,20 @@ its test suite (`corepack pnpm -C ts test`, `cd py && uv run pytest`); lint, for
   succeed for a variant is absent from it, not a run-time error: no `NoSetLineError`, no `rename`
   on an extension line. Python's `__match_args__` keep one field order per concept in every layer,
   so `match` works on the low level too. Before milestone 2 Python's low level had none.
-- **Every kind list is generated** (TypeScript string-literal types, Python `StrEnum`s, token kinds
-  from the grammar). Do not hand-write one, and do not add constant objects or `Literal` aliases.
+- **Every kind list is generated** (TypeScript `as const` objects with the derived string-literal type, Python
+  `StrEnum`s, token kinds from the grammar; milestone 6 reversed milestone 2's "no constant objects"). Do not
+  hand-write one or add `Literal` aliases. Inside a binding compare `kind`, `reason` and `code` with a member
+  (`StatementKind.Set`, `StatementKind.SET`), never a string literal: the kind lint (`tools/lint/`) fails the
+  build. Statement keywords are dispatched through the generated `STATEMENT_OF_KEYWORD`, never by comparing text.
+- **Every public signature is generated** (milestone 6): TypeScript classes `implements` the generated interfaces
+  and the layer entries re-export them; Python handle classes subclass the generated Protocols, and records are the
+  generated dataclasses. A name test compares each import path's exports with the generated `PUBLIC_NAMES`, both
+  ways; there is no hand-kept list of removed names.
+- **One import path per name** (milestone 6, binding guide rule 9): `villanelle` (shared and io),
+  `villanelle/syntax`, `villanelle/written`, `villanelle/rendered` (Python: subpackages). No re-export under a second
+  path, no `I` prefix, no alias for an old name.
+- **One block shape** (spec 2.11): a block is iterated and indexed, has `directives (name?)` and `walk`; there is no
+  `block.statements`, and `walk` is on the block (`rendered.block.walk(...)`), not on the render or a directive.
 - **`from villanelle import *`** replaced `typing.List` with the low-level `List` in Python; since
   milestone 2 the six written value classes live in `villanelle.written` only.
 - **The rendered layer reads only the public low level** (`graph.expand()`, spec 6.10). A
@@ -174,7 +195,10 @@ its test suite (`corepack pnpm -C ts test`, `cd py && uv run pytest`); lint, for
   layer check (binding guide rule 8).
 - **The processor ownership check** (D27) is retired by milestone 1: no operation takes a graph or
   render back to a processor. On PR 4 it still refuses another processor's graph at run time.
-- **Generated parser code is never committed.** `tools/gen.sh` writes it to git-ignored folders.
+- **Generated code is never committed** (the parser, `ts/src/gen/api/`, `py/src/villanelle/_api/`, the adapters'
+  `shapes` files): `tools/gen.sh` writes it to git-ignored paths. The generated docs tables (spec 2.4,
+  docs/rendered-tree.md, spec/conformance.md 4.1 and 4.2) are the one committed output; edit `diagnostics.json` or
+  `protocol.json`, never the table.
 - **Errors** (contract 4, milestone 4): `VillanelleError` is the base of the expected outcomes only
   (`DiagnosticError`, `ReadError`, `BadTextError`, `SaveError` and its `LostUpdateError`). Program bugs
   sit outside it: `DetachedError` (a `ReferenceError`), `TypeError`, misuse (`MisuseError` in

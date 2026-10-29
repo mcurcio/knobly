@@ -37,7 +37,9 @@ TypeScript:
 ```ts
 import { fileURLToPath } from "node:url";
 
-import { type IDirective, type IProcessor, type IRendered, type KeyRule, render, text, villanelle } from "villanelle";
+import { type ConfigText, text } from "villanelle";
+import { type Directive, type KeyRule, type Rendered, render } from "villanelle/rendered";
+import { type Processor, villanelle } from "villanelle/written";
 import { include } from "villanelle/include";
 import { fileSource } from "villanelle/node";
 
@@ -49,9 +51,9 @@ const RASL_KEY: KeyRule = (d) => {
   return undefined;
 };
 
-function nodeIds(loaded: IRendered): string[] {
+function nodeIds(loaded: Rendered): string[] {
   const ids: string[] = [];
-  loaded.walk((d: IDirective) => {
+  loaded.block.walk((d: Directive) => {
     if (d.name === "node" && d.parent?.name === "graph") ids.push(d.values[1]?.text ?? "");
   });
   return ids;
@@ -59,7 +61,7 @@ function nodeIds(loaded: IRendered): string[] {
 
 const OVERRIDES = { leds_host: text('"10.0.70.1"') };
 
-export async function rendered(processor: IProcessor, path: string, options?: { readonly overrides?: Readonly<Record<string, ConfigText>> }): Promise<IRendered> {
+export async function rendered(processor: Processor, path: string, options?: { readonly overrides?: Readonly<Record<string, ConfigText>> }): Promise<Rendered> {
   return render(await processor.load(path, options));
 }
 
@@ -82,11 +84,12 @@ Python:
 
 ```python
 import villanelle as vl
+from villanelle import rendered, written
 from villanelle.files import file_source
 from villanelle.include import include
 
 
-def rasl_key(d: vl.Directive) -> str | None:
+def rasl_key(d: rendered.Directive) -> str | None:
     """The "rasl" key rule of conformance/load/format.md."""
     if d.name == "node" and d.parent is not None and d.parent.name == "graph":
         return d.values[1].text if len(d.values) > 1 else None
@@ -97,14 +100,14 @@ def rasl_key(d: vl.Directive) -> str | None:
     return None
 
 
-def node_ids(loaded: vl.Rendered) -> list[str]:
+def node_ids(loaded: rendered.Rendered) -> list[str]:
     graph = next(d for d in loaded.block if d.name == "graph")
     return [d.values[1].text for d in graph.block or () if d.name == "node"]
 
 
-    processor = vl.Processor(source=file_source(), extensions=[include()])
+    processor = written.Processor(source=file_source(), extensions=[include()])
     overrides = {"leds_host": vl.quote("10.0.0.9")} if override else None
-    first = vl.render(processor.load(str(root), overrides=overrides))
+    first = rendered.render(processor.load(str(root), overrides=overrides))
     expected = EXPECTED[name]
     assert expected["diagnostics"] == []
     assert first.diagnostics == ()
@@ -112,7 +115,7 @@ def node_ids(loaded: vl.Rendered) -> list[str]:
     text = root.read_text(encoding="utf-8")
     assert text.count("@set $pixels 2284;") == 1
     root.write_text(text.replace("@set $pixels 2284;", "@set $pixels 2400;"), encoding="utf-8")
-    second = vl.render(processor.load(str(root), overrides=overrides))
+    second = rendered.render(processor.load(str(root), overrides=overrides))
     changes = first.diff(second, key=rasl_key)
     assert [[type(c).__name__.lower(), str(c.address)] for c in changes] == expected["changes"]
 ```
@@ -169,24 +172,25 @@ render's `diff` takes any other render.
 over every `set` of the same name ([spec/expansion.md](../spec/expansion.md) 6 has the whole precedence table). The low level can change them later without a reload (`graph.setOverride`,
 [low-level-api.md](low-level-api.md#overrides)).
 
-What a render gives back (`IRendered` / `Rendered`):
+What a render gives back (`Rendered`):
 
 | Field | What it is |
 |---|---|
-| `block` | the top-level directives, expanded (a read-only sequence) |
-| `unreadable` | top-level statements that could not be read, in place (`IUnreadableExpansion` / `UnreadableExpansion`, the low level's own objects) |
+| `block` | the top-level directives, expanded: a rendered block, iterated and indexed in order, with `directives(name)` and `walk` |
+| `unreadable` | top-level statements that could not be read, in place (`UnreadableExpansion`, the low level's own objects) |
 | `diagnostics` | every problem: each file's syntax problems, then the low level's, in order; the same list as `graph.diagnostics` |
 | `graph` | the document graph it was rendered from |
 | `origin` | the root file at 0:0, where a problem of the whole file is placed |
-| `walk(...)`, `error(...)` | see "Walking" and "Problems" |
+| `error(...)` | see "Problems"; walking is the block's: `rendered.block.walk(...)` (see "Walking") |
 | `addresses({ key })` | every directive's address under a key rule (see "Addresses and the key rule") |
 | `diff(after, { key })` | what changed between this render and a later one (see "What changed: diff") |
 
 ## Walking the directives
 
-A directive (`IDirective` / `Directive`) has `name`, `values`, `block` (the directives of its block, a read-only
-sequence, or undefined/None when written without a block), `unreadable`, `parent`, `origin` and `written`. `set`, `snippet`,
-`use` and include lines never appear: what they produce does, in their place.
+A directive (`Directive`) has `name`, `values`, `block` (the directives of its block, a rendered block: iterated and
+indexed in order, with `directives(name)` and `walk`; undefined/None when written without a block), `unreadable`,
+`parent`, `origin` and `written`. `@set`, `@snippet`, `@use` and `@include` lines never appear: what they produce does,
+in their place.
 
 `written` is the directive as written, on the low level: the line to edit. A line read at two places (a file
 included twice, a snippet used twice) renders as two directives with the same `written` object, so an edit to it
@@ -198,13 +202,13 @@ shows in both:
     const graph = await processor.load("main.conf");
     const rendered = render(graph);
     const [g, h] = rendered.block;
-    const x = graph.documents.get("s.conf")?.block.statements[0];
-    const y = graph.documents.get("s.conf")?.block.statements[1];
+    const x = graph.documents.get("s.conf")?.block.at(0);
+    const y = graph.documents.get("s.conf")?.block.at(1);
     expect(g?.block?.[0]?.written).toBe(x);
     expect(h?.block?.[0]?.written).toBe(x);
     expect(g?.unreadable[0]?.written).toBe(y);
     expect(h?.unreadable[0]?.written).toBe(y);
-    expect(g?.written).toBe(graph.root.block.statements[0]);
+    expect(g?.written).toBe(graph.root.block.at(0));
 ```
 
 `ts/src/written/edits.test.ts`, test "gives both copies of a line read twice the same statement, and an unreadable
@@ -212,20 +216,22 @@ copy its statement".
 
 ```python
     files = {"main.conf": 'a { @include "p.conf"; }\nb { @include "p.conf"; }\n', "p.conf": "x 1;\n"}
-    graph = vl.Processor(source=vl.memory_source(files), extensions=[include()]).load("main.conf")
-    rendered = vl.render(graph)
-    x1, x2 = (d for d in rendered.walk() if d.name == "x")
+    graph = written.Processor(source=vl.memory_source(files), extensions=[include()]).load("main.conf")
+    tree = rendered.render(graph)
+    x1, x2 = (d for d in tree.block.walk() if d.name == "x")
     assert x1.written is x2.written is graph.documents["p.conf"].block[0]
     assert len(x1.written.copies()) == 2
 ```
 
 `py/tests/test_written.py`, `test_a_rendered_directive_is_a_copy_of_one_written_directive_handle`.
 
-TypeScript walks with a callback. Return `"skip"` to pass over a directive's block, `"stop"` to end the walk:
+Every block walks (spec 2.11): `rendered.block.walk(...)` visits every directive, `directive.block?.walk(...)` those
+inside one. TypeScript walks with a callback. Return `WalkControl.Skip` (`"skip"`) to pass over a directive's block,
+`WalkControl.Stop` (`"stop"`) to end the walk:
 
 ```ts
   const ids: string[] = [];
-  loaded.walk((d: IDirective) => {
+  loaded.block.walk((d: Directive) => {
     if (d.name === "node" && d.parent?.name === "graph") ids.push(d.values[1]?.text ?? "");
   });
   return ids;
@@ -233,31 +239,31 @@ TypeScript walks with a callback. Return `"skip"` to pass over a directive's blo
 
 Excerpt of `nodeIds` in `ts/src/rendered/rasl.test.ts`.
 
-Python walks with a generator, a method on the render and on each directive. `descend` returning False passes
-over a block; `break` ends the walk:
+Python walks with a generator, a method of every block. `descend` returning False passes over a block; `break` ends
+the walk:
 
 ```python
-    skipped = [d.name for d in loaded.walk(descend=lambda d: d.name != "server")]
+    skipped = [d.name for d in loaded.block.walk(descend=lambda d: d.name != "server")]
     assert skipped == ["http", "server", "server", "events"]
 ```
 
 Excerpt of `test_walk_is_depth_first_in_written_order_and_descend_false_passes_over_a_block`,
 `py/tests/test_load.py`.
 
-Both walk depth-first in written order, from the render or from one directive. `closest(predicate)` gives this
+Both walk depth-first in written order, from the render's block or from one directive's. `closest(predicate)` gives this
 directive or the nearest enclosing one that matches. Python directives and values also take part in `match`
 (`Directive` matches as `name`, `values`, `block`):
 
 ```python
     match graph.block[0]:
-        case vl.Directive("node", [kind, node_id, *rest], block):
+        case rendered.Directive("node", [kind, node_id, *rest], block):
             assert (kind.text, node_id.text, [r.text for r in rest]) == ("DdpSink", "leds", ["1"])
 ```
 
 Excerpt of `test_directive_matches_by_name_values_and_block`, `py/tests/test_load.py`.
 
-A rendered `block` is a plain sequence of directives, not the low level's `written block`: it has no
-`directives(name)` lookup; filter it by `name` or `walk` it.
+A rendered `block` has the one block shape of every layer (spec 2.11), as the low level's `written block` has:
+iterate it, index it (`block.at(i)` / `block[i]`), ask `directives(name)`, or `walk` it.
 
 ### Unreadable statements
 
@@ -268,7 +274,7 @@ name and no address: what it would have been is unknown.
 | Reason | Why |
 |---|---|
 | `syntax` | the parser could not read it |
-| `expansion` | a variable, `set`, `snippet` or `use` failed (unknown name, wrong count, loop, limits) |
+| `expansion` | a variable, `@set`, `@snippet` or `@use` failed (unknown name, wrong count, loop, limits) |
 | `value` | a value broke a rule checked when expanding (E4001) |
 | `extension` | an include line (or another extension's line) failed |
 | `unread` | an include line's files are not read yet: an edit added or changed it, and `graph.read()` has not run (E3007) |
@@ -292,8 +298,8 @@ name and no address: what it would have been is unknown.
 
 ## Reading values
 
-Each value is an **expanded value** (`ExpandedValue`, a union over `kind` in both languages: `IExpandedWord`,
-`IExpandedString`, `IExpandedList`, `IExpandedSlice`, `IExpandedIndex`; Python `ExpandedWord`, `ExpandedString`,
+Each value is an **expanded value** (`ExpandedValue`, a union over `kind` in both languages: `ExpandedWord`,
+`ExpandedString`, `ExpandedList`, `ExpandedSlice`, `ExpandedIndex`; Python `ExpandedWord`, `ExpandedString`,
 ...), the low level's own object, the one an extension use holds too: a `kind` (word, string, list, slice, index;
 never reference), a canonical `text`, an `origin`, readers, and three links to the low level, `written`,
 `definition` and `chain` (below). (Before milestone 4 the rendered tree had its own `Argument` family that copied
@@ -314,10 +320,10 @@ program asks for a number, an integer or a boolean, and quoting means text (`"80
 E4002). A schema-aware layer above the rendered tree is where a value's kind is decided once.
 
 ```python
-    assert arg("hyperhdr_color[144~152]").slice() == vl.SliceValue("hyperhdr_color", 144, 152)
-    assert arg("c[144~]").slice() == vl.SliceValue("c", 144, None)
-    assert arg("c[~-2]").slice() == vl.SliceValue("c", None, -2)
-    assert arg("foo[1]").slice() == vl.IndexValue("foo", 1)
+    assert arg("hyperhdr_color[144~152]").slice() == written.SliceValue("hyperhdr_color", 144, 152)
+    assert arg("c[144~]").slice() == written.SliceValue("c", 144, None)
+    assert arg("c[~-2]").slice() == written.SliceValue("c", None, -2)
+    assert arg("foo[1]").slice() == written.IndexValue("foo", 1)
 ```
 
 Excerpt of `test_slice_gives_slices_with_an_absent_side_none_and_indexes`, `py/tests/test_readers.py`. In
@@ -356,14 +362,14 @@ Three members lead from a rendered value back to the low level, where it can be 
   still detach the handle they are called on.
 
   ```python
-  for d in vl.render(graph).walk():
+  for d in rendered.render(graph).block.walk():
       match d:
-          case vl.Directive("max_count", [value]):
+          case rendered.Directive("max_count", [value]):
               value.written.set(vl.text("2400"))
   ```
 
   ```ts
-  render(graph).walk((d) => {
+  render(graph).block.walk((d) => {
     if (d.name === "max_count") d.values[0]?.written.set(text("2400"));
   });
   ```
@@ -375,7 +381,7 @@ Three members lead from a rendered value back to the low level, where it can be 
 
 So `chain[0].winner` is the variable to change for every place that reads it, and `chain[0].reference` (the same
 handle as `written`) is the `$name` on this line, to replace with a value of its own. To change one copy of an
-included file only, edit what that copy is given (its include block's `set` line, at the include step of
+included file only, edit what that copy is given (its include block's `@set` line, at the include step of
 `chain`). The
 [low-level page](low-level-api.md#user-code-first) shows both edits.
 
@@ -389,7 +395,7 @@ the reference.
 So a value from a variable says both where it was set and where the `$name` was used:
 
 ```python
-    value = next(d for d in loaded.walk() if d.name == "max_count").values[0]
+    value = next(d for d in loaded.block.walk() if d.name == "max_count").values[0]
     assert value.text == "2284"
     assert isinstance(value.origin.place, vl.Place)
     assert value.origin.place.span.start == vl.SourcePosition(13, 0, 13)
@@ -406,7 +412,7 @@ fixture, the `leds` sink's `target` comes from `--set leds_host`, through `$host
 include line:
 
 ```python
-    leds_target = next(d for d in overridden_host.walk() if d.name == "target")
+    leds_target = next(d for d in overridden_host.block.walk() if d.name == "target")
     assert leds_target.values[0].origin.place == vl.Override("leds_host")
     assert [(s.kind, s.name) for s in leds_target.values[0].origin.via] == [
         ("variable", "leds_host"),
@@ -442,7 +448,7 @@ program, not in the config):
 
 ```ts
     const named = loaded.addresses({ key: RASL_KEY });
-    loaded.walk((d) => {
+    loaded.block.walk((d) => {
       if (d.name === "target") targets.push([named.get(d)?.toString() ?? "", d.values[0]?.text ?? ""]);
     });
     expect(targets).toEqual([
@@ -521,7 +527,7 @@ A comment or a quote style is no change; a number's spelling is (`0.5` to `0.50`
 
 ## Problems: diagnostics, program errors and the sink
 
-A **located diagnostic** (`ILocatedDiagnostic` / `LocatedDiagnostic`) has a `code`, a `message` (for people; not
+A **located diagnostic** (`LocatedDiagnostic`) has a `code`, a `message` (for people; not
 part of the contract between the languages), `place` (a place in a file) and `via` (the steps). A problem with an
 override's value is placed on the `$name` that used it.
 
@@ -620,7 +626,7 @@ glob resolves to nothing (test "resolves without fetching, resolves a glob to no
 
 An **extension** owns one directive name and turns each use of it into specs of files to splice in its place.
 `include()` is the one villanelle ships. The extension only names files: villanelle resolves and reads them through
-the source, reads each file once, applies the line's block of `set` lines, and checks loops and limits.
+the source, reads each file once, applies the line's block of `@set` lines, and checks loops and limits.
 
 An extension has `directive` (its name) and `specs(use)`, where `use` has the line's `values` (expanded values, the
 low level's own type, the same a rendered directive's values are; the low level never hands an extension a rendered
@@ -630,7 +636,7 @@ To refuse a use at a place, throw a `DiagnosticError` from a value's or the use'
 becomes E3006 at the line:
 
 ```ts
-    const throwing: IExtension = {
+    const throwing: Extension = {
       directive: "pull",
       specs: (use) => {
         if (use.values.length === 0) throw new Error("boom");
@@ -665,6 +671,7 @@ the syntax tier, which places them as the cases in [`conformance/`](../conforman
 the table is complete. An edit on the low level that is refused reports the same codes, placed in the text the edit
 was given ([low-level-api.md](low-level-api.md#edits-and-their-errors)).
 
+<!-- generated: error codes (tools/gen-api.py docs) -->
 | Code | TypeScript name | Python name | Meaning | At |
 |---|---|---|---|---|
 | E1001 | `UnterminatedString` | `UNTERMINATED_STRING` | a string with no closing quote | per `conformance/` |
@@ -701,6 +708,7 @@ was given ([low-level-api.md](low-level-api.md#edits-and-their-errors)).
 | E5010 | `BadSnippet` | `BAD_SNIPPET` | any other form of `@snippet` | `@snippet` |
 | E5011 | `BadUse` | `BAD_USE` | any other form of `@use` | `@use` |
 | E5012 | `ExtensionBlockNotSet` | `EXTENSION_BLOCK_NOT_SET` | an extension line's block holds a line other than `@set` | that line's name |
+<!-- end generated -->
 
 Codes that are no longer used, and never will be again: **E2006** (the old include path error, replaced by E3005),
 **E3002** and **E3003** (the old include loop and depth errors, replaced by E5006 and E5007), **E2008** (a `{` on its
@@ -715,8 +723,8 @@ By design (each language's own way):
 - TypeScript's `load`, `graph.read()`, `graph.save(writer)` and document sources are async (promises); Python's are
   plain calls. `render` and `diff` are plain calls in both.
 - Readers have the same names in both (`word()`, `string()`, `number()`, `integer()`, `boolean()`, `list()`,
-  `slice()`); `walk` is a method in both, taking a callback in TypeScript and returning a generator
-  in Python; change kinds are a `kind` field in TypeScript and classes in Python.
+  `slice()`); `walk` is a method of every block in both, taking a callback in TypeScript and returning a
+  generator in Python; change kinds are a `kind` field in TypeScript and classes in Python.
 - The key rule is an options object in TypeScript (`{ key }`) and a keyword argument in Python (`key=`).
 - Misuse by a program is MisuseError in TypeScript and ValueError in Python.
 - Config text is a branded string (`ConfigText`) in TypeScript and a `NewType` in Python; `quote()` and `text()`

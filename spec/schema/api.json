@@ -1,40 +1,30 @@
 {
-  "$comment": "The one home of villanelle's API concepts, members, kind lists, error groups, limits and reserved names (spec/spec.md and spec/contract.md are canonical for behaviour; this file is canonical for the lists). Names are spec names: lowercase words; a binding changes only the casing (spec/binding-guide.md rule 1) except where a member's 'spell' records an allowed difference. 'ts' and 'py' give each binding's spelling after milestone 5 (beads vil-umh.6, vil-umh.12, vil-umh.14; .claude/design/consumer-api/round15/frozen-m5.md) and milestone 4 (beads vil-umh.1 to vil-umh.8 and vil-umh.12; .claude/design/consumer-api/round15/frozen-m4.md; earlier milestones: round14/frozen-m1.md to frozen-m3.md). A concept with 'variants' is a union over a kind list ('kind list', less any 'except'): its members are the ones every variant has. Each variant concept names its union in 'variant of' and its kind value in 'kind', and lists only the members it adds; it has every member of its union too. 'extends' names a concept of a lower layer whose members it also has. 'py module' names the only Python module that exports a type when that is not the package root. Every member is present in every binding: there is no deferral marker (tools/gen-api.py --check refuses one).",
-  "version": 2,
-  "naming": {
-    "rule": "The spec names each concept once in plain lowercase words; each binding only changes the casing.",
-    "ts": {
-      "type": "PascalCase; interfaces keep an I prefix until the owner answers binding-guide rule 2",
-      "member": "camelCase",
-      "kind value": "the lowercase string itself, typed by the list's generated string-literal type",
-      "constant": "UPPER_SNAKE_CASE (limits, reserved names, patterns); DiagnosticCode keeps a PascalCase-keyed constant object (codes are not words)"
-    },
-    "py": {
-      "type": "PascalCase",
-      "member": "snake_case",
-      "kind value": "StrEnum member UPPER_SNAKE_CASE whose value is the lowercase string",
-      "constant": "UPPER_SNAKE_CASE"
-    }
-  },
+  "$schema": "./api.schema.json",
+  "$comment": "The one home of villanelle's public API: every concept with its typed members, the kind lists, keywords, limits, patterns, error groups and free functions (spec/spec.md and spec/contract.md are canonical for behaviour; this file for the shapes). Types are written in the closed type grammar of spec/codegen.md section 2 and every name must resolve; spec/schema/api.schema.json checks the shape and tools/api/loader.py the rest. Names are spec names (lowercase words); each binding's spelling is derived from them by its casing rule (spec/binding-guide.md rule 1), never stored. Idiom that differs by language is a typed trait (spec/codegen.md section 3), never prose. History (removed names, settled disagreements) is in .claude/design/consumer-api/round15/schema-history.json.",
+  "version": 3,
+  "package": "villanelle",
   "layers": [
     {
       "name": "shared",
       "holds": "positions, places, origins, diagnostics and the diagnostics sink, error groups, the kind lists",
-      "may import": []
+      "may import": [],
+      "namespace": "package"
     },
     {
       "name": "syntax",
       "holds": "parse: tokens, nodes, syntax diagnostics",
       "may import": [
         "shared"
-      ]
+      ],
+      "namespace": "own"
     },
     {
       "name": "io",
       "holds": "the document source and writer ports, their adapters, and check lost updates (the one lost-update check every writer calls)",
       "may import": [
         "shared"
-      ]
+      ],
+      "namespace": "package"
     },
     {
       "name": "written",
@@ -43,7 +33,8 @@
         "shared",
         "syntax",
         "io"
-      ]
+      ],
+      "namespace": "own"
     },
     {
       "name": "rendered",
@@ -53,20 +44,23 @@
         "syntax",
         "io",
         "written"
-      ]
+      ],
+      "namespace": "own"
     }
   ],
-  "layer direction": "A layer imports only the layers in its 'may import' list. Nothing below the rendered layer imports, names or returns a rendered type (owner, 2026-10-29: \"The low level shouldn't \\\"depend on\\\" the middle layer — they should have different domain objects. The middle layer of objects can build on the lower layer domains\"). Going up a layer is the upper layer's free function: render (graph). Each binding enforces this with a check (frozen-m1.md).",
+  "layer direction": "A layer imports only the layers in its 'may import' list; nothing below the rendered layer imports, names or returns a rendered type (owner, 2026-10-29: \"The low level shouldn't \\\"depend on\\\" the middle layer\"). Going up a layer is the upper layer's free function: render (graph).",
   "kinds": {
     "token kind": {
-      "values from": "grammar/Villanelle.g4: its lexer rule names (fragments aside), in the order the grammar declares them; the grammar is their one home, so they are not copied here, and they are the one list whose values are not lowercase words",
+      "layer": "syntax",
+      "values from": "grammar",
+      "sort": "tag",
       "tag of": [
         "token"
       ],
-      "ts": "TokenKind (string-literal type, generated from the grammar)",
-      "py": "TokenKind (StrEnum, generated from the grammar)"
+      "note": "the grammar's lexer rule names (fragments aside) in declaration order: the grammar is their one home, and they are the one list whose values are not lowercase words"
     },
     "node kind": {
+      "layer": "syntax",
       "values": [
         "document",
         "directive",
@@ -75,13 +69,13 @@
         "slice",
         "error"
       ],
-      "ts": "NodeKind (string-literal type)",
-      "py": "NodeKind (StrEnum)",
+      "sort": "tag",
       "tag of": [
         "node"
       ]
     },
     "statement kind": {
+      "layer": "written",
       "values": [
         "directive",
         "extension",
@@ -90,8 +84,7 @@
         "use",
         "unreadable"
       ],
-      "ts": "StatementKind (string-literal type); each statement type's kind is its one member",
-      "py": "StatementKind (StrEnum); each statement class's kind is its one member",
+      "sort": "variant set",
       "variants": {
         "directive": "written directive",
         "extension": "extension line",
@@ -102,6 +95,7 @@
       }
     },
     "value kind": {
+      "layer": "written",
       "values": [
         "word",
         "string",
@@ -110,6 +104,7 @@
         "index",
         "reference"
       ],
+      "sort": "variant set",
       "variants": {
         "word": "word",
         "string": "string",
@@ -118,49 +113,48 @@
         "index": "index",
         "reference": "reference"
       },
-      "note": "the written value variants cover the whole list; an expanded value's variants cover it less 'reference'",
-      "ts": "ValueKind (string-literal type)",
-      "py": "ValueKind (StrEnum)"
+      "note": "the written value variants cover the whole list; an expanded value's variants cover it less 'reference'"
     },
     "variable kind": {
+      "layer": "written",
       "values": [
         "set",
         "parameter",
         "override"
       ],
+      "sort": "variant set",
       "variants": {
         "set": "set variable",
         "parameter": "parameter",
         "override": "override variable"
-      },
-      "ts": "VariableKind (string-literal type)",
-      "py": "VariableKind (StrEnum)"
+      }
     },
     "step kind": {
+      "layer": "shared",
       "values": [
         "variable",
         "use",
         "extension"
       ],
-      "ts": "StepKind (string-literal type)",
-      "py": "StepKind (StrEnum)",
+      "sort": "tag",
       "tag of": [
         "step"
       ]
     },
     "place kind": {
+      "layer": "shared",
       "values": [
         "file",
         "override"
       ],
+      "sort": "variant set",
       "variants": {
         "file": "place",
         "override": "override"
-      },
-      "ts": "PlaceKind (string-literal type)",
-      "py": "PlaceKind (StrEnum)"
+      }
     },
     "unreadable reason": {
+      "layer": "written",
       "values": [
         "syntax",
         "expansion",
@@ -168,86 +162,108 @@
         "extension",
         "unread"
       ],
+      "sort": "tag",
       "tag of": [
         "unreadable expansion"
       ],
-      "ts": "UnreadableReason (string-literal type)",
-      "py": "UnreadableReason (StrEnum)",
       "note": "computed by the low level's expansion (spec 6.10); 'unread' marks an extension copy not read yet (E3007)"
     },
     "change kind": {
+      "layer": "rendered",
       "values": [
         "added",
         "removed",
         "changed",
         "unknown"
       ],
+      "sort": "variant set",
       "variants": {
         "added": "added",
         "removed": "removed",
         "changed": "changed",
         "unknown": "unknown"
-      },
-      "ts": "ChangeKind (string-literal type)",
-      "py": "ChangeKind (StrEnum)"
+      }
+    },
+    "walk control": {
+      "layer": "shared",
+      "values": [
+        "skip",
+        "stop"
+      ],
+      "sort": "tag",
+      "tag of": [],
+      "languages": [
+        "ts"
+      ],
+      "note": "what a walk's callback returns to pass over an item's block or end the walk (TypeScript's walk idiom; Python's walk is a generator, so break ends it and descend passes over a block)"
     }
   },
+  "keywords": [
+    {
+      "word": "set",
+      "statement kind": "set"
+    },
+    {
+      "word": "snippet",
+      "statement kind": "snippet"
+    },
+    {
+      "word": "use",
+      "statement kind": "use"
+    }
+  ],
   "limits": [
     {
       "name": "nesting depth",
+      "constant": "max nesting",
+      "layer": "syntax",
       "value": 100,
       "means": "blocks and lists nested at most this deep",
-      "code": "E2010",
-      "ts": "MAX_NESTING",
-      "py": "MAX_NESTING"
+      "code": "E2010"
     },
     {
       "name": "expansion depth",
+      "constant": "max depth",
+      "layer": "written",
       "value": 16,
       "means": "use and extension lines nested at most this deep",
-      "code": "E5007",
-      "ts": "MAX_DEPTH",
-      "py": "MAX_DEPTH"
+      "code": "E5007"
     },
     {
       "name": "directives",
+      "constant": "max directives",
+      "layer": "written",
       "value": 100000,
       "means": "directives after expansion, at most",
-      "code": "E5008",
-      "ts": "MAX_DIRECTIVES",
-      "py": "MAX_DIRECTIVES"
+      "code": "E5008"
     },
     {
       "name": "integer range",
+      "constant": "max safe integer",
+      "layer": "written",
       "value": 9007199254740991,
       "means": "integer words and slice or index bounds lie within plus or minus this (2^53-1)",
-      "code": "E4005",
-      "ts": "Number.MAX_SAFE_INTEGER",
-      "py": "MAX_SAFE_INTEGER"
+      "code": "E4005"
     }
   ],
   "reserved names": {
-    "words": [
-      "set",
-      "snippet",
-      "use"
-    ],
-    "means": "the language statements' names, written @set, @snippet and @use: no extension may take one (spec 2.5, 5). Milestone 5: no directive name is reserved any more; a directive's name is a WORD, which never starts with @",
-    "ts": "RESERVED (written/bind.ts)",
-    "py": "RESERVED (written/_bind.py)"
+    "constant": "reserved",
+    "layer": "written",
+    "words from": "keywords",
+    "means": "the language statements' names, written @set, @snippet and @use: no extension may take one (spec 2.5, 5). Milestone 5: no directive name is reserved any more; a directive's name is a WORD, which never starts with @"
   },
   "patterns": {
     "variable name": {
+      "constant": "variable name",
+      "layer": "written",
       "regex": "^[A-Za-z0-9_]+$",
-      "applies to": "a $name without its $, an override name, a variable rename",
-      "ts": "VARIABLE_NAME",
-      "py": "VARIABLE_NAME"
+      "means": "a $name without its $, an override name, a variable rename"
     },
     "program code": {
+      "constant": "program code",
+      "layer": "shared",
       "regex": "^[^/\\s]+/\\S+$",
-      "means": "<namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace; villanelle's codes start with E",
-      "ts": "PROGRAM_CODE",
-      "py": "PROGRAM_CODE"
+      "means": "<namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace; villanelle's codes start with E"
     }
   },
   "error groups": [
@@ -255,8 +271,15 @@
       "name": "villanelle error",
       "sort": "base",
       "raised when": "never by itself: the base class of every expected-outcome class (spec 2.8), so one except or catch clause catches every outcome the input or the outside world decides, and no program bug",
-      "ts": "VillanelleError (extends Error)",
-      "py": "VillanelleError (subclass of Exception)"
+      "message": {
+        "given": true
+      },
+      "ts": {
+        "base": "Error"
+      },
+      "py": {
+        "base": "Exception"
+      }
     },
     {
       "name": "diagnostic error",
@@ -264,10 +287,14 @@
       "parent": "villanelle error",
       "raised when": "a reader is given a value of the wrong kind or spelling, or a program's error(...); carries one located diagnostic as 'diagnostic'",
       "fields": [
-        "diagnostic"
+        {
+          "name": "diagnostic",
+          "type": "located diagnostic"
+        }
       ],
-      "ts": "DiagnosticError",
-      "py": "DiagnosticError"
+      "message": {
+        "template": "{diagnostic message}"
+      }
     },
     {
       "name": "read error",
@@ -275,11 +302,15 @@
       "parent": "villanelle error",
       "raised when": "load cannot resolve the root path to exactly one file, or cannot read it. No diagnostic and no code",
       "fields": [
-        "paths"
+        {
+          "name": "paths",
+          "type": "text[]"
+        }
       ],
-      "cause": "the source's failure; absent when the source resolved no file or several",
-      "ts": "ReadError",
-      "py": "ReadError"
+      "message": {
+        "given": true
+      },
+      "cause": "chained"
     },
     {
       "name": "bad text error",
@@ -287,10 +318,15 @@
       "parent": "villanelle error",
       "raised when": "the text given to an edit, or an override's text, is not what its entry rule (spec 2.8) and the text-alone rules take; 'diagnostics' are located in that text, in the binding's string unit; its message is built from them (spec 2.8)",
       "fields": [
-        "diagnostics"
+        {
+          "name": "diagnostics",
+          "type": "diagnostic[]"
+        }
       ],
-      "ts": "BadTextError",
-      "py": "BadTextError"
+      "message": {
+        "template": "bad text: {diagnostics}",
+        "separator": "; "
+      }
     },
     {
       "name": "save error",
@@ -298,11 +334,15 @@
       "parent": "villanelle error",
       "raised when": "the writer failed",
       "fields": [
-        "paths"
+        {
+          "name": "paths",
+          "type": "text[]"
+        }
       ],
-      "cause": "the writer's failure",
-      "ts": "SaveError",
-      "py": "SaveError"
+      "message": {
+        "given": true
+      },
+      "cause": "chained"
     },
     {
       "name": "lost update error",
@@ -310,58 +350,76 @@
       "parent": "save error",
       "raised when": "a file the save would write changed since it was read or last saved: its current text differs from its saved text (spec 4.2). Raised by check lost updates inside every writer; save raises it as is",
       "fields": [
-        "paths"
+        {
+          "name": "paths",
+          "type": "text[]"
+        }
       ],
-      "cause": "absent",
-      "note": "paths are only the conflicting files, in batch order",
-      "ts": "LostUpdateError",
-      "py": "LostUpdateError"
+      "message": {
+        "template": "lost update: changed since read: {paths}",
+        "separator": ", "
+      },
+      "note": "paths are only the conflicting files, in batch order"
     },
     {
       "name": "detached error",
       "sort": "program bug",
       "raised when": "any member but kind of a detached handle is used",
-      "ts": "DetachedError (extends ReferenceError; not under VillanelleError)",
-      "py": "DetachedError (subclass of ReferenceError, the error a dead weakref proxy raises; not under VillanelleError)"
+      "message": {
+        "given": true
+      },
+      "ts": {
+        "base": "ReferenceError"
+      },
+      "py": {
+        "base": "ReferenceError"
+      }
     },
     {
       "name": "argument type error",
       "sort": "program bug",
       "raised when": "an argument of the wrong type: anything but text where config text or a name is taken (an extension's name at make processor included), and to quote and text (spec 6.9), a writer that is not a document writer, a render given something that is not a document graph (no callable expand; spec 7.0, milestone 5), a key rule that returns anything but text or absent (spec 7.4)",
-      "ts": "TypeError",
-      "py": "TypeError"
+      "ts": {
+        "builtin": "TypeError"
+      },
+      "py": {
+        "builtin": "TypeError"
+      }
     },
     {
       "name": "misuse error",
       "sort": "program bug",
       "raised when": "a bad argument value a program could have checked: every bad name (a variable or override name not matching the variable name pattern; a directive rename, or an extension's name at make processor, that the nameText entry rule refuses), a program code without '/', a reserved (set, snippet, use) or repeated extension name",
-      "ts": "MisuseError (extends Error; not under VillanelleError)",
-      "py": "ValueError"
+      "message": {
+        "given": true
+      },
+      "ts": {
+        "base": "Error"
+      },
+      "py": {
+        "builtin": "ValueError"
+      }
     },
     {
       "name": "index out of range",
       "sort": "program bug",
       "raised when": "an insert index outside a block; a token range outside a parse",
-      "ts": "RangeError",
-      "py": "IndexError"
+      "ts": {
+        "builtin": "RangeError"
+      },
+      "py": {
+        "builtin": "IndexError"
+      }
     }
   ],
   "argument type error message": {
     "rule": "One helper per binding builds it (one home); every member that takes config text, quote, text, rename, set override, each load override and render call it before changing anything. Messages are for people (spec 2.3); the class and the member and parameter named are the contract.",
-    "ts": "`${member}(): argument \"${parameter}\" must be a string, not ${got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, String() a number first`",
-    "ts got": "value === null ? \"null\" : Array.isArray(value) ? \"array\" : typeof value",
-    "py": "f\"{member}() argument '{parameter}' must be str, not {type(value).__name__}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, str() a number first\"",
+    "ts": "{member}(): argument \"{parameter}\" must be a string, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, String() a number first",
+    "py": "{member}() argument '{parameter}' must be str, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, str() a number first",
+    "got": "the argument's type as the language names it: TypeScript null, array or typeof; Python type(value).__name__",
     "member": "the member in the binding's casing, as the caller wrote it: set, replaceWithText / replace_with_text, insertStatements / insert_statements, addStatements / add_statements, insertBefore / insert_before, insertAfter / insert_after, setOverride / set_override, rename, quote, load, text, render",
     "parameter": "text; name for rename and for set override's name; overrides[\"<name>\"] for a load override; raw for text; graph for render",
-    "example py": "TypeError: set() argument 'text' must be str, not int; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, str() a number first",
-    "example ts": "TypeError: set(): argument \"text\" must be a string, not number; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, String() a number first",
-    "other": {
-      "rule": "a parameter that takes something other than text names what it takes instead of 'a string' / 'str'",
-      "example ts": "TypeError: save(): argument \"writer\" must be a document writer (an object with a write method), not function",
-      "example py": "TypeError: save() argument 'writer' must be a document writer (an object with a write method), not function",
-      "example ts render": "TypeError: render(): argument \"graph\" must be a document graph (an object with an expand method), not object",
-      "example py render": "TypeError: render() argument 'graph' must be a document graph (an object with an expand method), not Document"
-    }
+    "other": "a parameter that takes something other than text names what it takes instead of 'a string' / 'str'"
   },
   "free functions": [
     {
@@ -441,11 +499,7 @@
       "errors": [
         "argument type error"
       ],
-      "note": "milestone 5 (vil-umh.6): raw as config text, unchanged and unchecked: the program's statement that raw is already written as villanelle text; the edit it is given checks it. With quote, the only maker of config text",
-      "spell": {
-        "ts": "text(raw) from \"villanelle\": returns raw as ConfigText",
-        "py": "text(raw) from villanelle: returns ConfigText(raw)"
-      }
+      "note": "milestone 5 (vil-umh.6): raw as config text, unchanged and unchecked: the program's statement that raw is already written as villanelle text; the edit it is given checks it. With quote, the only maker of config text"
     },
     {
       "name": "render",
@@ -458,10 +512,6 @@
       ],
       "returns": "rendered",
       "note": "the rendered layer's entry point: going up a layer is a free function of the upper layer (owner, 2026-10-29). Pure: reads no file. Builds only on the low level's public members (document graph expand (), spec 7.0). Exported by the rendered module and re-exported at each binding's top level. Given anything without a callable expand it raises the argument type error first (milestone 5)",
-      "spell": {
-        "ts": "render(graph) from ts/src/rendered/, re-exported by \"villanelle\"",
-        "py": "render(graph) in villanelle.rendered, re-exported as villanelle.render"
-      },
       "errors": [
         "argument type error"
       ]
@@ -489,12 +539,14 @@
       "params": [
         {
           "name": "source",
-          "type": "document source"
+          "type": "document source",
+          "passed": "option"
         },
         {
           "name": "extensions",
           "type": "extension[]",
-          "optional": true
+          "optional": true,
+          "passed": "option"
         }
       ],
       "returns": "processor",
@@ -502,10 +554,12 @@
         "argument type error",
         "misuse error"
       ],
-      "spell": {
-        "ts": "villanelle({ source, extensions })",
-        "py": "Processor(source=..., extensions=...)"
-      }
+      "factory": {
+        "of": "processor",
+        "ts": "package function",
+        "py": "constructor"
+      },
+      "options": "processor options"
     },
     {
       "name": "make diagnostics",
@@ -518,9 +572,10 @@
         }
       ],
       "returns": "diagnostics",
-      "spell": {
-        "ts": "new Diagnostics(initial)",
-        "py": "Diagnostics(initial)"
+      "factory": {
+        "of": "diagnostics",
+        "ts": "constructor",
+        "py": "constructor"
       }
     },
     {
@@ -533,11 +588,6 @@
         }
       ],
       "returns": "document source",
-      "required": "MUST",
-      "spell": {
-        "ts": "memorySource(files)",
-        "py": "memory_source(files)"
-      },
       "note": "reads the map it is given at each call, never a copy: what a memory writer puts in the same map, a later load reads"
     },
     {
@@ -546,64 +596,73 @@
       "params": [
         {
           "name": "files",
-          "type": "map of text"
+          "type": "writable map of text"
         }
       ],
       "returns": "document writer",
-      "required": "MUST",
-      "spell": {
-        "ts": "memoryWriter(files)",
-        "py": "memory_writer(files)"
-      },
       "note": "writes each batch into the map it is given (the one a memory source reads), refusing a lost update as the file writer does: nothing is written when a file's text in the map (empty when absent) differs from its saved text"
     },
     {
       "name": "file source",
       "layer": "io",
       "returns": "document source",
-      "required": "MUST",
-      "spell": {
-        "ts": "fileSource() from villanelle/node",
-        "py": "file_source() from villanelle.files"
+      "params": [],
+      "module": {
+        "ts": "node",
+        "py": "files"
       }
     },
     {
       "name": "file writer",
       "layer": "io",
       "returns": "document writer",
-      "required": "MUST",
-      "spell": {
-        "ts": "fileWriter() from villanelle/node",
-        "py": "file_writer() from villanelle.files"
+      "params": [],
+      "module": {
+        "ts": "node",
+        "py": "files"
       }
     },
     {
       "name": "fetch source",
       "layer": "io",
       "returns": "document source",
-      "required": "MAY",
-      "spell": {
-        "ts": "fetchSource(fetch) from villanelle/browser",
-        "py": "absent"
+      "params": [
+        {
+          "name": "fetch",
+          "type": "fetch function"
+        }
+      ],
+      "module": {
+        "ts": "browser"
       }
     },
     {
       "name": "fetch writer",
       "layer": "io",
       "returns": "document writer",
-      "required": "MAY",
-      "spell": {
-        "ts": "fetchWriter(fetch, options) from villanelle/browser",
-        "py": "absent"
+      "params": [
+        {
+          "name": "fetch",
+          "type": "fetch function"
+        },
+        {
+          "name": "options",
+          "type": "fetch writer options",
+          "optional": true
+        }
+      ],
+      "module": {
+        "ts": "browser"
       }
     },
     {
       "name": "include",
       "layer": "written",
       "returns": "extension",
-      "spell": {
-        "ts": "include() from villanelle/include",
-        "py": "include() from villanelle.include"
+      "params": [],
+      "module": {
+        "ts": "include",
+        "py": "include"
       }
     },
     {
@@ -616,7 +675,7 @@
         },
         {
           "name": "current",
-          "type": "text or absent[]",
+          "type": "(text or absent)[]",
           "note": "each file's text in the medium now, in the order of files; absent when there is none (read as empty text)"
         }
       ],
@@ -624,11 +683,7 @@
       "errors": [
         "lost update error"
       ],
-      "note": "the one lost-update check (spec 4.2): raises a lost update error whose paths are the files whose current text differs from their saved text, in batch order. Every writer calls it before it writes; a program's own writer should too",
-      "spell": {
-        "ts": "checkLostUpdates(files, current)",
-        "py": "check_lost_updates(files, current)"
-      }
+      "note": "the one lost-update check (spec 4.2): raises a lost update error whose paths are the files whose current text differs from their saved text, in batch order. Every writer calls it before it writes; a program's own writer should too"
     }
   ],
   "concepts": [
@@ -636,21 +691,15 @@
       "name": "config text",
       "layer": "shared",
       "nature": "named type",
-      "ts": "ConfigText",
-      "py": "ConfigText",
       "note": "milestone 5 (vil-umh.6; owner, 2026-10-29: \"Yes, its own type\"): villanelle text a program hands to an edit or an override, made only by quote or text; every edit's and override's text parameter takes it, so a plain string there is a type error the checker reports. Still the language's string at run time",
       "members": [],
-      "spell": {
-        "ts": "type ConfigText = string & { readonly [configTextBrand]: true } (a branded string; configTextBrand a unique symbol the package does not export)",
-        "py": "ConfigText = NewType(\"ConfigText\", str)"
-      }
+      "is": "text",
+      "brand": true
     },
     {
       "name": "source position",
       "layer": "shared",
       "nature": "record",
-      "ts": "ISourcePosition",
-      "py": "SourcePosition",
       "members": [
         {
           "name": "offset",
@@ -673,8 +722,6 @@
       "name": "source span",
       "layer": "shared",
       "nature": "record",
-      "ts": "ISourceSpan",
-      "py": "SourceSpan",
       "members": [
         {
           "name": "start",
@@ -692,8 +739,6 @@
       "name": "place",
       "layer": "shared",
       "nature": "record",
-      "ts": "IPlace",
-      "py": "Place",
       "members": [
         {
           "name": "kind",
@@ -716,15 +761,12 @@
           "member": "method",
           "params": [],
           "returns": "text",
-          "spell": {
-            "ts": "toString()",
-            "py": "str(place)"
-          },
-          "note": "path:line:col, counting from 1, in the binding's string unit: main.conf:4:5"
+          "note": "path:line:col, counting from 1, in the binding's string unit: main.conf:4:5",
+          "trait": "people form"
         }
       ],
       "kind": "file",
-      "py match args": [
+      "match args": [
         "resolved path",
         "span"
       ]
@@ -733,8 +775,6 @@
       "name": "override",
       "layer": "shared",
       "nature": "record",
-      "ts": "IOverride",
-      "py": "Override",
       "members": [
         {
           "name": "kind",
@@ -753,16 +793,13 @@
           "member": "method",
           "params": [],
           "returns": "text",
-          "spell": {
-            "ts": "toString()",
-            "py": "str(override)"
-          },
-          "note": "override <variable>: override port"
+          "note": "override <variable>: override port",
+          "trait": "people form"
         }
       ],
       "note": "an origin's place when the text came from an override; renamed from handed (IHanded / Handed)",
       "kind": "override",
-      "py match args": [
+      "match args": [
         "variable"
       ]
     },
@@ -770,8 +807,6 @@
       "name": "step",
       "layer": "shared",
       "nature": "record",
-      "ts": "IStep",
-      "py": "Step",
       "members": [
         {
           "name": "kind",
@@ -793,11 +828,8 @@
           "member": "method",
           "params": [],
           "returns": "text",
-          "spell": {
-            "ts": "toString()",
-            "py": "str(step)"
-          },
-          "note": "<kind> <name> at path:line:col: variable pixels at main.conf:4:15"
+          "note": "<kind> <name> at path:line:col: variable pixels at main.conf:4:15",
+          "trait": "people form"
         }
       ]
     },
@@ -805,8 +837,6 @@
       "name": "origin",
       "layer": "shared",
       "nature": "record",
-      "ts": "IOrigin",
-      "py": "Origin",
       "members": [
         {
           "name": "place",
@@ -825,8 +855,6 @@
       "name": "directive origin",
       "layer": "shared",
       "nature": "record",
-      "ts": "IDirectiveOrigin",
-      "py": "DirectiveOrigin",
       "members": [
         {
           "name": "place",
@@ -842,10 +870,8 @@
     },
     {
       "name": "diagnostic",
-      "layer": "syntax",
+      "layer": "shared",
       "nature": "record",
-      "ts": "IDiagnostic",
-      "py": "Diagnostic",
       "members": [
         {
           "name": "code",
@@ -867,20 +893,24 @@
           "member": "method",
           "params": [],
           "returns": "text",
-          "spell": {
-            "ts": "toString()",
-            "py": "str(diagnostic)"
-          },
-          "note": "line:col: CODE: message, counting from 1"
+          "note": "line:col: CODE: message, counting from 1",
+          "trait": "people form"
         }
       ]
+    },
+    {
+      "name": "program code",
+      "layer": "shared",
+      "nature": "named type",
+      "is": "text",
+      "pattern": "program code",
+      "note": "a program's own diagnostic code, '<namespace>/<name>' (the program code pattern). TypeScript checks the '/' in the type ('${string}/${string}'); Python has no such type, so it is text there, checked at run time",
+      "members": []
     },
     {
       "name": "located diagnostic",
       "layer": "shared",
       "nature": "record",
-      "ts": "ILocatedDiagnostic",
-      "py": "LocatedDiagnostic",
       "members": [
         {
           "name": "code",
@@ -907,11 +937,35 @@
           "member": "method",
           "params": [],
           "returns": "text",
-          "spell": {
-            "ts": "toString()",
-            "py": "str(diagnostic)"
-          },
-          "note": "path:line:col: CODE: message, the first line of format diagnostic"
+          "note": "path:line:col: CODE: message, the first line of format diagnostic",
+          "trait": "people form"
+        }
+      ]
+    },
+    {
+      "name": "locatable",
+      "layer": "shared",
+      "nature": "interface",
+      "note": "anything a program can place a problem on: a directive, an expanded value, the render",
+      "members": [
+        {
+          "name": "error",
+          "member": "method",
+          "params": [
+            {
+              "name": "message",
+              "type": "text"
+            },
+            {
+              "name": "code",
+              "type": "program code",
+              "passed": "keyword"
+            }
+          ],
+          "returns": "diagnostic error",
+          "errors": [
+            "misuse error"
+          ]
         }
       ]
     },
@@ -919,8 +973,6 @@
       "name": "diagnostics",
       "layer": "shared",
       "nature": "handle",
-      "ts": "Diagnostics",
-      "py": "Diagnostics",
       "members": [
         {
           "name": "add",
@@ -947,7 +999,8 @@
             },
             {
               "name": "code",
-              "type": "program code"
+              "type": "program code",
+              "passed": "keyword"
             }
           ],
           "returns": "nothing",
@@ -959,10 +1012,7 @@
           "name": "count",
           "member": "property",
           "type": "integer",
-          "spell": {
-            "ts": "length",
-            "py": "len(diagnostics)"
-          }
+          "trait": "count"
         },
         {
           "name": "iterate",
@@ -970,10 +1020,7 @@
           "params": [],
           "returns": "located diagnostic[]",
           "order": "as added",
-          "spell": {
-            "ts": "[Symbol.iterator]",
-            "py": "__iter__"
-          }
+          "trait": "iterate"
         },
         {
           "name": "collect",
@@ -981,15 +1028,105 @@
           "params": [
             {
               "name": "read",
-              "type": "function"
+              "type": "function to result"
             }
           ],
-          "returns": "result",
-          "absent": true,
+          "returns": "result or absent",
           "note": "Python's context manager is an allowed difference (binding guide section 3)",
-          "spell": {
-            "py": "with diagnostics.collecting():"
-          }
+          "trait": "collect",
+          "type parameters": [
+            "result"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "collecting",
+      "layer": "shared",
+      "nature": "handle",
+      "languages": [
+        "py"
+      ],
+      "note": "Python's context manager for the diagnostics sink's collect (with diagnostics.collecting(): ...)",
+      "members": []
+    },
+    {
+      "name": "block",
+      "layer": "shared",
+      "nature": "shape",
+      "type parameters": [
+        "item",
+        "directive"
+      ],
+      "note": "the one block shape of every layer (binding guide rule 5; owner, 2026-10-29: \"Yes, rename now\"): iterated and indexed in order, its directives by name, and a depth-first walk over its items at any depth. The written block holds statements, the expansion block directive expansions, the rendered block directives",
+      "members": [
+        {
+          "name": "iterate",
+          "member": "method",
+          "params": [],
+          "returns": "item[]",
+          "trait": "iterate",
+          "order": "written order"
+        },
+        {
+          "name": "count",
+          "member": "property",
+          "type": "integer",
+          "trait": "count"
+        },
+        {
+          "name": "at",
+          "member": "method",
+          "params": [
+            {
+              "name": "index",
+              "type": "integer"
+            }
+          ],
+          "returns": "item",
+          "trait": "index",
+          "errors": [
+            "index out of range"
+          ]
+        },
+        {
+          "name": "directives",
+          "member": "method",
+          "params": [
+            {
+              "name": "name",
+              "type": "text",
+              "optional": true
+            }
+          ],
+          "returns": "directive[]",
+          "order": "written order"
+        },
+        {
+          "name": "walk",
+          "member": "method",
+          "params": [],
+          "returns": "item[]",
+          "trait": "walk",
+          "order": "depth first, written order; not the block's owner"
+        }
+      ]
+    },
+    {
+      "name": "token range",
+      "layer": "syntax",
+      "nature": "record",
+      "note": "a half-open range of token indices; a node is one",
+      "members": [
+        {
+          "name": "start",
+          "member": "property",
+          "type": "integer"
+        },
+        {
+          "name": "end",
+          "member": "property",
+          "type": "integer"
         }
       ]
     },
@@ -997,8 +1134,6 @@
       "name": "token",
       "layer": "syntax",
       "nature": "record",
-      "ts": "IToken",
-      "py": "Token",
       "members": [
         {
           "name": "kind",
@@ -1021,8 +1156,6 @@
       "name": "node",
       "layer": "syntax",
       "nature": "record",
-      "ts": "INode",
-      "py": "Node",
       "members": [
         {
           "name": "kind",
@@ -1030,28 +1163,17 @@
           "type": "node kind"
         },
         {
-          "name": "start",
-          "member": "property",
-          "type": "integer"
-        },
-        {
-          "name": "end",
-          "member": "property",
-          "type": "integer"
-        },
-        {
           "name": "children",
           "member": "property",
           "type": "node[]"
         }
-      ]
+      ],
+      "extends": "token range"
     },
     {
       "name": "syntax",
       "layer": "syntax",
       "nature": "record",
-      "ts": "ISyntax",
-      "py": "Syntax",
       "members": [
         {
           "name": "tokens",
@@ -1074,8 +1196,6 @@
       "name": "load context",
       "layer": "io",
       "nature": "record",
-      "ts": "ILoadContext",
-      "py": "LoadContext",
       "members": [
         {
           "name": "parent path",
@@ -1088,8 +1208,6 @@
       "name": "document source",
       "layer": "io",
       "nature": "port",
-      "ts": "IDocumentSource",
-      "py": "DocumentSource",
       "members": [
         {
           "name": "resolve",
@@ -1125,8 +1243,6 @@
       "name": "file write",
       "layer": "io",
       "nature": "record",
-      "ts": "IFileWrite",
-      "py": "FileWrite",
       "members": [
         {
           "name": "resolved path",
@@ -1149,8 +1265,6 @@
       "name": "document writer",
       "layer": "io",
       "nature": "port",
-      "ts": "IDocumentWriter",
-      "py": "DocumentWriter",
       "members": [
         {
           "name": "write",
@@ -1167,11 +1281,47 @@
       ]
     },
     {
+      "name": "fetch writer options",
+      "layer": "io",
+      "nature": "options",
+      "module": "browser",
+      "note": "the browser writer's options (spec 4.3)",
+      "members": [
+        {
+          "name": "method",
+          "member": "property",
+          "type": "text",
+          "optional": true,
+          "note": "the HTTP method; default PUT"
+        },
+        {
+          "name": "content type",
+          "member": "property",
+          "type": "text",
+          "optional": true,
+          "note": "the Content-Type header; default text/plain"
+        }
+      ],
+      "languages": [
+        "ts"
+      ]
+    },
+    {
+      "name": "fetch function",
+      "layer": "io",
+      "nature": "named type",
+      "is": "native",
+      "languages": [
+        "ts"
+      ],
+      "module": "browser",
+      "note": "the platform's fetch, passed in so the core reaches no global (spec 4.3): TypeScript typeof fetch",
+      "members": []
+    },
+    {
       "name": "extension",
       "layer": "written",
       "nature": "port",
-      "ts": "IExtension",
-      "py": "Extension",
       "members": [
         {
           "name": "directive",
@@ -1199,8 +1349,6 @@
       "name": "extension use",
       "layer": "written",
       "nature": "record",
-      "ts": "IExtensionUse",
-      "py": "ExtensionUse",
       "members": [
         {
           "name": "values",
@@ -1216,11 +1364,46 @@
       ]
     },
     {
+      "name": "load options",
+      "layer": "written",
+      "nature": "options",
+      "members": [
+        {
+          "name": "overrides",
+          "member": "property",
+          "type": "map of config text",
+          "optional": true
+        }
+      ],
+      "languages": [
+        "ts"
+      ]
+    },
+    {
+      "name": "processor options",
+      "layer": "written",
+      "nature": "options",
+      "members": [
+        {
+          "name": "source",
+          "member": "property",
+          "type": "document source"
+        },
+        {
+          "name": "extensions",
+          "member": "property",
+          "type": "extension[]",
+          "optional": true
+        }
+      ],
+      "languages": [
+        "ts"
+      ]
+    },
+    {
       "name": "processor",
       "layer": "written",
       "nature": "handle",
-      "ts": "IProcessor",
-      "py": "Processor",
       "members": [
         {
           "name": "load",
@@ -1232,8 +1415,9 @@
             },
             {
               "name": "overrides",
-              "type": "ordered map of config text",
-              "optional": true
+              "type": "map of config text",
+              "optional": true,
+              "passed": "option"
             }
           ],
           "returns": "document graph",
@@ -1244,10 +1428,7 @@
             "bad text error"
           ],
           "io": true,
-          "spell": {
-            "ts": "load(path, { overrides })",
-            "py": "load(path, *, overrides=None)"
-          }
+          "options": "load options"
         }
       ],
       "note": "the factory; load is its only operation (owner, 2026-10-29)"
@@ -1256,8 +1437,6 @@
       "name": "document graph",
       "layer": "written",
       "nature": "handle",
-      "ts": "IDocumentGraph",
-      "py": "DocumentGraph",
       "members": [
         {
           "name": "root",
@@ -1267,17 +1446,13 @@
         {
           "name": "documents",
           "member": "property",
-          "type": "ordered map of document",
+          "type": "map of document",
           "note": "by resolved path; root first, then first-read order"
         },
         {
           "name": "overrides",
           "member": "property",
-          "type": "ordered map of config text",
-          "spell": {
-            "ts": "ReadonlyMap<string, ConfigText>",
-            "py": "Mapping[str, ConfigText] (read-only; set override changes it)"
-          }
+          "type": "map of config text"
         },
         {
           "name": "set override",
@@ -1289,8 +1464,7 @@
             },
             {
               "name": "text",
-              "type": "config text",
-              "optional": true
+              "type": "config text or absent"
             }
           ],
           "returns": "nothing",
@@ -1298,11 +1472,7 @@
             "bad text error",
             "argument type error",
             "misuse error"
-          ],
-          "spell": {
-            "ts": "setOverride(name, text: ConfigText | undefined)",
-            "py": "set_override(name, text: ConfigText | None, /)"
-          }
+          ]
         },
         {
           "name": "read",
@@ -1375,8 +1545,6 @@
       "name": "document",
       "layer": "written",
       "nature": "handle",
-      "ts": "IDocument",
-      "py": "Document",
       "members": [
         {
           "name": "resolved path",
@@ -1429,8 +1597,6 @@
       "name": "document edge",
       "layer": "written",
       "nature": "snapshot",
-      "ts": "IDocumentEdge",
-      "py": "DocumentEdge",
       "members": [
         {
           "name": "copy",
@@ -1453,8 +1619,6 @@
       "name": "copy",
       "layer": "written",
       "nature": "snapshot",
-      "ts": "ICopy",
-      "py": "Copy",
       "members": [
         {
           "name": "statement",
@@ -1472,8 +1636,6 @@
       "name": "statement",
       "layer": "written",
       "nature": "handle",
-      "ts": "Statement",
-      "py": "Statement",
       "members": [
         {
           "name": "kind",
@@ -1488,8 +1650,7 @@
         {
           "name": "parent",
           "member": "property",
-          "type": "statement",
-          "absent": true
+          "type": "written directive or extension line or snippet line or absent"
         },
         {
           "name": "place",
@@ -1583,8 +1744,6 @@
       "name": "written directive",
       "layer": "written",
       "nature": "handle",
-      "ts": "IWrittenDirective",
-      "py": "WrittenDirective",
       "members": [
         {
           "name": "name",
@@ -1599,8 +1758,7 @@
         {
           "name": "block",
           "member": "property",
-          "type": "written block",
-          "absent": true
+          "type": "written block or absent"
         },
         {
           "name": "rename",
@@ -1634,15 +1792,12 @@
             "argument type error",
             "detached error"
           ],
-          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword",
-          "spell": {
-            "py": "set (a method named set: inside the class body, annotate the builtin as builtins.set)"
-          }
+          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword"
         }
       ],
       "variant of": "statement",
       "kind": "directive",
-      "py match args": [
+      "match args": [
         "name",
         "values",
         "block"
@@ -1652,15 +1807,8 @@
       "name": "extension line",
       "layer": "written",
       "nature": "handle",
-      "ts": "IExtensionLine",
-      "py": "ExtensionLine",
       "variant of": "statement",
       "kind": "extension",
-      "py match args": [
-        "name",
-        "values",
-        "block"
-      ],
       "note": "a line whose name an extension owns (include). No rename: a name change would change its kind",
       "members": [
         {
@@ -1678,8 +1826,7 @@
         {
           "name": "block",
           "member": "property",
-          "type": "written block",
-          "absent": true,
+          "type": "written block or absent",
           "note": "its set lines"
         },
         {
@@ -1697,19 +1844,19 @@
             "argument type error",
             "detached error"
           ],
-          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword",
-          "spell": {
-            "py": "set (a method named set: inside the class body, annotate the builtin as builtins.set)"
-          }
+          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword"
         }
+      ],
+      "match args": [
+        "name",
+        "values",
+        "block"
       ]
     },
     {
       "name": "set line",
       "layer": "written",
       "nature": "handle",
-      "ts": "ISetLine",
-      "py": "SetLine",
       "members": [
         {
           "name": "variable",
@@ -1736,15 +1883,12 @@
             "argument type error",
             "detached error"
           ],
-          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword",
-          "spell": {
-            "py": "set (a method named set: inside the class body, annotate the builtin as builtins.set)"
-          }
+          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword"
         }
       ],
       "variant of": "statement",
       "kind": "set",
-      "py match args": [
+      "match args": [
         "variable",
         "values"
       ]
@@ -1753,8 +1897,6 @@
       "name": "snippet line",
       "layer": "written",
       "nature": "handle",
-      "ts": "ISnippetLine",
-      "py": "SnippetLine",
       "members": [
         {
           "name": "name",
@@ -1774,7 +1916,7 @@
       ],
       "variant of": "statement",
       "kind": "snippet",
-      "py match args": [
+      "match args": [
         "name",
         "parameters",
         "block"
@@ -1784,8 +1926,6 @@
       "name": "use line",
       "layer": "written",
       "nature": "handle",
-      "ts": "IUseLine",
-      "py": "UseLine",
       "members": [
         {
           "name": "snippet name",
@@ -1795,14 +1935,13 @@
         {
           "name": "snippet",
           "member": "property",
-          "type": "snippet line",
-          "absent": true
+          "type": "snippet line or absent"
         },
         {
           "name": "snippets",
           "member": "method",
           "params": [],
-          "returns": "resolution[]"
+          "returns": "(resolution of snippet line)[]"
         },
         {
           "name": "values",
@@ -1824,15 +1963,12 @@
             "argument type error",
             "detached error"
           ],
-          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword",
-          "spell": {
-            "py": "set (a method named set: inside the class body, annotate the builtin as builtins.set)"
-          }
+          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword"
         }
       ],
       "variant of": "statement",
       "kind": "use",
-      "py match args": [
+      "match args": [
         "snippet name",
         "values"
       ]
@@ -1841,12 +1977,10 @@
       "name": "unreadable line",
       "layer": "written",
       "nature": "handle",
-      "ts": "IUnreadableLine",
-      "py": "UnreadableLine",
       "members": [],
       "variant of": "statement",
       "kind": "unreadable",
-      "py match args": [
+      "match args": [
         "text"
       ]
     },
@@ -1854,30 +1988,7 @@
       "name": "written block",
       "layer": "written",
       "nature": "handle",
-      "ts": "IWrittenBlock",
-      "py": "WrittenBlock",
       "members": [
-        {
-          "name": "statements",
-          "member": "property",
-          "type": "statement[]",
-          "spell": {
-            "py": "the block itself is a Sequence"
-          }
-        },
-        {
-          "name": "directives",
-          "member": "method",
-          "params": [
-            {
-              "name": "name",
-              "type": "text",
-              "optional": true
-            }
-          ],
-          "returns": "written directive[]",
-          "note": "kind directive only: extension lines are not listed"
-        },
         {
           "name": "insert statements",
           "member": "method",
@@ -1913,14 +2024,13 @@
             "argument type error"
           ]
         }
-      ]
+      ],
+      "extends": "block of statement and written directive"
     },
     {
       "name": "written value",
       "layer": "written",
       "nature": "handle",
-      "ts": "WrittenValue",
-      "py": "WrittenValue",
       "members": [
         {
           "name": "kind",
@@ -1945,8 +2055,7 @@
         {
           "name": "list",
           "member": "property",
-          "type": "list",
-          "absent": true
+          "type": "list or absent"
         },
         {
           "name": "set",
@@ -1963,10 +2072,7 @@
             "argument type error",
             "detached error"
           ],
-          "note": "milestone 5 (vil-umh.12): replace this value with exactly one value (the valueText entry rule; boundText for a bound, sliceNameText for a slice's name) and keep the handle: the same object, now of the new value's kind (spec 6.1). Python: the object's class becomes the new kind's class",
-          "spell": {
-            "py": "set (a method named set: inside the class body, annotate the builtin as builtins.set)"
-          }
+          "note": "milestone 5 (vil-umh.12): replace this value with exactly one value (the valueText entry rule; boundText for a bound, sliceNameText for a slice's name) and keep the handle: the same object, now of the new value's kind (spec 6.1). Python: the object's class becomes the new kind's class"
         },
         {
           "name": "replace with text",
@@ -2009,36 +2115,28 @@
       "name": "word",
       "layer": "written",
       "nature": "handle",
-      "ts": "IWord",
-      "py": "Word",
       "members": [],
       "variant of": "written value",
       "kind": "word",
-      "py match args": [
+      "match args": [
         "text"
-      ],
-      "py module": "villanelle.written"
+      ]
     },
     {
       "name": "string",
       "layer": "written",
       "nature": "handle",
-      "ts": "IString",
-      "py": "String",
       "members": [],
       "variant of": "written value",
       "kind": "string",
-      "py match args": [
+      "match args": [
         "text"
-      ],
-      "py module": "villanelle.written"
+      ]
     },
     {
       "name": "list",
       "layer": "written",
       "nature": "handle",
-      "ts": "IList",
-      "py": "List",
       "members": [
         {
           "name": "items",
@@ -2049,17 +2147,14 @@
       ],
       "variant of": "written value",
       "kind": "list",
-      "py match args": [
+      "match args": [
         "items"
-      ],
-      "py module": "villanelle.written"
+      ]
     },
     {
       "name": "slice",
       "layer": "written",
       "nature": "handle",
-      "ts": "ISlice",
-      "py": "Slice",
       "members": [
         {
           "name": "name",
@@ -2070,31 +2165,26 @@
         {
           "name": "start",
           "member": "property",
-          "type": "word or reference",
-          "absent": true
+          "type": "word or reference or absent"
         },
         {
           "name": "end",
           "member": "property",
-          "type": "word or reference",
-          "absent": true
+          "type": "word or reference or absent"
         }
       ],
       "variant of": "written value",
       "kind": "slice",
-      "py match args": [
+      "match args": [
         "name",
         "start",
         "end"
-      ],
-      "py module": "villanelle.written"
+      ]
     },
     {
       "name": "index",
       "layer": "written",
       "nature": "handle",
-      "ts": "IIndex",
-      "py": "Index",
       "members": [
         {
           "name": "name",
@@ -2110,18 +2200,15 @@
       ],
       "variant of": "written value",
       "kind": "index",
-      "py match args": [
+      "match args": [
         "name",
         "index"
-      ],
-      "py module": "villanelle.written"
+      ]
     },
     {
       "name": "reference",
       "layer": "written",
       "nature": "handle",
-      "ts": "IReference",
-      "py": "Reference",
       "members": [
         {
           "name": "name",
@@ -2131,8 +2218,7 @@
         {
           "name": "declaration",
           "member": "property",
-          "type": "set variable or parameter",
-          "absent": true
+          "type": "set variable or parameter or absent"
         },
         {
           "name": "resolutions",
@@ -2144,17 +2230,14 @@
       ],
       "variant of": "written value",
       "kind": "reference",
-      "py match args": [
+      "match args": [
         "name"
-      ],
-      "py module": "villanelle.written"
+      ]
     },
     {
       "name": "variable",
       "layer": "written",
       "nature": "handle",
-      "ts": "Variable",
-      "py": "Variable",
       "members": [
         {
           "name": "kind",
@@ -2200,13 +2283,8 @@
       "name": "set variable",
       "layer": "written",
       "nature": "handle",
-      "ts": "ISetVariable",
-      "py": "SetVariable",
       "variant of": "variable",
       "kind": "set",
-      "py match args": [
-        "name"
-      ],
       "members": [
         {
           "name": "place",
@@ -2251,24 +2329,19 @@
             "argument type error",
             "detached error"
           ],
-          "note": "its set line's values; replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword",
-          "spell": {
-            "py": "set (a method named set: inside the class body, annotate the builtin as builtins.set)"
-          }
+          "note": "its set line's values; replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword"
         }
+      ],
+      "match args": [
+        "name"
       ]
     },
     {
       "name": "parameter",
       "layer": "written",
       "nature": "handle",
-      "ts": "IParameter",
-      "py": "Parameter",
       "variant of": "variable",
       "kind": "parameter",
-      "py match args": [
-        "name"
-      ],
       "note": "a snippet's parameter: no set (edit the use line's values)",
       "members": [
         {
@@ -2298,28 +2371,27 @@
             "detached error"
           ]
         }
+      ],
+      "match args": [
+        "name"
       ]
     },
     {
       "name": "override variable",
       "layer": "written",
       "nature": "handle",
-      "ts": "IOverrideVariable",
-      "py": "OverrideVariable",
       "variant of": "variable",
       "kind": "override",
-      "py match args": [
-        "name"
-      ],
       "note": "an override as a variable: no place, no line, no rename, no set (the graph's set override changes it); never detached",
-      "members": []
+      "members": [],
+      "match args": [
+        "name"
+      ]
     },
     {
       "name": "resolution",
       "layer": "written",
       "nature": "snapshot",
-      "ts": "IResolution",
-      "py": "Resolution",
       "members": [
         {
           "name": "copy",
@@ -2329,8 +2401,7 @@
         {
           "name": "winner",
           "member": "property",
-          "type": "definition",
-          "absent": true
+          "type": "definition or absent"
         },
         {
           "name": "shadowed",
@@ -2338,31 +2409,16 @@
           "type": "definition[]",
           "note": "next first"
         }
+      ],
+      "type parameters": [
+        "definition"
       ]
     },
     {
       "name": "reference resolution",
       "layer": "written",
       "nature": "snapshot",
-      "ts": "IReferenceResolution",
-      "py": "ReferenceResolution",
       "members": [
-        {
-          "name": "copy",
-          "member": "property",
-          "type": "copy"
-        },
-        {
-          "name": "winner",
-          "member": "property",
-          "type": "variable",
-          "absent": true
-        },
-        {
-          "name": "shadowed",
-          "member": "property",
-          "type": "variable[]"
-        },
         {
           "name": "reference",
           "member": "property",
@@ -2373,20 +2429,19 @@
           "member": "property",
           "type": "written value[]"
         }
-      ]
+      ],
+      "extends": "resolution of variable"
     },
     {
       "name": "expansion",
       "layer": "written",
       "nature": "snapshot",
-      "ts": "IExpansion",
-      "py": "Expansion",
       "note": "what document graph expand () returns: the low level's public account of every copy as read, so the rendered layer builds on public members only (owner, 2026-10-29)",
       "members": [
         {
           "name": "block",
           "member": "property",
-          "type": "directive expansion[]",
+          "type": "expansion block",
           "note": "the top-level readable directive copies, in walk order"
         },
         {
@@ -2404,16 +2459,17 @@
       ]
     },
     {
+      "name": "expansion block",
+      "layer": "written",
+      "nature": "snapshot",
+      "extends": "block of directive expansion and directive expansion",
+      "note": "the directive expansions of one block of one copy, in written order (spec 6.10)",
+      "members": []
+    },
+    {
       "name": "directive expansion",
       "layer": "written",
       "nature": "snapshot",
-      "ts": "IDirectiveExpansion",
-      "py": "DirectiveExpansion",
-      "py match args": [
-        "written",
-        "values",
-        "block"
-      ],
       "members": [
         {
           "name": "written",
@@ -2436,8 +2492,7 @@
         {
           "name": "block",
           "member": "property",
-          "type": "directive expansion[]",
-          "absent": true,
+          "type": "expansion block or absent",
           "note": "absent when written without a block"
         },
         {
@@ -2445,18 +2500,17 @@
           "member": "property",
           "type": "unreadable expansion[]"
         }
+      ],
+      "match args": [
+        "written",
+        "values",
+        "block"
       ]
     },
     {
       "name": "unreadable expansion",
       "layer": "written",
       "nature": "snapshot",
-      "ts": "IUnreadableExpansion",
-      "py": "UnreadableExpansion",
-      "py match args": [
-        "reason",
-        "written"
-      ],
       "members": [
         {
           "name": "written",
@@ -2477,19 +2531,21 @@
           "note": "the statement's own tokens (owned comments left out) and the copy's via"
         }
       ],
-      "note": "one statement a copy could not read; the rendered tree lists these same objects (milestone 4: the rendered unreadable type is gone)"
+      "note": "one statement a copy could not read; the rendered tree lists these same objects (milestone 4: the rendered unreadable type is gone)",
+      "match args": [
+        "reason",
+        "written"
+      ]
     },
     {
       "name": "rendered",
       "layer": "rendered",
       "nature": "snapshot",
-      "ts": "IRendered",
-      "py": "Rendered",
       "members": [
         {
           "name": "block",
           "member": "property",
-          "type": "directive[]"
+          "type": "rendered block"
         },
         {
           "name": "unreadable",
@@ -2513,21 +2569,6 @@
           "type": "document graph"
         },
         {
-          "name": "walk",
-          "member": "method",
-          "params": [
-            {
-              "name": "visit",
-              "type": "function"
-            }
-          ],
-          "returns": "nothing",
-          "spell": {
-            "ts": "walk(visit) with a callback returning \"skip\" or \"stop\"",
-            "py": "walk(*, descend=None), a generator"
-          }
-        },
-        {
           "name": "error",
           "member": "method",
           "params": [
@@ -2537,7 +2578,8 @@
             },
             {
               "name": "code",
-              "type": "program code"
+              "type": "program code",
+              "passed": "keyword"
             }
           ],
           "returns": "diagnostic error",
@@ -2552,14 +2594,16 @@
             {
               "name": "key",
               "type": "key rule",
-              "optional": true
+              "optional": true,
+              "passed": "option"
             }
           ],
           "returns": "map of directive to address",
           "order": "walk order",
           "errors": [
             "argument type error"
-          ]
+          ],
+          "options": "key options"
         },
         {
           "name": "diff",
@@ -2572,19 +2616,17 @@
             {
               "name": "key",
               "type": "key rule",
-              "optional": true
+              "optional": true,
+              "passed": "option"
             }
           ],
           "returns": "change[]",
           "order": "removed and unknown in before's walk order, then added and changed in after's",
-          "spell": {
-            "ts": "diff(after, { key })",
-            "py": "diff(after, /, *, key=None)"
-          },
           "note": "lives on the render because it compares two renders; any two renders may be compared",
           "errors": [
             "argument type error"
-          ]
+          ],
+          "options": "key options"
         }
       ],
       "note": "made only by render (graph)"
@@ -2593,8 +2635,6 @@
       "name": "directive",
       "layer": "rendered",
       "nature": "snapshot",
-      "ts": "IDirective",
-      "py": "Directive",
       "members": [
         {
           "name": "name",
@@ -2610,8 +2650,7 @@
         {
           "name": "block",
           "member": "property",
-          "type": "directive[]",
-          "absent": true
+          "type": "rendered block or absent"
         },
         {
           "name": "unreadable",
@@ -2621,8 +2660,7 @@
         {
           "name": "parent",
           "member": "property",
-          "type": "directive",
-          "absent": true
+          "type": "directive or absent"
         },
         {
           "name": "origin",
@@ -2636,31 +2674,15 @@
           "note": "its directive expansion's written: the same object for every copy of one line"
         },
         {
-          "name": "walk",
-          "member": "method",
-          "params": [
-            {
-              "name": "visit",
-              "type": "function"
-            }
-          ],
-          "returns": "nothing",
-          "spell": {
-            "ts": "walk(visit)",
-            "py": "walk(*, descend=None), a generator"
-          }
-        },
-        {
           "name": "closest",
           "member": "method",
           "params": [
             {
               "name": "predicate",
-              "type": "function"
+              "type": "function of directive to boolean"
             }
           ],
-          "returns": "directive",
-          "absent": true
+          "returns": "directive or absent"
         },
         {
           "name": "error",
@@ -2672,7 +2694,8 @@
             },
             {
               "name": "code",
-              "type": "program code"
+              "type": "program code",
+              "passed": "keyword"
             }
           ],
           "returns": "diagnostic error",
@@ -2681,18 +2704,24 @@
           ]
         }
       ],
-      "py match args": [
+      "match args": [
         "name",
         "values",
         "block"
       ]
     },
     {
+      "name": "rendered block",
+      "layer": "rendered",
+      "nature": "snapshot",
+      "extends": "block of directive and directive",
+      "note": "the directives of one block after expansion, in written order (spec 7.1)",
+      "members": []
+    },
+    {
       "name": "slice value",
       "layer": "written",
       "nature": "record",
-      "ts": "ISliceValue",
-      "py": "SliceValue",
       "members": [
         {
           "name": "kind",
@@ -2707,23 +2736,20 @@
         {
           "name": "start",
           "member": "property",
-          "type": "integer",
-          "absent": true
+          "type": "integer or absent"
         },
         {
           "name": "end",
           "member": "property",
-          "type": "integer",
-          "absent": true
+          "type": "integer or absent"
         }
-      ]
+      ],
+      "kind": "slice"
     },
     {
       "name": "index value",
       "layer": "written",
       "nature": "record",
-      "ts": "IIndexValue",
-      "py": "IndexValue",
       "members": [
         {
           "name": "kind",
@@ -2740,14 +2766,13 @@
           "member": "property",
           "type": "integer"
         }
-      ]
+      ],
+      "kind": "index"
     },
     {
       "name": "expanded value",
       "layer": "written",
       "nature": "snapshot",
-      "ts": "ExpandedValue",
-      "py": "ExpandedValue",
       "note": "a union: one value after expansion ($name replaced) with its links to the lines it came through. The low level owns it (spec 2.9, 6.10): an extension use holds it, a directive expansion's values are it, and a rendered directive's values are the same objects (milestone 4 collapsed value expansion and the rendered argument family into it). The readers stay on every variant: a value of the wrong kind is a problem in the config text, reported as E4002. Two expanded values are equal exactly when their texts are equal (spec 2.9; Python ==)",
       "members": [
         {
@@ -2774,8 +2799,7 @@
         {
           "name": "definition",
           "member": "property",
-          "type": "written value",
-          "absent": true,
+          "type": "written value or absent",
           "note": "the written value at the end of the chain; absent for an override"
         },
         {
@@ -2858,7 +2882,8 @@
             },
             {
               "name": "code",
-              "type": "program code"
+              "type": "program code",
+              "passed": "keyword"
             }
           ],
           "returns": "diagnostic error",
@@ -2883,39 +2908,30 @@
       "name": "expanded word",
       "layer": "written",
       "nature": "snapshot",
-      "ts": "IExpandedWord",
-      "py": "ExpandedWord",
       "variant of": "expanded value",
       "kind": "word",
-      "py match args": [
+      "members": [],
+      "match args": [
         "text"
-      ],
-      "members": []
+      ]
     },
     {
       "name": "expanded string",
       "layer": "written",
       "nature": "snapshot",
-      "ts": "IExpandedString",
-      "py": "ExpandedString",
       "variant of": "expanded value",
       "kind": "string",
-      "py match args": [
+      "members": [],
+      "match args": [
         "text"
-      ],
-      "members": []
+      ]
     },
     {
       "name": "expanded list",
       "layer": "written",
       "nature": "snapshot",
-      "ts": "IExpandedList",
-      "py": "ExpandedList",
       "variant of": "expanded value",
       "kind": "list",
-      "py match args": [
-        "items"
-      ],
       "members": [
         {
           "name": "items",
@@ -2923,21 +2939,17 @@
           "type": "expanded value[]",
           "note": "a tuple in Python; each item an expanded value with its own links"
         }
+      ],
+      "match args": [
+        "items"
       ]
     },
     {
       "name": "expanded slice",
       "layer": "written",
       "nature": "snapshot",
-      "ts": "IExpandedSlice",
-      "py": "ExpandedSlice",
       "variant of": "expanded value",
       "kind": "slice",
-      "py match args": [
-        "name",
-        "start",
-        "end"
-      ],
       "members": [
         {
           "name": "name",
@@ -2947,29 +2959,26 @@
         {
           "name": "start",
           "member": "property",
-          "type": "integer",
-          "absent": true
+          "type": "integer or absent"
         },
         {
           "name": "end",
           "member": "property",
-          "type": "integer",
-          "absent": true
+          "type": "integer or absent"
         }
+      ],
+      "match args": [
+        "name",
+        "start",
+        "end"
       ]
     },
     {
       "name": "expanded index",
       "layer": "written",
       "nature": "snapshot",
-      "ts": "IExpandedIndex",
-      "py": "ExpandedIndex",
       "variant of": "expanded value",
       "kind": "index",
-      "py match args": [
-        "name",
-        "index"
-      ],
       "members": [
         {
           "name": "name",
@@ -2981,14 +2990,40 @@
           "member": "property",
           "type": "integer"
         }
+      ],
+      "match args": [
+        "name",
+        "index"
+      ]
+    },
+    {
+      "name": "key rule",
+      "layer": "rendered",
+      "nature": "callback",
+      "type": "function of directive to text or absent",
+      "note": "the program's rule naming a directive among its siblings (spec 7.4); absent: no key",
+      "members": []
+    },
+    {
+      "name": "key options",
+      "layer": "rendered",
+      "nature": "options",
+      "members": [
+        {
+          "name": "key",
+          "member": "property",
+          "type": "key rule",
+          "optional": true
+        }
+      ],
+      "languages": [
+        "ts"
       ]
     },
     {
       "name": "address step",
       "layer": "rendered",
       "nature": "record",
-      "ts": "IAddressStep",
-      "py": "AddressStep",
       "members": [
         {
           "name": "name",
@@ -2998,8 +3033,7 @@
         {
           "name": "key",
           "member": "property",
-          "type": "text",
-          "absent": true
+          "type": "text or absent"
         },
         {
           "name": "occurrence",
@@ -3012,8 +3046,6 @@
       "name": "address",
       "layer": "rendered",
       "nature": "record",
-      "ts": "IAddress",
-      "py": "Address",
       "members": [
         {
           "name": "steps",
@@ -3028,18 +3060,14 @@
         {
           "name": "parent",
           "member": "property",
-          "type": "address",
-          "absent": true
+          "type": "address or absent"
         },
         {
           "name": "people form",
           "member": "method",
           "params": [],
           "returns": "text",
-          "spell": {
-            "ts": "toString()",
-            "py": "str(address)"
-          }
+          "trait": "people form"
         }
       ]
     },
@@ -3047,8 +3075,6 @@
       "name": "change",
       "layer": "rendered",
       "nature": "record",
-      "ts": "Change",
-      "py": "Change",
       "members": [
         {
           "name": "kind",
@@ -3073,55 +3099,44 @@
       "name": "added",
       "layer": "rendered",
       "nature": "record",
-      "ts": "IAdded",
-      "py": "Added",
       "variant of": "change",
       "kind": "added",
-      "py match args": [
-        "address",
-        "after"
-      ],
       "members": [
         {
           "name": "after",
           "member": "property",
           "type": "directive"
         }
+      ],
+      "match args": [
+        "address",
+        "after"
       ]
     },
     {
       "name": "removed",
       "layer": "rendered",
       "nature": "record",
-      "ts": "IRemoved",
-      "py": "Removed",
       "variant of": "change",
       "kind": "removed",
-      "py match args": [
-        "address",
-        "before"
-      ],
       "members": [
         {
           "name": "before",
           "member": "property",
           "type": "directive"
         }
+      ],
+      "match args": [
+        "address",
+        "before"
       ]
     },
     {
       "name": "changed",
       "layer": "rendered",
       "nature": "record",
-      "ts": "IChanged",
-      "py": "Changed",
       "variant of": "change",
       "kind": "changed",
-      "py match args": [
-        "address",
-        "before",
-        "after"
-      ],
       "members": [
         {
           "name": "before",
@@ -3133,271 +3148,30 @@
           "member": "property",
           "type": "directive"
         }
+      ],
+      "match args": [
+        "address",
+        "before",
+        "after"
       ]
     },
     {
       "name": "unknown",
       "layer": "rendered",
       "nature": "record",
-      "ts": "IUnknown",
-      "py": "Unknown",
       "variant of": "change",
       "kind": "unknown",
-      "py match args": [
-        "address",
-        "before"
-      ],
       "members": [
         {
           "name": "before",
           "member": "property",
           "type": "directive"
         }
+      ],
+      "match args": [
+        "address",
+        "before"
       ]
-    }
-  ],
-  "disagreements": [
-    {
-      "what": "the check of an override's text",
-      "ts": "load used readHanded (written/bind.ts): accepts \"1;\", throws TypeError without a position; setHanded used handedValues (written/graph.ts): refuses \"1;\" with a located BadTextError",
-      "py": "the same split: _bind.read_handed (ValueError) against _graph.set_handed (BadTextError)",
-      "spec picks": "one check (spec 6.3), the set handed behaviour: \"1;\" refused with BadTextError E2001 at 0:1, from load and set override alike"
-    },
-    {
-      "what": "a non-text argument to an edit",
-      "ts": "not checked at run time: the type checker refuses a number, but a JavaScript caller or a cast passes it on to the parser",
-      "py": "not checked: set_values(2400) fails inside the library (written/model.py)",
-      "spec picks": "argument type error (TypeError in both) with the message above (owner, 2026-10-29: \"A Keep text only, make misuse impossible\")"
-    },
-    {
-      "what": "misuse error class",
-      "ts": "TypeError",
-      "py": "ValueError",
-      "spec picks": "MisuseError in TypeScript, outside VillanelleError; ValueError in Python (milestone 4, spec 2.8): TypeError is now only the argument type error"
-    },
-    {
-      "what": "walk",
-      "ts": "a method on IRendered and IDirective, taking a callback",
-      "py": "a free function walk(node, descend=...)",
-      "spec picks": "a method in both (root cause 2: every later operation is a method on the object held); callback against generator stays an allowed difference until the walk proposal (spec 7.5) is answered"
-    },
-    {
-      "what": "place kind",
-      "ts": "IPlace.kind 'file', IHanded.kind 'handed'",
-      "py": "Place and Handed have no kind field",
-      "spec picks": "kind on both; settled in milestone 2 (Python Place.kind PlaceKind.FILE, Override.kind PlaceKind.OVERRIDE)"
-    },
-    {
-      "what": "change kind",
-      "ts": "Change has kind",
-      "py": "Added, Removed, Changed, Unknown have no kind",
-      "spec picks": "kind on every variant; settled in milestone 2"
-    },
-    {
-      "what": "a written value's kind list",
-      "ts": "rendered ValueKind lacks 'reference'; written values use inline literals including it",
-      "py": "the same",
-      "spec picks": "one value kind list with 'reference', generated as one type per binding; an expanded value's variants never have it (settled in milestone 2)"
-    },
-    {
-      "what": "save error message",
-      "ts": "\"the writer rejected: ...\"",
-      "py": "\"the writer raised: ...\"",
-      "spec picks": "messages are not part of the contract; no change"
-    },
-    {
-      "what": "-0 and a lone carriage return",
-      "ts": "integer('-0') is -0",
-      "py": "as_int('-0') is 0",
-      "spec picks": "settled in milestone 2 (spec/contract.md 2): every reader gives 0 for any zero, never -0; a lone carriage return never ends a line, also in format diagnostic's source line (TypeScript cut the line there)"
-    },
-    {
-      "what": "the type of an extension use's values",
-      "ts": "IArgument (a rendered type, imported by the low level and the include extension)",
-      "py": "Argument (the same)",
-      "spec picks": "expanded value, a shared type the rendered argument builds on (spec 2.9, 5; owner, 2026-10-29)"
-    },
-    {
-      "what": "a values text holding a line break outside a list",
-      "ts": "set (\"1\\n2\") on port 80; writes port 1\\n2; (two statements)",
-      "py": "the same",
-      "spec picks": "refused with bad text error E2001 (vil-5ya; spec 2.8): one check of a values text, the one an override's text goes through"
-    }
-  ],
-  "layer check": {
-    "rule": "two checks, both allow-lists (owner, 2026-10-29). Down: no module outside the rendered layer and the package entry point imports the rendered layer, type-only imports included. Public: the rendered layer reaches the low level only through its public API (document graph expand () and the public types), never a package-internal module or member",
-    "ts": "ESLint in ts/eslint.config.js. Down: core no-restricted-imports, files src/**/*.ts, ignores src/rendered/**, src/index.ts, src/**/*.test.ts; pattern group **/rendered and **/rendered/**. Public: files src/rendered/**/*.ts, ignores src/**/*.test.ts; no-restricted-imports pattern group **/written/* with !**/written/index.js (the low level's public entry, new), and no-restricted-syntax refusing a cast through unknown (TSAsExpression with a TSUnknownKeyword type, and a TSAsExpression inside another)",
-    "py": "py/tests/test_layers.py, ast scan. Down: every module under src/villanelle/ except villanelle/rendered/** and villanelle/__init__.py fails on import villanelle.rendered[...], from villanelle.rendered[...] import, from villanelle import rendered, or the relative equivalents, TYPE_CHECKING blocks included. Public: every module under villanelle/rendered/ imports the low level only as 'from villanelle.written import <name>' with the name in villanelle.written.__all__ (no submodule, no name starting with _), and reads no attribute starting with one _ (dunders aside) on anything but self or cls, getattr with such a literal included"
-  },
-  "kind rule": "A list whose members have different members or operations is a variant set ('variants': one type per value, each with kind typed by the list). A list whose members share one shape is a tag ('tag of': one type, whose kind or reason field is typed by the list). Every list is generated: TypeScript a string-literal union type, Python a StrEnum (spec/codegen.md).",
-  "error fields": {
-    "rule": "read error, save error and lost update error have the same field 'paths' (text[]); read error and save error also chain a cause, the language's own mechanism (TypeScript Error cause, Python __cause__)",
-    "read error paths": "the root path as given to load, alone",
-    "save error paths": "the resolved paths handed to the writer, in batch order",
-    "lost update error paths": "only the files whose current text differs from their saved text, in batch order"
-  },
-  "removed in milestone 1": [
-    {
-      "name": "processor read (graph)",
-      "now": "document graph read ()"
-    },
-    {
-      "name": "processor render (graph)",
-      "now": "render (graph), the rendered layer's free function; the low level has no render member"
-    },
-    {
-      "name": "processor diff (before, after, key?)",
-      "now": "rendered diff (after, key?)"
-    },
-    {
-      "name": "save (graph, writer)",
-      "now": "document graph save (writer)"
-    },
-    {
-      "name": "set handed (name, text)",
-      "now": "set override (name, text)"
-    },
-    {
-      "name": "set values (text)",
-      "now": "set (text) (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\")"
-    },
-    {
-      "name": "walk (node, descend?) (Python free function)",
-      "now": "rendered walk, directive walk"
-    },
-    {
-      "name": "the processor ownership check (round 12 D27)",
-      "now": "nothing: no operation takes a graph or render back to a processor"
-    }
-  ],
-  "removed in milestone 2": [
-    {
-      "name": "no set line error",
-      "now": "nothing: set exists only on set variable, rename only on set variable and parameter"
-    },
-    {
-      "name": "written directive of kind extension",
-      "now": "extension line, its own type; it has no rename"
-    },
-    {
-      "name": "variable (one type for three kinds)",
-      "now": "the union variable: set variable, parameter, override variable"
-    },
-    {
-      "name": "expanded value (one type)",
-      "now": "the union expanded value: expanded word, string, list, slice, index"
-    },
-    {
-      "name": "argument (one type)",
-      "now": "the union argument: word, string, list, slice, index argument"
-    },
-    {
-      "name": "items () (reader)",
-      "now": "list () (reader, every variant) and items (property, list variants)"
-    },
-    {
-      "name": "Python reader names as_word, as_str, as_number, as_int, as_bool, as_list, as_slice",
-      "now": "word, string, number, integer, boolean, list, slice: casing only (vil-gxu)"
-    },
-    {
-      "name": "TypeScript kind constant objects (NodeKind, ValueKind, StepKind, UnreadableReason, ChangeKind, TokenKind)",
-      "now": "string-literal types of the same names"
-    },
-    {
-      "name": "Python Literal aliases for statement, variable and place kinds",
-      "now": "StrEnums StatementKind, VariableKind, PlaceKind"
-    },
-    {
-      "name": "read error as a diagnostic error (its diagnostic, E3004 at the root path)",
-      "now": "read error under villanelle error, with paths and a cause"
-    },
-    {
-      "name": "save error files",
-      "now": "save error paths"
-    },
-    {
-      "name": "detached error as an edit error (and in Python a ValueError)",
-      "now": "under villanelle error (Python: and ReferenceError)"
-    },
-    {
-      "name": "createFileSource, createFsWriter, createFetchSource, createFetchWriter (TypeScript); fs_writer (Python)",
-      "now": "fileSource, fileWriter, fetchSource, fetchWriter; file_writer"
-    },
-    {
-      "name": "the rendered layer's package-internal access to the graph's binding (TypeScript graph.binding(), instanceof DocumentGraph; Python written._bind, written._document, written._graph and private attributes)",
-      "now": "document graph expand (), a public member"
-    },
-    {
-      "name": "Python List, String, Word, Slice, Index, Reference at the package root",
-      "now": "villanelle.written only"
-    },
-    {
-      "name": "Python's UTF-16 positions",
-      "now": "code points (spec/contract.md 1)"
-    }
-  ],
-  "removed in milestone 4": [
-    {
-      "name": "value expansion",
-      "now": "expanded value, which carries written, definition and chain itself"
-    },
-    {
-      "name": "argument, word argument, string argument, list argument, slice argument, index argument",
-      "now": "expanded value and its five variants: a rendered directive's values are its directive expansion's expanded values"
-    },
-    {
-      "name": "unreadable (rendered)",
-      "now": "unreadable expansion: the rendered tree lists the expansion's own objects"
-    },
-    {
-      "name": "directive expansion statement, unreadable expansion statement",
-      "now": "written, the one name of the link to the written statement"
-    },
-    {
-      "name": "edit error",
-      "now": "nothing: bad text error is the only edit refusal and sits directly under villanelle error"
-    },
-    {
-      "name": "detached error under villanelle error",
-      "now": "detached error is a program bug, outside villanelle error"
-    },
-    {
-      "name": "misuse error as TypeError (TypeScript)",
-      "now": "MisuseError, outside VillanelleError, so it is told apart from an argument type error"
-    },
-    {
-      "name": "the render-only diagnostic codes (E4xxx, E5001, E5003, E5004, E5008 left out of the graph's diagnostics)",
-      "now": "one list: the graph's diagnostics are the expansion's and the render's"
-    },
-    {
-      "name": "E2008 brace on own line, E4003 bad escape",
-      "now": "retired (diagnostics.json): a line break is whitespace; a bad escape is E1005, found by parse"
-    }
-  ],
-  "removed in milestone 5": [
-    {
-      "name": "plain (the expanded value reader), plain value",
-      "now": "nothing: a word is untyped until a typed reader (word, string, number, integer, boolean, list, slice) decides; owner, 2026-10-29: \"the raw strings are raw/plain/tokens until some schema-aware layer decides\""
-    },
-    {
-      "name": "COLON (token kind)",
-      "now": "TILDE, the slice separator (name[1~3]); ':' is a word character in every word"
-    },
-    {
-      "name": "reserved directive names (set, snippet, use and each extension's name at a line's start)",
-      "now": "language and extension statements are written @set, @snippet, @use, @include; reserved names are only the names no extension may take"
-    },
-    {
-      "name": "slice name and index name as text",
-      "now": "a word or reference value"
-    },
-    {
-      "name": "text as the type of an edit's or override's text parameter",
-      "now": "config text, made only by quote or text"
-    },
-    {
-      "name": "escapes in a single-quoted string",
-      "now": "a single-quoted string is raw; only a double-quoted string has the six escapes"
     }
   ]
 }
