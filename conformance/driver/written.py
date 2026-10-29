@@ -29,6 +29,7 @@ ERRORS = {
     "detached error": "DetachedError",
     "misuse error": "MisuseError",
     "lost update error": "LostUpdateError",
+    "argument type error": "TypeError",
 }
 SKIP = ("COMMENT", "SPACE", "NEWLINE")
 
@@ -42,15 +43,16 @@ def statements(block: Mapping[str, Any]) -> Iterator[Mapping[str, Any]]:
 
 
 def values(statement: Mapping[str, Any]) -> Iterator[Mapping[str, Any]]:
-    """A statement's written values in text order, list items and slice and index bounds included."""
+    """A statement's written values in text order, list items and a slice's or index's name and bounds included
+    (milestone 5: a slice's name is a written value, a word or a reference)."""
 
     def each(v: Mapping[str, Any]) -> Iterator[Mapping[str, Any]]:
         yield v
         for child in v.get("items", []):
             yield from each(child)
-        for bound in ("start", "end", "index"):
-            if v.get(bound) is not None:
-                yield from each(v[bound])
+        for part in ("name", "start", "end", "index"):
+            if isinstance(v.get(part), dict):
+                yield from each(v[part])
 
     for v in statement.get("values", []):
         yield from each(v)
@@ -212,6 +214,14 @@ class Case:
             return self.listing()
         if kind == "references":
             return self.references()
+        if kind == "render" and args:
+            # Milestone 5: render (x) of something that is not a document graph is an argument type error.
+            try:
+                self.s.request("render", graph=self.target(args[0]))
+            except Thrown as thrown:
+                group = thrown.error.get("group", "")
+                return ["error", ERRORS.get(group, group)]
+            return ["ok"]
         if kind == "render":
             texts = Texts(self.s, self.s.graph(self.graph))
             render = self.s.render(self.graph)

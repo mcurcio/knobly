@@ -1,1 +1,1 @@
-{"files":["main.conf"],"directives":[["t",false,"main.conf:1:2 < use s main.conf:4:0",[["1","main.conf:3:7 < variable c main.conf:1:4 < use s main.conf:4:0"]]]],"unreadable":[],"diagnostics":[]}
+{"files":["main.conf"],"directives":[["t",false,"main.conf:1:2 < use s main.conf:4:0",[["1","main.conf:3:8 < variable c main.conf:1:4 < use s main.conf:4:0"]]]],"unreadable":[],"diagnostics":[]}

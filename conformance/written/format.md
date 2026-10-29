@@ -58,9 +58,12 @@ the resolution's `copy.via`. A **variable text** is its `place`, `override <name
   as their copy texts. `edges`: `graph.edges()`. `variables`: `graph.variables()`; each `wins ()` and `shadowed at
   ()` resolution as its copy text, a `shadowed at ()` one with its winner's variable text. `diagnostics`: the
   graph's `diagnostics`.
-- `["references"]`: every reference of every document (documents order, then text order, list items and slice
-  bounds included) as `[place, declaration, [[copy, winner, [shadowed, ...]], ...]]`: its declaration's variable
+- `["references"]`: every reference of every document (documents order, then text order, list items and a slice's
+  name and bounds included; milestone 5: a slice's name may be a reference, `$s[0~3]`) as `[place, declaration, [[copy, winner, [shadowed, ...]], ...]]`: its declaration's variable
   text, then each of its `resolutions ()` with `winner` and `shadowed` as variable texts.
+- `["render", target]` (milestone 5): `render` given the target instead of the graph (a document, a statement): output
+  `["ok"]`, or `["error", token]` with the error's token (spec 7.0: anything but a document graph is an `argument type
+  error`, token `TypeError`).
 - `["render"]`: the load-conformance object of `render (graph)` without `files` (`directives`, `unreadable`,
   `diagnostics`), each value extended to `[text, origin, definition, [[reference, winner], ...]]`:
   `definition` its place or `null`; each step of its `chain` as the reference's copy text and the winner's
@@ -101,7 +104,7 @@ the resolution's `copy.via`. A **variable text** is its `place`, `override <name
 
 | Token in the case files | Spec name (spec.md) |
 |---|---|
-| op `"set"`, with `text` | `set` |
+| op `"set"`, with `text` | `set` (a statement's, a variable's, or since milestone 5 a written value's, which keeps its handle) |
 | op `"replaceWithText"`, with `text` | `replace with text` |
 | op `"remove"` | `remove` |
 | op `"rename"`, with `name` | `rename` |
@@ -114,6 +117,7 @@ the resolution's `copy.via`. A **variable text** is its `place`, `override <name
 | error `"DetachedError"` | `detached error` |
 | error `"MisuseError"` | `misuse error` (milestone 4: a bad name, spec 2.8) |
 | error `"LostUpdateError"` | `lost update error` (milestone 4, spec 4.2) |
+| error `"TypeError"` | `argument type error` (milestone 5, the `["render", target]` step) |
 
 Since milestone 3 only the driver reads these tokens (`conformance/driver/written.py`, `OPS` and `ERRORS`): it sends
 each adapter the spec name, and maps the error group's spec name back to the token. No binding reads a TypeScript

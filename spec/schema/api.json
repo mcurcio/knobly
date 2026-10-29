@@ -1,5 +1,5 @@
 {
-  "$comment": "The one home of villanelle's API concepts, members, kind lists, error groups, limits and reserved names (spec/spec.md and spec/contract.md are canonical for behaviour; this file is canonical for the lists). Names are spec names: lowercase words; a binding changes only the casing (spec/binding-guide.md rule 1) except where a member's 'spell' records an allowed difference. 'ts' and 'py' give each binding's spelling after milestone 4 (beads vil-umh.1 to vil-umh.8 and vil-umh.12; .claude/design/consumer-api/round15/frozen-m4.md; earlier milestones: round14/frozen-m1.md to frozen-m3.md). A concept with 'variants' is a union over a kind list ('kind list', less any 'except'): its members are the ones every variant has. Each variant concept names its union in 'variant of' and its kind value in 'kind', and lists only the members it adds; it has every member of its union too. 'extends' names a concept of a lower layer whose members it also has. 'py module' names the only Python module that exports a type when that is not the package root. Every member is present in every binding: there is no deferral marker (tools/gen-api.py --check refuses one).",
+  "$comment": "The one home of villanelle's API concepts, members, kind lists, error groups, limits and reserved names (spec/spec.md and spec/contract.md are canonical for behaviour; this file is canonical for the lists). Names are spec names: lowercase words; a binding changes only the casing (spec/binding-guide.md rule 1) except where a member's 'spell' records an allowed difference. 'ts' and 'py' give each binding's spelling after milestone 5 (beads vil-umh.6, vil-umh.12, vil-umh.14; .claude/design/consumer-api/round15/frozen-m5.md) and milestone 4 (beads vil-umh.1 to vil-umh.8 and vil-umh.12; .claude/design/consumer-api/round15/frozen-m4.md; earlier milestones: round14/frozen-m1.md to frozen-m3.md). A concept with 'variants' is a union over a kind list ('kind list', less any 'except'): its members are the ones every variant has. Each variant concept names its union in 'variant of' and its kind value in 'kind', and lists only the members it adds; it has every member of its union too. 'extends' names a concept of a lower layer whose members it also has. 'py module' names the only Python module that exports a type when that is not the package root. Every member is present in every binding: there is no deferral marker (tools/gen-api.py --check refuses one).",
   "version": 2,
   "naming": {
     "rule": "The spec names each concept once in plain lowercase words; each binding only changes the casing.",
@@ -232,7 +232,7 @@
       "snippet",
       "use"
     ],
-    "also": "the directive name of every registered extension",
+    "means": "the language statements' names, written @set, @snippet and @use: no extension may take one (spec 2.5, 5). Milestone 5: no directive name is reserved any more; a directive's name is a WORD, which never starts with @",
     "ts": "RESERVED (written/bind.ts)",
     "py": "RESERVED (written/_bind.py)"
   },
@@ -327,14 +327,14 @@
     {
       "name": "argument type error",
       "sort": "program bug",
-      "raised when": "an argument of the wrong type: anything but text where villanelle text is taken (spec 6.9), a writer that is not a document writer, a key rule that returns anything but text or absent (spec 7.4)",
+      "raised when": "an argument of the wrong type: anything but text where config text or a name is taken, and to quote and text (spec 6.9), a writer that is not a document writer, a render given something that is not a document graph (no callable expand; spec 7.0, milestone 5), a key rule that returns anything but text or absent (spec 7.4)",
       "ts": "TypeError",
       "py": "TypeError"
     },
     {
       "name": "misuse error",
       "sort": "program bug",
-      "raised when": "a bad argument value a program could have checked: every bad name (a variable or override name not matching the variable name pattern, a directive rename the nameText entry rule refuses or that is reserved or an extension's name), a program code without '/', a reserved or repeated extension name",
+      "raised when": "a bad argument value a program could have checked: every bad name (a variable or override name not matching the variable name pattern; a directive rename, or an extension's name at make processor, that the nameText entry rule refuses), a program code without '/', a reserved (set, snippet, use) or repeated extension name",
       "ts": "MisuseError (extends Error; not under VillanelleError)",
       "py": "ValueError"
     },
@@ -347,18 +347,20 @@
     }
   ],
   "argument type error message": {
-    "rule": "One helper per binding builds it (one home); every member that takes villanelle text, quote, rename, set override and each load override call it before changing anything. Messages are for people (spec 2.3); the class and the member and parameter named are the contract.",
-    "ts": "`${member}(): argument \"${parameter}\" must be a string, not ${got}; villanelle edits take text: quote() a program string, String() a number`",
+    "rule": "One helper per binding builds it (one home); every member that takes config text, quote, text, rename, set override, each load override and render call it before changing anything. Messages are for people (spec 2.3); the class and the member and parameter named are the contract.",
+    "ts": "`${member}(): argument \"${parameter}\" must be a string, not ${got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, String() a number first`",
     "ts got": "value === null ? \"null\" : Array.isArray(value) ? \"array\" : typeof value",
-    "py": "f\"{member}() argument '{parameter}' must be str, not {type(value).__name__}; villanelle edits take text: quote() a program string, str() a number\"",
-    "member": "the member in the binding's casing, as the caller wrote it: set, replaceWithText / replace_with_text, insertStatements / insert_statements, addStatements / add_statements, insertBefore / insert_before, insertAfter / insert_after, setOverride / set_override, rename, quote, load",
-    "parameter": "text; name for rename and for set override's name; overrides[\"<name>\"] for a load override",
-    "example py": "TypeError: set() argument 'text' must be str, not int; villanelle edits take text: quote() a program string, str() a number",
-    "example ts": "TypeError: set(): argument \"text\" must be a string, not number; villanelle edits take text: quote() a program string, String() a number",
+    "py": "f\"{member}() argument '{parameter}' must be str, not {type(value).__name__}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, str() a number first\"",
+    "member": "the member in the binding's casing, as the caller wrote it: set, replaceWithText / replace_with_text, insertStatements / insert_statements, addStatements / add_statements, insertBefore / insert_before, insertAfter / insert_after, setOverride / set_override, rename, quote, load, text, render",
+    "parameter": "text; name for rename and for set override's name; overrides[\"<name>\"] for a load override; raw for text; graph for render",
+    "example py": "TypeError: set() argument 'text' must be str, not int; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, str() a number first",
+    "example ts": "TypeError: set(): argument \"text\" must be a string, not number; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, String() a number first",
     "other": {
       "rule": "a parameter that takes something other than text names what it takes instead of 'a string' / 'str'",
       "example ts": "TypeError: save(): argument \"writer\" must be a document writer (an object with a write method), not function",
-      "example py": "TypeError: save() argument 'writer' must be a document writer (an object with a write method), not function"
+      "example py": "TypeError: save() argument 'writer' must be a document writer (an object with a write method), not function",
+      "example ts render": "TypeError: render(): argument \"graph\" must be a document graph (an object with an expand method), not object",
+      "example py render": "TypeError: render() argument 'graph' must be a document graph (an object with an expand method), not Document"
     }
   },
   "free functions": [
@@ -420,10 +422,30 @@
           "type": "text"
         }
       ],
-      "returns": "text",
+      "returns": "config text",
       "errors": [
         "argument type error"
-      ]
+      ],
+      "note": "returns config text (spec 6.9, milestone 5): the text written as a villanelle string, escapes included"
+    },
+    {
+      "name": "text",
+      "layer": "shared",
+      "params": [
+        {
+          "name": "raw",
+          "type": "text"
+        }
+      ],
+      "returns": "config text",
+      "errors": [
+        "argument type error"
+      ],
+      "note": "milestone 5 (vil-umh.6): raw as config text, unchanged and unchecked: the program's statement that raw is already written as villanelle text; the edit it is given checks it. With quote, the only maker of config text",
+      "spell": {
+        "ts": "text(raw) from \"villanelle\": returns raw as ConfigText",
+        "py": "text(raw) from villanelle: returns ConfigText(raw)"
+      }
     },
     {
       "name": "render",
@@ -435,11 +457,14 @@
         }
       ],
       "returns": "rendered",
-      "note": "the rendered layer's entry point: going up a layer is a free function of the upper layer (owner, 2026-10-29). Pure: reads no file. Builds only on the low level's public members (document graph expand (), spec 7.0). Exported by the rendered module and re-exported at each binding's top level",
+      "note": "the rendered layer's entry point: going up a layer is a free function of the upper layer (owner, 2026-10-29). Pure: reads no file. Builds only on the low level's public members (document graph expand (), spec 7.0). Exported by the rendered module and re-exported at each binding's top level. Given anything without a callable expand it raises the argument type error first (milestone 5)",
       "spell": {
         "ts": "render(graph) from ts/src/rendered/, re-exported by \"villanelle\"",
         "py": "render(graph) in villanelle.rendered, re-exported as villanelle.render"
-      }
+      },
+      "errors": [
+        "argument type error"
+      ]
     },
     {
       "name": "format diagnostic",
@@ -606,6 +631,19 @@
     }
   ],
   "concepts": [
+    {
+      "name": "config text",
+      "layer": "shared",
+      "nature": "named type",
+      "ts": "ConfigText",
+      "py": "ConfigText",
+      "note": "milestone 5 (vil-umh.6; owner, 2026-10-29: \"Yes, its own type\"): villanelle text a program hands to an edit or an override, made only by quote or text; every edit's and override's text parameter takes it, so a plain string there is a type error the checker reports. Still the language's string at run time",
+      "members": [],
+      "spell": {
+        "ts": "type ConfigText = string & { readonly [configTextBrand]: true } (a branded string; configTextBrand a unique symbol the package does not export)",
+        "py": "ConfigText = NewType(\"ConfigText\", str)"
+      }
+    },
     {
       "name": "source position",
       "layer": "shared",
@@ -1137,7 +1175,8 @@
         {
           "name": "directive",
           "member": "property",
-          "type": "text"
+          "type": "text",
+          "note": "the name it owns, without @: include. A line uses it when written @include (milestone 5); make processor refuses a reserved (set, snippet, use), repeated, or malformed (refused by nameText) name"
         },
         {
           "name": "specs",
@@ -1192,7 +1231,7 @@
             },
             {
               "name": "overrides",
-              "type": "ordered map of text",
+              "type": "ordered map of config text",
               "optional": true
             }
           ],
@@ -1233,10 +1272,10 @@
         {
           "name": "overrides",
           "member": "property",
-          "type": "ordered map of text",
+          "type": "ordered map of config text",
           "spell": {
-            "ts": "ReadonlyMap<string, string>",
-            "py": "Mapping[str, str] (read-only; set override changes it)"
+            "ts": "ReadonlyMap<string, ConfigText>",
+            "py": "Mapping[str, ConfigText] (read-only; set override changes it)"
           }
         },
         {
@@ -1249,7 +1288,7 @@
             },
             {
               "name": "text",
-              "type": "text",
+              "type": "config text",
               "optional": true
             }
           ],
@@ -1260,8 +1299,8 @@
             "misuse error"
           ],
           "spell": {
-            "ts": "setOverride(name, text | undefined)",
-            "py": "set_override(name, text | None, /)"
+            "ts": "setOverride(name, text: ConfigText | undefined)",
+            "py": "set_override(name, text: ConfigText | None, /)"
           }
         },
         {
@@ -1375,7 +1414,7 @@
           "params": [
             {
               "name": "text",
-              "type": "text"
+              "type": "config text"
             }
           ],
           "returns": "nothing",
@@ -1474,7 +1513,7 @@
           "params": [
             {
               "name": "text",
-              "type": "text"
+              "type": "config text"
             }
           ],
           "returns": "statement[]",
@@ -1499,7 +1538,7 @@
           "params": [
             {
               "name": "text",
-              "type": "text"
+              "type": "config text"
             }
           ],
           "returns": "statement[]",
@@ -1516,7 +1555,7 @@
           "params": [
             {
               "name": "text",
-              "type": "text"
+              "type": "config text"
             }
           ],
           "returns": "statement[]",
@@ -1573,10 +1612,11 @@
           ],
           "returns": "nothing",
           "errors": [
-            "bad text error",
+            "misuse error",
             "argument type error",
             "detached error"
-          ]
+          ],
+          "note": "a name the nameText entry rule refuses (not one WORD: a word starting with a digit, '-' or '@') is a misuse error; no name is reserved (milestone 5), so use and include are allowed"
         },
         {
           "name": "set",
@@ -1584,7 +1624,7 @@
           "params": [
             {
               "name": "text",
-              "type": "text"
+              "type": "config text"
             }
           ],
           "returns": "nothing",
@@ -1625,7 +1665,8 @@
         {
           "name": "name",
           "member": "property",
-          "type": "text"
+          "type": "text",
+          "note": "the extension's name without @ (include for @include, milestone 5)"
         },
         {
           "name": "values",
@@ -1646,7 +1687,7 @@
           "params": [
             {
               "name": "text",
-              "type": "text"
+              "type": "config text"
             }
           ],
           "returns": "nothing",
@@ -1685,7 +1726,7 @@
           "params": [
             {
               "name": "text",
-              "type": "text"
+              "type": "config text"
             }
           ],
           "returns": "nothing",
@@ -1773,7 +1814,7 @@
           "params": [
             {
               "name": "text",
-              "type": "text"
+              "type": "config text"
             }
           ],
           "returns": "nothing",
@@ -1846,7 +1887,7 @@
             },
             {
               "name": "text",
-              "type": "text"
+              "type": "config text"
             }
           ],
           "returns": "statement[]",
@@ -1862,7 +1903,7 @@
           "params": [
             {
               "name": "text",
-              "type": "text"
+              "type": "config text"
             }
           ],
           "returns": "statement[]",
@@ -1907,12 +1948,32 @@
           "absent": true
         },
         {
+          "name": "set",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "config text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ],
+          "note": "milestone 5 (vil-umh.12): replace this value with exactly one value (the valueText entry rule; boundText for a bound, sliceNameText for a slice's name) and keep the handle: the same object, now of the new value's kind (spec 6.1). Python: the object's class becomes the new kind's class",
+          "spell": {
+            "py": "set (a method named set: inside the class body, annotate the builtin as builtins.set)"
+          }
+        },
+        {
           "name": "replace with text",
           "member": "method",
           "params": [
             {
               "name": "text",
-              "type": "text"
+              "type": "config text"
             }
           ],
           "returns": "written value[]",
@@ -2002,7 +2063,8 @@
         {
           "name": "name",
           "member": "property",
-          "type": "text"
+          "type": "word or reference",
+          "note": "the slice name before '[': a word or a reference value (milestone 5: a variable may be subscripted, $src[0~3]); was text"
         },
         {
           "name": "start",
@@ -2036,7 +2098,8 @@
         {
           "name": "name",
           "member": "property",
-          "type": "text"
+          "type": "word or reference",
+          "note": "the slice name before '[': a word or a reference value (milestone 5: a variable may be subscripted, $src[0~3]); was text"
         },
         {
           "name": "index",
@@ -2178,7 +2241,7 @@
           "params": [
             {
               "name": "text",
-              "type": "text"
+              "type": "config text"
             }
           ],
           "returns": "nothing",
@@ -2785,12 +2848,6 @@
           ]
         },
         {
-          "name": "plain",
-          "member": "method",
-          "params": [],
-          "returns": "plain value"
-        },
-        {
           "name": "error",
           "member": "method",
           "params": [
@@ -3314,6 +3371,32 @@
     {
       "name": "E2008 brace on own line, E4003 bad escape",
       "now": "retired (diagnostics.json): a line break is whitespace; a bad escape is E1005, found by parse"
+    }
+  ],
+  "removed in milestone 5": [
+    {
+      "name": "plain (the expanded value reader), plain value",
+      "now": "nothing: a word is untyped until a typed reader (word, string, number, integer, boolean, list, slice) decides; owner, 2026-10-29: \"the raw strings are raw/plain/tokens until some schema-aware layer decides\""
+    },
+    {
+      "name": "COLON (token kind)",
+      "now": "TILDE, the slice separator (name[1~3]); ':' is a word character in every word"
+    },
+    {
+      "name": "reserved directive names (set, snippet, use and each extension's name at a line's start)",
+      "now": "language and extension statements are written @set, @snippet, @use, @include; reserved names are only the names no extension may take"
+    },
+    {
+      "name": "slice name and index name as text",
+      "now": "a word or reference value"
+    },
+    {
+      "name": "text as the type of an edit's or override's text parameter",
+      "now": "config text, made only by quote or text"
+    },
+    {
+      "name": "escapes in a single-quoted string",
+      "now": "a single-quoted string is raw; only a double-quoted string has the six escapes"
     }
   ]
 }

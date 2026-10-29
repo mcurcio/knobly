@@ -1,0 +1,1 @@
+{"files":["main.conf"],"directives":[["node",true,"main.conf:3:0",[["n","main.conf:3:5"]]],["node > connect",false,"main.conf:1:4 < use s main.conf:4:4",[["leds[0~3]","main.conf:1:12 < use s main.conf:4:4"]]]],"unreadable":[],"diagnostics":[]}

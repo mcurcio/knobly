@@ -98,15 +98,19 @@ an edit was given. The adapter never converts.
 | `parse` | `text` | a **syntax** dump of `parse (text)` | L0 |
 | `load` | `files` (path to text), `root`, `extensions` (`[]` or `["include"]`), `overrides`? (name to text) | `{"graph": id}`: a processor with a `memory source` over `files` and the extensions named, then `load (root, overrides)` | L1 |
 | `graph` | `graph` | a **graph** dump | L1 |
-| `edit` | `target` (an id), `member` (a spec member name: `set`, `replace with text`, `remove`, `rename`, `insert statements`, `add statements`, `insert before`, `insert after`, `set override`), `args` (in the member's parameter order; `null` means the argument is absent) | `{"handles": [{"id", "text"}, ...]}` when the member returns handles, else `{}` | L1 |
+| `edit` | `target` (an id), `member` (a spec member name: `set` (on a statement, a variable or, milestone 5, a written value), `replace with text`, `remove`, `rename`, `insert statements`, `add statements`, `insert before`, `insert after`, `set override`), `args` (in the member's parameter order; `null` means the argument is absent) | `{"handles": [{"id", "text"}, ...]}` when the member returns handles, else `{}` | L1 |
 | `save` | `graph`, `disk`? (path to text) | without `disk`: `{"batches": [[[path, text], ...], ...]}`, what a recording writer got, each `write` call one batch, during this one `save (writer)`. With `disk`: `save (writer)` with a `memory writer` over a new map holding `disk` (so a file whose text there differs from its saved text is a lost update), then `{"files": [[path, text], ...]}`, the map after, sorted by path | L1 |
 | `quote` | `text` | `quote (text)` | L1 |
-| `render` | `graph`, `key`? (key rules, section 4.3) | a **render** dump of `render (graph)`, its addresses under the key rule | L2 |
+| `render` | `graph` (any dumped object's id), `key`? (key rules, section 4.3) | a **render** dump of `render (graph)`, its addresses under the key rule; for an id that is not a graph, the binding's `render` is called with that object and raises the `argument type error` (milestone 5, spec 7.0) | L2 |
 | `diff` | `before`, `after` (render ids), `key`? | `[{"kind", "address": address}, ...]`: `before`'s `diff (after, key?)`, in its order | L2 |
-| `read` | `value` (an expanded value's id), `reader` (`word`, `string`, `number`, `integer`, `boolean`, `list`, `slice`, `plain`) | the reader's **result** (section 4.4) | L2 |
+| `read` | `value` (an expanded value's id), `reader` (`word`, `string`, `number`, `integer`, `boolean`, `list`, `slice`; milestone 5 deleted `plain`) | the reader's **result** (section 4.4) | L2 |
 | `print` | `target` (an id) | the object's `people form` (contract 2): the language's own to-text conversion | L2 |
 | `format` | `diagnostic` (a located diagnostic's id), `graph`? | `format diagnostic (diagnostic, graph?)` | L2 |
 | `cut` | `text`, `start`, `end` (native offsets) | `text` cut at `start` and `end` with the language's own string slicing (the check that the binding's unit is its language's, contract 1) | L2 |
+
+Every text the driver sends as an edit's `text`, an override's text or a `load` override is JSON text; the adapter
+passes it on as `config text` through its binding's own `text (raw)` (spec 6.9, milestone 5), never through a cast, so
+the adapter type-checks against the public API like any program.
 
 A member, reader or op name is a spec name (lowercase words); the adapter spells it in its binding's casing
 (binding guide rule 1: `replaceWithText`, `replace_with_text`). An error group is sent back the same way, as its
@@ -130,7 +134,7 @@ them (section 7), so an extra or wrong member there is not yet caught: build to 
 | syntax | `{"tokens": [[kind, text, start position, end position], ...], "root": node, "diagnostics": [syntax diagnostic, ...]}`; a node is `[kind, start, end, [node, ...]]` (token indices, half-open) |
 | variable reference | `{"id", "name", "kind", "place": place \| null}` (`null` for an override variable) |
 | resolution | `{"reference": {"id", "place"}, "via": [step, ...], "winner": variable reference \| null, "shadowed": [variable reference, ...]}`: a reference resolution, `via` its copy's |
-| written value | `{"id", "kind", "place", "text"}`, and by kind: `list` `"items": [written value, ...]`; `slice` `"start"`, `"end"`: written value or `null`; `index` `"index"`: written value; `reference` `"declaration"`: variable reference or `null`, `"resolutions": [resolution, ...]` |
+| written value | `{"id", "kind", "place", "text"}`, and by kind: `list` `"items": [written value, ...]`; `slice` `"name"`: written value (milestone 5: a word or a reference), `"start"`, `"end"`: written value or `null`; `index` `"name"`, `"index"`: written value; `reference` `"declaration"`: variable reference or `null`, `"resolutions": [resolution, ...]` |
 | statement | `{"id", "kind", "place", "text"}`, with `"values": [written value, ...]` on a written directive, extension line, set line and use line, and `"block": block \| null` on a written directive, extension line and snippet line |
 | block | `{"id", "statements": [statement, ...]}` |
 | copy | `{"place": the copy's statement's place, "via": [step, ...]}` |
@@ -143,7 +147,7 @@ them (section 7), so an extra or wrong member there is not yet caught: build to 
 | render | `{"id", "block": [directive, ...], "unreadable": [unreadable, ...], "diagnostics": [located diagnostic, ...]}` |
 
 A token's kind is its token name as written in [grammar/Villanelle.g4](../grammar/Villanelle.g4), in capitals
-(`WORD`, `SPACE`, `BAD_CHAR`; all 20 are listed in spec 3.1). Every other kind (a node's,
+(`WORD`, `SPACE`, `BAD_CHAR`; all 21 are listed in spec 3.1). Every other kind (a node's,
 a statement's, a value's, a step's), and reasons, are the generated lists' lowercase values (spec 2.10); codes are
 their text (`E2001`).
 
@@ -169,8 +173,8 @@ data file every adapter reads the same way.
 The `read` result is the reader's value, neutral: `{"text": t}`, `{"boolean": b}`, `{"number": n}` (a JSON number;
 negative zero MUST be sent as the string `"-0"`, which JSON numbers cannot always carry, so the driver can fail the
 case), `{"slice": [name, start \| null, end \| null]}` (a `slice value`), `{"index": [name, index]}` (an `index
-value`), `{"value": text}` (an expanded value, by its canonical text), `{"list": [result, ...]}` (a
-list). The driver prints numbers by the number rule of `conformance/contract/format.md`.
+value`), `{"value": text}` (an expanded value, by its canonical text), `{"list": [result, ...]}` (the `list`
+reader's items, each `{"value": text}`). The driver prints numbers by the number rule of `conformance/contract/format.md`.
 
 ## 5. The driver
 

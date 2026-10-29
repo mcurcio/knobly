@@ -314,3 +314,73 @@
   `load-var-failed-set-top`, `load-var-set-reads-outer`, `load-var-set-reads-itself-top`) were taken from the
   bindings, which agree byte for byte, and checked by hand against the behaviour spec/expansion.md 4, 8 and 9 and
   spec 6.3 now state; they pin today's behaviour, not an independent derivation.
+
+## 2026-10-29, milestone 5 spec lane (vil-umh.6, vil-umh.12 rest, vil-umh.14)
+
+- **`..` cannot be the slice separator**, as the owner's answer allowed for: `..` is already a `WORD` (`../conf`),
+  and longest match reads `1..3` as one `DIGIT_WORD`. A `DOTDOT : '..'` token makes `tools/g4overlap.py` report
+  `OVERLAP WORD / DOTDOT, e.g. '..'`. The separator is `~` (`name[1~3]`), the closest clean spelling: outside the word
+  alphabet and read as a range. Costs: `~` can never be a word character (`~/conf` must be quoted); a `~` outside a
+  slice is now E2001 (it was `BAD_CHAR`, E1003). Owner call if he prefers another character.
+- **`:` may not start a word** (`listen :80;` is E1003 at the `:`). The owner's "':' is legal in every word" was
+  read as "inside every word", the old `NameChar` rule extended to digit words; widening the start set is his call.
+- **Expected outputs were again tool-assisted**, as in milestone 4: every converted case (`@` statements, `~` slices)
+  and the new syntax, load and written cases of A to D were produced by a scratch copy of the Python binding outside
+  the repo, patched for raw single quotes, `AT_WORD` classification, E3008, the `~` separator, the slice name as a
+  value and E4007, then checked by hand (positions shift by one column after each inserted `@`; canonical slices print
+  `~`). The cases of E (value `set`), G2 (`set` with no value) and G3 (`render` of a non-graph) were written by hand;
+  `split-value-set-twice`'s texts and render were taken from the same scratch binding running `replaceWithText`
+  once, which writes the same text. Owner call, as before.
+- **Most new syntax cases are red only against a binding built from the milestone 4 grammar.** Raw strings, `:` in
+  words, `~`, `AT_WORD` and subscripts on variables are the grammar's alone, so both bindings pass them as soon as
+  `tools/gen.sh` regenerates the parser (the Python binding at 20acec3 with a regenerated parser passes 165 of 168
+  syntax cases). The three recovery cases (`var-slice-unclosed`, `at-word-touch`, `at-word-slice-unclosed`) stay red
+  until each lane's classifier treats `AT_WORD` as a value and a `[` after a `VARIABLE` or `AT_WORD` as a slice
+  bracket. Every new load, written and contract case is red against both bindings as they stand.
+- **A value's `set` that keeps its handle must change the handle's kind** to make the owner's loop work: the README
+  loop sets `max_count`'s `$pixels` (a `reference`) to `2400` (a `word`), and the second copy holds the same handle.
+  Spec 6.1 therefore lets one object change kind: in TypeScript the object's `kind` changes (a narrowed variable is
+  stale), in Python its class is reassigned (`__class__`, which needs the six value classes to share one slot layout;
+  Python Cookbook recipe 8.19's state pattern). The alternative, a `set` that refuses a kind change, would leave the
+  owner's loop raising on its first call. Owner call if he dislikes either cost.
+- **`rename` lost its reserved-word check, and `make processor` gained one name check.** With `@` statements no
+  directive name is reserved, so `rename("use")` and `rename("include")` now succeed (`rename-to-keyword-word`), and
+  `rename("@set")` is refused by `nameText` alone (an `AT_WORD` is not a `WORD`). An extension's name must now be a
+  word `nameText` takes, so `@` and the name lex as one `AT_WORD`; an extension named `x y` was accepted before and
+  could never be used. This is a design call of this milestone (misuse error, spec 5).
+- **An `AT_WORD` is still a value and a slice name** (`cron @daily;`, `x @a[1];`), so no text that is not a
+  statement's start parses differently because of the sigil; only the statement head and `rename` changed.
+- **Spec 2.8 was reworded instead of adding an `overrideText` entry rule** (milestone 4 leftover): an entry rule would
+  need a second, variable-free copy of the value rules in the grammar. The grammar owns a text's shape; the
+  text-alone rules (E5002, E5005, E5009 to E5011, the no-value rule, the override's no-`$name` rule) are spec rules
+  run on the entry rule's tree. The milestone 4 claim "every check that depends only on the text is the grammar's"
+  was not true of those rules and is gone.
+- **`set` with a text that has no value must be given empty text** (milestone 4 leftover): `set("")` still clears the
+  values (case `directive-set`); `"# c\n"`, `"\n"` and `"  "` are E2001 at 0:0. A whitespace-only text is refused too
+  (the rule is "empty", not "no comment"); the owner may prefer to allow whitespace.
+- **`render` of a non-graph is an argument type error** in both (milestone 4 leftover), checked by a callable
+  `expand`; the conformance driver gains `["render", target]` in the written format, token `TypeError`.
+- **Config text: what makes it.** The owner said "made only by quote() or an explicit text(...)", so no reading member
+  returns `ConfigText` (a value's or statement's `text` is plain text, and copying it into an edit takes
+  `text(v.text)`), except the graph's `overrides`, which return the config text the program gave. `text()` checks
+  nothing; the edit checks. Bead vil-umh.6's description also names a `vl` tagged template, which the owner's answer
+  does not: not built. Python's `NewType` is erased at run time, so neither binding can refuse a plain string at run
+  time; only the type checker does, and no shared case can pin it.
+- **`plain` has no red shared case.** No case can call a member a binding should not have, and each binding's
+  public-name test checks only that the schema's names exist. The schema now has `removed in milestone 5`; the frozen
+  page asks each lane to fail its build on any name listed there (the reverse check for removed names).
+- **A slice's `name` is now a written value** (a word or a reference), like its bounds, so a `$src` in `$src[0~3]` is
+  a reference with a declaration and resolutions. Python `match` on a written slice changes:
+  `written.Slice(written.Word("leds"), ...)`, not `Slice("leds", ...)`. The expanded slice's `name` stays text. In the
+  written dump the slice and its name start at the same place; the driver's `["value", path, line, col]` finds the
+  slice (it is yielded first), and no case targets a slice's name.
+- **The `reserved names` schema key and the `RESERVED` constant keep their names** with a new meaning (the names no
+  extension may take: `set`, `snippet`, `use`); "No directive name is reserved any more" is spec 2.5. Renaming the key
+  would rename a generated constant in both bindings, which per-layer naming (vil-umh.13) may revisit.
+- **The extension step's `name` is the name without `@`** (`extension include at main.conf:1:2`), as a variable step's
+  is without `$`; the step's place is the whole `@include` token. Design call.
+- **The rasl fixtures diverge further from rasl's own files**: `@set`, `@snippet`, `@use`, `@include` and `[144~152]`
+  (rasl writes `[144:152]`), commented-out lines included (fixtures/rasl/README.md says so).
+- **Docs quote tests that do not exist yet in that form**: `docs/low-level-api.md` and `docs/rendered-tree.md` now
+  show `text(...)` around every edit argument and the `@` spellings; the lanes must make the cited tests match, or
+  report the doc wrong here. `py/README.md`'s skip-list workaround is in the Python lane's paths: it must go there.

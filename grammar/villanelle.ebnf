@@ -1,5 +1,7 @@
 /* villanelle language, grammar draft 2 (round 11: variables; milestone 4: ';' ends every statement, a line
-   break is whitespace, directive names cannot start with a digit or '-', and the entry rules).
+   break is whitespace, directive names cannot start with a digit or '-', and the entry rules; milestone 5: raw
+   single-quoted strings, '~' between slice bounds and ':' in every word, a variable as a slice's name, and
+   '@' statements: an AtWord heads a language or extension statement, never a directive).
    Kept in step with grammar/Villanelle.g4 by hand; the .g4 is the specification.
    Notation: W3C EBNF (XML 1.0 section 6) in the REx layout: syntax rules,
    then the TOKENS marker, then the regular token definitions.
@@ -14,13 +16,14 @@ Document     ::= Bom? Statements EOF                       /* cst: document */
 Statements   ::= Filler* ( Directive Filler* )*
 Filler       ::= Space | Comment | Newline | ';'
 Directive    ::= Header ( ';' | Block )                     /* cst: directive */
-Header       ::= Word Rest
+Header       ::= ( Word | AtWord ) Rest
 Rest         ::= ( Gap Value )* Gap?
 Gap          ::= ( Space | Newline | Comment Newline )+     /* a comment runs to the end of its line */
 Block        ::= '{' Statements '}'                         /* cst: block */
-Value        ::= Word | Integer | DigitWord | String | Variable | SlicedWord | List
-SlicedWord   ::= Word '[' Bounds ']'                        /* cst: slice */
-Bounds       ::= Bound ':' Bound? | ':' Bound | Bound
+Value        ::= Word | AtWord | Integer | DigitWord | String | Variable | SlicedWord | List
+SlicedWord   ::= SliceName '[' Bounds ']'                   /* cst: slice */
+SliceName    ::= Word | AtWord | Variable
+Bounds       ::= Bound '~' Bound? | '~' Bound | Bound
 Bound        ::= Integer | Variable
 List         ::= '[' Gap? Items? ']'                        /* cst: list */
 Items        ::= Value Gap? ( ',' Gap? Value Gap? )* ( ',' Gap? )?
@@ -28,14 +31,16 @@ Items        ::= Value Gap? ( ',' Gap? Value Gap? )* ( ',' Gap? )?
 /* entry rules (spec 2.8): a text a program hands to an edit or an override, parsed on its own */
 StatementsText ::= Statements EOF
 ValuesText   ::= Gap? ( Value ( Gap Value )* Gap? )? EOF
+ValueText    ::= Gap? Value Gap? EOF
 ItemsText    ::= Gap? ( Value Gap? ( ',' Gap? Value Gap? )* )? EOF
 BoundText    ::= Bound EOF
+SliceNameText ::= SliceName EOF
 NameText     ::= Word EOF
 
 <?TOKENS?>
 
 /* ---------------- tokens ---------------- */
-/* tokens: Bom Space Newline Comment Variable Word Integer DigitWord String '{' '}' '[' ']' ';' ',' ':' UnterminatedString BadEscape LoneDollar BadChar */
+/* tokens: Bom Space Newline Comment Variable Word AtWord Integer DigitWord String '{' '}' '[' ']' ';' ',' '~' UnterminatedString BadEscape LoneDollar BadChar */
 
 EOF          ::= $
 Bom          ::= #xFEFF
@@ -44,19 +49,18 @@ Newline      ::= #xA | #xD #xA
 Comment      ::= '#' Char*
 Variable     ::= '$' VariableChar+                     /* round 11 L1: nginx's name rule */
 Word         ::= NameStart NameChar*                   /* the only word a directive name can be */
+AtWord       ::= '@' NameChar*                         /* '@set', '@include': a statement's keyword; also a value */
 Integer      ::= IntegerText                           /* the only literal slice or index bound */
-DigitWord    ::= ( NumberStart NumberChar* ) - Integer /* every other word that starts with a digit or '-' */
+DigitWord    ::= ( NumberStart NameChar* ) - Integer   /* every other word that starts with a digit or '-' */
 String       ::= '"' ( ( Char - ( '"' | '\' ) ) | EscapeText )* '"'
-               | "'" ( ( Char - ( "'" | '\' ) ) | EscapeText )* "'"
+               | "'" ( Char - "'" )* "'"              /* single quotes: raw, no escapes (TOML) */
 
 /* error tokens: never used by the syntax, so any input holding one is invalid */
 UnterminatedString
              ::= '"' ( ( Char - ( '"' | '\' ) ) | '\' Char )* '\'?
-               | "'" ( ( Char - ( "'" | '\' ) ) | '\' Char )* '\'?
+               | "'" ( Char - "'" )*
 BadEscape    ::= '"' ( ( Char - ( '"' | '\' ) ) | '\' Char )* '\' ( Char - EscapeChar )
-                   ( ( Char - ( '"' | '\' ) ) | '\' Char )* '"'
-               | "'" ( ( Char - ( "'" | '\' ) ) | '\' Char )* '\' ( Char - EscapeChar )
-                   ( ( Char - ( "'" | '\' ) ) | '\' Char )* "'"   /* a closed string with a bad escape */
+                   ( ( Char - ( '"' | '\' ) ) | '\' Char )* '"'   /* a closed double-quoted string with a bad escape */
 LoneDollar   ::= '$'                                   /* a '$' with no name after it */
 BadChar      ::= AnyChar - TokenStart
 
@@ -79,9 +83,8 @@ Exponent     ::= [eE] [-+]? [0-9]+
 
 AnyChar      ::= [#x1-#x10FFFF]      /* U+0000 is also BadChar; REx reserves it as end of input */
 Char         ::= #x9 | [#x20-#x7E] | [#x80-#xD7FF] | [#xE000-#x10FFFF]
-NameStart    ::= [A-Za-z_./@*?]
+NameStart    ::= [A-Za-z_./*?]
 NameChar     ::= [A-Za-z0-9_./@#+:*?] | '-'
 NumberStart  ::= [0-9] | '-'
-NumberChar   ::= [A-Za-z0-9_./@#+*?] | '-'
 VariableChar ::= [A-Za-z0-9_]
-TokenStart   ::= [#x9#xA#x20"#$',./0-9:;@A-Z_a-z{}*?] | '[' | ']' | '-' | #xFEFF
+TokenStart   ::= [#x9#xA#x20"#$',./0-9;@A-Z_a-z{}*?~] | '[' | ']' | '-' | #xFEFF

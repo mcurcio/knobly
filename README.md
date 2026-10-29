@@ -1,13 +1,14 @@
 # villanelle
 
 A small configuration language: directives ended by `;` (a line break is a space, as in nginx), `{ }` blocks,
-lists and slices, `#` comments, variables and snippets, with parsers for TypeScript and Python generated from one
-grammar.
+lists and slices (`name[1~3]`), raw single-quoted strings, `#` comments, and variables and snippets written as
+`@` statements (`@set`, `@snippet`, `@use`, and an extension's `@include`), with parsers for TypeScript and Python
+generated from one grammar.
 
 ```conf
-set $pixels 2284;
+@set $pixels 2284;
 
-snippet twinkle $source {
+@snippet twinkle $source {
     seed 11337;
     mode brightness;
     frequency_hz 0.3;
@@ -21,7 +22,7 @@ snippet twinkle $source {
 
 (Excerpt of [`fixtures/rasl/family_room.conf`](fixtures/rasl/family_room.conf), which both packages' tests load.)
 The language is taught in [docs/language.md](docs/language.md); its rules live in the grammar and in
-[spec/expansion.md](spec/expansion.md) (which `set` a `$name` reaches, and which definition wins).
+[spec/expansion.md](spec/expansion.md) (which `@set` a `$name` reaches, and which definition wins).
 
 ## Using it from a program
 
@@ -31,8 +32,8 @@ villanelle has three layers, each built on the one below; a program can work at 
   token. It never fails: problems are diagnostics.
 - **The low level: the files as written.** `processor.load(path)` reads a root file and every file it includes into
   a document graph, and shows which files were read, what variables exist and which `set` line wins where. A
-  program can change any of it (`set(text)` on a line or a variable, `setOverride` / `set_override` for an
-  override) and `graph.save(writer)` writes the changed files back, comments and layout kept; `graph.read()` reads
+  program can change any of it (`set(text)` on a line, a variable or a value, `setOverride` / `set_override` for an
+  override), each edit taking config text made by `quote()` or `text()`, and `graph.save(writer)` writes the changed files back, comments and layout kept; `graph.read()` reads
   files an edit newly includes. The low level knows nothing of the rendered tree. Reference:
   [docs/low-level-api.md](docs/low-level-api.md).
 - **The rendered tree.** `render(graph)` works out variables, snippets and included files into the directives a
@@ -42,12 +43,12 @@ villanelle has three layers, each built on the one below; a program can work at 
 
 ```ts
   const config = villanelle({ source: memorySource(FILES), extensions: [include()] });
-  const graph = await config.load("main.conf", { overrides: { leds_host: '"10.0.70.1"' } });
+  const graph = await config.load("main.conf", { overrides: { leds_host: quote("10.0.70.1") } });
 ```
 
 ```python
     config = vl.Processor(source=vl.memory_source(FILES), extensions=[include()])
-    return config.load("main.conf", overrides={"leds_host": '"10.0.70.1"'})
+    return config.load("main.conf", overrides={"leds_host": vl.quote("10.0.70.1")})
 ```
 
 (Excerpts of `ts/src/written/tracer.test.ts` and `py/tests/test_tracer.py`, which go on to list the variables of
@@ -56,7 +57,7 @@ copied from a test that runs.
 
 | Entry point | TypeScript | Python |
 |---|---|---|
-| the core (no input or output) | `villanelle`: `parse`, `villanelle`, `render`, `quote`, `memorySource`, `memoryWriter`, `Diagnostics`, `formatDiagnostic`, ... | `villanelle`: `parse`, `Processor`, `render`, `quote`, `memory_source`, `memory_writer`, `Diagnostics`, `format_diagnostic`, ... |
+| the core (no input or output) | `villanelle`: `parse`, `villanelle`, `render`, `quote`, `text`, `memorySource`, `memoryWriter`, `Diagnostics`, `formatDiagnostic`, ... | `villanelle`: `parse`, `Processor`, `render`, `quote`, `text`, `memory_source`, `memory_writer`, `Diagnostics`, `format_diagnostic`, ... |
 | one layer only | `villanelle` re-exports every layer | `villanelle.written` (the low level), `villanelle.rendered` (the rendered tree) |
 | the include extension | `villanelle/include`: `include()` | `villanelle.include`: `include()` |
 | files on disk | `villanelle/node`: `fileSource()`, `fileWriter()` | `villanelle.files`: `file_source()`, `file_writer()` |
@@ -66,8 +67,8 @@ copied from a test that runs.
 
 [`grammar/Villanelle.g4`](grammar/Villanelle.g4) (ANTLR4) is the specification. ANTLR4
 generates the TypeScript and Python parsers from it, so both parsers accept exactly the
-grammar's language. Its entry rules (`valuesText`, `itemsText`, `boundText`, `nameText`) also check every text a
-program hands to an edit, so no binding keeps a scanner of its own. [`grammar/villanelle.ebnf`](grammar/villanelle.ebnf)
+grammar's language. Its entry rules (`statementsText`, `valuesText`, `valueText`, `itemsText`, `boundText`,
+`sliceNameText`, `nameText`) also check the shape of every text a program hands to an edit, so no binding keeps a scanner of its own. [`grammar/villanelle.ebnf`](grammar/villanelle.ebnf)
 is the same grammar in W3C EBNF, kept by hand as a readable view (whether to derive or retire it is an open question
 in `.claude/errata.md`).
 

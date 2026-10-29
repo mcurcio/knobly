@@ -1,0 +1,1 @@
+{"tokens":[["WORD","cron"],["SPACE"," "],["AT_WORD","@daily"],["SPACE"," "],["AT_WORD","@"],["SEMI",";"]],"cst":["document",0,6,[["directive",0,6,[]]]],"diagnostics":[]}

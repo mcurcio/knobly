@@ -6,6 +6,10 @@ included file see?"), picked: "Keep today's model and write it down in the spec"
 behaviour both bindings had at milestone 3, exactly; it changes none of it. Where it reads as a rule nobody would
 choose (section 8), that is today's model, written down, and changing it is a new question for the owner.
 
+Milestone 5 (bead vil-umh.14) respells the statements this page speaks of: `@set`, `@snippet`, `@use` and an
+extension's `@include` (spec 6.5); "a `set` line" here is the statement spelled `@set`. It adds one rule, a variable
+as a slice's name (section 8). The scoping and precedence model is unchanged.
+
 Pattern: CUE's "Declarations and scopes" (a block is a scope, a declaration is visible from where it is to the end
 of its block, lookups go outward), plus nginx's order of walking. [spec.md](spec.md) 5, 6.6, 6.7 and 6.10 use this
 page; [docs/language.md](../docs/language.md) teaches it with examples and links here.
@@ -35,7 +39,7 @@ consequences, each pinned by a load case:
 - A snippet's body, walked at a `use`, sees the `set` lines its defining block has walked by then, including ones
   written after the `snippet` line but before the `use` (`load-snippet-sees-later-set`).
 - An included file sees the `set` lines of the including block walked before the include line, never one written
-  after it (`load-include-sees-includer`: `u $b` with `set $b` after the include line is E5001).
+  after it (`load-include-sees-includer`: `u $b` with `@set $b` after the include line is E5001).
 
 ## 3. Environments
 
@@ -59,7 +63,7 @@ the second name). A nested environment may define the name again. The checks cou
 - an include line's block on its own: its `set` lines never collide with the including block's.
 
 When a name is set twice in one environment, the first `set` is the definition and the second defines nothing:
-`set $a 1; set $a 2; x $a;` gives `x 1` (E5002 on the second, `load-var-set-twice`).
+`@set $a 1; @set $a 2; x $a;` gives `x 1` (E5002 on the second, `load-var-set-twice`).
 
 ## 5. Lookup
 
@@ -69,7 +73,7 @@ A `$name` written in environment E finds its **candidates** by going outward fro
 2. at a splice view: its include-block `set` of that name, then on to the including environment;
 3. last, an override of that name, which belongs to no environment and is a candidate everywhere.
 
-A `use name` finds the nearest snippet of that name the same way (snippets only: snippet names are their own
+A `@use name` finds the nearest snippet of that name the same way (snippets only: snippet names are their own
 namespace, and directives of that name are never candidates). None is E5003 at the name.
 
 ## 6. Precedence: the one table
@@ -103,19 +107,26 @@ never a declaration (spec 6.7), and it has no line to edit (spec 6.3 `set overri
 
 ## 8. Values
 
-- A `set` line's values are expanded at its line, in its environment: `set $b $a;` holds `$a`'s values there.
-- A `set` line's values are looked up before its own definition exists, so `set $a $a;` reads an outer `$a`
-  (`set $a 1; b { set $a $a; x $a; }` gives `x 1`, `load-var-set-reads-outer`) and, with none, is E5001
+- A `set` line's values are expanded at its line, in its environment: `@set $b $a;` holds `$a`'s values there.
+- A `set` line's values are looked up before its own definition exists, so `@set $a $a;` reads an outer `$a`
+  (`@set $a 1; b { @set $a $a; x $a; }` gives `x 1`, `load-var-set-reads-outer`) and, with none, is E5001
   (`load-var-set-reads-itself-top`).
 - A `set` line whose values fail (E5001) defines nothing: a later `$name` of that name finds the next
-  candidate outward. `set $a 1; b { set $a $nope; x $a; }` gives `x 1`, with one E5001 at `$nope`
-  (`load-var-failed-set-shows-outer`); at the top level with nothing outward, `set $a $nope; x $a;` is E5001 twice,
+  candidate outward. `@set $a 1; b { @set $a $nope; x $a; }` gives `x 1`, with one E5001 at `$nope`
+  (`load-var-failed-set-shows-outer`); at the top level with nothing outward, `@set $a $nope; x $a;` is E5001 twice,
   at `$nope` and at `x`'s `$a` (`load-var-failed-set-top`).
-- An include block's `set` values are expanded in the including environment (`set $host $leds_host;`).
+- An include block's `set` values are expanded in the including environment (`@set $host $leds_host;`).
 - A `use` line's values are expanded at the `use`, in its environment, and bound to the parameters by position; a
   variable holding two values counts as two (E5004 when the count differs).
 - A `$name` is always every value its winner holds, never part of a word (spec 6.7, `reference resolution`). As a
-  slice or index bound it must hold one integer word within the integer range (E4001).
+  slice or index bound it must hold one integer word within the integer range (E4001). As a slice's or index's name
+  (`$src[0~3]`, milestone 5: a variable may be subscripted wherever a name can stand, a snippet's parameter
+  included) it must hold exactly one word (E4007); the slice is then that word's slice (`@set $src leds; a
+  $src[0~3];` gives `a leds[0~3]`, `load-var-subscript`; `load-snippet-param-subscript`,
+  `load-var-subscript-not-word`). The slice is read where it is written: its `origin` is the slice's own place, and
+  the name's resolution is its reference's (spec 6.6), as for a bound.
+- Only a statement written `@set`, `@snippet` or `@use` is a language statement (milestone 5, spec 6.5); a line
+  `use epoll;` is a directive and takes part in none of these rules (`load-plain-keyword-directives`).
 
 ## 9. Stated costs (today's model, kept by the owner's pick)
 

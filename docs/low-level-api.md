@@ -51,14 +51,14 @@ TypeScript:
 ```ts
 import { readFileSync } from "node:fs";
 
-import { type IDirective, type IDocumentWriter, type IFileWrite, type IPlace, type IRendered, memorySource, render, villanelle } from "villanelle";
+import { type IDirective, type IDocumentWriter, type IFileWrite, type IPlace, type IRendered, memorySource, quote, render, text, villanelle } from "villanelle";
 import { include } from "villanelle/include";
 
 /** 1-based `file:line`, as design.md §1 prints it. */
 const lineOf = (place: IPlace): string => `${place.resolvedPath}:${String(place.span.start.line + 1)}`;
 
   const config = villanelle({ source: memorySource(FILES), extensions: [include()] });
-  const graph = await config.load("main.conf", { overrides: { leds_host: '"10.0.70.1"' } });
+  const graph = await config.load("main.conf", { overrides: { leds_host: quote("10.0.70.1") } });
 
     expect([...graph.documents.values()].map((doc) => [doc.resolvedPath, doc.includedBy().map((e) => lineOf(e.copy.statement.place))])).toEqual([
       ["main.conf", []],
@@ -93,7 +93,7 @@ Python:
 
 ```python
     config = vl.Processor(source=vl.memory_source(FILES), extensions=[include()])
-    return config.load("main.conf", overrides={"leds_host": '"10.0.70.1"'})
+    return config.load("main.conf", overrides={"leds_host": vl.quote("10.0.70.1")})
 
     files = [
         (doc.resolved_path, [line_of(e.copy.statement.place) for e in doc.included_by()])
@@ -119,11 +119,11 @@ Excerpt of `open_split` and `test_lists_files_variables_and_overrides_then_chang
 ### Change `$pixels` itself, or change `max_count` to no longer use it
 
 Both kinds of change start from a rendered value. Its `chain[0]` says what the `$name` on its own line reads at
-this place: `winner` is the variable (here `set $pixels 2284;`), `reference` is the `$pixels` written on the
+this place: `winner` is the variable (here `@set $pixels 2284;`), `reference` is the `$pixels` written on the
 `max_count` line.
 
-Change the variable itself with `set(text)` (the edit that replaces values; not the language's `set` line, and it
-takes villanelle text only: `quote()` a program string): main.conf:4 changes, so every place that reads it changes
+Change the variable itself with `set(text)` (the edit that replaces values; not the language's `@set` statement, and
+it takes config text only: `quote()` a program string, `text()` one already written as villanelle text): main.conf:4 changes, so every place that reads it changes
 (both sinks read 2400), and `graph.save(writer)` hands the writer only main.conf:
 
 ```ts
@@ -132,12 +132,12 @@ takes villanelle text only: `quote()` a program string): main.conf:4 changes, so
     const read = maxCount?.chain[0];
     const winner = read?.winner;
     if (winner?.kind !== "set") throw new Error("the winner is not a set line's variable");
-    winner.set("2400");
+    winner.set(text("2400"));
     const writer = recorder();
     expect(await graph.save(writer)).toEqual(["main.conf"]);
     expect(writer.batches).toHaveLength(1);
     const [written] = writer.batches[0] ?? [];
-    expect(written?.text).toBe(FILES["main.conf"].replace("set $pixels 2284;", "set $pixels 2400;"));
+    expect(written?.text).toBe(FILES["main.conf"].replace("@set $pixels 2284;", "@set $pixels 2400;"));
     expect(maxCounts(render(graph))).toEqual([
       ["2400", "main.conf:4:13", 1],
       ["2400", "main.conf:4:13", 1],
@@ -158,7 +158,7 @@ and `graph.save(writer)` hands over only sink.conf:
     const read = nodeNamed(render(graph), "leds").block?.find((d) => d.name === "max_count")?.values[0]?.chain[0];
     const reference = read?.reference;
     expect(reference?.text).toBe("$pixels");
-    reference?.replaceWithText("2400");
+    reference?.replaceWithText(text("2400"));
     const writer = recorder();
     expect(await graph.save(writer)).toEqual(["sink.conf"]);
     expect(writer.batches[0]?.[0]?.text).toBe(FILES["sink.conf"].replace("max_count $pixels;", "max_count 2400;"));
@@ -173,18 +173,18 @@ The same in Python:
 ```python
     read = max_count.chain[0]
     assert isinstance(read.winner, vl.SetVariable)
-    read.winner.set("2400")  # (2)
+    read.winner.set(vl.text("2400"))  # (2)
     writer = Recorder()
     assert graph.save(writer) == ["main.conf"]
     [[written]] = writer.batches
-    assert written.text == FILES["main.conf"].replace("set $pixels 2284;", "set $pixels 2400;")
+    assert written.text == FILES["main.conf"].replace("@set $pixels 2284;", "@set $pixels 2400;")
     assert graph.save(writer) == []  # (5): saving twice writes once
 ```
 
 ```python
     read = next(d for d in leds.block or () if d.name == "max_count").values[0].chain[0]
     assert read.reference.text == "$pixels"
-    read.reference.replace_with_text("2400")  # (3)
+    read.reference.replace_with_text(vl.text("2400"))  # (3)
 ```
 
 Excerpts of `test_lists_files_variables_and_overrides_then_changes_pixels_itself_and_saves_only_main_conf` and
@@ -208,8 +208,8 @@ parameter, and its value is on the `use` line: `read.values[0].replaceWithText(.
     block = node.block
     assert block is not None
     [fps] = block.directives("fps")
-    fps.set("30hz")
-    block.insert_statements(list(block).index(fps) + 1, "brightness 0.8;")
+    fps.set(vl.text("30hz"))
+    block.insert_statements(list(block).index(fps) + 1, vl.text("brightness 0.8;"))
     assert "    fps 30hz;\n    brightness 0.8;\n    input_port pixels;" in doc.text
 ```
 
@@ -239,7 +239,7 @@ rendered tree: see [rendered-tree.md](rendered-tree.md#making-a-processor-loadin
 |---|---|---|---|
 | the root file | `root` | `root` | the file `load` was given |
 | every file read | `documents` | `documents` | by path: the root, then in first-read order; never shrinks |
-| overrides | `overrides` | `overrides` | by name, each as villanelle text; never saved |
+| overrides | `overrides` | `overrides` | by name, each as config text; never saved |
 | change an override | `setOverride(name, text)` | `set_override(name, text)` | see "Overrides" |
 | every place an include line is read | `edges()` | `edges()` | the line, the specs it gave, the files it matched |
 | what is not read yet | `unread()` | `unread()` | the edges naming a file not read yet (see "Reading files an edit added") |
@@ -276,11 +276,14 @@ A document's `block`, and every statement's block, holds **statements**, in orde
 | Kind | What it is | Its own members |
 |---|---|---|
 | `directive` | a directive | `name`, `values`, `block`, `rename(name)`, `set(text)` |
-| `extension` | a line a registered extension owns: an include line | `name`, `values`, `block`, `set(text)`, but no `rename` (the extension owns the name); its `values` are the path, its `block` its `set` lines |
-| `set` | `set $name value...;` | `variable`, `values`, `set(text)` |
-| `snippet` | `snippet name $param... { ... }` | `name`, `parameters`, `block` |
-| `use` | `use name value...;` | `snippetName`, `snippet`, `snippets()`, `values`, `set(text)` |
-| `unreadable` | a line that does not parse, a malformed `set`, `snippet` or `use`, or a second `set` (or `snippet`) of one name in one block | none |
+| `extension` | a line a registered extension owns, written `@` and its name: `@include "f.conf";` | `name` (`include`, without `@`), `values`, `block`, `set(text)`, but no `rename` (the extension owns the name); its `values` are the path, its `block` its `@set` lines |
+| `set` | `@set $name value...;` | `variable`, `values`, `set(text)` |
+| `snippet` | `@snippet name $param... { ... }` | `name`, `parameters`, `block` |
+| `use` | `@use name value...;` | `snippetName`, `snippet`, `snippets()`, `values`, `set(text)` |
+| `unreadable` | a line that does not parse, a malformed `@set`, `@snippet` or `@use`, a second `@set` (or `@snippet`) of one name in one block, or an `@name` no extension owns (E3008) | none |
+
+The first token decides the kind: a statement whose name starts with `@` is one of the last five, and any other is a
+directive, whatever its name (`use epoll;` is a directive named `use`).
 
 Every statement has `document`, `parent` (the statement whose block holds it), `place`, `text`, `copies()`,
 `replaceWithText(text)` and `remove()`. A block has `statements`, `directives(name?)`, `insertStatements(index,
@@ -318,12 +321,15 @@ A statement's `values` are **written values**, each with a `kind`:
 | `word` | `20hz` | none |
 | `string` | `"10.0.60.31"` | none |
 | `list` | `[1, 2]` | `items` |
-| `slice` | `c[1:2]` | `name`, `start`, `end` (a word or a reference; absent when not written) |
-| `index` | `c[0]` | `name`, `index` |
+| `slice` | `c[1~2]`, `$src[0~3]` | `name` (the slice name: a word or a reference), `start`, `end` (a word or a reference; absent when not written) |
+| `index` | `c[0]` | `name` (a word or a reference), `index` |
 | `reference` | `$pixels` | `name`, `declaration`, `resolutions()` |
 
 Every value has `text` (exactly as written), `place`, `statement`, `list` (the list it is an item of, if any),
-`replaceWithText(text)` and `remove()`.
+`set(text)`, `replaceWithText(text)` and `remove()`. `set(text)` replaces it with exactly one value and keeps the
+handle: the same object stays in its statement, now with the new text, and takes the new value's kind (`80` set to
+`[1, 2]` is a list afterwards; in Python its class changes too). `replaceWithText(text)` may write several values,
+and detaches the handle.
 
 ```python
 def value_kind(value: vl.WrittenValue) -> str:
@@ -333,16 +339,16 @@ def value_kind(value: vl.WrittenValue) -> str:
         case written.List(items):
             return f"list of {len(items)}"
         case written.Slice(name, start, end):
-            return f"slice {name} {start is not None} {end is not None}"
+            return f"slice {name.text} {start is not None} {end is not None}"
         case written.Index(name, index):
-            return f"index {name}[{index.text}]"
+            return f"index {name.text}[{index.text}]"
         case written.Reference(name):
             return f"reference {name}"
         case _:
             assert_never(value)
 ```
 
-`py/tests/test_written.py`, used by the same test, which reads `x w "s" [1, 2] c[1:2] c[0] $a;` as word w, string
+`py/tests/test_written.py`, used by the same test, which reads `x w "s" [1, 2] c[1~2] c[0] $a;` as word w, string
 "s", list of 2, slice c, index c[0], reference a. The written value classes come from `villanelle.written` only
 (`from villanelle import written`), so `from villanelle import *` never replaces `typing.List`.
 
@@ -392,8 +398,8 @@ in an include line's block wins over every `set` inside the files it splices in;
 `set`, never over a parameter. In the shared case `shadowed-next-first`, `main.conf` is
 
 ```conf
-include "f.conf" {
-    set $a 2;
+@include "f.conf" {
+    @set $a 2;
 }
 ```
 
@@ -405,23 +411,23 @@ A `use` line has the same pair for its snippet: `snippet` by where it is written
 ## Overrides
 
 An **override** is a value the program gives a variable without editing a file. `graph.overrides` holds them, by
-name, as villanelle text. `setOverride(name, text)` (Python: `set_override`) adds or changes one, and
+name, as config text. `setOverride(name, text)` (Python: `set_override`) adds or changes one, and
 `setOverride(name, undefined)` (Python: `None`) removes it, without a reload. An override has one variable object
 per name for the graph's life, so a program can hold on to it:
 
 ```ts
-    const { source, reads } = countingSource({ "main.conf": "set $a 0;\nx $a;\n" });
+    const { source, reads } = countingSource({ "main.conf": "@set $a 0;\nx $a;\n" });
     const processor = villanelle({ source });
-    const graph = await processor.load("main.conf", { overrides: { a: "1" } });
+    const graph = await processor.load("main.conf", { overrides: { a: text("1") } });
     const override = graph.variables("a").find((v) => v.kind === "override");
-    graph.setOverride("a", "2 3");
+    graph.setOverride("a", text("2 3"));
     expect(render(graph).block[0]?.values.map((v) => v.text)).toEqual(["2", "3"]);
     graph.setOverride("a", undefined);
     expect([...graph.overrides.keys()]).toEqual([]);
     expect(graph.variables("a").map((v) => v.kind)).toEqual(["set"]);
     expect(render(graph).block[0]?.values.map((v) => v.text)).toEqual(["0"]);
-    graph.setOverride("b", "9");
-    graph.setOverride("a", "4");
+    graph.setOverride("b", text("9"));
+    graph.setOverride("a", text("4"));
     expect([...graph.overrides.keys()]).toEqual(["b", "a"]);
     expect(graph.variables("a").find((v) => v.kind === "override")).toBe(override);
     expect(override?.wins()).toHaveLength(1);
@@ -443,7 +449,7 @@ the same as for a variable's `rename` (milestone 4):
     expect(refused("1 $b")).toEqual([["E2001", 0, 2]]);
     expect(refused('"\\q"')).toEqual([["E1005", 0, 0]]);
     expect(refused("")).toEqual([["E2001", 0, 0]]);
-    expect(() => graph.setOverride("a-b", "1")).toThrow(MisuseError);
+    expect(() => graph.setOverride("a-b", text("1"))).toThrow(MisuseError);
     expect(graph.overrides.get("a")).toBe("1");
 ```
 
@@ -452,14 +458,17 @@ changing nothing". `refused` calls `setOverride("a", text)` and gives each diagn
 
 ## Edits and their errors
 
-New values and statements are written as villanelle text, and only text: every edit below raises the language's own
-`TypeError` for anything else (a number, `null` / `None`, an array), naming the member and the parameter, before
-it changes anything. To write a plain string as villanelle text, use `quote` (below); to write a number, convert
-it first (`String(n)`, Python `str(n)`).
+New values and statements are written as **config text**, a type of its own (`ConfigText`: a branded string in
+TypeScript, a `NewType` in Python), made only by `quote(text)` and `text(raw)` (below). So `statement.set("8080")`
+is a type error the checker reports; write `statement.set(text("8080"))`. At run time every edit below raises the
+language's own `TypeError` for anything that is not a string (a number, `null` / `None`, an array), naming the
+member and the parameter, before it changes anything. To write a number, convert it first (`text(String(n))`,
+Python `vl.text(str(n))`).
 
 | Edit | On | Takes |
 |---|---|---|
 | `set(text)` | a directive, an include line, a `set` line, a `use` line, a `set` variable | values |
+| `set(text)` | a value | exactly one value; keeps the handle |
 | `replaceWithText(text)` | a value | values (in a list: items) |
 | `remove()` | a value | nothing |
 | `replaceWithText(text)` | a statement | zero or more statements |
@@ -472,34 +481,35 @@ it first (`String(n)`, Python `str(n)`).
 Every edit except a document's `replaceWithText` checks its text first, and **a refused edit changes nothing**:
 
 - A values text is parsed with the grammar's entry rule for it (spec 2.8): `valuesText` for a line's values,
-  `itemsText` for a list item (items separated by `,`), `boundText` for a slice bound (one whole number or
-  `$name`). Its first syntax error is the diagnostic; a `;` or a block in it is E2001 at that token. A line break is
+  `itemsText` for a list item (items separated by `,`), `valueText` for a value's `set` (exactly one value),
+  `boundText` for a slice bound (one whole number or `$name`), `sliceNameText` for a slice's name. A statement's
+  `set` given a text with no value must be given `""` (which clears the values): `set(text("# note\n"))` is E2001 at
+  0:0. Its first syntax error is the diagnostic; a `;` or a block in it is E2001 at that token. A line break is
   whitespace, so a values text may span lines. A comment the text ends in is E2001 at the text's end
   (`set("1 # note")` would write `port 1 # note;`, and the comment would swallow the `;`).
 - A name (`rename`, `setOverride`) that is not well formed is a misuse error, not a `BadTextError`: a directive name
-  must be one word that starts with a letter or `_ . / @ * ?`, and not `set`, `snippet`, `use` or an extension's name;
-  a variable name is letters, digits and `_`.
+  must be one word that starts with a letter or `_ . / * ?` (never a digit, `-` or `@`); any such word is allowed,
+  `use` and `include` among them; a variable name is letters, digits and `_`.
 - A statements text is read as a file; its syntax errors keep their codes. An empty text is zero statements.
 - Then the rules a file alone must keep are checked on the block the edit would make: a second `set` of a name in
-  one block (E5002), a second snippet of a name (E5005), a malformed `set`, `snippet` or `use` (E5009 to E5011). A
-  `set` left with no value, by `remove()` or `set("")`, is E5009.
-- `rename` takes one word. A name that would change what the line is (`set`, `snippet`, `use`, or a registered
-  extension's name), or renaming an include line, is E2001 at 0:0. A variable's new name must be letters, digits and
-  `_`, and must not make a second `set` of that name in its block (E5002).
+  one block (E5002), a second snippet of a name (E5005), a malformed `@set`, `@snippet` or `@use` (E5009 to E5011).
+  A `set` line left with no value, by `remove()` or `set(text(""))`, is E5009.
+- `rename` takes one word; an include line has no `rename`. A variable's new name must be letters, digits and `_`,
+  and must not make a second `set` of that name in its block (E5002).
 - An edit that adds an include line is allowed; its file is not read until `graph.read()` (below).
 
 A refused text throws **`BadTextError`**. Its `diagnostics` are placed in the text the edit was given (0-based line
 and column, as `parse` places them), with the same codes a load gives:
 
 ```ts
-    const graph = await load({ "main.conf": "set $a 1;\n" });
+    const graph = await load({ "main.conf": "@set $a 1;\n" });
     const [set] = graph.root.block.statements;
     if (set?.kind !== "set") throw new Error("not a set line");
     for (const text of ["1; x", "{", "", "\"open"]) {
-      expect(() => set.set(text), text).toThrow(BadTextError);
-      expect(graph.root.text).toBe("set $a 1;\n");
+      expect(() => set.set(text(given)), given).toThrow(BadTextError);
+      expect(graph.root.text).toBe("@set $a 1;\n");
     }
-    expect(set.text).toBe("set $a 1;");
+    expect(set.text).toBe("@set $a 1;");
 ```
 
 `ts/src/written/written.test.ts`, test "changes nothing when an edit's text is refused".
@@ -542,14 +552,14 @@ villanelle keeps the file's own layout; there is no formatter.
     const block = b.block;
     if (block === undefined) throw new Error("no block");
     const [a, c] = block.statements;
-    const made = block.insertStatements(1, "x 1;\ny 2;");
+    const made = block.insertStatements(1, text("x 1;\ny 2;"));
     expect(made.map((s) => s.text)).toEqual(["x 1;", "y 2;"]);
     expect(graph.root.text).toBe("b {\n    a 1;\n    x 1;\n    y 2;\n    # about c\n    c 3;\n}\n");
     expect(block.statements).toEqual([a, ...made, c]);
     expect(c?.text).toBe("# about c\n    c 3;");
-    expect(() => block.insertStatements(9, "z;")).toThrow(RangeError);
-    expect(() => block.insertStatements(0, "z {")).toThrow(BadTextError);
-    expect(block.insertStatements(0, "  ")).toEqual([]);
+    expect(() => block.insertStatements(9, text("z;"))).toThrow(RangeError);
+    expect(() => block.insertStatements(0, text("z {"))).toThrow(BadTextError);
+    expect(block.insertStatements(0, text("  "))).toEqual([]);
 ```
 
 `ts/src/written/edits.test.ts`, test "inserts before a statement and its comments, at an index, keeping other
@@ -562,13 +572,13 @@ the `$name` on its `set` or `snippet` line; the `$name`s that read it are left a
 them renamed too edits each of `variable.references()`:
 
 ```ts
-    const graph = await villanelle({ source: memorySource({ "main.conf": "set $a 1;\nsnippet s $p { x $p; }\ny $a;\n" }) }).load("main.conf");
+    const graph = await villanelle({ source: memorySource({ "main.conf": "@set $a 1;\n@snippet s $p { x $p; }\ny $a;\n" }) }).load("main.conf");
     const [set, snippet] = graph.root.block.statements as [ISetLine, ISnippetLine];
     const variable = set.variable;
     const [parameter] = snippet.parameters;
     variable.rename("b");
     parameter?.rename("q");
-    expect(graph.root.text).toBe("set $b 1;\nsnippet s $q { x $p; }\ny $a;\n");
+    expect(graph.root.text).toBe("@set $b 1;\n@snippet s $q { x $p; }\ny $a;\n");
     expect(set.variable).toBe(variable);
     expect(snippet.parameters[0]).toBe(parameter);
 ```
@@ -583,13 +593,13 @@ Every statement, value and variable is a **handle**: one object per written thin
 the same text, at its new place.
 
 ```ts
-    const graph = await load({ "main.conf": "set $a 1;\nb 2 3;\nc { d 4; }\n" });
+    const graph = await load({ "main.conf": "@set $a 1;\nb 2 3;\nc { d 4; }\n" });
     const body = graph.root.block;
     const [set, b, c] = body.statements as [ISetLine, IWrittenDirective, IWrittenDirective];
     const [two, three] = b.values;
     const d = c.block?.statements[0];
-    set.set("100 200");
-    expect(graph.root.text).toBe("set $a 100 200;\nb 2 3;\nc { d 4; }\n");
+    set.set(text("100 200"));
+    expect(graph.root.text).toBe("@set $a 100 200;\nb 2 3;\nc { d 4; }\n");
     expect(body.statements[0]).toBe(set);
     expect(body.statements[1]).toBe(b);
     expect(b.values[0]).toBe(two);
@@ -612,11 +622,11 @@ never reads stale text by mistake.
     const graph = await load({ "main.conf": "x 1;\n" });
     const [value] = graph.root.block.directives()[0]?.values ?? [];
     if (value === undefined) throw new Error("no value");
-    const [made] = value.replaceWithText("2");
+    const [made] = value.replaceWithText(text("2"));
     expect(made?.text).toBe("2");
     expect(value.kind).toBe("word");
     expect(() => value.text).toThrow(DetachedError);
-    expect(() => value.replaceWithText("3")).toThrow(DetachedError);
+    expect(() => value.replaceWithText(text("3"))).toThrow(DetachedError);
 ```
 
 Excerpt of `ts/src/written/written.test.ts`, test "detaches a replaced value: every member but kind throws
@@ -655,8 +665,8 @@ Every unsaved text stays, and no file is read twice:
     const processor = villanelle({ source, extensions: [include()] });
     const graph = await processor.load("main.conf");
     const [a] = graph.root.block.statements as [IWrittenDirective];
-    a.set("2");
-    const [line] = graph.root.block.addStatements('include "part.conf";');
+    a.set(text("2"));
+    const [line] = graph.root.block.addStatements(text('@include "part.conf";'));
     expect(line?.kind).toBe("extension");
     expect(graph.unread()).toHaveLength(1);
     expect(render(graph).block.map((d) => d.name)).toEqual(["a"]);
@@ -665,7 +675,7 @@ Every unsaved text stays, and no file is read twice:
 
     expect(await graph.read()).toEqual(["part.conf"]);
     expect(graph.unread()).toEqual([]);
-    expect(graph.root.text).toBe('a 2;\ninclude "part.conf";\n');
+    expect(graph.root.text).toBe('a 2;\n@include "part.conf";\n');
 ```
 
 Excerpt of `ts/src/written/edits.test.ts`, test "reads an include line an edit added once, keeps every unsaved
@@ -682,12 +692,12 @@ twice writes once. When the writer succeeds, each written document's `savedText`
 edit made while the writer ran stays unsaved.
 
 ```ts
-    const graph = await load({ "main.conf": 'include "p.conf";\nx 1;\n', "p.conf": "y 2;\n" });
+    const graph = await load({ "main.conf": '@include "p.conf";\nx 1;\n', "p.conf": "y 2;\n" });
     const writer = recorder();
     expect(await graph.save(writer)).toEqual([]);
     expect(writer.batches).toEqual([]);
     const p = graph.documents.get("p.conf");
-    p?.block.directives()[0]?.values[0]?.replaceWithText("3");
+    p?.block.directives()[0]?.values[0]?.replaceWithText(text("3"));
     expect(await graph.save(writer)).toEqual(["p.conf"]);
     expect(writer.batches).toEqual([[{ resolvedPath: "p.conf", text: "y 3;\n", savedText: "y 2;\n" }]]);
     expect(p?.savedText).toBe("y 3;\n");
@@ -736,18 +746,21 @@ names the file", `ts/src/node.test.ts`). The fetch writer, per file, `GET`s the 
 body, then sends the text with `If-Match` on the `GET`'s ETag, so a server that keeps ETags refuses a change made in
 between (`412`, a lost update). It stops at the first file that fails, so it is not all-or-nothing.
 
-## Writing a plain string: `quote`
+## Making config text: `quote` and `text`
 
-New values are villanelle text, so a string a program holds must be quoted first. `quote(text)` gives the same
-string text an expanded value has, with backslash, quote, newline, tab and carriage return escaped:
+New values are config text. `quote(text)` writes a string a program holds as a villanelle string, the same string
+text an expanded value has, with backslash, quote, newline, tab and carriage return escaped; `text(raw)` takes text
+already written in villanelle syntax (`text("8080 udp")`, `text("[1, 2]")`) as config text, unchanged, and the edit
+it is given checks it:
 
 ```ts
     expect(quote('10.0.60.31 "x"\n')).toBe('"10.0.60.31 \\"x\\"\\n"');
 ```
 
 `ts/src/written/written.test.ts`, test "quotes a plain string as the canonical villanelle string". In Python,
-`vl.quote` (`test_quote_writes_a_plain_string_as_the_canonical_villanelle_string`). `quote` takes text only too: a
-number is a `TypeError`.
+`vl.quote` (`test_quote_writes_a_plain_string_as_the_canonical_villanelle_string`). `quote` and `text` take text
+only too: a number is a `TypeError`. Nothing else makes config text: a value's or statement's `text` is plain text,
+so writing it into another edit takes `text(value.text)`.
 
 ## What is stored and what is worked out
 

@@ -68,8 +68,8 @@ in lowercase words; the TypeScript and Python spellings follow from the casing r
 | `reason` | why a statement copy could not be read (an unreadable expansion's); its list is `unreadable reason` | the rendered unreadable's `kind`, and the `unreadable kind` list |
 | `kind` | which variant of a closed list a thing is, and nothing else | (`kind` no longer holds a reason) |
 | `diagnostics` | the located problems, a property on the graph and on the render | `graph.diagnostics ()` (a method) |
-| `text` | the parameter of every member that takes new villanelle text | (mixed parameter names) |
-| `set (text)` | replace a statement's or a variable's values with `text` (owner: "Can "set_values" become simply "set"?"). Not the language's `set` keyword: it never makes a `set` line | `set values (text)` |
+| `text` | the parameter of every member that takes new villanelle text (typed `config text` since milestone 5) | (mixed parameter names) |
+| `set (text)` | replace a statement's or a variable's values with `text`, or (milestone 5) a written value with one value, keeping its handle (owner: "Can "set_values" become simply "set"?"). Not the language's `@set` statement: it never makes a `set` line | `set values (text)` |
 | `expanded value` | one value after expansion, with its readers and its links (`written`, `definition`, `chain`): what an extension use holds, a directive expansion's values, and a rendered directive's values (the same objects) | the rendered `argument`, which an extension use used to hold; since milestone 4 also `value expansion` and the `argument` family |
 | `render (graph)` | the rendered layer's free function that makes a graph's rendered tree; the low level has no render member | `processor.render (graph)` |
 | `read ()` | the graph's method that reads what `unread ()` names | `processor.read (graph)` |
@@ -129,8 +129,9 @@ same name (spec 2.10).
 | `expanded word`, `expanded string`, `expanded list`, `expanded slice`, `expanded index` | `IExpandedWord`, `IExpandedString`, `IExpandedList`, `IExpandedSlice`, `IExpandedIndex` | `ExpandedWord`, `ExpandedString`, `ExpandedList`, `ExpandedSlice`, `ExpandedIndex` |
 | `value kind` | `ValueKind` | `ValueKind` |
 | `slice value`, `index value` | `ISliceValue`, `IIndexValue` | `SliceValue`, `IndexValue` |
-| `plain value` | `PlainValue` | `PlainValue` |
 | `quote` (free function: a plain string as villanelle text) | `quote`, in `ts/src/text.ts` | `quote`, in `villanelle/_text.py`, exported from `villanelle` |
+| `text` (free function: plain text taken as config text, milestone 5) | `text`, in `ts/src/text.ts` | `text`, in `villanelle/_text.py`, exported from `villanelle` |
+| `config text` (milestone 5) | `ConfigText`, a branded string, in `ts/src/text.ts` | `ConfigText`, a `NewType` of `str`, in `villanelle/_text.py`, exported from `villanelle` |
 | errors (contract 4) | `VillanelleError`, `DiagnosticError`, `ReadError`, `SaveError`, `LostUpdateError`, `BadTextError`; outside the base `DetachedError`, `MisuseError` | the same, and `ValueError` for misuse |
 | `check lost updates` (free function, the io layer) | `checkLostUpdates` | `check_lost_updates` |
 
@@ -246,6 +247,21 @@ The low level's public entry is one module in each binding: `ts/src/written/inde
 
 Removed in milestone 4: `value expansion`, `argument` and its five variants, the rendered `unreadable`, `edit
 error`, and `statement` as the name of the link on a directive or unreadable expansion (now `written`).
+
+## New terms in milestone 5
+
+| Term | Definition | Why it is needed | Existing term it could be |
+|---|---|---|---|
+| `config text` (`ConfigText`) | villanelle text a program hands to an edit or an override, a type of its own, made only by `quote` or `text` | the owner picked "Yes, its own type" (2026-10-29, vil-umh.6): a plain string there is a type error | `text`, the parameter's name, which stays |
+| `text (raw)` | the free function that takes plain text as config text, unchanged | config text needs a second maker besides `quote` (owner: "made only by quote() or an explicit text(...)") | `quote`, which writes a string; `text` writes nothing |
+| raw string | a single-quoted string: its text exactly as typed, no escapes (TOML's literal string) | the owner said "yes" to single quotes as raw strings (vil-umh.14) | `string`: still the value kind `string`; only the spelling's rule differs |
+| slice name | the word or `$name` before a slice's `[` (grammar `sliceName`) | a variable may be subscripted (vil-umh.14: "yes") | a slice's `name`, which it is |
+| language statement, extension statement | a statement written `@name`: `@set`, `@snippet`, `@use`, or an extension's (`@include`) | the statements behind one sigil (vil-umh.14: "yes"); no directive name is reserved | the reserved words at a line's start |
+| `AT_WORD`, `TILDE` (token kinds) | a word that starts with `@`; the `~` between a slice's bounds | the grammar tells a statement's keyword from a directive's name, and the separator is outside the word alphabet | `WORD` (split); `COLON` (replaced) |
+| E3008 `unknown extension`, E4007 `bad slice name` | an `@name` no extension owns; a slice's `$name` that does not hold one word | the two new failures of `@` statements and subscripted variables | E3001 (a file not found), E4001 (a bound) |
+
+Removed in milestone 5: `plain` (the reader) and `plain value`; the `COLON` token kind; reserved directive names;
+escapes in a single-quoted string.
 
 ## New terms in milestone 3
 

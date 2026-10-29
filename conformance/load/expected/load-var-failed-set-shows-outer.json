@@ -1,1 +1,1 @@
-{"files":["main.conf"],"directives":[["b",true,"main.conf:1:0",[]],["b > x",false,"main.conf:3:2",[["1","main.conf:0:7 < variable a main.conf:3:4"]]]],"unreadable":[["b","expansion","main.conf:2:2"]],"diagnostics":[["E5001","main.conf:2:9"]]}
+{"files":["main.conf"],"directives":[["b",true,"main.conf:1:0",[]],["b > x",false,"main.conf:3:2",[["1","main.conf:0:8 < variable a main.conf:3:4"]]]],"unreadable":[["b","expansion","main.conf:2:2"]],"diagnostics":[["E5001","main.conf:2:10"]]}

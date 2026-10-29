@@ -32,7 +32,7 @@ This proposal does the same for the API's fixed lists.
 | Piece | From | Gives each binding |
 |---|---|---|
 | Kind lists | the schema's closed sets | TypeScript: a string-literal type per list. Python: a `StrEnum` per list. Go: a typed string and a `const` block. The values are the spec's lowercase words |
-| Per-kind type skeletons | statement, value, change and `plain` kinds, each mapped to the type it gives | TypeScript: the union members. Python: one class per kind with `__match_args__` in a fixed field order. Go: a sealed interface and one struct per kind. Bodies stay hand-written |
+| Per-kind type skeletons | statement, value and change kinds, each mapped to the type it gives | TypeScript: the union members. Python: one class per kind with `__match_args__` in a fixed field order. Go: a sealed interface and one struct per kind. Bodies stay hand-written |
 | Member signatures | each type's members (below) | the public-name check, and for a language with error values, which members return `(T, error)` and which take a context |
 | Diagnostic code registry | `diagnostics.json`: code, spec name, message, owning layer, found by, unreadable reason, placement rule, retired codes | the code constants, the message table, and the code table in [spec.md 2.4](spec.md#24-the-diagnostic-code-registry) |
 | Conformance tokens | the token-to-spec-name table of `conformance/written/format.md` | nothing since milestone 3: the driver maps the tokens to spec names once, and each adapter spells a spec name in its casing |

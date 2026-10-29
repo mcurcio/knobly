@@ -1,1 +1,1 @@
-{"tokens":[["WORD","x"],["SPACE"," "],["WORD","a"],["LBRACK","["],["DIGIT_WORD","1.5"],["COLON",":"],["INTEGER","2"],["RBRACK","]"],["SEMI",";"]],"cst":["document",0,9,[["error",0,9,[]]]],"diagnostics":[["E2007",0,4]]}
+{"tokens":[["WORD","x"],["SPACE"," "],["WORD","a"],["LBRACK","["],["DIGIT_WORD","1.5"],["TILDE","~"],["INTEGER","2"],["RBRACK","]"],["SEMI",";"]],"cst":["document",0,9,[["error",0,9,[]]]],"diagnostics":[["E2007",0,4]]}

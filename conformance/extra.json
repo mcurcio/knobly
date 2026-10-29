@@ -1,15 +1,15 @@
 [
 {
 "name": "glob-abs",
-"src": "include /*.conf;"
+"src": "@include /*.conf;"
 },
 {
 "name": "glob-rel",
-"src": "include *.conf;\n"
+"src": "@include *.conf;\n"
 },
 {
 "name": "glob-q",
-"src": "include conf.d/?x*.conf;"
+"src": "@include conf.d/?x*.conf;"
 },
 {
 "name": "glob-num",
@@ -21,7 +21,7 @@
 },
 {
 "name": "glob-slice",
-"src": "x a*[0:2];"
+"src": "x a*[0~2];"
 },
 {
 "name": "rec-block-error",
@@ -65,11 +65,11 @@
 },
 {
 "name": "rec-slice-empty",
-"src": "x a[:];\ny 1;"
+"src": "x a[~];\ny 1;"
 },
 {
 "name": "rec-slice-bad",
-"src": "x a[1:b c];\ny 1;"
+"src": "x a[1~b c];\ny 1;"
 },
 {
 "name": "rec-badchar",
@@ -121,7 +121,7 @@
 },
 {
 "name": "deep-ok",
-"src": "a { b { c { d [1, [2, e[0:1]]]; } } }"
+"src": "a { b { c { d [1, [2, e[0~1]]]; } } }"
 },
 {
 "name": "rec-junk-block-start",

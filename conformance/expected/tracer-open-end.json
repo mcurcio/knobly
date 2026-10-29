@@ -1,1 +1,1 @@
-{"tokens":[["WORD","connect"],["SPACE"," "],["WORD","hyperhdr_color"],["LBRACK","["],["INTEGER","144"],["COLON",":"],["RBRACK","]"],["SEMI",";"]],"cst":["document",0,8,[["directive",0,8,[["slice",2,7,[]]]]]],"diagnostics":[]}
+{"tokens":[["WORD","connect"],["SPACE"," "],["WORD","hyperhdr_color"],["LBRACK","["],["INTEGER","144"],["TILDE","~"],["RBRACK","]"],["SEMI",";"]],"cst":["document",0,8,[["directive",0,8,[["slice",2,7,[]]]]]],"diagnostics":[]}

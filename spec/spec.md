@@ -1,7 +1,9 @@
 # villanelle language-binding specification
 
 Status: this page is canonical (owner, 2026-10-27: "Within villanelle I want the spec to win over a
-reference language"). It describes the API after milestone 4 (beads vil-umh.1 to vil-umh.8 and vil-umh.12, the
+reference language"). It describes the API after milestone 5 (beads vil-umh.6, vil-umh.12 and vil-umh.14: raw single
+quotes, no `plain` reader, the `~` slice separator and subscripts on variables, `@` statements, a value's `set` that
+keeps its handle, config text as its own type) and milestone 4 (beads vil-umh.1 to vil-umh.8 and vil-umh.12, the
 round 15 review's next steps: `.claude/design/consumer-api/round15/`), built on milestone 2 (beads vil-0vz, vil-9fy,
 vil-5ya, vil-gxu): the words of
 [glossary.md](glossary.md), the operation homes and layer direction the owner settled on the
@@ -9,7 +11,8 @@ round 13 gate page (2026-10-29, 6.2), types that carry their kinds (2.10, round 
 layer built only on the low level's public members (6.10, 7.0), and the edge contract of
 [contract.md](contract.md) (round 13 root cause 4). The exact old-to-new tables are the milestones' frozen pages,
 `.claude/design/consumer-api/round14/frozen-m1.md` and `frozen-m2.md`; the bindings carry the older names until each
-milestone's binding work lands; milestone 4's old-to-new tables are `.claude/design/consumer-api/round15/frozen-m4.md`.
+milestone's binding work lands; milestone 4's and milestone 5's old-to-new tables are
+`.claude/design/consumer-api/round15/frozen-m4.md` and `frozen-m5.md`.
 Nothing here is locked: the owner approves API
 shapes ("Nothing is locked until I see user APIs that I like", 2026-10-27). A note marked
 **Proposed (pending owner)** is not agreed; it links to [review.md](../.claude/design/consumer-api/round13/review.md)
@@ -47,8 +50,8 @@ source of rules.
   nothing does.
 - "In order" lists are ordered as stated. When a list's order is stated, a binding MUST keep it:
   the conformance outputs depend on it.
-- "Text" means the language's string type. Values going into edits are villanelle text, and only
-  text (6.9).
+- "Text" means the language's string type. Values going into edits are `config text` (6.9): villanelle text in a
+  type of its own, made only by `quote` or `text`.
 - Error groups are named here (for example "misuse error"); which native class each group maps to
   is the binding's choice within the rules of 2.8 and the binding guide.
 
@@ -56,7 +59,7 @@ source of rules.
   the object the program holds, within that object's layer; going up a layer is a free function of
   the upper layer, `render (graph)` (7.0), because the low level never depends on the rendered layer
   (owner, 2026-10-29, round 13 question 1: "The low level shouldn't "depend on" the middle layer — they should have different domain objects. The middle layer of objects can build on the lower layer domains"). The other free
-  functions are pure helpers: `parse`, `span of` and `text of` (3.3), `quote` (6.9), `format
+  functions are pure helpers: `parse`, `span of` and `text of` (3.3), `quote` and `text` (6.9), `format
   diagnostic` (2.7), and the adapter and extension factories.
 
 The glossary ([glossary.md](glossary.md)), the schema ([schema/](schema/)) and the edge contract
@@ -108,8 +111,8 @@ The two bindings disagreed on a lone `"\r"` (TypeScript's `format diagnostic` cu
   binding.
 - A `step` is one expansion a directive or value went through: `kind` (one of the `step kind`
   list: `variable`, `use`, `extension`), `name` (the variable without `$`, the snippet, or the
-  extension directive) and `place` (the place of the `$name` token, the `use` keyword of the `use` line, or the
-  extension line's name), as the load cases print it (`use twinkle main.conf:4:9`).
+  extension's name without `@`, such as `include`) and `place` (the place of the `$name` token, the `@use` of the
+  `use` line, or the extension line's `@name`), as the load cases print it (`use twinkle main.conf:4:9`).
 - An `origin` is `place` (a place, or an override) plus `via` (steps, innermost first; empty when
   the text is read where it was written). For a value from a variable, `place` is the value in its
   `set` line (or the override) and `via[0]` is the `$name` that used it.
@@ -151,11 +154,11 @@ which also holds each code's message and owning layer; the schema wins.
 | E1001 | `unterminated string` | parse | syntax | A string reaches the end of its line or of the text without its closing quote. |
 | E1003 | `unexpected character` | parse | syntax | A character no token may start with, or a byte-order mark after the first character. |
 | E1004 | `lone dollar` | parse | syntax | A `$` not followed by a variable name. |
-| E1005 | `bad escape` | parse | syntax | A closed string holding a backslash escape other than the six (the `BAD_ESCAPE` error token), placed on the string. |
+| E1005 | `bad escape` | parse | syntax | A closed double-quoted string holding a backslash escape other than the six (the `BAD_ESCAPE` error token), placed on the string. A single-quoted string is raw: it has no escapes (milestone 5). |
 | E2001 | `unexpected token` | parse | syntax | A token the grammar does not allow here, when no more specific code applies: among them the end of the text or a `}` where a directive's `;` or block is due. |
 | E2003 | `expected closing brace` | parse | syntax | The text ends inside a block. |
 | E2004 | `expected closing bracket` | parse | syntax | A stray `]`, or a `[` list with no matching `]`. |
-| E2007 | `bad slice` | parse | syntax | A malformed slice after a word: `a[:]`, `a[1:b c]`, an unclosed slice, or a literal bound that is not an integer (`a[i]`, `a[1.5]`). |
+| E2007 | `bad slice` | parse | syntax | A malformed slice after a slice name (a word or a `$name`): `a[~]`, `a[1~b c]`, an unclosed slice, or a literal bound that is not an integer (`a[i]`, `a[1.5]`, `a[1:3]`, whose `1:3` is one word). |
 | E2009 | `values touch` | parse | syntax | Two values with nothing between them, such as `a"b"`. |
 | E2010 | `nesting too deep` | parse | syntax | Blocks and lists nested deeper than 100 levels. |
 | E3001 | `include not found` | load, read | extension | An extension's spec matched no file. |
@@ -163,8 +166,10 @@ which also holds each code's message and owning layer; the schema wins.
 | E3005 | `include bad path` | include extension | extension | An `include` whose values are not exactly one quoted path. |
 | E3006 | `extension failed` | load, read | extension | An extension threw something other than a diagnostic error, or returned something other than a list of texts. |
 | E3007 | `unread copy` | low level | unread | An extension line's copy whose specs are not resolved or whose files are not read yet (it is in `unread ()`); `read ()` reads them. Placed on the extension line's name. |
+| E3008 | `unknown extension` | low level | extension | A statement written `@name` where `name` is no language statement (`set`, `snippet`, `use`) and no registered extension's name (milestone 5). Placed on the `@name`; the statement is an `unreadable line`. |
 | E4001 | `non-integer bound` | low level | value | A slice or index bound reached through a variable that is not one integer word, or a literal integer beyond the integer range. |
 | E4002 | `wrong value kind` | readers | none | A reader asked for a kind the value is not. |
+| E4007 | `bad slice name` | low level | value | A slice or index whose name is a `$name` that does not hold exactly one word (`$src[0~3]` with `$src` a string, a list or two values); placed as E4001 is (milestone 5). |
 | E4004 | `not a number` | readers | none | A word read as a number that is not a JSON number. |
 | E4005 | `not an integer` | readers | none | A word read as an integer that is not one. |
 | E4006 | `not a boolean` | readers | none | A word other than `true` or `false`, read as a boolean. |
@@ -176,10 +181,10 @@ which also holds each code's message and owning layer; the schema wins.
 | E5006 | `expansion cycle` | low level | expansion | A `use` or extension line that reaches itself again. |
 | E5007 | `expansion too deep` | low level | expansion | `use` and extension lines nested deeper than 16. |
 | E5008 | `too many directives` | low level | expansion | More than 100,000 directives after expansion. |
-| E5009 | `bad set` | low level | expansion | A `set` that is not `set $name value...;`. |
-| E5010 | `bad snippet` | low level | expansion | A malformed `snippet`, or one naming a parameter twice. |
-| E5011 | `bad use` | low level | expansion | A `use` that is not `use name value...;`. |
-| E5012 | `extension block not set` | low level | extension | An extension line whose block holds a line other than `set`. |
+| E5009 | `bad set` | low level | expansion | A `set` line that is not `@set $name value...;`. |
+| E5010 | `bad snippet` | low level | expansion | A malformed `snippet` line (`@snippet name $p... { ... }`), or one naming a parameter twice. |
+| E5011 | `bad use` | low level | expansion | A `use` line that is not `@use name value...;`. |
+| E5012 | `extension block not set` | low level | extension | An extension line whose block holds a line other than `@set`. |
 
 Every code but the readers' is in the one diagnostics list: the `document graph`'s `diagnostics` (6.3), which the
 `expansion` and the `rendered` tree show unchanged (6.10, 7.1). "Low level" codes are found when the list is worked
@@ -208,8 +213,12 @@ A copy of `limits` and `reserved names` in [schema/api.json](schema/api.json).
 - Nesting of blocks and lists: at most 100 levels (E2010).
 - Nesting of `use` and extension lines: at most 16 (E5007).
 - Directives after expansion: at most 100,000 (E5008).
-- Reserved at a line's start: `set`, `snippet`, `use`, and the directive name of every registered
-  extension.
+- **No directive name is reserved** (milestone 5; owner, 2026-10-29, bead vil-umh.14: "yes" to language
+  statements behind one sigil). A statement written `@name` is a language statement (`@set`, `@snippet`, `@use`) or
+  an extension statement (`@include`); a directive's name is a `WORD` token, which never starts with `@` (3.1). So
+  `events { use epoll; }` is a plain directive `use`.
+- Reserved names: `set`, `snippet` and `use`, the language statements' names. No extension may take one (5); an
+  extension's name is otherwise any word the `nameText` entry rule takes.
 
 ### 2.6 Diagnostic error
 
@@ -256,7 +265,7 @@ The groups fall into **two sorts**, decided here once (round 15, vil-umh.7):
 | `save error` | outcome | the writer rejected; `paths`, the writer's failure as the cause | `SaveError` | `SaveError` |
 | `lost update error` | outcome, a `save error` | a file the save would write changed since it was read or last saved (4.2); `paths`, only the conflicting files | `LostUpdateError` | `LostUpdateError` |
 | `detached error` | bug | a member of a detached handle was used | `DetachedError`, extends `ReferenceError` | `DetachedError`, subclass of `ReferenceError` |
-| `argument type error` | bug | an argument of the wrong type: an edit, `quote`, `set override` or a `load` override given anything but text (6.9); `save` given something that is not a document writer; a key rule that returns anything but text or absent (7.4) | `TypeError` | `TypeError` |
+| `argument type error` | bug | an argument of the wrong type: an edit, `quote`, `text`, `set override` or a `load` override given anything but text (6.9); `save` given something that is not a document writer; `render` given something that is not a document graph (7.0); a key rule that returns anything but text or absent (7.4) | `TypeError` | `TypeError` |
 | misuse error | bug | a bad argument value a program could have checked: **every bad name** (below), a program code without `/`, a reserved or repeated extension name | `MisuseError`, extends `Error` | `ValueError` |
 | index out of range | bug | an insert index outside a block; a token range outside a parse (3.3) | `RangeError` | `IndexError` |
 
@@ -271,10 +280,13 @@ handle, edits included, before any other check.
 
 **Every bad name is a misuse error**, through one check per kind of name, the same from every member that takes
 one (vil-umh.7): a variable or override name that does not match the `variable name` pattern (`load`'s `overrides`,
-`set override`, a variable's `rename`); a directive name the grammar's `nameText` entry rule refuses (a name that
-is not one word, or starts with a digit or `-`), or one that is reserved or a registered extension's name (a
-directive's `rename`). A name that is well formed but collides with a line already there (a variable `rename`
-that would make a second `set` of a name in its block, E5002) is a `bad text error`: the document decides it.
+`set override`, a variable's `rename`); a name the grammar's `nameText` entry rule refuses (a name that is not one
+`WORD`: not one word, or a word that starts with a digit, `-` or `@`), for a directive's `rename` and for an
+extension's name at `make processor` (5); and an extension name that is reserved (2.5) or already taken. Since
+milestone 5 no directive name is reserved (2.5): a directive may be renamed `use` or `include`, and `rename ("@set")`
+is refused by `nameText` alone. A name that is well formed but collides with a line already there (a variable
+`rename` that would make a second `set` of a name in its block, E5002) is a `bad text error`: the document decides
+it.
 
 **`bad text error`** has `diagnostics`: a list of syntax-layer `diagnostic`s (2.3) whose spans
 count from the start of the text the edit was given (0-based lines, columns in the binding's string unit), never
@@ -282,9 +294,15 @@ from the document. Its message is built from them: a summary, then each diagnost
 `; ` (Python `str (error)`, TypeScript `error.message`): `bad text: 1:2: E2001: unexpected token: ";"`. It never
 shows text the program did not give.
 
-**Entry rules** (vil-umh.3). Every check of a given text that depends only on the text is the grammar's: a binding
-parses the text with the entry rule of [grammar/Villanelle.g4](../grammar/Villanelle.g4) the table names, with the
-generated parser, never by splicing it into a probe document and never with a scanner of its own. The entry rule's
+**Entry rules** (vil-umh.3). Every check of a given text's **shape** (which tokens it may hold and in what order) is
+the grammar's: a binding parses the text with the entry rule of [grammar/Villanelle.g4](../grammar/Villanelle.g4) the
+table names, with the generated parser, never by splicing it into a probe document and never with a scanner of its
+own. What a text **means** is checked after that, on the entry rule's tree, by the **text-alone rules** of this page,
+each with one home here: the statement rules E5002, E5005 and E5009 to E5011 (6.5), the rule that a values text with
+no value is empty (below), and the override's two rules (6.3: no `$name`, at least one value). (Milestone 5, the
+milestone 4 leftover: these were called checks of the grammar, though the override's rules and the statement rules
+are not shapes. An `overrideText` entry rule would need a second, variable-free copy of the value rules in the
+grammar, a second home for them, so the rule here is reworded instead.) The entry rule's
 diagnostics are its parse's first error, coded as in a document (2.4: E1xxx for an error token, E2004, E2007,
 E2009, else E2001) and placed at the offending token, or at the end of the text when the text ends too soon. Which
 codes each edit checks, and where it places them:
@@ -292,9 +310,11 @@ codes each edit checks, and where it places them:
 | Edit | Codes | Placed at |
 |---|---|---|
 | `replace with text`, `insert statements`, `add statements` (statements) | the `statementsText` entry rule (so a byte-order mark is refused: it is allowed only at the start of a document); then the text-alone rules (E5002, E5005, E5009, E5010, E5011) for every statement the new text touches, checked in the document as it would be after the edit | the syntax diagnostic's span; a rule's fault at its place in the given text, or 0:0 when the fault lies in a statement already there (a `set` inserted before an existing `set` of the same name) |
-| `replace with text` (a value that is not a list item), `set` | the `valuesText` entry rule (so a `;`, a block, or a comment the text ends in is refused), then the same text-alone rules | the entry rule's diagnostic; as above |
+| `replace with text` (a value that is not a list item), `set` (a statement, a `set variable`) | the `valuesText` entry rule (so a `;`, a block, or a comment the text ends in is refused); then, for `set`, a text with no value MUST be empty (E2001 at 0:0: `set ("")` clears the values, `set ("# c\n")` and `set ("\n")` are refused, milestone 5); then the same text-alone rules | the entry rule's diagnostic; as above |
 | `replace with text` (a list item) | the `itemsText` entry rule (values separated by `,`, no trailing `,`), then the same text-alone rules | as above |
-| a slice bound's `replace with text` | the `boundText` entry rule: exactly one integer word or `$name` | the entry rule's diagnostic (E2001 at 0:0 for anything else) |
+| `set` (a written value that is not a slice's bound or name, list items included, milestone 5) | the `valueText` entry rule: exactly one value (so `"1 2"` is refused at the `2`, and `""` at 0:0), then the same text-alone rules | the entry rule's diagnostic; as above |
+| a slice or index bound's `set` or `replace with text` | the `boundText` entry rule: exactly one integer word or `$name` | the entry rule's diagnostic (E2001 at 0:0 for anything else) |
+| a slice or index name's `set` or `replace with text` (milestone 5) | the `sliceNameText` entry rule: exactly one word that may name a slice (a `WORD` or `AT_WORD`) or a `$name` | the entry rule's diagnostic |
 | `set` on a `set line` with empty text; `remove` of a `set` line's last value | E5009 | 0:0 (of an empty text) |
 | `rename` (a directive) | none: a bad name is a misuse error (above); an extension line has no `rename` | |
 | `rename` (a variable) | E5002 when it would make a second `set` of a name in its block (a bad name is a misuse error) | 0:0 |
@@ -316,6 +336,13 @@ break follows is allowed (`"1 # c\n"` writes `port 1 # c\n;`). Earlier problems 
 its first error (`"1; # c"` at its `;`). Cases: `set-comment`, `set-line-comment`, `value-replace-comment`,
 `list-item-replace-comment`, `set-override-comment`, `set-comment-line-break`, `set-comment-in-list`,
 `set-comment-after-line-break`, `set-comment-after-semicolon`, `set-comment-after-syntax-error`.
+
+**A values text with no value** (milestone 5, the milestone 4 leftover; a design call the owner may revise). A
+statement's `set (text)` with a text that holds no value MUST be given empty text: `set ("")` clears the values
+(`port 80;` becomes `port;`), and any other text with no value, a comment or a line break alone, is a `bad text
+error` E2001 at 0:0 (`set ("# c\n")` wrote `a # c\n;`, a directive whose only content is a comment, before). On a
+`set line` an empty text stays E5009. An override with no value was already refused (6.3). Case:
+`set-comment-only-refused`.
 
 A `diagnostic error`, `read error`, `save error` and `lost update error` have the fields of 2.6, 4.2 and 6.8.
 
@@ -355,8 +382,11 @@ handles:
   is the value itself, which is also its `definition`. Never absent. Editing it edits that one written line and no
   other (`replace with text` on that `$pixels` unbinds it from the variable), but every copy of the line shares it:
   a file included twice has one line read in both copies (`statement`'s `copies ()`, 6.5), so the edit shows in
-  both. To change one copy only, edit what that copy is given (its include block's `set` line, at the include step
-  of `chain`).
+  both. A written value's `set (text)` keeps the handle (6.1, 6.6), so a loop over a render that edits each copy's
+  `written` meets the shared handle twice and both edits succeed, the second writing the same text again (owner,
+  2026-10-29: "the natural loop should work. i figured that they were references anyway, so both nodes essentially
+  held the same pointer and editing either was fine"). To change one copy only, edit what that copy is given (its
+  include block's `set` line, at the include step of `chain`).
 - `definition`: the written value at the **end of the chain** (for `$pixels`, the `2284` in its `set` line); absent
   for an override. Editing it changes every use.
 - `chain`: one `reference resolution` per variable step of `origin.via`, from the value's own line toward where it
@@ -365,8 +395,9 @@ handles:
 An `expanded list`'s `items` are expanded values, each with its own links.
 
 **Canonical text** (the same bytes in every binding): a word as written; a string as `"`, its
-decoded text with `\`, `"`, newline, tab and carriage return escaped, then `"`; a slice
-`name[start:end]` (either side may be empty) and an index `name[i]` with decimal integers; a list
+decoded text with `\`, `"`, newline, tab and carriage return escaped, then `"` (a single-quoted string's text is
+its raw text, so `'C:\new'` is `"C:\\new"`); a slice `name[start~end]` (either side may be empty) and an index
+`name[i]` with decimal integers, `name` the word the slice's name holds; a list
 `[`, its items' texts joined by `, `, then `]`. Comments and line breaks are never part of it. Two
 values are the same exactly when their texts are equal: a language with an equality operator that a type defines
 MUST make it compare the texts (Python `==` and `hash ()` on `text`, vil-umh.12; before milestone 4 Python compared
@@ -385,14 +416,16 @@ the user wrote a word, and the user gets a located E4002. Everything else about 
 | `boolean` | the word `true` or `false` | E4002, E4006 |
 | `list` | a list's items, each an expanded value with its own origin and links; the same as the list variant's `items` | E4002 |
 | `slice` | a `slice value` (`name`, optional `start`, optional `end`) or an `index value` (`name`, `index`) | E4002 |
-| `plain` | any value by one rule: a string is its text; a word is a number if it spells one, a boolean if `true`/`false`, else its text; a list is its items read the same way; a slice or index is its value | never |
 | `error (message, code)` | a `diagnostic error` placed on this value; for an override, on the `$name` that used it | misuse error for a code without `/` |
 
 Quoting means text: `"8080"` and `"true"` are strings. Only a bare word is read as a number or a
-boolean.
+boolean, and only when the program asks: a word is untyped until a reader decides what it is. There is no reader
+that guesses (milestone 5 deletes `plain`; owner, 2026-10-29: "agreed. the raw strings are raw/plain/tokens until
+some schema-aware layer decides "this one is a number" or "this is a string""). The typed readers stay, since they
+are the program deciding.
 
 The readers' names are the spec words in each binding's casing, and nothing else (vil-gxu): `word`, `string`,
-`number`, `integer`, `boolean`, `list`, `slice`, `plain`, in Python as in TypeScript. (Before milestone 2, Python
+`number`, `integer`, `boolean`, `list`, `slice`, in Python as in TypeScript. (Before milestone 2, Python
 spelled them `as_word` ... `as_slice`, and the list reader was `items ()`; `items` is now the list variants'
 property, the same shape as the written `list`'s `items`, 6.6.) In Python, inside a class body that defines `list`
 or `slice`, annotate the builtins as `builtins.list` and `builtins.slice`, as for `set` (6.5).
@@ -405,17 +438,13 @@ at the edges (zero, beyond 2^53-1, beyond the double range) in [contract.md 3](c
   `8080`, `0.5`, `-1`, `1e3` and `1.0` are numbers; `+1`, `007`, `.5`, `1.` and `20hz` are not.
   `number` returns an IEEE 754 double (TypeScript `number`; Python `int` when the word has no
   fraction or exponent and lies within ±(2^53-1), else `float`, so both read the same value).
-- A number word whose value is beyond the double range (`1e400`) is not a number (E4004); `plain` reads it as
-  text. No reader returns negative zero: `-0` reads as `0` ([contract.md 3](contract.md#3-numbers)).
+- A number word whose value is beyond the double range (`1e400`) is not a number (E4004). No reader returns
+  negative zero: `-0` reads as `0` ([contract.md 3](contract.md#3-numbers)).
 - An integer word is `-?(0|[1-9][0-9]*)` whose value lies within ±(2^53-1) (the range a double holds
   exactly). `1.0`, `1e3`, `+1` and `007` are not integers; `9007199254740992` is not either (E4005).
   `integer` returns a whole number; a binding MAY use a 64-bit integer type, since every value fits.
-- Slice and index bounds are integer words, or E4001.
-
-**`plain`'s results** are a closed set: text (from a string, or a word that is neither a number nor
-a boolean), a number (as `number` returns it), a boolean, a list of `plain` results, a `slice
-value`, an `index value`. A language without union types models it as a closed sum type (in Go, a
-sealed interface with one type per member).
+- Slice and index bounds are integer words, or E4001. A slice's or index's name through a variable is one word,
+  or E4007.
 
 ### 2.10 Closed lists and variants
 
@@ -466,15 +495,33 @@ Read-only, one text at a time, no I/O. Covered by the syntax conformance cases (
 
 - A `token` has `kind` (from the `token kind` list), `text` and `span`.
 - `token kind` values are the token names of `grammar/Villanelle.g4`: `BOM`, `SPACE`, `NEWLINE`,
-  `COMMENT`, `VARIABLE`, `WORD`, `INTEGER`, `DIGIT_WORD`, `STRING`, `LBRACE`, `RBRACE`, `LBRACK`, `RBRACK`, `SEMI`,
-  `COMMA`, `COLON`, and the error tokens `UNTERMINATED_STRING`, `BAD_ESCAPE`, `LONE_DOLLAR`, `BAD_CHAR`. The grammar
-  is the one source of these names.
-- A bare word is one of three tokens (milestone 4): `WORD` starts with a letter or one of `_ . / @ * ?` (the only
-  word a directive name or the name before a slice can be); `INTEGER` is `-?(0|[1-9][0-9]*)` (`IntegerText`, the
-  only literal slice or index bound); `DIGIT_WORD` is every other word that starts with a digit or `-` (`1.5`,
-  `20hz`, `007`, `-x`, `-`). All three are the value kind `word` (6.6, 2.9).
-- A `STRING` holds only the six escapes `\\ \" \' \n \t \r`; a closed string with any other is one `BAD_ESCAPE`
-  token (E1005).
+  `COMMENT`, `VARIABLE`, `WORD`, `AT_WORD`, `INTEGER`, `DIGIT_WORD`, `STRING`, `LBRACE`, `RBRACE`, `LBRACK`,
+  `RBRACK`, `SEMI`, `COMMA`, `TILDE`, and the error tokens `UNTERMINATED_STRING`, `BAD_ESCAPE`, `LONE_DOLLAR`,
+  `BAD_CHAR` (21 kinds). The grammar is the one source of these names. (Milestone 5: `AT_WORD` and `TILDE` are new,
+  `COLON` is gone.)
+- A bare word is one of four tokens: `WORD` starts with a letter or one of `_ . / * ?` (the only word a directive
+  name can be); `AT_WORD` is `@` and the word characters after it (`@set`, `@include`, `@daily`: the keyword of a
+  language or extension statement at a statement's start, 6.5, and a plain word anywhere else); `INTEGER` is
+  `-?(0|[1-9][0-9]*)` (`IntegerText`, the only literal slice or index bound); `DIGIT_WORD` is every other word that
+  starts with a digit or `-` (`1.5`, `20hz`, `007`, `-x`, `-`, `07:30`). All four are the value kind `word` (6.6,
+  2.9). After its first character every word may hold letters, digits and `_ . / @ # + : * ? -`: so `:` is a word
+  character in every word (`07:30`, `00:1a:2b:3c:4d:5e`, `127.0.0.1:3000`), and a word cannot start with `:`
+  (`:80` is E1003 at the `:`). Milestone 5 (owner, 2026-10-29, bead vil-umh.14: "yes" to a slice separator outside
+  the word alphabet); before it `:` was the slice separator and could not follow a digit word's digits.
+- A slice or index is a **slice name** touching `[`, its bounds, then `]` (grammar `slicedWord : sliceName '['
+  bounds ']'`). The slice name is a `WORD`, an `AT_WORD` or a `VARIABLE` (milestone 5: a variable may be
+  subscripted wherever a name can stand, a snippet's parameter included, `$src[0~3]`). The separator between two
+  bounds is `~`, the `TILDE` token: `name[1~3]`, `name[~3]`, `name[1~]`, and `name[1]` is an index. The owner's
+  proposed spelling `..` cannot lex next to number-like words: `..` is already a `WORD` (`../conf`), and longest
+  match reads `1..3` as one `DIGIT_WORD`, so a `..` token would overlap `WORD` (`tools/g4overlap.py` reports
+  `WORD / DOTDOT`). `~` is the closest spelling outside the word alphabet that reads as a range; a `~` anywhere but
+  between a slice's bounds is E2001 (it was `BAD_CHAR`, E1003). The cost: `~` can never be a word character
+  (`~/conf` must be quoted).
+- A double-quoted `STRING` holds only the six escapes `\\ \" \' \n \t \r`; a closed double-quoted string with any
+  other is one `BAD_ESCAPE` token (E1005). A **single-quoted** string is raw (TOML's literal string; owner,
+  2026-10-29, bead vil-umh.14: "yes"): its text is exactly what is typed between the quotes, a backslash is a plain
+  character, and it cannot hold `'`, a line break or a control character (`'C:\new'` is the text `C:\new`; `'x\'`
+  is the text `x\`). Its unterminated form runs to the end of the line (E1001).
 - The tokens of one parse MUST be contiguous and in source order, and their texts joined MUST equal
   the input exactly, for valid and broken input alike. There is no end-of-file token. No token's
   text is empty, and each token's text length equals its span's length.
@@ -506,7 +553,8 @@ Read-only, one text at a time, no I/O. Covered by the syntax conformance cases (
 
 `diagnostics` MUST be empty exactly when the input is in the grammar's language.
 
-The grammar's entry rules `valuesText`, `itemsText`, `boundText` and `nameText` (2.8) are parsed with the same
+The grammar's entry rules `statementsText`, `valuesText`, `valueText`, `itemsText`, `boundText`, `sliceNameText` and
+`nameText` (2.8) are parsed with the same
 generated parser and the same recovery and codes. They are not part of the syntax layer's public API: the edits
 and the check of an override call them.
 
@@ -595,8 +643,10 @@ place. It is not part of the core; a program turns it on when it makes the proce
 pure, and the low level is the one owner of expansion. (Before milestone 4 they sat in the io layer, beside the
 ports that do I/O.)
 
-- An extension has `directive` (the name it owns) and `specs (extension use)`, which returns the
-  specs for one use, in splice order. It MUST be pure: the load resolves and reads the specs, parses
+- An extension has `directive` (the name it owns, without `@`: `include`) and `specs (extension use)`, which
+  returns the specs for one use, in splice order. A line uses the extension when it is written `@` and that name
+  (`@include "f.conf";`), never by the bare name: since milestone 5 `include "f.conf";` is a plain directive named
+  `include`, whatever extensions are registered, and an `@name` no extension owns is E3008. It MUST be pure: the load resolves and reads the specs, parses
   each file once, applies the use's block of `set` lines to the spliced files, and enforces depth,
   cycles and limits.
 - An `extension use` has `values` (the line's values, expanded, as `expanded value`s, 2.9: each one of the five
@@ -612,8 +662,9 @@ ports that do I/O.)
   is called; the specs are resolved and read (4.1); cycle (E5006) and depth (E5007) are checked.
   A line that stops before `specs` is never handed to the extension and names no file, so nothing is
   resolved or read for it and its `document edge` has empty `specs` and `targets`.
-- Making a processor MUST refuse, with a misuse error, an extension whose name is reserved (2.5) or
-  already taken by another extension.
+- Making a processor MUST refuse, with a misuse error, an extension whose name is reserved (2.5: `set`, `snippet`,
+  `use`), already taken by another extension, or not a name the `nameText` entry rule takes (so `@` and the name are
+  one `AT_WORD`; milestone 5).
 
 **Layer direction** (owner, 2026-10-29: "The low level shouldn't "depend on" the middle layer — they should have different domain objects. The middle layer of objects can build on the lower layer domains"). Nothing below the rendered layer imports, names or
 returns a rendered type: an `extension use` holds the low level's `expanded value`s (2.9), the graph has no
@@ -625,9 +676,9 @@ other in a cycle (Go, Rust) can keep each layer in its own package or crate.
 
 ### 5.1 The include extension
 
-`include "path";` or `include "path" { set $name value; }`. The one value MUST be a quoted path or
+`@include "path";` or `@include "path" { @set $name value; }`. The one value MUST be a quoted path or
 glob. Otherwise E3005, placed on the first value when it is not quoted, else on the second value,
-else (no value at all) on the word `include`. Matching files are spliced in the order of 4.1. What an included
+else (no value at all) on the `@include`. Matching files are spliced in the order of 4.1. What an included
 file sees, and where its own `set` and `snippet` lines are visible, is [expansion.md](expansion.md) 3, 4 and 7.
 
 ## 6. Low level: the config as written
@@ -655,7 +706,7 @@ is which files were read.
 **Which handles an edit keeps.** Every text edit replaces one range of one document's text. A
 handle survives when its tokens lie wholly outside that range, or strictly contain it (a block's
 statement survives an insert into the block); a handle whose tokens start inside the range
-detaches, except the one a `rename` keeps. Values, statements and parameters inside a detached
+detaches, except the one a `rename` or a value's `set` keeps. Values, statements and parameters inside a detached
 statement detach with it. Per edit:
 
 | Edit | Range replaced | Survives although its tokens are touched | Detaches | Returns |
@@ -664,12 +715,28 @@ statement detach with it. Per edit:
 | statement `remove` | the same, plus its line when nothing else is on it | | it and everything in it | nothing |
 | `insert statements`, `add statements` | an empty range at the insert point | | nothing | the new statements, in order |
 | `set` (any statement) | its first value to its last (an empty range after the name when it has none) | the statement | every old value of it | nothing |
+| value `set` (milestone 5) | the value | the value itself, and its statement and list | its old items, bounds and name | nothing |
 | value `replace with text` | the value | its statement and list | it and its items or bounds | the new values, in order |
 | value `remove` | the value and one separator | its statement and list | it and its items or bounds | nothing |
 | directive `rename` | the name token | the directive | nothing | nothing |
 | variable `rename` | the `$name` token in its `set` line or snippet | the variable and its line | nothing; references elsewhere keep their handles and are re-bound by name | nothing |
 | document `replace with text` | the whole text | the document | every other handle into it | nothing |
 | `set override` | no text | | nothing | nothing |
+
+**A value's `set` keeps its handle** (milestone 5, the rest of bead vil-umh.12; owner, 2026-10-29: "the natural loop
+should work. i figured that they were references anyway, so both nodes essentially held the same pointer and editing
+either was fine"). `set (text)` on a written value replaces it with exactly one value (the `valueText` entry rule,
+2.8) and edits in place: the same object stays in its statement's `values` (or its list's `items`, or as its slice's
+bound or name), now holding the new text. When the new value is of another kind (`$pixels` set to `2400` is a
+`reference` that becomes a `word`; `80` set to `[1, 2]` becomes a `list`), the handle takes the new kind: its `kind`
+and its type are the new kind's (TypeScript: the same object reports the new `kind`; Python: the object's class
+becomes the new kind's class, as the state pattern does with `__class__` assignment, Python Cookbook recipe 8.19).
+Its old items, bounds or name detach; its new ones are new handles. Setting it again, through any copy that shares
+it, writes again and raises nothing. Prior art: the DOM's `textContent` and lxml's `element.text`, edits that keep
+the node; a spreadsheet cell, which keeps its identity whatever kind of value it holds. Costs: in TypeScript a
+variable narrowed on `kind` before the edit is stale after it (a program narrows again); in Python the six value
+classes share one layout so the class can change. `replace with text` keeps its meaning (it may write several
+values and detaches the handle).
 
 An override variable is never detached: after `set override` removes its name it is no longer listed
 by `variables ()` and resolves nowhere, and it is the same object again if the name is overridden
@@ -694,8 +761,8 @@ first picked "B graph.render()", then clarified: "The low level shouldn't "depen
 
 | Spec name | Inputs | Output | Errors |
 |---|---|---|---|
-| `make processor` | `source` (a document source), `extensions` (optional, in order) | a `processor` | misuse error for a reserved or repeated extension name |
-| `load` | root `path`; option `overrides` (name without `$` to villanelle text, in order) | a `document graph` | `read error` (with `paths`, the root path given) when the source cannot resolve the root to exactly one file or cannot read it; misuse error for a bad override name (not letters, digits and `_`: the one name check, 2.8); `argument type error` for an override that is not text; `bad text error` for an override's text the check of an override refuses (6.3). Never fails for anything in the files' text. |
+| `make processor` | `source` (a document source), `extensions` (optional, in order) | a `processor` | misuse error for a reserved, repeated or malformed extension name (5) |
+| `load` | root `path`; option `overrides` (name without `$` to `config text`, in order, 6.9) | a `document graph` | `read error` (with `paths`, the root path given) when the source cannot resolve the root to exactly one file or cannot read it; misuse error for a bad override name (not letters, digits and `_`: the one name check, 2.8); `argument type error` for an override that is not text; `bad text error` for an override's text the check of an override refuses (6.3). Never fails for anything in the files' text. |
 
 - `load` resolves the root path through the source as an included file's spec is, so the root has
   one path in the graph. It reads every file that extension lines name, once each, repeating until
@@ -722,7 +789,7 @@ first picked "B graph.render()", then clarified: "The low level shouldn't "depen
 |---|---|---|
 | `root` | property | the root `document` |
 | `documents` | property | every document read, root first, then in first-read order; never shrinks. An ordered map from resolved path to `document`: a binding MUST offer both the ordered list and the lookup by path |
-| `overrides` | property | the overrides by name (without `$`), each as villanelle text, in order (6.2); never saved. Python spells it as an editable mapping (binding guide, section 3) |
+| `overrides` | property | the overrides by name (without `$`), each as `config text` (6.9), in order (6.2); never saved. Python spells it as an editable mapping (binding guide, section 3) |
 | `set override (name, text or absent)` | method | add, change, or (with absent) remove one override without a reload. Checks `text` with the check of an override (below): `bad text error` located in `text`; `argument type error` when `text` is neither text nor absent; misuse error for a bad name |
 | `read ()` | method, I/O | resolve and read what `unread ()` names, through the graph's document source, repeating until nothing new is named; keeps every text and every failure it already had. Returns the resolved paths this call read (newly, not those read before), in read order |
 | `save (writer)` | method, I/O | 6.8 |
@@ -798,15 +865,24 @@ Per kind, each its own type (2.10):
 
 | Kind | Type (spec name) | Extra members | Python `__match_args__` |
 |---|---|---|---|
-| `directive` | `written directive` | `name`; `values` (in order); `block` (absent when written without one); `rename (name)`: misuse error when the `nameText` entry rule refuses it (not one word, or a word that starts with a digit or `-`) or it would change the line's kind (a reserved word or an extension's name), 2.8; `set (text)`: replace its values, comments between them included, `bad text error` | `("name", "values", "block")` |
-| `extension` | `extension line` | `name` (the directive name an extension owns, such as `include`); `values` (an include line's path); `block` (absent when written without one; its `set` lines); `set (text)`. No `rename`: any new name would change its kind | `("name", "values", "block")` |
+| `directive` | `written directive` | `name`; `values` (in order); `block` (absent when written without one); `rename (name)`: misuse error when the `nameText` entry rule refuses it (not one `WORD`: not one word, or a word that starts with a digit, `-` or `@`), 2.8; any other name is allowed, `use` and `include` among them (milestone 5: no directive name is reserved); `set (text)`: replace its values, comments between them included, `bad text error` | `("name", "values", "block")` |
+| `extension` | `extension line` | `name` (the name an extension owns, without `@`: `include` for `@include`); `values` (an include line's path); `block` (absent when written without one; its `set` lines); `set (text)`. No `rename`: any new name would change its kind | `("name", "values", "block")` |
 | `set` | `set line` | `variable` (a `set variable`); `values` (after the `$name`); `set (text)`: `bad text error`, also for empty text (E5009) | `("variable", "values")` |
 | `snippet` | `snippet line` | `name`; `parameters` (`parameter`s); `block` (always present) | `("name", "parameters", "block")` |
 | `use` | `use line` | `snippet name`; `snippet` (by where written: a `snippet` line above it in its file; absent when free); `snippets ()` (per copy, a `resolution` of which snippet it splices); `values` (bound to parameters by position); `set (text)` | `("snippet_name", "values")` |
-| `unreadable` | `unreadable line` | none. A statement that does not parse, a malformed `set`/`snippet`/`use`, or a second `set` of a name in one block | `("text",)` |
+| `unreadable` | `unreadable line` | none. A statement that does not parse, a malformed `set`/`snippet`/`use` line, a second `set` of a name in one block, or an `@name` no extension owns (E3008) | `("text",)` |
 
 A statement's `parent` is a `written directive`, an `extension line` or a `snippet line`. A block's `directives
 (name?)` lists `written directive`s only (kind `directive`), never extension lines.
+
+**Which kind a statement is** (milestone 5, bead vil-umh.14; owner, 2026-10-29: "yes" to language statements behind
+one sigil). Its first token decides, and nothing else does: a `WORD` heads a `written directive`, whatever the word
+(`use epoll;` is a directive named `use`); an `AT_WORD` heads a language or extension statement: `@set $name
+value...;` a `set line`, `@snippet name $p... { ... }` a `snippet line`, `@use name value...;` a `use line`, `@`
+and a registered extension's name an `extension line` (`@include "f.conf";`), and any other `@name` an `unreadable
+line` with E3008 (reason `extension`) at the `@name`. A malformed `@set`, `@snippet` or `@use` is E5009, E5010 or
+E5011 as before. Before milestone 5 the words `set`, `snippet` and `use`, and each registered extension's name, were
+reserved at the start of every line in every block.
 
 **`set (text)`** replaces a statement's (or a variable's, 6.7) values with `text` (owner,
 2026-10-29: "Can "set_values" become simply "set"?"). It is not the language's `set` keyword: on a
@@ -885,7 +961,8 @@ A `written value` is a union (2.10) over the `value kind` list: `word`, `string`
 | `place` | where it is written |
 | `statement` | the statement holding it |
 | `list` | the list it is an item of; absent otherwise |
-| `replace with text (text)` | replace it with values written as villanelle text: separated by spaces on a line, by commas in a list; returns the new values; this handle detaches. `bad text error` (a slice bound takes exactly one word or `$name`) |
+| `set (text)` | milestone 5: replace it with exactly one value written as `config text`, keeping this handle (6.1): it stays the same object and takes the new value's kind. `bad text error` (the `valueText` entry rule; a slice bound takes `boundText`, a slice's name `sliceNameText`) |
+| `replace with text (text)` | replace it with values written as `config text`: separated by spaces on a line, by commas in a list; returns the new values; this handle detaches. `bad text error` (a slice bound takes exactly one word or `$name`) |
 | `remove ()` | remove it and its separator; then it is detached. `bad text error` when that breaks a rule (a `set` left with no value) |
 
 Per kind:
@@ -895,8 +972,8 @@ Per kind:
 | `word` | none | `("text",)` |
 | `string` | none | `("text",)` |
 | `list` | `items` (written values, in order: a property, a tuple in Python, the same shape as an expanded list's `items`) | `("items",)` |
-| `slice` | `name` (text, the word before `[`), `start` and `end` (each a word or reference value, or absent) | `("name", "start", "end")` |
-| `index` | `name` (text) and `index` (a word or reference value) | `("name", "index")` |
+| `slice` | `name` (the slice name before `[`: a word or reference value, milestone 5), `start` and `end` (each a word or reference value, or absent) | `("name", "start", "end")` |
+| `index` | `name` (a word or reference value) and `index` (a word or reference value) | `("name", "index")` |
 | `reference` | `name` (without `$`), `declaration` (by where written: the nearest `set` above it in its file, a `set variable`, or its snippet's `parameter`; absent when free) and `resolutions ()` (one `reference resolution` per copy of its statement, in walk order) | `("name",)` |
 
 In Python the six value classes are exported from `villanelle.written` only, not from the package root: `List`
@@ -934,7 +1011,7 @@ wins is [expansion.md](expansion.md) 5 and 6.
 
 A `reference resolution` adds `reference` and `values`: the winning `set` line's values, or for a
 parameter the `use` line's values bound to it; empty for an override or when unbound. A reference
-renders to all of `values` (`set $ports 8080 443;` gives two).
+renders to all of `values` (`@set $ports 8080 443;` gives two).
 
 `wins ()`, `shadowed at ()`, a resolution's `winner` and `shadowed`, and a reference's `resolutions ()` are the low
 level's public account of what each `set` reaches and what wins over it (owner, 2026-10-28: consumers "see ... what
@@ -957,30 +1034,50 @@ The graph's `save (writer)`:
 Before step 1, `save` raises an `argument type error` when `writer` is not a document writer (no callable `write`),
 so a writer that never ran is not reported as one that failed.
 
-### 6.9 Values going in: text only, and `quote`
+### 6.9 Values going in: config text, `quote` and `text`
 
 Every edit takes villanelle text, not program values (owner, 2026-10-28: "values: A, new values
 written as villanelle text, with quote()"; kept on 2026-10-29, round 13 question 3: "A Keep text
 only, make misuse impossible").
 
-- Every member that takes new villanelle text names that parameter `text`: `set (text)`,
-  `replace with text (text)` (statement, value, document), `insert statements (index, text)`,
-  `add statements (text)`, `set override (name, text)`, and each value of `load`'s `overrides`.
-  `rename (name)` takes a `name`, and `quote (text)` takes a plain string; both are checked the
-  same way.
-- Given anything that is not text (a number, a boolean, a list, a null), each MUST raise an
-  `argument type error` before it changes anything, whose message names the member and the
-  parameter and points to `quote ()`. The exact wording per binding is in
-  [schema/api.json](schema/api.json) (`argument type error message`): in Python,
-  `statement.set(2400)` raises `TypeError: set() argument 'text' must be str, not int; ...` and
-  never fails inside the library (before milestone 1, `set_values(2400)` did). Absent is allowed only where the member says so
-  (`set override`'s text, which removes the override).
-- A binding's docs show `quote ()` beside the first edit they teach.
+**`config text` is its own type** (milestone 5, bead vil-umh.6; owner, 2026-10-29: he picked "Yes, its own type"):
+villanelle text a program hands to an edit or an override, made only by `quote (text)` or by an explicit `text
+(raw)`, so passing a program's plain string where config text is due is a type error the checker reports. In
+TypeScript it is a branded string, `ConfigText` (`string & { readonly [configTextBrand]: true }`, a `unique symbol`
+brand that no other module can write); in Python a `NewType`, `ConfigText = NewType("ConfigText", str)`. Both are
+still the language's string at run time, so a `ConfigText` reads as text anywhere a string does. Prior art: the
+branded types of TypeScript's own handbook and Zod's `.brand()`, Python's `typing.NewType` (PEP 484), and the
+trusted-types idea of the browser's `TrustedHTML`: a string is safe in a sink only when a named factory made it.
+The schema names it as the concept `config text` ([schema/api.json](schema/api.json)).
 
-`quote (text)` returns a plain string written as a villanelle string, escapes included:
+- Every member that takes new villanelle text names that parameter `text` and types it `config text`: `set
+  (text)` (statement, variable, value), `replace with text (text)` (statement, value, document), `insert statements
+  (index, text)`, `add statements (text)`, `insert before (text)`, `insert after (text)`, `set override (name,
+  text)`, and each value of `load`'s `overrides` (and of the graph's `overrides`, which hold what the program gave).
+  A name is not config text: `rename (name)`, `set override`'s `name` and the override names take the language's
+  text, checked by the one check per kind of name (2.8).
+- `quote (text)` takes a program's plain text and returns `config text`, written as a villanelle string (below).
+  `text (raw)` takes plain text and returns it as `config text` unchanged, checking nothing: it is the program's
+  statement that `raw` is already written as villanelle text (`text("8080 udp")`, `text("[1, 2]")`). The edit it
+  is given checks it, as for any config text. Nothing else makes config text: no reading member returns it (a
+  statement's or value's `text` is plain text; pass it on with `text (...)`).
+- At run time the check is unchanged: given anything that is not text (a number, a boolean, a list, a null), each
+  member above, `quote` and `text` MUST raise an `argument type error` before it changes anything, whose message
+  names the member and the parameter and points to `quote ()` and `text ()`. The exact wording per binding is in
+  [schema/api.json](schema/api.json) (`argument type error message`): in Python, `statement.set(2400)` raises
+  `TypeError: set() argument 'text' must be str, not int; ...` and never fails inside the library. A plain string
+  passes at run time (neither language can tell it from config text then); the type checker refuses it. Absent is
+  allowed only where the member says so (`set override`'s text, which removes the override).
+- A binding's docs show `quote ()` and `text ()` beside the first edit they teach.
+
+Costs: every literal a program writes into an edit needs `text (...)` (`statement.set(text("8080"))`), and a value's
+`text` read from one line must be wrapped to be written into another. A cast (`as ConfigText`, `cast(ConfigText,
+s)`) gets past the checker, as any cast does.
+
+`quote (text)` returns `config text` written as a villanelle string, escapes included:
 `quote("10.0.60.31")` is `"10.0.60.31"`. It MUST give the same canonical string text an expanded
-value has (2.9). A program writes a number or a boolean as its text (`"2400"`, `"true"`); text with a
-space in it written without `quote` is two values (`"my host"` sets `my` and `host`).
+value has (2.9). A program writes a number or a boolean as its text (`text("2400")`, `text("true")`); text with a
+space in it written without `quote` is two values (`text("my host")` sets `my` and `host`).
 
 `quote` escapes only what canonical text escapes (backslash, `"`, newline, tab, carriage return).
 A string cannot hold, raw, any other character from U+0000 to U+001F, DEL (U+007F) or a lone
@@ -1062,7 +1159,10 @@ addresses, `diff`, `error`.
 A binding MUST NOT give the rendered layer package-internal access to the low level (a private module, member or
 accessor, a class check such as `instanceof` on a low-level class): it reads only what any program could
 (owner, 2026-10-29). Each binding checks this mechanically (binding guide rule 8). So `render` accepts any object
-that has the document graph's public members. The work is still done once: `expand ()` is the low level's one
+that has the document graph's public members. Given anything without a callable `expand` (a document, a statement,
+a number), `render` MUST raise the `argument type error` (2.8) before any other work, whose message names `render`,
+the parameter `graph` and what it takes (milestone 5, the milestone 4 leftover: TypeScript failed with a native
+`TypeError` from inside the render and Python with an `AttributeError`; case `render-not-a-graph`). The work is still done once: `expand ()` is the low level's one
 working-out of the binding, and no low-level module calls into the rendered layer. A binding exports `render` from
 its rendered module and MAY re-export it at its top level.
 
@@ -1205,7 +1305,7 @@ finding against this page.
 | Corpus | Format | Level | Covers |
 |---|---|---|---|
 | `syntax`: `conformance/cases.json`, `extra.json`, `depth.json`, `edge.json`, `tracer.json`, `variables.json`, with `conformance/expected/` | [conformance/format.md](../conformance/format.md) | L0 | 2.1 (positions in UTF-16), 2.4 (1xxx and 2xxx codes), 2.5 (nesting), 3 |
-| `written`: `conformance/written/cases.json`, `conformance/written/expected/` | [conformance/written/format.md](../conformance/written/format.md) | L1 (L2 for a case that renders, L3 with include) | 6.3 to 6.9, by its `needs` tokens: `values`, `directive-values`, `statements`, `blocks`, `rename`, `document`, `override`, `save`, `quote`, `include`, `snippet`; 2.8's entry rules (line breaks, comments, bounds, list items) and bad names (misuse error); 4.2's lost update (`saveTo`); 6.10's unread copy (and its `diff`); and 2.9's `definition` and `chain` |
+| `written`: `conformance/written/cases.json`, `conformance/written/expected/` | [conformance/written/format.md](../conformance/written/format.md) | L1 (L2 for a case that renders, L3 with include) | 6.3 to 6.9, by its `needs` tokens: `values`, `directive-values`, `statements`, `blocks`, `rename`, `document`, `override`, `save`, `quote`, `include`, `snippet`; 2.8's entry rules (line breaks, comments, bounds, list items, a values text with no value) and bad names (misuse error); 4.2's lost update (`saveTo`); 6.10's unread copy (and its `diff`); 2.9's `definition` and `chain`; 6.1's value `set` that keeps its handle; 6.5's `@` statements; 7.0's `argument type error` (`["render", target]`) |
 | `load`: `conformance/load/cases.json`, `conformance/load/expected/` | [conformance/load/format.md](../conformance/load/format.md) | L2 (L3 with include) | 2.2, 2.4 (3xxx to 5xxx), 4.3 (`memory source`), 5, 6.2 (`load` with `overrides`), 7.0 (`render (graph)`), 7.1, 7.2, 7.3 (canonical text and origins), 7.4 (people form, with the `rasl` key rule), 7.6; [expansion.md](expansion.md) 6 (each row of the precedence table) |
 | `rendered`: `conformance/rendered/cases.json`, `conformance/rendered/expected/` | [conformance/rendered/format.md](../conformance/rendered/format.md) | L2 | 7.4 (`address text` with escapes, keys from data, occurrences, an empty and an absent key, a rule on the parent), 7.6 (the order of a diff, unknown, a directive listed alone, a block's presence) |
 | `contract`: `conformance/contract/cases.json` (expected results inline) | [conformance/contract/format.md](../conformance/contract/format.md) | L2 | 2.9 (every reader, its results and codes), [contract.md](contract.md) 1 (positions in the binding's unit), 2 (people forms, `format diagnostic` with tabs, a character outside the Basic Multilingual Plane, `"\r\n"` and no graph), 3 (numbers) |
@@ -1221,7 +1321,9 @@ Not covered by any shared case today (each binding tests these on its own): the 
 file and fetch adapters (L4: the fetch writer's precondition); the error class tree beyond the groups the adapter
 reports (contract 4); a port result that is a bare text (4.1, 5); expanded value equality (2.9); a bad text error's
 message (2.8); that an operation is
-absent where it cannot succeed (2.10: a type test per binding); `expand ()` itself, beyond the renders built from it;
+absent where it cannot succeed (2.10: a type test per binding); that `plain` is gone (milestone 5: each binding's
+public-name test against `removed in milestone 5`); the `config text` type (6.9: a type test per binding, since a
+plain string passes at run time); a value handle's new class or `kind` after a `set` that changes its kind (6.1); `expand ()` itself, beyond the renders built from it;
 an override's text refused at `load` (`"1;"`: the `set override` case covers the check, no case covers `load`
 refusing it); `quote` of a character a string cannot hold (6.9); paths whose sort differs between code points and
 UTF-16 units (4.1); comment ownership across a blank line or over several comment lines (6.5); the override order

@@ -179,11 +179,13 @@ where TypeScript or Python break one, section 4 says so.
 | Absent | `undefined` | `None` | the language's no-value |
 | Misuse error | `MisuseError` (outside `VillanelleError`) | `ValueError` | TypeScript has no built-in class for a bad argument value that is not `TypeError`, the argument type error's class (spec 2.8) |
 | Index out of range | `RangeError` | `IndexError` | the language's own classes (spec 2.8) |
+| Config text (M5) | `ConfigText`, a branded string (`string & { readonly [brand]: true }`, the brand a `unique symbol`) | `ConfigText = NewType("ConfigText", str)` | each language's named-string idiom (spec 6.9); a language with neither (Go) uses a defined type, `type ConfigText string` |
+| A value handle that changes kind under `set` (M5) | the same object reports the new `kind`; a narrowed variable is stale | the object's class becomes the new kind's (`__class__` assignment; the six value classes share one slot layout) | spec 6.1: one object, a type per kind; each language keeps both as far as it can |
 | How a kind list is spelled | a string-literal type | a `StrEnum` | narrowing without an import, against `match` and enums (spec 2.10) |
 | How a variant is matched | `switch (x.kind)` or `if (x.kind === "set")` narrows | `match x: case SetVariable(): ...`, `__match_args__` | the language's own pattern |
 | Options | an options object (`{ key }`) | keyword-only arguments (`key=`) | the language's habit |
 | Iteration | iterators and `for...of` (today: a walk callback) | generators and `for` | the language's habit |
-| Reader names | `word()`, `string()`, `number()`, `integer()`, `boolean()`, `list()`, `slice()`, `plain()` | the same words (casing only, vil-gxu, milestone 2) | not a difference in TypeScript and Python: a method named `list` or `string` shadows nothing for the caller (the only trap is an annotation inside the class body, as for `set`: write `builtins.list`). A name a language's conventions give another meaning does differ: in Go, `String()` is `fmt.Stringer` (the `people form`) and `Error()` is the `error` interface, so the readers become `AsString()` and the like, and `error (...)` becomes `Fail(...)` or similar |
+| Reader names | `word()`, `string()`, `number()`, `integer()`, `boolean()`, `list()`, `slice()` (milestone 5 deleted `plain()`) | the same words (casing only, vil-gxu, milestone 2) | not a difference in TypeScript and Python: a method named `list` or `string` shadows nothing for the caller (the only trap is an annotation inside the class body, as for `set`: write `builtins.list`). A name a language's conventions give another meaning does differ: in Go, `String()` is `fmt.Stringer` (the `people form`) and `Error()` is the `error` interface, so the readers become `AsString()` and the like, and `error (...)` becomes `Fail(...)` or similar |
 | People form | `toString()` | `__str__` | the language's to-text conversion (contract 2) |
 | Positions | UTF-16 code units | code points | the language's string unit (contract 1); conformance stays UTF-16 |
 | Chained errors | `cause` | `__cause__` | the language's mechanism |
@@ -236,7 +238,8 @@ names. The exact old-to-new tables, with signatures, are the milestones' frozen 
 | `render` | `processor.render(graph)` | `processor.render(graph)` | M1: `render(graph)`, the rendered module's function |
 | `diff` | `processor.diff(a, b, { key })` | `processor.diff(a, b, key=...)` | M1: `a.diff(b, ...)` |
 | `save` | `await save(graph, writer)` (free function) | `save(graph, writer)` | M1: `graph.save(writer)` |
-| `quote` | `quote(text)` | `quote(text)` | |
+| `quote` | `quote(text)` | `quote(text)` | M5: returns `ConfigText` in both |
+| `text` (M5) | `text(raw)`, returns `ConfigText`, a branded string | `text(raw)`, returns `ConfigText`, a `NewType` of `str` | spec 6.9: the same concept, each language's idiom for a named string type |
 | `document source` | `IDocumentSource` | `DocumentSource` (a `Protocol`) | rule 2: `I` prefix |
 | `load context` | `ILoadContext` | `LoadContext` | rule 2 |
 | `memory source` | `memorySource(files)` | `memory_source(files)` | rule 3 (Python: a class). M2: reads the map live; new `memoryWriter(files)`, `memory_writer(files)` |

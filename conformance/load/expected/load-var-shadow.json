@@ -1,1 +1,1 @@
-{"files":["main.conf"],"directives":[["outer",true,"main.conf:1:0",[]],["outer > inner",false,"main.conf:3:2",[["2","main.conf:2:9 < variable a main.conf:3:8"]]],["after",false,"main.conf:5:0",[["1","main.conf:0:7 < variable a main.conf:5:6"]]]],"unreadable":[],"diagnostics":[]}
+{"files":["main.conf"],"directives":[["outer",true,"main.conf:1:0",[]],["outer > inner",false,"main.conf:3:2",[["2","main.conf:2:10 < variable a main.conf:3:8"]]],["after",false,"main.conf:5:0",[["1","main.conf:0:8 < variable a main.conf:5:6"]]]],"unreadable":[],"diagnostics":[]}

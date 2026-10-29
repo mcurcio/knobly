@@ -37,7 +37,7 @@ TypeScript:
 ```ts
 import { fileURLToPath } from "node:url";
 
-import { type IDirective, type IProcessor, type IRendered, type KeyRule, render, villanelle } from "villanelle";
+import { type IDirective, type IProcessor, type IRendered, type KeyRule, render, text, villanelle } from "villanelle";
 import { include } from "villanelle/include";
 import { fileSource } from "villanelle/node";
 
@@ -110,8 +110,8 @@ def node_ids(loaded: vl.Rendered) -> list[str]:
     assert first.diagnostics == ()
     assert node_ids(first) == expected["nodes"]
     text = root.read_text(encoding="utf-8")
-    assert text.count("set $pixels 2284;") == 1
-    root.write_text(text.replace("set $pixels 2284;", "set $pixels 2400;"), encoding="utf-8")
+    assert text.count("@set $pixels 2284;") == 1
+    root.write_text(text.replace("@set $pixels 2284;", "@set $pixels 2400;"), encoding="utf-8")
     second = vl.render(processor.load(str(root), overrides=overrides))
     changes = first.diff(second, key=rasl_key)
     assert [[type(c).__name__.lower(), str(c.address)] for c in changes] == expected["changes"]
@@ -193,7 +193,7 @@ included twice, a snippet used twice) renders as two directives with the same `w
 shows in both:
 
 ```ts
-    const files = { "main.conf": 'g {\n  include "s.conf";\n}\nh {\n  include "s.conf";\n}\n', "s.conf": "x 1;\ny $nope;\n" };
+    const files = { "main.conf": 'g {\n  @include "s.conf";\n}\nh {\n  @include "s.conf";\n}\n', "s.conf": "x 1;\ny $nope;\n" };
     const processor = villanelle({ source: memorySource(files), extensions: [include()] });
     const graph = await processor.load("main.conf");
     const rendered = render(graph);
@@ -211,7 +211,7 @@ shows in both:
 copy its statement".
 
 ```python
-    files = {"main.conf": 'a { include "p.conf"; }\nb { include "p.conf"; }\n', "p.conf": "x 1;\n"}
+    files = {"main.conf": 'a { @include "p.conf"; }\nb { @include "p.conf"; }\n', "p.conf": "x 1;\n"}
     graph = vl.Processor(source=vl.memory_source(files), extensions=[include()]).load("main.conf")
     rendered = vl.render(graph)
     x1, x2 = (d for d in rendered.walk() if d.name == "x")
@@ -309,32 +309,14 @@ it.) In Python two expanded values are `==` when their texts are equal. A reader
 | `true` or `false` only (`on`, `yes` are not) | `boolean()` | `boolean()` | E4006, E4002 |
 | a list's items, each with its own origin | `list()` | `list()` | E4002 |
 | a slice or an index | `slice()` | `slice()` | E4002 |
-| anything, by one rule | `plain()` | `plain()` | never |
-
-`plain()` reads a string as its text, a word as a number when it spells one, `true`/`false` as booleans, any other
-word as its text, a list item by item, a slice or index as itself:
-
-```ts
-    const read = await values('"8080" 8080 true "true" on [1, "a", [false]] c[1:2] c[3] 20hz');
-    expect(read.map((a) => a.plain())).toEqual([
-      "8080",
-      8080,
-      true,
-      "true",
-      "on",
-      [1, "a", [false]],
-      { kind: "slice", name: "c", start: 1, end: 2 },
-      { kind: "index", name: "c", index: 3 },
-      "20hz",
-    ]);
-```
-
-`ts/src/rendered/readers.test.ts`, test "plain: one rule for every value; quoting means text".
+There is no reader that guesses a value's kind (milestone 5 deleted `plain()`): a word stays a word until the
+program asks for a number, an integer or a boolean, and quoting means text (`"8080"` is a string; `number()` on it is
+E4002). A schema-aware layer above the rendered tree is where a value's kind is decided once.
 
 ```python
-    assert arg("hyperhdr_color[144:152]").slice() == vl.SliceValue("hyperhdr_color", 144, 152)
-    assert arg("c[144:]").slice() == vl.SliceValue("c", 144, None)
-    assert arg("c[:-2]").slice() == vl.SliceValue("c", None, -2)
+    assert arg("hyperhdr_color[144~152]").slice() == vl.SliceValue("hyperhdr_color", 144, 152)
+    assert arg("c[144~]").slice() == vl.SliceValue("c", 144, None)
+    assert arg("c[~-2]").slice() == vl.SliceValue("c", None, -2)
     assert arg("foo[1]").slice() == vl.IndexValue("foo", 1)
 ```
 
@@ -346,8 +328,10 @@ TypeScript an absent side is left out of the object (`{ kind: "slice", name: "c"
 `text` is the same in both languages, and two values are the same exactly when their texts are equal:
 
 - a word as written;
-- a string in double quotes, with `\` `"` newline tab and carriage return escaped (`'single'` becomes `"single"`);
-- a slice `name[start:end]` with either side empty when absent, an index `name[i]`, in decimal;
+- a string in double quotes, with `\` `"` newline tab and carriage return escaped (`'single'` becomes `"single"`,
+  and a raw `'C:\new'` becomes `"C:\\new"`);
+- a slice `name[start~end]` with either side empty when absent, an index `name[i]`, in decimal, `name` being the
+  word its slice name holds (`$src[0~3]` with `$src` holding `leds` is `leds[0~3]`);
 - a list `[` + its items' texts joined by `, ` + `]`, with comments, line breaks and a trailing comma dropped;
 - a value from a variable has the value's text, never `$name`.
 
@@ -365,13 +349,26 @@ Three members lead from a rendered value back to the low level, where it can be 
 - `written`: the written value on the same line, the line of the statement the value is read in: for
   `max_count $pixels;`, the `$pixels` there; for a value written where it is read, the value itself. Never absent.
   Editing it edits that one line, which every copy of the line shares: in a file included twice, the edit shows in
-  both copies. So a loop that edits every directive's `written` value meets the same handle twice, and the first
-  edit (`replaceWithText` or `remove()`) detaches it: keep the handles already edited (a `Set` in TypeScript, a
-  `set` in Python; handles are one object per written value) and skip them. Test "edits a line an included file
-  shares between two copies once, keeping the written values already edited", `ts/src/rendered/rasl.test.ts`;
-  `test_an_edit_loop_edits_a_line_an_included_file_shares_between_two_copies_once`, `py/tests/test_rasl.py`.
+  both copies. A value's `set(text)` edits it in place and keeps the handle (milestone 5), so a loop that sets
+  every directive's `written` value meets the shared handle twice and both calls succeed, the second writing the
+  same text again; no list of handles already edited is needed (written case `split-value-set-twice`). The handle
+  takes the new value's kind: `$pixels` set to `2400` is a word after the edit. `replaceWithText` and `remove()`
+  still detach the handle they are called on.
+
+  ```python
+  for d in vl.render(graph).walk():
+      match d:
+          case vl.Directive("max_count", [value]):
+              value.written.set(vl.text("2400"))
+  ```
+
+  ```ts
+  render(graph).walk((d) => {
+    if (d.name === "max_count") d.values[0]?.written.set(text("2400"));
+  });
+  ```
 - `definition`: the written value at the end of its chain (for `max_count $pixels;`, the `2284` of
-  `set $pixels 2284;`); undefined (None) for an override. Editing it changes every use.
+  `@set $pixels 2284;`); undefined (None) for an override. Editing it changes every use.
 - `chain`: one reference resolution per `$name` the value came through, starting with the `$name` written on the
   directive's own line. Each says which variable won at this place, and which it shadowed. Empty for a value
   written where it is read.
@@ -567,10 +564,10 @@ Without the graph, only the first line. It reads a graph, so it belongs to the l
 Python; both packages also export it from `villanelle`).
 
 ```ts
-    const files = { "main.conf": 'include "x.conf";\n', "x.conf": "a 1;\nport c[0:$n];\n" };
+    const files = { "main.conf": '@include "x.conf";\n', "x.conf": "a 1;\nport c[0~$n];\n" };
     const loaded = await loadFiles(files, { extensions: [include()] });
     expect(formatDiagnostic(only(loaded.diagnostics), loaded.graph)).toBe(
-      ["x.conf:2:10: E5001: unknown variable: $n", "port c[0:$n];", "         ^^", "  via extension include at main.conf:1:1"].join("\n"),
+      ["x.conf:2:10: E5001: unknown variable: $n", "port c[0~$n];", "         ^^", "  via extension include at main.conf:1:1"].join("\n"),
     );
 ```
 
@@ -651,7 +648,8 @@ Excerpt of `ts/src/rendered/rules.test.ts`, test "gives E3006 when an extension 
 and records a DiagnosticError as thrown". In Python an extension is any object with a `directive` attribute and a
 `specs(use)` method (`test_an_extension_that_raises_something_else_is_e3006`, `py/tests/test_load.py`).
 
-While an extension is registered, its name is reserved at the start of a statement, as `set`, `snippet` and `use` are.
+An extension's statement is written with `@` (`@include "f.conf";`): its name is never reserved for directives, so
+`include "f.conf";` is a directive named `include`, and an `@name` no registered extension owns is E3008.
 
 ### The files behind a render
 
@@ -672,11 +670,11 @@ was given ([low-level-api.md](low-level-api.md#edits-and-their-errors)).
 | E1001 | `UnterminatedString` | `UNTERMINATED_STRING` | a string with no closing quote | per `conformance/` |
 | E1003 | `UnexpectedCharacter` | `UNEXPECTED_CHARACTER` | a character the language does not use | per `conformance/` |
 | E1004 | `LoneDollar` | `LONE_DOLLAR` | `$` not followed by a name | the `$` (case `var-lone-dollar`) |
-| E1005 | `BadEscape` | `BAD_ESCAPE` | a string escape other than the six (found by the parser) | the string |
+| E1005 | `BadEscape` | `BAD_ESCAPE` | a double-quoted string escape other than the six (found by the parser; a single-quoted string is raw) | the string |
 | E2001 | `UnexpectedToken` | `UNEXPECTED_TOKEN` | a token where it cannot go, a missing `;` at the end of a block or file among them | per `conformance/` |
 | E2003 | `ExpectedClosingBrace` | `EXPECTED_CLOSING_BRACE` | a block with no `}` | per `conformance/` |
 | E2004 | `ExpectedClosingBracket` | `EXPECTED_CLOSING_BRACKET` | an unmatched bracket | per `conformance/` |
-| E2007 | `BadSlice` | `BAD_SLICE` | a malformed slice (`[:]` among them), or a literal bound that is not a whole number | per `conformance/` |
+| E2007 | `BadSlice` | `BAD_SLICE` | a malformed slice (`[~]` among them, and `[1:3]`, whose `1:3` is one word), or a literal bound that is not a whole number | per `conformance/` |
 | E2009 | `ValuesTouch` | `VALUES_TOUCH` | two values with no space or comment between | per `conformance/` |
 | E2010 | `NestingTooDeep` | `NESTING_TOO_DEEP` | blocks and lists nested deeper than 100 | per `conformance/` |
 | E3001 | `IncludeNotFound` | `INCLUDE_NOT_FOUND` | a spec matched no file | the extension line's name |
@@ -684,23 +682,25 @@ was given ([low-level-api.md](low-level-api.md#edits-and-their-errors)).
 | E3005 | `IncludeBadPath` | `INCLUDE_BAD_PATH` | include needs exactly one quoted path | the bad value, or the name when there is none |
 | E3006 | `ExtensionFailed` | `EXTENSION_FAILED` | an extension threw something other than a located error, or returned something other than a list of texts | the extension line's name |
 | E3007 | `UnreadCopy` | `UNREAD_COPY` | an include copy whose files are not read yet (`graph.read()` reads them) | the extension line's name |
+| E3008 | `UnknownExtension` | `UNKNOWN_EXTENSION` | an `@name` that is no language statement and no registered extension | the `@name` |
 | E4001 | `NonIntegerBound` | `NON_INTEGER_BOUND` | a bound from a variable that is not one whole number, or a literal whole number beyond the range | the bound (a bound from a variable: the value, via the variable) |
 | E4002 | `WrongValueKind` | `WRONG_VALUE_KIND` | a reader met the wrong kind of value | the value |
 | E4004 | `NotANumber` | `NOT_A_NUMBER` | `number()` met a word that is not a number | the value |
 | E4005 | `NotAnInteger` | `NOT_AN_INTEGER` | `integer()` met a word that is not a whole number | the value |
 | E4006 | `NotABoolean` | `NOT_A_BOOLEAN` | `boolean()` met a word other than `true`, `false` | the value |
+| E4007 | `BadSliceName` | `BAD_SLICE_NAME` | a slice's `$name` that does not hold one word | as E4001 |
 | E5001 | `UnknownVariable` | `UNKNOWN_VARIABLE` | `$name` with no `set`, parameter or override | the `$name` |
 | E5002 | `VariableSetTwice` | `VARIABLE_SET_TWICE` | two `set` of one name in one block | the second `$name` |
 | E5003 | `UnknownSnippet` | `UNKNOWN_SNIPPET` | `use` of a snippet not seen there | the name |
-| E5004 | `SnippetArity` | `SNIPPET_ARITY` | wrong number of values for the snippet | `use` |
+| E5004 | `SnippetArity` | `SNIPPET_ARITY` | wrong number of values for the snippet | `@use` |
 | E5005 | `SnippetDefinedTwice` | `SNIPPET_DEFINED_TWICE` | two snippets of one name in one block | the second name |
-| E5006 | `ExpansionCycle` | `EXPANSION_CYCLE` | a snippet or file reaches itself | the `use` or extension line that closes the loop |
+| E5006 | `ExpansionCycle` | `EXPANSION_CYCLE` | a snippet or file reaches itself | the `@use` or extension line that closes the loop |
 | E5007 | `ExpansionTooDeep` | `EXPANSION_TOO_DEEP` | more than 16 snippets or files open inside each other | the `use` or extension line |
 | E5008 | `TooManyDirectives` | `TOO_MANY_DIRECTIVES` | more than 100,000 directives after expansion; expansion stops | the statement that is one too many |
-| E5009 | `BadSet` | `BAD_SET` | any other form of `set` | `set` |
-| E5010 | `BadSnippet` | `BAD_SNIPPET` | any other form of `snippet` | `snippet` |
-| E5011 | `BadUse` | `BAD_USE` | any other form of `use` | `use` |
-| E5012 | `ExtensionBlockNotSet` | `EXTENSION_BLOCK_NOT_SET` | an extension line's block holds a line other than `set` | that line's name |
+| E5009 | `BadSet` | `BAD_SET` | any other form of `@set` | `@set` |
+| E5010 | `BadSnippet` | `BAD_SNIPPET` | any other form of `@snippet` | `@snippet` |
+| E5011 | `BadUse` | `BAD_USE` | any other form of `@use` | `@use` |
+| E5012 | `ExtensionBlockNotSet` | `EXTENSION_BLOCK_NOT_SET` | an extension line's block holds a line other than `@set` | that line's name |
 
 Codes that are no longer used, and never will be again: **E2006** (the old include path error, replaced by E3005),
 **E3002** and **E3003** (the old include loop and depth errors, replaced by E5006 and E5007), **E2008** (a `{` on its
@@ -715,10 +715,12 @@ By design (each language's own way):
 - TypeScript's `load`, `graph.read()`, `graph.save(writer)` and document sources are async (promises); Python's are
   plain calls. `render` and `diff` are plain calls in both.
 - Readers have the same names in both (`word()`, `string()`, `number()`, `integer()`, `boolean()`, `list()`,
-  `slice()`, `plain()`); `walk` is a method in both, taking a callback in TypeScript and returning a generator
+  `slice()`); `walk` is a method in both, taking a callback in TypeScript and returning a generator
   in Python; change kinds are a `kind` field in TypeScript and classes in Python.
 - The key rule is an options object in TypeScript (`{ key }`) and a keyword argument in Python (`key=`).
 - Misuse by a program is MisuseError in TypeScript and ValueError in Python.
+- Config text is a branded string (`ConfigText`) in TypeScript and a `NewType` in Python; `quote()` and `text()`
+  make it in both.
 - Python has no fetch source or fetch writer.
 
 Both languages refuse an extension named `set`, `snippet` or `use`, or two extensions with one name, when the

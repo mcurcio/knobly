@@ -22,7 +22,7 @@ One JSON object with exactly these keys, in this order:
 ```
 
 - `tokens`: every token of the input in order, as `[kind, text]`. `kind` is the token's name as written in
-  `grammar/Villanelle.g4`, in capitals (`WORD`, `SPACE`, `BAD_CHAR`; all 20 are listed in `spec/spec.md` 3.1). Node
+  `grammar/Villanelle.g4`, in capitals (`WORD`, `SPACE`, `BAD_CHAR`; all 21 are listed in `spec/spec.md` 3.1). Node
   kinds (below) are lowercase. There is no end-of-file token.
 - `cst`: the root node, as `[kind, start, end, children]`. `kind` is a CST node kind (`document`,
   `directive`, `block`, `list`, `slice`, `error`). `start` and `end` are the token range: indices

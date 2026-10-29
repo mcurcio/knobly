@@ -79,13 +79,15 @@ Conformance: `conformance/contract/cases.json` cases `print-place`, `print-overr
 The spelling of number and integer words is spec 2.9 (`NumberText`, `IntegerText` in `grammar/villanelle.ebnf`).
 The values are ruled here, the same in every binding:
 
-| Rule | `number` | `integer` | `plain` |
-|---|---|---|---|
-| **Zero** has one sign. Any word whose value is zero (`0`, `-0`, `0.0`, `-0.0`, `-0e5`, `1e-400` after rounding) reads as zero, never negative zero | `0` | `0` (for `-0`) | `0` |
-| **Integers** lie within plus or minus 2^53-1 (the `integer range` limit) | the value | the value | the value |
-| **Beyond 2^53-1**, an integer word is not an integer, but is still a number, rounded to the nearest double (ties to even) | `9007199254740993` gives `9007199254740992` | E4005 | the rounded number |
-| **Beyond the double range** (a value whose rounding overflows: `1e400`, `-1e400`), a word is not a number | E4004 | E4005 | the word's text, `"1e400"` |
-| A tiny value rounds to zero, which the zero rule then reads | `1e-400` gives `0` | E4005 | `0` |
+| Rule | `number` | `integer` |
+|---|---|---|
+| **Zero** has one sign. Any word whose value is zero (`0`, `-0`, `0.0`, `-0.0`, `-0e5`, `1e-400` after rounding) reads as zero, never negative zero | `0` | `0` (for `-0`) |
+| **Integers** lie within plus or minus 2^53-1 (the `integer range` limit) | the value | the value |
+| **Beyond 2^53-1**, an integer word is not an integer, but is still a number, rounded to the nearest double (ties to even) | `9007199254740993` gives `9007199254740992` | E4005 |
+| **Beyond the double range** (a value whose rounding overflows: `1e400`, `-1e400`), a word is not a number | E4004 | E4005 |
+| A tiny value rounds to zero, which the zero rule then reads | `1e-400` gives `0` | E4005 |
+
+(Milestone 5 deleted the `plain` reader and its column: a word is untyped until a typed reader decides, spec 2.9.)
 
 - `number` returns an IEEE 754 double. Python returns an `int` when the word has no fraction or exponent and lies
   within plus or minus 2^53-1, else a `float`, so both bindings read the same value; a Python `float` result is
@@ -102,7 +104,7 @@ Before milestone 2, TypeScript read `-0` as negative zero and Python as `0` (rev
 `1e400` as infinity. Both are behaviour changes, listed on the frozen page.
 
 Conformance: `conformance/contract/cases.json`, every case of kind `reader` (`zero-*`, `int-*`, `number-*`,
-`integer-*`, `plain-*`; milestone 3 added every other reader of spec 2.9: `word-*`, `string-*`, `boolean-*`,
+`integer-*`; the `plain-*` cases went with `plain` in milestone 5; milestone 3 added every other reader of spec 2.9: `word-*`, `string-*`, `boolean-*`,
 `list-*`, `slice-*`).
 
 ## 4. Errors

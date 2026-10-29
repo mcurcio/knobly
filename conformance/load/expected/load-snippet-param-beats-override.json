@@ -1,1 +1,1 @@
-{"files":["main.conf"],"directives":[["t",false,"main.conf:1:2 < use s main.conf:3:0",[["v","main.conf:3:6 < variable p main.conf:1:4 < use s main.conf:3:0"]]],["u",false,"main.conf:4:0",[["h","override p < variable p main.conf:4:2"]]]],"unreadable":[],"diagnostics":[]}
+{"files":["main.conf"],"directives":[["t",false,"main.conf:1:2 < use s main.conf:3:0",[["v","main.conf:3:7 < variable p main.conf:1:4 < use s main.conf:3:0"]]],["u",false,"main.conf:4:0",[["h","override p < variable p main.conf:4:2"]]]],"unreadable":[],"diagnostics":[]}

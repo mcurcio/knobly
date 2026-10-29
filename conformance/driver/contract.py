@@ -59,10 +59,8 @@ def result(reader: str, value: Mapping[str, Any]) -> List[Any]:
         return ["slice", *value["slice"]]
     if "index" in value:
         return ["index", *value["index"]]
-    if "list" in value:
-        if reader == "list":
-            return ["values", [item["value"] for item in value["list"]]]
-        return ["list", [result(reader, item) for item in value["list"]]]
+    if "list" in value and reader == "list":
+        return ["values", [item["value"] for item in value["list"]]]
     raise CaseError(f"not a reader result: {value!r}")
 
 

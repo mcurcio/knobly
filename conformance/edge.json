@@ -109,7 +109,7 @@
 },
 {
 "name": "edge-digit-colon",
-"src": "x 1:2"
+"src": "x 1:2;"
 },
 {
 "name": "edge-hash-word-start",
@@ -145,10 +145,42 @@
 },
 {
 "name": "edge-float-bound",
-"src": "x a[1.5:2];"
+"src": "x a[1.5~2];"
 },
 {
 "name": "edge-digit-word-slice",
 "src": "x 1[0];"
+},
+{
+"name": "raw-single-quote",
+"src": "path 'C:\\new\\x' \"C:\\\\new\";"
+},
+{
+"name": "raw-single-backslash-end",
+"src": "a 'x\\' b;"
+},
+{
+"name": "raw-single-no-quote-inside",
+"src": "a 'it''s';"
+},
+{
+"name": "raw-single-unterminated",
+"src": "a 'x;\nb 1;"
+},
+{
+"name": "colon-words",
+"src": "at 07:30 00:1a:2b:3c:4d:5e -1:2 a:b 1:;"
+},
+{
+"name": "colon-start",
+"src": "listen :80;"
+},
+{
+"name": "slice-colon-refused",
+"src": "x a[1:3];"
+},
+{
+"name": "tilde-in-word",
+"src": "x a~b;"
 }
 ]

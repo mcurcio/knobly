@@ -126,6 +126,17 @@ today's model and write it down in the spec" ([expansion.md](expansion.md)). It 
 the grammar as entry rules (spec 2.8), shows an unread include copy (6.10), adds the lost update error (4.2),
 rebuilds the error classes on the two sorts (2.8, contract 4), makes the low level the one owner of expansion (2.9,
 6.10, 7), and fixes three Python defects (2.9, 4.1, 5). Its exact list is
-`.claude/design/consumer-api/round15/frozen-m4.md`. Q3 (the schema as the source of every signature) is the next
+`.claude/design/consumer-api/round15/frozen-m4.md`.
+
+Milestone 5 (beads vil-umh.6, vil-umh.12 and vil-umh.14) applies the owner's answers of 2026-10-29 on the smaller
+language fixes, each put to him in plain words: single quotes are raw strings ("yes"); the `plain` reader is deleted
+("agreed. the raw strings are raw/plain/tokens until some schema-aware layer decides "this one is a number" or "this
+is a string""); the slice separator leaves the word alphabet, so `:` is a word character again, and a variable may be
+subscripted ("yes"; `~`, since `..` cannot lex next to number-like words: spec 3.1); the language statements go
+behind one sigil, `@set`, `@snippet`, `@use`, `@include`, so no directive name is reserved ("yes"). It adds a
+written value's `set`, which keeps its handle ("the natural loop should work", spec 6.1), and config text as its own
+type ("Yes, its own type", spec 6.9), and settles three milestone 4 leftovers (spec 2.8's reworded entry-rule rule,
+a `set` text with no value, `render` given a non-graph). Its exact list is
+`.claude/design/consumer-api/round15/frozen-m5.md`. Q3 (the schema as the source of every signature) is the next
 milestone. The proposals left stay marked "Proposed (pending owner)". Nothing is locked until the owner likes the user
 APIs (2026-10-27).

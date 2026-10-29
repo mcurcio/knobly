@@ -20,16 +20,16 @@ result with `expect` as JSON.
 
 The driver loads `main.conf` holding `x <value>;\n` from a `memory source`, renders it (`render (graph)`), takes
 `block[0].values[0]` and asks the adapter to call the reader named (`word`, `string`, `number`, `integer`,
-`boolean`, `list`, `slice`, `plain`; spec 2.9, in the binding's spelling). `expect` is one of:
+`boolean`, `list`, `slice`; spec 2.9, in the binding's spelling; milestone 5 deleted `plain` and its cases). `expect`
+is one of:
 
 - `["integer", decimal]`: an `integer` result, written in decimal;
-- `["number", text]`: a number (from `number`, or from `plain` reading a number), written by the number rule below;
-- `["text", text]`: text (from `string`, `word`, or `plain` reading text);
+- `["number", text]`: a number (from `number`), written by the number rule below;
+- `["text", text]`: text (from `string` or `word`);
 - `["boolean", "true" | "false"]`;
 - `["values", [text, ...]]`: the `list` reader's items, each by its canonical text;
-- `["slice", name, start | null, end | null]`: a `slice value` (from `slice`, or from `plain` reading a slice);
+- `["slice", name, start | null, end | null]`: a `slice value` (from `slice`);
 - `["index", name, index]`: an `index value`;
-- `["list", [result, ...]]`: `plain` reading a list, each item a result of this list;
 - `["error", code]`: the reader raised a `diagnostic error` with that code.
 
 **The number rule:** a whole number within plus or minus 2^53-1 that the binding holds as an integer type is written

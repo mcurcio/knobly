@@ -126,12 +126,20 @@ its test suite (`corepack pnpm -C ts test`, `cd py && uv run pytest`); lint, for
   the driver applies, so an adapter sends the number, never its text.
 - **A lone `"\r"` never ends a line**, also in `format diagnostic`'s source line. Python's
   `str.splitlines()` and a JavaScript `/\r\n|\n|\r/` both break there.
+- **`@` statements, raw single quotes, `~` slices** (milestone 5, spec 3.1, 6.5): the first token
+  decides a statement's kind (`WORD` a directive, `AT_WORD` `@set`/`@snippet`/`@use`/`@<extension>`, any
+  other `@name` E3008); no directive name is reserved, so never classify by a word's text alone. A
+  single-quoted string is raw (decode only double-quoted escapes). A slice is `name[1~3]`; `:` is a word
+  character; a slice's name is a written value (a word or a `$name`, E4007 when the variable is not one
+  word). There is no `plain` reader.
 - **`;` ends every statement; a line break is whitespace** (milestone 4, owner Q1). A directive name
   cannot start with a digit or `-` (tokens `WORD`, `INTEGER`, `DIGIT_WORD`; all three are the value
   kind `word`). Error recovery resumes after the bad statement's `;` or block, never at a line break,
   and a broken statement is one `error` node (spec 3.2). E2008 is retired.
-- **Check a given text with the grammar's entry rules, never a probe or a scanner** (spec 2.8):
-  `valuesText`, `itemsText`, `boundText`, `nameText`, parsed with the generated parser. A text that
+- **Check a given text's shape with the grammar's entry rules, never a probe or a scanner** (spec 2.8):
+  `statementsText`, `valuesText`, `valueText`, `itemsText`, `boundText`, `sliceNameText`, `nameText`, parsed with
+  the generated parser; the text-alone rules (E5002, E5005, E5009 to E5011, an empty no-value text, an override's
+  no-`$name` rule) run on its tree. A text that
   ends in a comment is refused at its end; a line break in a values text is fine (`set("1\n2")`
   writes one statement with two values). Splicing the text into `x <text>;` and re-parsing was the
   old way: it leaked a `;` the user never typed into the diagnostics (round 15).
@@ -141,12 +149,17 @@ its test suite (`corepack pnpm -C ts test`, `cd py && uv run pytest`); lint, for
   `max_count`'s `$pixels` there rewrites the `set` line, so every use changes.
 - **`graph.diagnostics` was a method** but `rendered.diagnostics` a property; the spec makes both
   properties. On PR 4, TypeScript's `graph.diagnostics.length > 0` compiles and is never true.
-- **Edits take villanelle text, only text.** Anything else must raise `TypeError` naming the
-  parameter and pointing to `quote()` (spec 6.9; the message is in `spec/schema/api.json`). On PR 4,
-  `set_values(2400)` fails inside the Python library; `"my host"` becomes two values. Use `quote()`
-  for program strings.
-- **`set` is a method name, not only a keyword.** `statement.set(text)` replaces values (it was
-  `set_values`). In a Python class that defines `set`, a later annotation `set[str]` in the class
+- **Edits take config text, its own type** (milestone 5, spec 6.9): a TypeScript branded string, a
+  Python `NewType`, made only by `quote()` and `text()`. A plain string is a type error for the checker
+  but passes at run time; anything that is not a string must still raise `TypeError` naming the
+  parameter and pointing to `quote()` and `text()` (the message is in `spec/schema/api.json`). The
+  adapter wraps every text the driver sends with `text()`, never a cast. `text("my host")` is two
+  values; use `quote()` for program strings.
+- **`set` is a method name, not the `@set` statement.** `statement.set(text)` replaces values (it was
+  `set_values`); since milestone 5 a written value has `set(text)` too, which writes one value and keeps
+  the handle, changing its kind (and in Python its class) when the new value is of another kind. Before
+  milestone 5 an edit loop over a render met a shared `written` handle twice and the second
+  `replaceWithText` raised `DetachedError`; `value.written.set(...)` is the loop now. In a Python class that defines `set`, a later annotation `set[str]` in the class
   body resolves to the method: write `builtins.set[str]` there.
 - **Every variant is its own type, with `kind`** (spec 2.10, milestone 2). An operation that cannot
   succeed for a variant is absent from it, not a run-time error: no `NoSetLineError`, no `rename`
