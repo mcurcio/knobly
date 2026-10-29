@@ -119,3 +119,20 @@
   the member (`stmt.kind is StatementKind.SET`) or match on the class. Worth a line in the docs pass.
 - The memory writer's lost-update refusal raises `RuntimeError` (page 8 says "an `Error`"); `save` wraps it in
   `SaveError` with it as `__cause__`, as it does the file writer's `OSError`.
+
+## 2026-10-29, milestone 2 TypeScript lane (vil-0vz, vil-9fy, vil-5ya, vil-gxu)
+
+- Exported names the frozen page's section 11 does not list: the helper base types `IVariableBase` (what every
+  variable variant has, beside `IStatementBase`/`IValueBase`), `IExpandedValueBase` (the readers every expanded
+  variant has) and `IArgumentLinks` (page 1.5 left exporting it to the lane). They carry no behaviour; drop them in
+  the docs pass if the owner prefers fewer names.
+- `ts/src/syntax/tokens.test.ts` ("TokenKind names exactly the grammar's tokens") is deleted, not ported: with
+  `TokenKind` a string-literal type generated from the grammar there is no run-time list to compare, and the
+  generator is the guarantee. `src/types.test.ts` checks `IToken["kind"]` is `TokenKind` at compile time.
+- The public-name probe could not reach a `removed` change at the branch base (016f867): the probe's top level holds
+  an unreadable statement, so removing a top-level directive is `unknown` (spec 7.6). The probe now also removes a
+  directive inside a block with no unreadable statement. A probe fix, not a spec change.
+- Behaviour change the page's section 14 does not list for TypeScript: `ReadError`'s message is now `cannot read the
+  root file <path>: <reason>` (messages are not contract). The records (`IPlace`, `IOverride`, `IStep`,
+  `IDiagnostic`, `ILocatedDiagnostic`) are small class instances now, so `toEqual` against a literal still holds but
+  `toStrictEqual` does not.
