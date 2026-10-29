@@ -51,7 +51,6 @@ from villanelle.written.value import (
     ExpandedValue,
     ExpandedWord,
     IndexValue,
-    PlainValue,
     SliceValue,
 )
 
@@ -76,7 +75,6 @@ __all__ = [
     "List",
     "OverrideVariable",
     "Parameter",
-    "PlainValue",
     "Processor",
     "Reference",
     "ReferenceResolution",

@@ -125,7 +125,13 @@ class Rendered:
 def render(graph: DocumentGraph, /) -> Rendered:
     """The rendered tree of the graph's current texts and overrides: variables substituted, snippets used, included
     files spliced in. Pure: reads no file; an unread include copy renders as an unreadable with reason ``unread`` at
-    the include line (its edge is in ``graph.unread()``). Builds on ``graph.expand()`` only, on its own objects."""
+    the include line (its edge is in ``graph.unread()``). Builds on ``graph.expand()`` only, on its own objects.
+    TypeError (the argument type error), before any other work, for a ``graph`` with no callable ``expand``."""
+    if not callable(getattr(graph, "expand", None)):
+        raise TypeError(
+            "render() argument 'graph' must be a document graph (an object with an expand method), "
+            f"not {type(graph).__name__}"
+        )
     expansion = graph.expand()
     block = tuple(Directive(directive, None) for directive in expansion.block)
     origin = DirectiveOrigin(Place(graph.root.resolved_path, SourceSpan(_START, _START)), ())

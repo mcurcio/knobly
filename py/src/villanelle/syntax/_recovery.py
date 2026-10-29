@@ -55,15 +55,19 @@ def nesting_overflow(kinds: Sequence[TokenKind]) -> int | None:
 
 
 _VALUE_TOKENS = frozenset(
-    {TokenKind.WORD, TokenKind.INTEGER, TokenKind.DIGIT_WORD, TokenKind.STRING, TokenKind.VARIABLE}
+    {TokenKind.WORD, TokenKind.AT_WORD, TokenKind.INTEGER, TokenKind.DIGIT_WORD, TokenKind.STRING, TokenKind.VARIABLE}
 )
-"""The tokens that are one value each: two of them touching is E2009 (``INTEGER`` and ``DIGIT_WORD`` are words)."""
+"""The tokens that are one value each: two of them touching is E2009 (``AT_WORD``, ``INTEGER`` and ``DIGIT_WORD``
+are words)."""
+
+_SLICE_NAMES = frozenset({TokenKind.WORD, TokenKind.AT_WORD, TokenKind.VARIABLE})
+"""The tokens a ``[`` right after opens a slice bracket (the grammar's ``sliceName``)."""
 
 
 def classify_error(kinds: Sequence[TokenKind], at: int, start: int, in_block: bool) -> DiagnosticCode:
     """The code for a syntax error at token ``at`` (``at == len(kinds)`` is the end of input), given the start of the
     statement it belongs to (``start``) and whether that statement is inside a block. First match wins."""
-    # Brackets open in this statement before `at` (True = a slice bracket, one right after a WORD) and braces.
+    # Brackets open in this statement before `at` (True = a slice bracket, one right after a slice name) and braces.
     brackets: list[bool] = []
     braces = 0
     closes_value = False  # the token right before `at` is a `]` that closed a bracket
@@ -71,7 +75,7 @@ def classify_error(kinds: Sequence[TokenKind], at: int, start: int, in_block: bo
         kind = kinds[i]
         closes_value = False
         if kind is TokenKind.LBRACK:
-            brackets.append(i > 0 and kinds[i - 1] is TokenKind.WORD)
+            brackets.append(i > 0 and kinds[i - 1] in _SLICE_NAMES)
         elif kind is TokenKind.RBRACK:
             closes_value = len(brackets) > 0
             if brackets:

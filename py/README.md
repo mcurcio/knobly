@@ -17,7 +17,7 @@ own style: `Processor` for `villanelle()`, `walk()` as a generator, `match` on o
 
 | Import | What it has |
 |---|---|
-| `villanelle` | The core: `parse`, `Processor`, `render`, `quote`, `memory_source`, `memory_writer`, `check_lost_updates`, `Diagnostics`, `format_diagnostic`, the error classes, the kind lists (`StatementKind`, `ValueKind`, ...) and the types they use |
+| `villanelle` | The core: `parse`, `Processor`, `render`, `ConfigText`, `quote`, `text`, `memory_source`, `memory_writer`, `check_lost_updates`, `Diagnostics`, `format_diagnostic`, the error classes, the kind lists (`StatementKind`, `ValueKind`, ...) and the types they use |
 | `villanelle.written` | The low level on its own: `Processor`, `DocumentGraph`, the written types, the expansion and its expanded values (`ExpandedWord` ... `ExpandedIndex`), the extension port (`Extension`, `ExtensionUse`), and the only home of the written values `Word`, `String`, `List`, `Slice`, `Index` and `Reference` (so `from villanelle import *` never replaces `typing.List`). It never imports the rendered layer |
 | `villanelle.rendered` | The rendered layer on its own: `render`, `Rendered`, `Directive`, addresses and the change classes. It reaches the low level only through `villanelle.written`'s public names |
 | `villanelle.include` | `include()`: the include extension |
@@ -28,32 +28,38 @@ own style: `Processor` for `villanelle()`, `walk()` as a generator, `match` on o
 - **The low level: the files as written.** `Processor(source=..., extensions=[...])` is made once, and loading
   is all it does: `processor.load(path, overrides=...)` reads the root file and every file it includes and
   returns a `DocumentGraph`: the documents, their statements and values (one class per kind, each with a `kind`
-  from its generated `StrEnum` and `__match_args__`, for `match`: `case SetLine(variable, values):`), the include
-  copies, the variables (`SetVariable`, `Parameter`, `OverrideVariable`) and what each `$name` reads at each place.
+  from its generated `StrEnum` and `__match_args__`, for `match`: `case SetLine(variable, values):`,
+  `case Slice(Word("leds"), start, end):`), the include copies, the variables (`SetVariable`, `Parameter`,
+  `OverrideVariable`) and what each `$name` reads at each place.
+  A statement headed by a word is a directive whatever the word (`use epoll;` is a directive); the language
+  statements are `@set`, `@snippet` and `@use`, and `@include` is the include extension's line.
   An operation exists only where it can succeed: `rename` on a written directive and on set variables and
-  parameters, `set` on statements with values and on set variables; an include line is an `ExtensionLine`, with no
-  `rename`. An override is a value the program passes in, as villanelle text (`overrides={"host": quote(host)}`;
-  change it later with `graph.set_override(name, text)`); which `set` lines it wins over, and what an included
-  file sees, is [spec/expansion.md](../spec/expansion.md). Named edits change the text and keep comments and
-  layout. They take villanelle text only, and anything else raises `TypeError`: write a program string with
-  `quote()` and a number with `str()`.
+  parameters, `set` on statements with values, on set variables and on every written value; an include line is an
+  `ExtensionLine`, with no `rename`. An override is a value the program passes in, as config text
+  (`overrides={"host": quote(host)}`; change it later with `graph.set_override(name, text)`); which `@set` lines it
+  wins over, and what an included file sees, is [spec/expansion.md](../spec/expansion.md). Named edits change the
+  text and keep comments and layout. They take config text, `ConfigText` (a `NewType` of `str`), made only by
+  `quote()` from a program string or `text()` from a text already written as villanelle text: mypy refuses a plain
+  `str` there, and at run time anything but a `str` raises `TypeError`. Write a number with `text(str(n))`.
 
   ```python
-  from villanelle import Processor, memory_source, quote, render
+  from villanelle import Processor, memory_source, quote, render, text
 
   graph = Processor(source=memory_source({"main.conf": "host a;\nport 80;\n"})).load("main.conf")
   host, port = graph.root.block
-  host.set(quote("10.0.60.31"))  # set replaces a statement's values (not the language's `set` line)
-  port.set(str(8080))
+  host.set(quote("10.0.60.31"))  # set replaces a statement's values (not the language's `@set` line)
+  port.set(text(str(8080)))
   assert graph.root.text == 'host "10.0.60.31";\nport 8080;\n'
   ```
 
   `set(text)`, `replace_with_text(text)`, `insert_before(text)`, `insert_after(text)`,
   `insert_statements(index, text)`, `add_statements(text)` and `rename(name)` are the edits. Every statement ends
-  with `;` or a block, and a line break is whitespace, so a values text may hold line breaks (`port.set("1\n2")`
-  writes `port 1\n2;`). A given text is checked with the grammar's entry rule for it (spec 2.8): a values text that
-  holds a `;` or a block, or ends in a comment (which would swallow the `;`), raises `BadTextError` (E2001, its
-  message built from its diagnostics). A bad name in `rename`, `set_override` or an override is a program bug,
+  with `;` or a block, and a line break is whitespace, so a values text may hold line breaks
+  (`port.set(text("1\n2"))` writes `port 1\n2;`). A given text is checked with the grammar's entry rule for it
+  (spec 2.8): a values text that holds a `;` or a block, or ends in a comment (which would swallow the `;`), raises
+  `BadTextError` (E2001, its message built from its diagnostics); a statement's `set` takes the empty text to clear
+  its values and refuses any other text that holds no value. A written value's `set(text)` takes exactly one value
+  and keeps the handle: the same object, now of the new value's kind (its class becomes `Word`, `List`, ...). A bad name in `rename`, `set_override` or an override is a program bug,
   `ValueError`. `graph.read()` reads files an edit added, through the graph's own source; until then an include
   copy not read renders as an unreadable with reason `unread` (E3007). `graph.save(writer)` hands the changed
   files to a writer in one batch (`memory_writer(files)` writes into the same map a `memory_source(files)` reads;
@@ -67,22 +73,21 @@ own style: `Processor` for `villanelle()`, `walk()` as a generator, `match` on o
   files into directives (`block`, `rendered.walk()`). A directive's values are the low level's expanded values,
   the same objects its directive expansion holds, one class per kind (`ExpandedWord`, `ExpandedString`,
   `ExpandedList` with its `items`, `ExpandedSlice`, `ExpandedIndex`; the union `ExpandedValue`), equal when their
-  canonical texts are (`==`, `hash`), with its readers (`word()`, `string()`, `number()`, `integer()`, `boolean()`, `list()`, `slice()`, `plain()`), its
+  canonical texts are (`==`, `hash`), with its readers (`word()`, `string()`, `number()`, `integer()`, `boolean()`,
+  `list()`, `slice()`: a word stays untyped until the program reads it as one of these), its
   origin, and `written` (the value on the same line), `definition` (where it is written) and `chain` (each `$name`
   it went through) leading back to the low level. `rendered.addresses(key=...)` names each directive under a key rule,
   and `before.diff(after, key=...)` lists what changed, as `Added`, `Removed`, `Changed` and `Unknown`. Matching a
   `ExpandedString` by position gives its canonical `text`, quotes included; read `string()` for the decoded text.
   A file included twice renders as two copies that share one written line, so an edit loop over the render meets
-  the same `written` handle twice, and the first `replace_with_text` detaches it: keep the handles already edited
-  and skip them.
+  the same `written` handle twice; a value's `set` keeps its handle, so setting it through each copy just writes
+  the line again.
 
   ```python
-  edited: set[vl.WrittenValue] = set()
   for d in vl.render(graph).walk():
       match d:
-          case vl.Directive("max_count", [arg]) if arg.written not in edited:
-              edited.add(arg.written)
-              arg.written.replace_with_text("2400")
+          case vl.Directive("max_count", [value]):
+              value.written.set(vl.text("2400"))
   ```
 
   Reference: [docs/rendered-tree.md](../docs/rendered-tree.md).

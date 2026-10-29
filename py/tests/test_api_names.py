@@ -4,8 +4,10 @@ property or a method as the schema says. A variant has its union's members, the 
 ``extends`` (and that concept's union's), and its own; its ``kind`` is typed as the schema's one value of its list; its
 ``__match_args__`` are the schema's ``py match args``. A union's classes are exactly its variants' classes. A concept
 with ``py module`` is exported by that module and absent from the package root. The error classes form the schema's
-tree. Nothing is skipped. It reads the schema directly (no generated copy) and fails the build when a name drifts.
-The reverse direction (a public name the schema lacks) is a later milestone."""
+tree. A concept whose nature is a named type (``config text``) is a ``typing.NewType`` of ``str``. Nothing is skipped.
+It reads the schema directly (no generated copy) and fails the build when a name drifts. The reverse direction is
+checked for removed names only (milestone 5): no name the schema lists under "removed in milestone 5" is exported; a
+public name the schema lacks otherwise is a later milestone."""
 
 from __future__ import annotations
 
@@ -148,6 +150,11 @@ def concept_problems(concept: dict[str, Any]) -> list[str]:
     module = module_for(concept)
     if not hasattr(module, name):
         return [f"{module.__name__} exports no {name}"]
+    if concept.get("nature") == "named type":
+        found = getattr(module, name)
+        if not isinstance(found, typing.NewType) or found.__supertype__ is not str:
+            return [f"{name} is {found!r}, not a NewType of str"]
+        return []
     variants = classes_of(getattr(module, name))
     out = [p for k in variants for member in members_of(concept) for p in problems_on(k, member)]
     if "py module" in concept and hasattr(villanelle, name):
@@ -217,3 +224,41 @@ def test_error_group(group: dict[str, Any]) -> None:
         for base_name in re.split(r"\s+and\s+", m.group(1).split(",")[0]):
             base = named_class(base_name.strip())
             assert isinstance(base, type) and issubclass(cls, base), f"{group['py']} is not a {base_name}"
+
+
+# --- the reverse check, for removed names only (milestone 5) ---------------------------------------------------
+
+REMOVED: list[dict[str, Any]] = SCHEMA["removed in milestone 5"]
+
+
+def removed_names(entry: dict[str, Any]) -> list[str]:
+    """The Python spellings an entry of "removed in milestone 5" could still be exported under: each comma-separated
+    name (its parenthetical dropped) in snake_case, PascalCase and as written ("plain", "PlainValue", "COLON")."""
+    out: list[str] = []
+    for part in re.split(r",\s*(?![^()]*\))", entry["name"]):
+        words = re.sub(r"\s*\(.*?\)", "", part).strip()
+        if words:
+            out += [snake(words), "".join(w[:1].upper() + w[1:] for w in words.split()), words]
+    return out
+
+
+def exported(name: str) -> list[str]:
+    """Where a name is public: the package root, ``villanelle.written``, a token kind, or a member of an expanded
+    value class."""
+    written = importlib.import_module("villanelle.written")
+    places: list[tuple[str, object]] = [("villanelle", villanelle), ("villanelle.written", written)]
+    places += [(k.__name__, k) for k in classes_of(villanelle.ExpandedValue)]
+    out = [f"{where}.{name}" for where, obj in places if hasattr(obj, name)]
+    if name in villanelle.TokenKind.__members__:
+        out.append(f"TokenKind.{name}")
+    return out
+
+
+@pytest.mark.parametrize("entry", REMOVED, ids=[e["name"] for e in REMOVED])
+def test_a_removed_name_is_not_exported(entry: dict[str, Any]) -> None:
+    assert [w for name in removed_names(entry) for w in exported(name)] == []
+
+
+def test_the_removed_names_check_reads_the_names_the_frozen_page_lists() -> None:
+    names = {n for e in REMOVED for n in removed_names(e)}
+    assert {"plain", "PlainValue", "COLON"} <= names

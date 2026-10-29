@@ -1,6 +1,6 @@
-"""``villanelle.include``: the first-party include extension (R20). ``include "palettes.conf";``, or with this place's
-own variables (R22): ``include "palettes.conf" { set $hue 0.3; }``. What an included file sees, and where its own
-``set`` and ``snippet`` lines are visible, is spec/expansion.md (3, 4 and 7)."""
+"""``villanelle.include``: the first-party include extension (R20). ``@include "palettes.conf";``, or with this place's
+own variables (R22): ``@include "palettes.conf" { @set $hue 0.3; }``. What an included file sees, and where its own
+``@set`` and ``@snippet`` lines are visible, is spec/expansion.md (3, 4 and 7)."""
 
 from __future__ import annotations
 

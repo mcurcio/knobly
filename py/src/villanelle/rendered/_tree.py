@@ -62,7 +62,7 @@ class Address:
 
 @final
 class Directive:
-    """One directive after expansion. ``set``, ``snippet``, ``use`` and extension directives never appear: their results
+    """One directive after expansion. ``@set``, ``@snippet``, ``@use`` and extension lines never appear: their results
     do, in their place. Match it: ``case vl.Directive("node", [kind, node_id, *rest], block):``. Its address is
     ``rendered.addresses(key=...)[directive]`` (D4)."""
 

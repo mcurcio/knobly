@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
-from villanelle._text import port_text, port_texts
+from villanelle._text import ConfigText, port_text, port_texts
 from villanelle.errors import ReadError
 from villanelle.source import DocumentSource, LoadContext
 from villanelle.written import _bind, _graph
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 def load_graph(
-    source: DocumentSource, extensions: Mapping[str, Extension], path: str, overrides: Mapping[str, str]
+    source: DocumentSource, extensions: Mapping[str, Extension], path: str, overrides: Mapping[str, ConfigText]
 ) -> DocumentGraph:
     """Read the root file at ``path`` (resolved through the source, as an included file's spec is, F1-04) and every
     file its include lines name. Checks the overrides first (``_graph.check_override``); raises ReadError (``paths``:

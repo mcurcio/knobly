@@ -31,7 +31,7 @@ class Recorder:
 
 def open_split() -> vl.DocumentGraph:
     config = vl.Processor(source=vl.memory_source(FILES), extensions=[include()])
-    return config.load("main.conf", overrides={"leds_host": '"10.0.70.1"'})
+    return config.load("main.conf", overrides={"leds_host": vl.quote("10.0.70.1")})
 
 
 def node_named(rendered: vl.Rendered, name: str) -> vl.Directive:
@@ -84,14 +84,14 @@ def test_lists_files_variables_and_overrides_then_changes_pixels_itself_and_save
     max_count = next(d for d in leds.block or () if d.name == "max_count").values[0]
     read = max_count.chain[0]
     assert isinstance(read.winner, vl.SetVariable)
-    read.winner.set("2400")  # (2)
+    read.winner.set(vl.text("2400"))  # (2)
     writer = Recorder()
     assert graph.save(writer) == ["main.conf"]
     [[written]] = writer.batches
-    assert written.text == FILES["main.conf"].replace("set $pixels 2284;", "set $pixels 2400;")
+    assert written.text == FILES["main.conf"].replace("@set $pixels 2284;", "@set $pixels 2400;")
     assert graph.save(writer) == []  # (5): saving twice writes once
     assert len(writer.batches) == 1
-    assert max_counts(vl.render(graph)) == [("2400", "main.conf:4:13", 1), ("2400", "main.conf:4:13", 1)]
+    assert max_counts(vl.render(graph)) == [("2400", "main.conf:4:14", 1), ("2400", "main.conf:4:14", 1)]
     # The render from before the edit is a snapshot: it still reads 2284.
     assert max_count.text == "2284"
 
@@ -101,7 +101,7 @@ def test_changes_max_count_to_no_longer_use_the_variable_only_sink_conf_and_pixe
     leds = node_named(vl.render(graph), "leds")
     read = next(d for d in leds.block or () if d.name == "max_count").values[0].chain[0]
     assert read.reference.text == "$pixels"
-    read.reference.replace_with_text("2400")  # (3)
+    read.reference.replace_with_text(vl.text("2400"))  # (3)
     writer = Recorder()
     assert graph.save(writer) == ["sink.conf"]
     assert writer.batches[0][0].text == FILES["sink.conf"].replace("max_count $pixels;", "max_count 2400;")
@@ -119,15 +119,15 @@ def test_edits_a_directive_inside_the_included_file_and_undoes_it() -> None:
     block = node.block
     assert block is not None
     [fps] = block.directives("fps")
-    fps.set("30hz")
-    block.insert_statements(list(block).index(fps) + 1, "brightness 0.8;")
+    fps.set(vl.text("30hz"))
+    block.insert_statements(list(block).index(fps) + 1, vl.text("brightness 0.8;"))
     assert "    fps 30hz;\n    brightness 0.8;\n    input_port pixels;" in doc.text
     porch = node_named(vl.render(graph), "porch")
     assert [(d.name, [a.text for a in d.values]) for d in porch.block or ()][1:3] == [
         ("fps", ["30hz"]),
         ("brightness", ["0.8"]),
     ]
-    doc.replace_with_text(kept)  # undo: `saved_text` is untouched; every handle into it detaches
+    doc.replace_with_text(vl.text(kept))  # undo: `saved_text` is untouched; every handle into it detaches
     assert doc.text == doc.saved_text
     with pytest.raises(vl.DetachedError):
         _ = node.text

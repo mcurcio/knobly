@@ -29,16 +29,18 @@ from villanelle.syntax._recovery import message_of
 from villanelle.syntax.cst import Node, NodeKind, Syntax, ValueRef, span_of
 from villanelle.syntax.parse import parse_entry
 from villanelle.syntax.tokens import Token, TokenKind
-from villanelle.written._shape import shape_of_anatomy
+from villanelle.written._shape import SET, SNIPPET, USE, shape_of_anatomy
 from villanelle.written.extension import ExtensionUse
 from villanelle.written.model import (
     Copy,
     Document,
     DocumentEdge,
+    Index,
     Reference,
     ReferenceResolution,
     Resolution,
     SetLine,
+    Slice,
     SnippetLine,
     Statement,
     UseLine,
@@ -484,23 +486,25 @@ class Binding:
                 context.into.append(BoundUnreadable(copy, problem.reason, problem.diagnostic))
 
     def _statement(self, node: Node, copy: Copy, context: _Context) -> None:
-        """One directive node: a reserved line does its work; any other becomes a directive, its block walked."""
+        """One directive node, by its head token's kind (spec 2.5): an AT_WORD heads a language statement, which does
+        its work, or an extension line; an ``@name`` no extension owns is unreadable (E3008 at it); a WORD heads a
+        directive, its block walked."""
         text, scope, via = context.text, context.scope, context.via
         tokens = text.syntax.tokens
         anatomy = anatomy_of(tokens, node)
         name = tokens[anatomy.name]
-        if name.text == "set":
-            self._set(anatomy, copy, text, scope, via)
-            return
-        if name.text == "snippet":
-            self._snippet(anatomy, copy, context)
-            return
-        if name.text == "use":
-            self._use(anatomy, name, copy, context)
-            return
-        extension = self._extensions.get(name.text)
-        if extension is not None:
-            self._extension(extension, anatomy, name, copy, context)
+        if name.kind is TokenKind.AT_WORD:
+            if name.text == SET:
+                self._set(anatomy, copy, text, scope, via)
+            elif name.text == SNIPPET:
+                self._snippet(anatomy, copy, context)
+            elif name.text == USE:
+                self._use(anatomy, name, copy, context)
+            elif (extension := self._extensions.get(name.text[1:])) is not None:
+                self._extension(extension, anatomy, name, copy, context)
+            else:
+                code = DiagnosticCode.UNKNOWN_EXTENSION
+                raise self._problem(UnreadableReason.EXTENSION, code, text, name.span, via, name.text)
             return
         statement = copy.statement
         values: dict[WrittenValue, tuple[ExpandedValue, ...]] = {}
@@ -529,15 +533,15 @@ class Binding:
             self._statements(anatomy.block, _Context(text, _Scope(scope), via, context.open, children))
 
     def _well_formed(self, anatomy: Anatomy, text: _Text, via: tuple[Step, ...]) -> None:
-        """A ``set``, ``snippet`` or ``use`` line's text-alone shape (``_shape``, the one home of those rules), or its
-        problem."""
+        """A ``@set``, ``@snippet`` or ``@use`` line's text-alone shape (``_shape``, the one home of those rules), or
+        its problem."""
         fault = shape_of_anatomy(text.syntax.tokens, anatomy, frozenset()).fault
         if fault is not None:
             span = text.syntax.tokens[fault.token].span
             raise self._problem(UnreadableReason.EXPANSION, fault.code, text, span, via)
 
     def _set(self, anatomy: Anatomy, copy: Copy, text: _Text, scope: _BlockScope, via: tuple[Step, ...]) -> None:
-        """``set $name value...;`` (rule 2): binds from this line to the end of the enclosing block."""
+        """``@set $name value...;`` (rule 2): binds from this line to the end of the enclosing block."""
         self._well_formed(anatomy, text, via)
         tokens = text.syntax.tokens
         args = anatomy.args
@@ -558,7 +562,7 @@ class Binding:
         )
 
     def _snippet(self, anatomy: Anatomy, copy: Copy, context: _Context) -> None:
-        """``snippet name $param... { body }`` (rule 5): visible from this line to the end of its block."""
+        """``@snippet name $param... { body }`` (rule 5): visible from this line to the end of its block."""
         text, scope, via = context.text, context.scope, context.via
         self._well_formed(anatomy, text, via)
         tokens = text.syntax.tokens
@@ -576,7 +580,7 @@ class Binding:
             )
 
     def _use(self, anatomy: Anatomy, keyword: Token, copy: Copy, context: _Context) -> None:
-        """``use name value...;`` (rule 6): the snippet's body, spliced in place with its parameters bound."""
+        """``@use name value...;`` (rule 6): the snippet's body, spliced in place with its parameters bound."""
         text, scope, via, open_ = context.text, context.scope, context.via, context.open
         self._well_formed(anatomy, text, via)
         tokens = text.syntax.tokens
@@ -631,7 +635,8 @@ class Binding:
         self._statements(snippet.body, _Context(snippet.text, body, (step, *via), (*open_, snippet), context.into))
 
     def _extension(self, extension: Extension, anatomy: Anatomy, name: Token, copy: Copy, context: _Context) -> None:
-        """An extension directive (rules 7 and 8): the files its specs name, spliced in place."""
+        """An extension line (rules 7 and 8): the files its specs name, spliced in place. Its step is named without
+        ``@`` and placed on the ``@name`` token."""
         text, scope, via, open_ = context.text, context.scope, context.via, context.open
         draft = _EdgeDraft(copy)
         self._drafts.append(draft)
@@ -649,7 +654,7 @@ class Binding:
             raise _Problem(UnreadableReason.EXTENSION, error.diagnostic) from None
         except Exception as error:
             draft.specs.clear()
-            raise fail(DiagnosticCode.EXTENSION_FAILED, f"{name.text}: {error}") from None
+            raise fail(DiagnosticCode.EXTENSION_FAILED, f"{name.text[1:]}: {error}") from None
         reads = self._reads
         assert reads is not None, "no read ledger"
         found: list[str] = []
@@ -677,7 +682,7 @@ class Binding:
                 raise fail(DiagnosticCode.INCLUDE_RESOLVER_FAILED, f"{path}: {doc}")
             files.append(doc)
         draft.targets.extend(found)
-        step = Step(StepKind.EXTENSION, name.text, text.place(name.span))
+        step = Step(StepKind.EXTENSION, name.text[1:], text.place(name.span))
         spliced = _SpliceScope(scope, overrides)
         for file in files:
             self._statements(
@@ -693,7 +698,7 @@ class Binding:
     def _extension_block(
         self, block: Node | None, text: _Text, scope: _BlockScope, via: tuple[Step, ...]
     ) -> Mapping[str, _Definition]:
-        """An extension directive's block: only ``set`` lines (E5012), bound for the spliced files."""
+        """An extension directive's block: only ``@set`` lines (E5012), bound for the spliced files."""
         if block is None:
             return {}
         own = _Scope(scope)
@@ -707,7 +712,7 @@ class Binding:
                 continue
             anatomy = anatomy_of(tokens, node)
             name = tokens[anatomy.name]
-            if name.text != "set":
+            if name.kind is not TokenKind.AT_WORD or name.text != SET:
                 raise self._problem(
                     UnreadableReason.EXTENSION, DiagnosticCode.EXTENSION_BLOCK_NOT_SET, text, name.span, via
                 )
@@ -746,7 +751,7 @@ class Binding:
             return [self._slice(text, ref, scope, via, copy, origin, written)]
         token = syntax.tokens[ref]
         origin = Origin(text.written(token.span), via)
-        if token.kind in (TokenKind.WORD, TokenKind.INTEGER, TokenKind.DIGIT_WORD):
+        if token.kind in (TokenKind.WORD, TokenKind.AT_WORD, TokenKind.INTEGER, TokenKind.DIGIT_WORD):
             return [ExpandedWord(token.text, origin, written, ())]
         if token.kind is TokenKind.STRING:
             return [ExpandedString(_values.decode_string(token.text), origin, written, ())]
@@ -755,16 +760,26 @@ class Binding:
         raise TypeError(f"not a value token: {token.kind}")
 
     def _variable(
-        self, text: _Text, ref: int, token: Token, scope: _ScopeView, via: tuple[Step, ...], copy: Copy | None
+        self,
+        text: _Text,
+        ref: int,
+        token: Token,
+        scope: _ScopeView,
+        via: tuple[Step, ...],
+        copy: Copy | None,
+        reference: WrittenValue | None = None,
     ) -> list[ExpandedValue]:
-        """``$name``'s values as read here: each with the variable step, then the reading place's steps."""
+        """``$name``'s values as read here: each with the variable step, then the reading place's steps.
+        ``reference`` is its written handle when the value index at ``ref`` holds another (a slice's name shares the
+        slice's start)."""
         name = token.text[1:]
         entries: list[_Entry] = []
         scope.entries(name, entries)
         ordered = _ordered(entries, self._overrides.get(name))
         winner = ordered[0] if ordered else None
         resolution: ReferenceResolution | None = None
-        reference = None if text.doc is None else text.doc._values.get(ref)
+        if reference is None and text.doc is not None:
+            reference = text.doc._values.get(ref)
         if copy is not None and isinstance(reference, Reference):
             resolution = ReferenceResolution(
                 copy,
@@ -795,9 +810,10 @@ class Binding:
         origin: Origin,
         written: WrittenValue | None,
     ) -> ExpandedValue:
-        """``name[bounds]``: each bound a literal INTEGER or a variable holding exactly one (rules 4 and 10)."""
+        """``name[bounds]``: the name a word or a variable holding exactly one word (E4007 otherwise), each bound a
+        literal INTEGER or a variable holding exactly one (rules 4 and 10). Read where written, as a word is."""
         tokens = text.syntax.tokens
-        name = tokens[node.start].text
+        name = self._slice_name(text, node.start, scope, via, copy, written)
         inner = list(range(node.start + 2, node.end - 1))
 
         def bound(position: int) -> int | None:
@@ -805,13 +821,34 @@ class Binding:
                 return None
             return self._bound(text, inner[position], tokens[inner[position]], scope, via, copy)
 
-        colon = next((i for i, t in enumerate(inner) if tokens[t].kind is TokenKind.COLON), -1)
-        if colon < 0:
+        tilde = next((i for i, t in enumerate(inner) if tokens[t].kind is TokenKind.TILDE), -1)
+        if tilde < 0:
             index = bound(0)
             return ExpandedIndex(name, 0 if index is None else index, origin, written, ())
-        start = None if colon == 0 else bound(0)
-        end = bound(colon + 1) if colon + 1 < len(inner) else None
+        start = None if tilde == 0 else bound(0)
+        end = bound(tilde + 1) if tilde + 1 < len(inner) else None
         return ExpandedSlice(name, start, end, origin, written, ())
+
+    def _slice_name(
+        self,
+        text: _Text,
+        ref: int,
+        scope: _ScopeView,
+        via: tuple[Step, ...],
+        copy: Copy | None,
+        written: WrittenValue | None,
+    ) -> str:
+        """A slice's name: a word's text, or through a ``$name`` the one word it holds. E4007 otherwise, placed as
+        E4001 is for a bound through a variable (``_bound``)."""
+        token = text.syntax.tokens[ref]
+        if token.kind is not TokenKind.VARIABLE:
+            return token.text
+        reference = written._name if isinstance(written, Slice | Index) else None
+        values = self._variable(text, ref, token, scope, via, copy, reference)
+        only = values[0] if values else None
+        if len(values) == 1 and only is not None and only.kind is ValueKind.WORD:
+            return only.text
+        raise self._through(DiagnosticCode.BAD_SLICE_NAME, text, token, via, only)
 
     def _bound(
         self, text: _Text, ref: int, token: Token, scope: _ScopeView, via: tuple[Step, ...], copy: Copy | None
@@ -831,15 +868,19 @@ class Binding:
             integer = _values.integer_of(only.text)
             if integer is not None:
                 return integer
+        raise self._through(DiagnosticCode.NON_INTEGER_BOUND, text, token, via, only)
+
+    def _through(
+        self, code: DiagnosticCode, text: _Text, token: Token, via: tuple[Step, ...], only: ExpandedValue | None
+    ) -> _Problem:
+        """A value problem of a ``$name`` read as a slice's name or bound (E4007, E4001): at its first value's place,
+        via the variable, when that value is written in a file; else at the ``$name``."""
         at = None if only is None else only.origin.place
         if only is None or not isinstance(at, Place):
             # An override is written in no file: the problem is placed on the `$name` that used it.
-            raise self._problem(
-                UnreadableReason.VALUE, DiagnosticCode.NON_INTEGER_BOUND, text, token.span, via, token.text
-            )
-        code = DiagnosticCode.NON_INTEGER_BOUND
+            return self._problem(UnreadableReason.VALUE, code, text, token.span, via, token.text)
         message = f"{message_of(code)}: {token.text} is {only.text}"
-        raise _Problem(UnreadableReason.VALUE, LocatedDiagnostic(code, message, at, only.origin.via))
+        return _Problem(UnreadableReason.VALUE, LocatedDiagnostic(code, message, at, only.origin.via))
 
     def _problem(
         self,

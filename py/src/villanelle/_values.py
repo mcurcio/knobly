@@ -51,14 +51,16 @@ def boolean_of(word: str) -> bool | None:
 
 
 _ESCAPES = {'"': '"', "'": "'", "\\": "\\", "n": "\n", "t": "\t", "r": "\r"}
-"""The six escapes of EscapeText and what each decodes to."""
+"""The six escapes of EscapeText (double-quoted strings only) and what each decodes to."""
 _ESCAPE = re.compile(r"\\(.)", re.DOTALL)
 
 
 def decode_string(token: str) -> str:
-    """The text between a STRING token's quotes, escapes decoded. A STRING token holds only the six escapes (the
-    grammar's rule: any other makes the string a BAD_ESCAPE token, E1005)."""
-    return _ESCAPE.sub(lambda m: _ESCAPES[m[1]], token[1:-1])
+    """The text between a STRING token's quotes. A single-quoted token is raw (spec 3.1, TOML's literal strings): its
+    text unchanged. A double-quoted one has its escapes decoded; it holds only the six escapes (the grammar's rule:
+    any other makes the string a BAD_ESCAPE token, E1005)."""
+    inner = token[1:-1]
+    return inner if token.startswith("'") else _ESCAPE.sub(lambda m: _ESCAPES[m[1]], inner)
 
 
 _CANONICAL_ESCAPES = {"\\": "\\\\", '"': '\\"', "\n": "\\n", "\t": "\\t", "\r": "\\r"}
@@ -71,8 +73,8 @@ def canonical_string(value: str) -> str:
 
 
 def canonical_slice(name: str, start: int | None, end: int | None) -> str:
-    """A slice's canonical text: ``name[start:end]``, either side empty when absent."""
-    return f"{name}[{'' if start is None else start}:{'' if end is None else end}]"
+    """A slice's canonical text: ``name[start~end]``, either side empty when absent."""
+    return f"{name}[{'' if start is None else start}~{'' if end is None else end}]"
 
 
 def canonical_index(name: str, index: int) -> str:

@@ -71,7 +71,7 @@ def test_save_through_file_writer_writes_the_changed_file_once(tmp_path: Path) -
     graph = vl.Processor(source=file_source()).load(str(root))
     x = graph.root.block[0]
     assert isinstance(x, vl.WrittenDirective)
-    x.values[0].replace_with_text("2")
+    x.values[0].replace_with_text(vl.text("2"))
     assert graph.save(file_writer()) == [str(root)]
     assert root.read_text() == "x 2;\n"
     assert graph.save(file_writer()) == []

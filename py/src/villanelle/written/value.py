@@ -1,7 +1,7 @@
 """Values after expansion (spec 2.9), owned by the low level (vil-umh.8): one class per value kind
 (``ExpandedWord``, ``ExpandedString``, ``ExpandedList``, ``ExpandedSlice``, ``ExpandedIndex``; the union
 ``ExpandedValue``), each with the readers and three links to the lines it came through (``written``, ``definition``,
-``chain``), and the plain values of a slice and an index. An extension use holds them, a directive expansion's
+``chain``), and the values a slice's and an index's reader returns. An extension use holds them, a directive expansion's
 ``values`` are them, and a rendered directive's ``values`` are the same objects: one family, one home of the readers.
 Two expanded values are equal exactly when their canonical texts are (``==`` and ``hash``). The rules each reader
 applies live in ``villanelle._values``."""
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class SliceValue:
-    """``name[start:end]``, ``name[start:]`` or ``name[:end]``; the absent side is None. A value's origin says where
+    """``name[start~end]``, ``name[start~]`` or ``name[~end]``; the absent side is None. A value's origin says where
     it was written."""
 
     kind: ClassVar[ValueKind] = ValueKind.SLICE
@@ -41,11 +41,6 @@ class IndexValue:
     kind: ClassVar[ValueKind] = ValueKind.INDEX
     name: str
     index: int
-
-
-PlainValue: TypeAlias = "int | float | bool | str | SliceValue | IndexValue | tuple[PlainValue, ...]"
-"""A value by villanelle's one rule. Quoting means text: ``"8080"`` and ``"true"`` are str; only a bare word is read
-as a number (NumberText) or as true/false (BooleanText)."""
 
 
 class _Expanded:
@@ -193,22 +188,6 @@ class _Expanded:
             return IndexValue(self._name, self._index)
         raise self._problem(DiagnosticCode.WRONG_VALUE_KIND, f"expected a slice or an index, not a {self.kind}")
 
-    def plain(self) -> PlainValue:
-        """Any value by the one rule: a string is its str; a word is a number when ``number()`` would accept it, a
-        bool when ``true``/``false``, else its str (``1e400`` stays text); a list is a tuple of its items read the same
-        way; a slice or an index is its value. Never raises."""
-        if isinstance(self, ExpandedList):
-            return tuple(item.plain() for item in self._items)
-        if isinstance(self, ExpandedWord):
-            number = _values.number_of(self._text)
-            if number is not None:
-                return number
-            boolean = _values.boolean_of(self._text)
-            return self._text if boolean is None else boolean
-        if isinstance(self, ExpandedString):
-            return self._value
-        return self.slice()
-
     def error(self, message: str, *, code: str) -> DiagnosticError:
         """A located error to raise or report, placed on this value (for an override's value: on the ``$name`` that
         used it). Raises ValueError at once when ``code`` has no "/" (villanelle's codes are its own)."""
@@ -318,7 +297,8 @@ class ExpandedList(_Expanded):
 
 
 class ExpandedSlice(_Expanded):
-    """``name[start:end]``; an absent side is None."""
+    """``name[start~end]``; an absent side is None. ``name`` is the word it slices (a ``$name`` written as the slice
+    name is expanded to the one word it holds)."""
 
     __match_args__ = ("name", "start", "end")
     __slots__ = ("_end", "_name", "_start")
@@ -436,6 +416,5 @@ __all__ = [
     "ExpandedValue",
     "ExpandedWord",
     "IndexValue",
-    "PlainValue",
     "SliceValue",
 ]

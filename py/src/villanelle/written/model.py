@@ -12,19 +12,21 @@ The classes hold their state; the algorithms live in the private modules beside 
 handle tree, splices and edit checks), ``_graph`` (the read ledger, the overrides and the binding cache), ``_bind``
 (the binding) and ``_expand`` (the expansion ``expand()`` returns).
 
-Every edit that takes new values takes villanelle text only, as ``text``: anything but a str raises TypeError before
-anything changes (use ``villanelle.quote`` for a program string, ``str()`` for a number).
+Every edit that takes new values takes config text only, as ``text`` (``ConfigText``, spec 6.9): made by
+``villanelle.quote`` from a program string or by ``villanelle.text`` from a text already written as villanelle text, so
+a type checker refuses a plain str; at run time anything but a str raises TypeError before anything changes.
 """
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Generic, Literal, TypeAlias, TypeVar, cast, final, overload
 
 from villanelle._api.kinds import StatementKind, UnreadableReason, ValueKind, VariableKind
-from villanelle._text import require_text
+from villanelle._text import ConfigText, require_text
 from villanelle.errors import DetachedError
 from villanelle.origin import DirectiveOrigin, Place, Step
 from villanelle.report import LocatedDiagnostic
@@ -69,7 +71,7 @@ class DocumentGraph:
     _extension_names: frozenset[str]
     _documents: dict[str, Document]
     _root: Document | None
-    _override_texts: dict[str, str]
+    _override_texts: dict[str, ConfigText]
     _override_values: dict[str, OverrideValues]
     _override_variables: dict[str, OverrideVariable]
     _resolutions: dict[tuple[str, str], tuple[str, ...] | Exception]
@@ -78,7 +80,7 @@ class DocumentGraph:
     _cache: tuple[int, Binding] | None
 
     def __init__(
-        self, source: DocumentSource, extensions: Mapping[str, Extension], overrides: Mapping[str, str]
+        self, source: DocumentSource, extensions: Mapping[str, Extension], overrides: Mapping[str, ConfigText]
     ) -> None:
         """Made by ``Processor.load`` only. Checks each override as ``set_override`` does (one check)."""
         from villanelle.written import _graph
@@ -97,9 +99,9 @@ class DocumentGraph:
         return MappingProxyType(self._documents)
 
     @property
-    def overrides(self) -> Mapping[str, str]:
-        """The overrides by name (without ``$``), each as villanelle text, in order; a read-only view (change it with
-        ``set_override``). Never saved."""
+    def overrides(self) -> Mapping[str, ConfigText]:
+        """The overrides by name (without ``$``), each the config text the program gave, in order; a read-only view
+        (change it with ``set_override``). Never saved."""
         return MappingProxyType(self._override_texts)
 
     @property
@@ -110,9 +112,10 @@ class DocumentGraph:
 
         return _graph.diagnostics(self)
 
-    def set_override(self, name: str, text: str | None, /) -> None:
+    def set_override(self, name: str, text: ConfigText | None, /) -> None:
         """Add, change or (None) remove one override without a reload; which ``set`` lines it wins over is
-        spec/expansion.md 5. Raises TypeError for a name or text that is not a str (``quote()`` a program string);
+        spec/expansion.md 5. Raises TypeError for a name or text that is not a str (``quote()`` a program string,
+        ``text()`` one already written as villanelle text);
         ValueError (misuse) for a name that is not letters, digits and ``_``; BadTextError for a text the
         ``valuesText`` entry rule refuses or that is not one or more values without a ``$name``, located in that
         text."""
@@ -247,7 +250,7 @@ class Document:
     def included_by(self) -> tuple[DocumentEdge, ...]:
         return tuple(e for e in self._graph._binding().edges if self._path in e.targets)
 
-    def replace_with_text(self, text: str, /) -> None:
+    def replace_with_text(self, text: ConfigText, /) -> None:
         """Replace the whole text; every handle into it detaches; ``saved_text`` is untouched. TypeError for a
         ``text`` that is not a str."""
         from villanelle.written import _document
@@ -335,7 +338,7 @@ class _Statement:
         self._live()
         return self._doc._graph._binding().copies_of(cast("Statement", self))
 
-    def replace_with_text(self, text: str, /) -> tuple[Statement, ...]:
+    def replace_with_text(self, text: ConfigText, /) -> tuple[Statement, ...]:
         """Zero or more statements in its place, indented as it is. Raises TypeError for a ``text`` that is not a str,
         BadTextError for one that is not statements. This handle detaches."""
         from villanelle.written import _document
@@ -350,17 +353,17 @@ class _Statement:
         self._live()
         _document.remove_statement(cast("Statement", self))
 
-    def insert_before(self, text: str, /) -> tuple[Statement, ...]:
+    def insert_before(self, text: ConfigText, /) -> tuple[Statement, ...]:
         """Statements inserted just before this one in its block: its block's ``insert_statements`` at this one's
         index. TypeError for a ``text`` that is not a str; BadTextError for one that is not statements."""
         return self._insert(text, "insert_before", 0)
 
-    def insert_after(self, text: str, /) -> tuple[Statement, ...]:
+    def insert_after(self, text: ConfigText, /) -> tuple[Statement, ...]:
         """Statements inserted just after this one in its block: its block's ``insert_statements`` at this one's
         index plus one. TypeError for a ``text`` that is not a str; BadTextError for one that is not statements."""
         return self._insert(text, "insert_after", 1)
 
-    def _insert(self, text: str, member: str, after: int) -> tuple[Statement, ...]:
+    def _insert(self, text: ConfigText, member: str, after: int) -> tuple[Statement, ...]:
         from villanelle.written import _document
 
         self._live()
@@ -397,11 +400,12 @@ class _NamedLine(_Statement):
         self._live()
         return self._block
 
-    def set(self, text: str, /) -> None:
-        """Replace this statement's values with ``text`` (villanelle values: ``stmt.set(quote(host))``,
-        ``stmt.set(str(port))``); an empty text removes them. Not the language's ``set`` line: this edits any
+    def set(self, text: ConfigText, /) -> None:
+        """Replace this statement's values with ``text`` (config text: ``stmt.set(quote(host))``,
+        ``stmt.set(text(str(port)))``); the empty text removes them. Not the language's ``@set`` line: this edits any
         statement's values. TypeError for a ``text`` that is not a str; BadTextError for one the ``valuesText``
-        entry rule refuses (spec 2.8: a ``;``, a block, a comment the text ends in); a line break is whitespace."""
+        entry rule refuses (spec 2.8: a ``;``, a block, a comment the text ends in), and E2001 at 0:0 for a text that
+        holds no value and is not empty (``"# c\n"``, ``"  "``); a line break is whitespace."""
         from villanelle.written import _document
 
         self._live()
@@ -411,8 +415,8 @@ class _NamedLine(_Statement):
 
 @final
 class WrittenDirective(_NamedLine):
-    """A directive as written (``port 8080;``, ``node { ... }``): not a ``set``, ``snippet`` or ``use`` line, and not
-    an extension line."""
+    """A directive as written (``port 8080;``, ``node { ... }``, ``use epoll;``): a statement headed by a word, whatever
+    its text; ``@set``, ``@snippet``, ``@use`` and extension lines are headed by ``@`` (spec 2.5)."""
 
     __match_args__ = ("name", "values", "block")
     __slots__ = ()
@@ -423,8 +427,8 @@ class WrittenDirective(_NamedLine):
 
     def rename(self, name: str, /) -> None:
         """Change its name. TypeError for a ``name`` that is not a str; ValueError (misuse, spec 2.8) for a name the
-        grammar's ``nameText`` entry rule refuses (not one word, or starting with a digit or ``-``), or a reserved or
-        registered extension name."""
+        grammar's ``nameText`` entry rule refuses (not one word: starting with a digit, ``-`` or ``@``), and for
+        nothing else: no name is reserved (``use``, ``include`` are directive names like any other)."""
         from villanelle.written import _document
 
         self._live()
@@ -433,8 +437,8 @@ class WrittenDirective(_NamedLine):
 
 @final
 class ExtensionLine(_NamedLine):
-    """A line whose name an extension owns (``include "sink.conf";``): its values are the extension's, its block
-    holds ``set`` lines. No ``rename``: a new name would change its kind."""
+    """A line headed by ``@`` and a registered extension's name (``@include "sink.conf";``): its values are the
+    extension's, its block holds ``@set`` lines. No ``rename``: a new name would change its kind."""
 
     __match_args__ = ("name", "values", "block")
     __slots__ = ()
@@ -443,10 +447,15 @@ class ExtensionLine(_NamedLine):
     def kind(self) -> Literal[StatementKind.EXTENSION]:
         return StatementKind.EXTENSION
 
+    @property
+    def name(self) -> str:
+        """The extension's name, without ``@`` (``include``)."""
+        return super().name[1:]
+
 
 @final
 class SetLine(_Statement):
-    """``set $name values;``."""
+    """``@set $name values;``."""
 
     __match_args__ = ("variable", "values")
     __slots__ = ("_variable",)
@@ -472,7 +481,7 @@ class SetLine(_Statement):
         self._live()
         return tuple(self._value_list)
 
-    def set(self, text: str, /) -> None:
+    def set(self, text: ConfigText, /) -> None:
         """Replace the values after the ``$name`` with ``text``, as ``WrittenDirective.set`` does."""
         from villanelle.written import _document
 
@@ -483,7 +492,7 @@ class SetLine(_Statement):
 
 @final
 class SnippetLine(_Statement):
-    """``snippet name $param... { body }``."""
+    """``@snippet name $param... { body }``."""
 
     __match_args__ = ("name", "parameters", "block")
     __slots__ = ("_parameters",)
@@ -519,7 +528,7 @@ class SnippetLine(_Statement):
 
 @final
 class UseLine(_Statement):
-    """``use name values;``."""
+    """``@use name values;``."""
 
     __match_args__ = ("snippet_name", "values")
     __slots__ = ()
@@ -554,7 +563,7 @@ class UseLine(_Statement):
         self._live()
         return tuple(self._value_list)
 
-    def set(self, text: str, /) -> None:
+    def set(self, text: ConfigText, /) -> None:
         """Replace the values after the snippet name with ``text``, as ``WrittenDirective.set`` does."""
         from villanelle.written import _document
 
@@ -565,8 +574,8 @@ class UseLine(_Statement):
 
 @final
 class UnreadableLine(_Statement):
-    """A statement that cannot be read by its text alone: a syntax error, or a malformed ``set``, ``snippet`` or
-    ``use`` line."""
+    """A statement that cannot be read by its text alone: a syntax error, a malformed ``@set``, ``@snippet`` or
+    ``@use`` line, or an ``@name`` no extension owns (E3008)."""
 
     __match_args__ = ("text",)
     __slots__ = ()
@@ -623,7 +632,7 @@ class WrittenBlock(Sequence["Statement"]):
         """The written directives (kind ``directive`` only: extension lines are not listed), by ``name`` if given."""
         return tuple(s for s in self._live() if isinstance(s, WrittenDirective) and (name is None or s.name == name))
 
-    def insert_statements(self, index: int, text: str, /) -> tuple[Statement, ...]:
+    def insert_statements(self, index: int, text: ConfigText, /) -> tuple[Statement, ...]:
         """Raises TypeError for a ``text`` that is not a str; BadTextError for one that is not statements; IndexError
         for an index outside 0..len."""
         from villanelle.written import _document
@@ -632,7 +641,7 @@ class WrittenBlock(Sequence["Statement"]):
         given = require_text(text, member="insert_statements", parameter="text")
         return _document.insert_statements(self, index, given)
 
-    def add_statements(self, text: str, /) -> tuple[Statement, ...]:
+    def add_statements(self, text: ConfigText, /) -> tuple[Statement, ...]:
         """``insert_statements`` at the end."""
         from villanelle.written import _document
 
@@ -643,33 +652,68 @@ class WrittenBlock(Sequence["Statement"]):
 
 # --- Values ---
 
+ValuePart: TypeAlias = Literal["value", "bound", "name"]
+"""Where a written value stands: a line's value or a list item; a slice's or index's bound; a slice's or index's
+name. It picks the entry rule its ``set`` and ``replace_with_text`` take."""
+
 
 class _Value:
-    """What every written value has. Private: the public type is the union ``WrittenValue``."""
+    """What every written value has. Private: the public type is the union ``WrittenValue``. The six value classes
+    share this one slot layout (each adds no slot), so a ``set`` that writes a value of another kind keeps the handle
+    and reassigns its class (Python Cookbook recipe 8.19's ``__class__`` state pattern)."""
 
-    __slots__ = ("_bound", "_detached", "_doc", "_list", "_ref", "_statement")
+    __slots__ = (
+        "_detached",
+        "_doc",
+        "_end",
+        "_index",
+        "_items",
+        "_list",
+        "_name",
+        "_part",
+        "_ref",
+        "_start",
+        "_statement",
+    )
 
     _doc: Document
     _ref: ValueRef
     _statement: Statement
     _list: List | None
-    _bound: bool
-    """Whether it is a slice or index bound."""
+    _part: ValuePart
     _detached: bool
+    _items: builtins.list[WrittenValue]
+    """A list's items (empty for any other kind)."""
+    _name: Word | Reference | None
+    """A slice's or index's name (None for any other kind)."""
+    _start: Word | Reference | None
+    _end: Word | Reference | None
+    _index: Word | Reference | None
+    """A slice's bounds, an index's bound (None for any other kind)."""
 
     def __init__(self, doc: Document) -> None:
         self._doc = doc
         self._list = None
-        self._bound = False
+        self._part = "value"
         self._detached = False
+        self._clear()
+
+    def _clear(self) -> None:
+        """No inner values: what a (re)build starts from."""
+        self._items = []
+        self._name = None
+        self._start = None
+        self._end = None
+        self._index = None
 
     def _live(self) -> None:
         if self._detached:
             raise _detached("value")
 
     def _inner(self) -> tuple[WrittenValue, ...]:
-        """The values inside it: a list's items, a slice's or index's bounds."""
-        return ()
+        """The values inside it, in text order: a list's items, a slice's or index's name and bounds."""
+        parts = (self._name, self._start, self._end, self._index)
+        return (*self._items, *(v for v in parts if v is not None))
 
     @property
     def kind(self) -> ValueKind:
@@ -700,10 +744,24 @@ class _Value:
         self._live()
         return self._list
 
-    def replace_with_text(self, text: str, /) -> tuple[WrittenValue, ...]:
+    def set(self, text: ConfigText, /) -> None:
+        """Replace this value with exactly one value and keep the handle (spec 6.1, 6.6): the same object stays where
+        it was (its statement's ``values``, its list's ``items``, its slice's bound or name) and now holds the new
+        value, of the new value's kind: its class becomes that kind's class (``Word`` set to ``"[1, 2]"`` is a
+        ``List``). Its old items, bounds and name detach. Setting it again, through any copy that shares it, writes
+        again. TypeError for a ``text`` that is not a str; BadTextError for one its entry rule refuses (spec 2.8):
+        ``valueText`` (exactly one value), a bound's ``boundText``, a slice name's ``sliceNameText``."""
+        from villanelle.written import _document
+
+        self._live()
+        given = require_text(text, member="set", parameter="text")
+        _document.set_value(cast("WrittenValue", self), given)
+
+    def replace_with_text(self, text: ConfigText, /) -> tuple[WrittenValue, ...]:
         """Zero or more values in its place. TypeError for a ``text`` that is not a str; BadTextError for one its
         entry rule refuses (spec 2.8): ``valuesText``; a list item's ``itemsText`` (no trailing ``,``); a slice or index
-        bound's ``boundText`` (one integer word or ``$name``)."""
+        bound's ``boundText`` (one integer word or ``$name``); a slice or index name's ``sliceNameText``. This handle
+        detaches."""
         from villanelle.written import _document
 
         self._live()
@@ -745,16 +803,7 @@ class String(_Value):
 @final
 class List(_Value):
     __match_args__ = ("items",)
-    __slots__ = ("_items",)
-
-    _items: list[WrittenValue]
-
-    def __init__(self, doc: Document) -> None:
-        super().__init__(doc)
-        self._items = []
-
-    def _inner(self) -> tuple[WrittenValue, ...]:
-        return tuple(self._items)
+    __slots__ = ()
 
     @property
     def kind(self) -> Literal[ValueKind.LIST]:
@@ -766,35 +815,23 @@ class List(_Value):
         return tuple(self._items)
 
 
-def _slice_name(value: _Value) -> str:
-    value._live()
-    ref = value._ref
-    return "" if isinstance(ref, int) else value._doc._syntax.tokens[ref.start].text
-
-
 @final
 class Slice(_Value):
+    """``name[start~end]``: its name and bounds are written values (a word or a ``$name`` each)."""
+
     __match_args__ = ("name", "start", "end")
-    __slots__ = ("_end", "_start")
-
-    _start: Word | Reference | None
-    _end: Word | Reference | None
-
-    def __init__(self, doc: Document) -> None:
-        super().__init__(doc)
-        self._start = None
-        self._end = None
-
-    def _inner(self) -> tuple[WrittenValue, ...]:
-        return tuple(v for v in (self._start, self._end) if v is not None)
+    __slots__ = ()
 
     @property
     def kind(self) -> Literal[ValueKind.SLICE]:
         return ValueKind.SLICE
 
     @property
-    def name(self) -> str:
-        return _slice_name(self)
+    def name(self) -> Word | Reference:
+        """The slice name before ``[``: a word, or a ``$name`` holding one (``$src[0~3]``)."""
+        self._live()
+        assert self._name is not None, "a slice has its name"
+        return self._name
 
     @property
     def start(self) -> Word | Reference | None:
@@ -809,25 +846,21 @@ class Slice(_Value):
 
 @final
 class Index(_Value):
+    """``name[index]``: its name and bound are written values (a word or a ``$name`` each)."""
+
     __match_args__ = ("name", "index")
-    __slots__ = ("_index",)
-
-    _index: Word | Reference | None
-
-    def __init__(self, doc: Document) -> None:
-        super().__init__(doc)
-        self._index = None
-
-    def _inner(self) -> tuple[WrittenValue, ...]:
-        return () if self._index is None else (self._index,)
+    __slots__ = ()
 
     @property
     def kind(self) -> Literal[ValueKind.INDEX]:
         return ValueKind.INDEX
 
     @property
-    def name(self) -> str:
-        return _slice_name(self)
+    def name(self) -> Word | Reference:
+        """The name before ``[``: a word, or a ``$name`` holding one (``$s[1]``)."""
+        self._live()
+        assert self._name is not None, "an index has its name"
+        return self._name
 
     @property
     def index(self) -> Word | Reference:
@@ -965,10 +998,10 @@ class SetVariable(_Variable):
         given = require_text(name, member="rename", parameter="name")
         _document.rename_variable(self._line, token, given)
 
-    def set(self, text: str, /) -> None:
+    def set(self, text: ConfigText, /) -> None:
         """Replace its ``set`` line's values with ``text``, as ``SetLine.set`` does."""
         self._line._live()
-        self._line.set(require_text(text, member="set", parameter="text"))
+        self._line.set(text)
 
 
 @final

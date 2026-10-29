@@ -8,15 +8,15 @@ import villanelle as vl
 from villanelle.include import include
 
 
-def _render(processor: vl.Processor, overrides: dict[str, str] | None = None) -> vl.Rendered:
+def _render(processor: vl.Processor, overrides: dict[str, vl.ConfigText] | None = None) -> vl.Rendered:
     """``render(load("main.conf"))``."""
     return vl.render(processor.load("main.conf", overrides=overrides))
 
 
-MAIN = "set $pixels 2284;\ngraph {\n  node DdpSink leds { max_count $pixels; }\n}\n"
+MAIN = "@set $pixels 2284;\ngraph {\n  node DdpSink leds { max_count $pixels; }\n}\n"
 
 
-def loaded(text: str = MAIN, overrides: dict[str, str] | None = None) -> vl.Rendered:
+def loaded(text: str = MAIN, overrides: dict[str, vl.ConfigText] | None = None) -> vl.Rendered:
     return _render(vl.Processor(source=vl.memory_source({"main.conf": text})), overrides=overrides)
 
 
@@ -79,7 +79,7 @@ def test_a_located_diagnostic_made_directly_checks_its_code() -> None:
 
 
 def test_an_error_on_an_override_value_is_placed_on_the_name_that_used_it() -> None:
-    load = loaded("blk { target $host; }\n", overrides={"host": "h"})
+    load = loaded("blk { target $host; }\n", overrides={"host": vl.text("h")})
     [blk] = load.block
     [target] = blk.block or ()
     d = target.values[0].error("unreachable host", code="rasl/host").diagnostic
@@ -89,13 +89,13 @@ def test_an_error_on_an_override_value_is_placed_on_the_name_that_used_it() -> N
 
 
 def test_format_diagnostic_prints_place_code_message_source_caret_and_via() -> None:
-    files = {"main.conf": "snippet s $v {\n  value $v;\n}\nuse s 1;\n", "x.conf": ""}
+    files = {"main.conf": "@snippet s $v {\n  value $v;\n}\n@use s 1;\n", "x.conf": ""}
     load = _render(vl.Processor(source=vl.memory_source(files), extensions=[include()]))
     d = load.block[0].values[0].error("too small", code="rasl/small").diagnostic
     assert vl.format_diagnostic(d, load.graph) == (
-        "main.conf:4:7: rasl/small: too small\n"
-        "use s 1;\n"
-        "      ^\n"
+        "main.conf:4:8: rasl/small: too small\n"
+        "@use s 1;\n"
+        "       ^\n"
         "  via variable v at main.conf:2:9\n"
         "  via use s at main.conf:4:1"
     )

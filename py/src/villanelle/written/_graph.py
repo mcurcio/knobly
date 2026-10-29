@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
-from villanelle._text import require_text
+from villanelle._text import ConfigText, require_text
 from villanelle.errors import BadTextError
 from villanelle.report import LocatedDiagnostic
 from villanelle.written import _bind, _document, _names
@@ -21,7 +21,10 @@ if TYPE_CHECKING:
 
 
 def init(
-    graph: DocumentGraph, source: DocumentSource, extensions: Mapping[str, Extension], overrides: Mapping[str, str]
+    graph: DocumentGraph,
+    source: DocumentSource,
+    extensions: Mapping[str, Extension],
+    overrides: Mapping[str, ConfigText],
 ) -> None:
     graph._source = source
     graph._extensions = extensions
@@ -121,7 +124,7 @@ def record_read(graph: DocumentGraph, resolved_path: str, text: str | Exception)
     return doc
 
 
-def set_override(graph: DocumentGraph, name: str, text: str | None) -> None:
+def set_override(graph: DocumentGraph, name: str, text: ConfigText | None) -> None:
     """Add, change or remove one override (D28: one OverrideVariable per name for the graph's life), after the one
     check."""
     if text is None:

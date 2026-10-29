@@ -41,15 +41,15 @@ def test_a_rasl_fixture_loads_and_reloads_as_expected(name: str, override: bool,
     shutil.copytree(FIXTURES, tmp_path / "rasl")
     root = tmp_path / "rasl" / name
     processor = vl.Processor(source=file_source(), extensions=[include()])
-    overrides = {"leds_host": '"10.0.0.9"'} if override else None
+    overrides = {"leds_host": vl.quote("10.0.0.9")} if override else None
     first = vl.render(processor.load(str(root), overrides=overrides))
     expected = EXPECTED[name]
     assert expected["diagnostics"] == []
     assert first.diagnostics == ()
     assert node_ids(first) == expected["nodes"]
     text = root.read_text(encoding="utf-8")
-    assert text.count("set $pixels 2284;") == 1
-    root.write_text(text.replace("set $pixels 2284;", "set $pixels 2400;"), encoding="utf-8")
+    assert text.count("@set $pixels 2284;") == 1
+    root.write_text(text.replace("@set $pixels 2284;", "@set $pixels 2400;"), encoding="utf-8")
     second = vl.render(processor.load(str(root), overrides=overrides))
     changes = first.diff(second, key=rasl_key)
     assert [[type(c).__name__.lower(), str(c.address)] for c in changes] == expected["changes"]
@@ -64,7 +64,7 @@ def test_the_split_fixtures_sinks_take_their_include_blocks_values_and_the_overr
         return {addresses[d].steps[1].key or "": d.values[0].text for d in loaded.walk() if d.name == "target"}
 
     assert targets(vl.render(processor.load(root))) == {"leds": '"10.0.60.30"', "porch": '"10.0.60.31"'}
-    overridden_host = vl.render(processor.load(root, overrides={"leds_host": '"10.0.0.9"'}))
+    overridden_host = vl.render(processor.load(root, overrides={"leds_host": vl.quote("10.0.0.9")}))
     assert targets(overridden_host) == {"leds": '"10.0.0.9"', "porch": '"10.0.60.31"'}
     assert list(overridden_host.graph.documents) == [root, str(FIXTURES / "split" / "sink.conf")]
     assert len(overridden_host.graph.edges()) == 2
@@ -77,15 +77,15 @@ def test_the_split_fixtures_sinks_take_their_include_blocks_values_and_the_overr
     ]
 
 
-def test_an_edit_loop_edits_a_line_an_included_file_shares_between_two_copies_once() -> None:
+def test_an_edit_loop_sets_every_max_count_through_the_render_with_no_skip_list() -> None:
     graph = vl.Processor(source=file_source(), extensions=[include()]).load(str(FIXTURES / "split" / "main.conf"))
-    # sink.conf is included twice: both rendered max_counts share the one written $pixels of its line. Editing it twice
-    # would use a handle the first edit detached, so keep the ones already edited.
-    edited: set[vl.WrittenValue] = set()
+    # sink.conf is included twice: both rendered max_counts share the one written value of its line. A value's set
+    # keeps its handle (spec 6.1), so setting it through each copy writes the same line twice.
+    shared = []
     for d in vl.render(graph).walk():
         match d:
-            case vl.Directive("max_count", [arg]) if arg.written not in edited:
-                edited.add(arg.written)
-                arg.written.replace_with_text("2400")
-    assert len(edited) == 1
+            case vl.Directive("max_count", [value]):
+                value.written.set(vl.text("2400"))
+                shared.append(value.written)
+    assert len(shared) == 2 and shared[0] is shared[1]
     assert "    max_count 2400;\n" in graph.documents[str(FIXTURES / "split" / "sink.conf")].text

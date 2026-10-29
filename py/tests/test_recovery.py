@@ -125,8 +125,17 @@ def test_gives_touching_values_e2009() -> None:
     assert shape('x "a""b";')["codes"] == [["E2009", 0, 5]]
     assert shape('x a"b";')["codes"] == [["E2009", 0, 3]]
     assert shape("x [a][b];")["codes"] == [["E2009", 0, 5]]
-    assert shape("x a[0:1]b;")["codes"] == [["E2009", 0, 8]]
-    assert shape("x 1[0];")["codes"] == [["E2009", 0, 3]]  # a slice's name is a WORD: 1 and [0] touch
+    assert shape("x a[0~1]b;")["codes"] == [["E2009", 0, 8]]
+    assert shape("x 1[0];")["codes"] == [["E2009", 0, 3]]  # a slice's name is a word or a $name: 1 and [0] touch
+    assert shape('x @a"b";')["codes"] == [["E2009", 0, 4]]  # an AT_WORD is a value
+    assert shape("x \"a\"'b';")["codes"] == [["E2009", 0, 5]]  # 'it''s' is two touching raw strings
+
+
+def test_a_bracket_after_a_variable_or_an_at_word_is_a_slice_bracket() -> None:
+    assert shape("x $s[0~3] @a[1];")["codes"] == []
+    assert shape("x $s[0~3;\ny;\n")["codes"] == [["E2007", 0, 8]]
+    assert shape("x @a[1;\ny;\n")["codes"] == [["E2007", 0, 6]]
+    assert shape("x a[1:3];")["codes"] == [["E2007", 0, 4]]  # 1:3 is one word: not a bound
 
 
 def test_resumes_after_a_long_run_of_bad_statements_in_a_loop_never_overflowing_the_stack() -> None:

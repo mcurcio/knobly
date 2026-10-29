@@ -39,6 +39,7 @@ from villanelle.written.model import (
     String,
     UnreadableLine,
     UseLine,
+    ValuePart,
     Variable,
     Word,
     WrittenBlock,
@@ -190,6 +191,23 @@ class _Reconcile:
         """The handle an edit was called on that keeps its identity although its own tokens are replaced."""
         self.created: list[Handle] = []
 
+    def take_kept_value(self, new_start: int) -> WrittenValue | None:
+        """A value's ``set`` (spec 6.1) whose new value has another kind than the old: the value it was called on,
+        for the first value built inside what replaced it that ``take`` found no handle for (the new value; its own
+        items, bounds and name are built after it). A new value of the old kind is found by ``take``."""
+        keep = self.keep
+        if self.range is None or not isinstance(keep, Word | String | List | Slice | Index | Reference):
+            return None
+        start, _, inserted = self.range
+        if not start <= new_start < start + inserted:
+            return None
+        self.keep = None
+        for key, entry in self.old.items():
+            if entry[0] is keep:
+                del self.old[key]
+                break
+        return keep
+
     def take(self, key: str, new_start: int) -> Handle | None:
         if self.range is None:
             return None
@@ -223,6 +241,8 @@ class _Reconcile:
         if not ok:
             return None
         del self.old[(key, old)]
+        if handle is self.keep:
+            self.keep = None
         return handle
 
     def leftovers(self) -> list[Handle]:
@@ -336,7 +356,7 @@ def _build_statement(
     args = anatomy.args if anatomy is not None else ()
 
     def values(refs: Sequence[ValueRef]) -> list[WrittenValue]:
-        return [_build_value(doc, ref, handle, None, False, reconcile) for ref in refs]
+        return [_build_value(doc, ref, handle, None, "value", reconcile) for ref in refs]
 
     def block(claimed: Sequence[str]) -> None:
         if anatomy is None or anatomy.block is None:
@@ -378,7 +398,7 @@ def _value_kind(syntax: Syntax, ref: ValueRef) -> str:
     if isinstance(ref, Node):
         if ref.kind is NodeKind.LIST:
             return "list"
-        if any(tokens[i].kind is TokenKind.COLON for i in range(ref.start + 2, ref.end - 1)):
+        if any(tokens[i].kind is TokenKind.TILDE for i in range(ref.start + 2, ref.end - 1)):
             return "slice"
         return "index" if ref.end - ref.start > 3 else "slice"
     kind = tokens[ref].kind
@@ -396,46 +416,55 @@ _VALUE_CLASS: dict[str, type[WrittenValue]] = {
 
 
 def _build_value(
-    doc: Document, ref: ValueRef, statement: Statement, in_list: List | None, bound: bool, reconcile: _Reconcile
+    doc: Document, ref: ValueRef, statement: Statement, in_list: List | None, part: ValuePart, reconcile: _Reconcile
 ) -> WrittenValue:
     tokens = doc._syntax.tokens
     index = ref if isinstance(ref, int) else ref.start
     kind = _value_kind(doc._syntax, ref)
     cls = _VALUE_CLASS[kind]
-    kept = reconcile.take(f"v:{kind}", doc._starts[index])
     handle: WrittenValue
-    if kept is not None and isinstance(kept, cls):
+    kept = reconcile.take(f"v:{kind}", doc._starts[index]) or reconcile.take_kept_value(doc._starts[index])
+    if kept is not None and isinstance(kept, Word | String | List | Slice | Index | Reference):
         handle = kept
+        if not isinstance(handle, cls):
+            handle.__class__ = cls  # a value's set keeps the handle; it takes the new value's kind (one slot layout)
     else:
         handle = cls(doc)
         reconcile.created.append(handle)
     handle._ref = ref
     handle._statement = statement
     handle._list = in_list
-    handle._bound = bound
+    handle._part = part
     handle._detached = False
-    doc._values[index] = handle
+    handle._clear()
+    doc._values.setdefault(index, handle)  # a slice keeps its start: its name, built next, shares it
     if isinstance(handle, List) and isinstance(ref, Node):
-        handle._items = [_build_value(doc, item, statement, handle, False, reconcile) for item in items_of(tokens, ref)]
+        handle._items = [
+            _build_value(doc, item, statement, handle, "value", reconcile) for item in items_of(tokens, ref)
+        ]
     elif isinstance(handle, Slice | Index) and isinstance(ref, Node):
         inner = list(range(ref.start + 2, ref.end - 1))
-        colon = next((i for i, t in enumerate(inner) if tokens[t].kind is TokenKind.COLON), -1)
+        tilde = next((i for i, t in enumerate(inner) if tokens[t].kind is TokenKind.TILDE), -1)
+
+        def part_at(at: int, role: ValuePart) -> Word | Reference:
+            made = _build_value(doc, at, statement, None, role, reconcile)
+            assert isinstance(made, Word | Reference)
+            return made
 
         def bound_at(position: int) -> Word | Reference | None:
             if not 0 <= position < len(inner):
                 return None
             at = inner[position]
-            if tokens[at].kind not in (TokenKind.WORD, TokenKind.INTEGER, TokenKind.DIGIT_WORD, TokenKind.VARIABLE):
+            if tokens[at].kind not in (TokenKind.INTEGER, TokenKind.VARIABLE):
                 return None
-            made = _build_value(doc, at, statement, None, True, reconcile)
-            assert isinstance(made, Word | Reference)
-            return made
+            return part_at(at, "bound")
 
+        handle._name = part_at(ref.start, "name")
         if isinstance(handle, Index):
             handle._index = bound_at(0)
         else:
-            handle._start = None if colon == 0 else bound_at(0)
-            handle._end = bound_at(colon + 1) if colon + 1 < len(inner) else None
+            handle._start = None if tilde == 0 else bound_at(0)
+            handle._end = bound_at(tilde + 1) if tilde + 1 < len(inner) else None
     return handle
 
 
@@ -568,19 +597,21 @@ def _reindent(doc: Document, text: str, indentation: str) -> list[Piece]:
 
 
 def replace_values(statement: Statement, after: int, text: str) -> None:
-    """``set`` of a statement's values (2.4): first value to last; with none, after token ``after``."""
+    """``set`` of a statement's values (2.4): first value to last; with none, after token ``after``. The empty text
+    removes them; a text that holds no value and is not empty is refused (E2001 at 0:0), after the ``valuesText``
+    entry rule and before the statement rules."""
     doc = statement._doc
-    given = entry_problems(text, "valuesText")
+    given = entry_problems(text, "valuesText") or _no_value_problems(text)
     values = statement._value_list
     if not values:
-        if text.strip() == "":
+        if text == "":
             return
         offset = doc._starts[after + 1]
         _splice(doc, offset, offset, _insert_of(text, [" ", (0, len(text))]), given)
         return
     start = offsets(doc, ref_range(values[0]._ref))[0]
     end = offsets(doc, ref_range(values[-1]._ref))[1]
-    if text.strip() == "":
+    if text == "":
         first = ref_range(values[0]._ref)[0]
         tokens = doc._syntax.tokens
         while first > 0 and tokens[first - 1].kind is TokenKind.SPACE:
@@ -590,10 +621,30 @@ def replace_values(statement: Statement, after: int, text: str) -> None:
     _splice(doc, start, end, text, given)
 
 
+def _no_value_problems(text: str) -> tuple[Diagnostic, ...]:
+    """A statement ``set``'s rule after its entry rule: a text that holds no value must be the empty text."""
+    syntax = parse_entry(text, "valuesText")
+    if text == "" or values_of(syntax.tokens, syntax.root):
+        return ()
+    return (at(text, 0, DiagnosticCode.UNEXPECTED_TOKEN),)
+
+
+def set_value(value: WrittenValue, text: str) -> None:
+    """``set`` of a value (spec 6.1, 6.6): exactly one value in its range, by its entry rule (``valueText``; a bound's
+    ``boundText``, a slice name's ``sliceNameText``), then the text-alone rules; the handle stays (``_Reconcile``)."""
+    doc = value._doc
+    rules: dict[ValuePart, EntryRule] = {"value": "valueText", "bound": "boundText", "name": "sliceNameText"}
+    rule = rules[value._part]
+    given = entry_problems(text, rule)
+    start, end = offsets(doc, ref_range(value._ref))
+    _splice(doc, start, end, text, given, value)
+
+
 def replace_value(value: WrittenValue, text: str) -> tuple[WrittenValue, ...]:
     """``replace_with_text`` of a value."""
     doc = value._doc
-    rule: EntryRule = "boundText" if value._bound else "itemsText" if value._list is not None else "valuesText"
+    rules: dict[ValuePart, EntryRule] = {"value": "valuesText", "bound": "boundText", "name": "sliceNameText"}
+    rule = "itemsText" if value._part == "value" and value._list is not None else rules[value._part]
     given = entry_problems(text, rule)
     if text.strip() == "":
         if given:
@@ -610,7 +661,7 @@ def replace_value(value: WrittenValue, text: str) -> tuple[WrittenValue, ...]:
         if isinstance(h, Word | String | List | Slice | Index | Reference)
         and h._list is container
         and h._statement is statement
-        and h._bound == value._bound
+        and h._part == value._part
     )
 
 
@@ -729,10 +780,10 @@ def _insert_into_empty_block(
 
 
 def rename_directive(statement: WrittenDirective, name: str) -> None:
-    """``rename`` (D17, D-S1-10): a name the one directive-name check takes (``_names``: misuse otherwise), never one
-    that would change its kind (an extension line has no ``rename``)."""
+    """``rename`` (D17, D-S1-10): a name the one directive-name check takes (``_names``: misuse otherwise). A word
+    never changes a statement's kind (spec 2.5: only an ``@`` head does), and an extension line has no ``rename``."""
     doc = statement._doc
-    _names.directive_name(name, doc._graph._extension_names, member="rename")
+    _names.directive_name(name, member="rename")
     start, end = offsets(doc, (statement._node.start, statement._node.start + 1))
     _splice(doc, start, end, name, [], statement)
 
@@ -844,8 +895,9 @@ def at(given: str, index: int, code: DiagnosticCode) -> Diagnostic:
 
 def entry_problems(text: str, rule: EntryRule) -> tuple[Diagnostic, ...]:
     """2.8's check of a text that depends only on the text: the grammar's entry rule ``rule`` (``valuesText`` for a
-    ``set`` or a value's replace, ``itemsText`` for a list item's, ``boundText`` for a slice or index bound's), its
-    first error placed in ``text``. The text-alone rules come after, in ``_splice``."""
+    statement's ``set`` or a value's replace, ``valueText`` for a value's ``set``, ``itemsText`` for a list item's
+    replace, ``boundText`` for a slice or index bound's, ``sliceNameText`` for a slice or index name's), its first error
+    placed in ``text``. The text-alone rules come after, in ``_splice``."""
     return parse_entry(text, rule).diagnostics
 
 

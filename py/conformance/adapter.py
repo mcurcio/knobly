@@ -89,9 +89,11 @@ def value(v: vl.WrittenValue) -> dict[str, Any]:
     if isinstance(v, written.List):
         out["items"] = [value(i) for i in v.items]
     elif isinstance(v, written.Slice):
+        out["name"] = value(v.name)
         out["start"] = None if v.start is None else value(v.start)
         out["end"] = None if v.end is None else value(v.end)
     elif isinstance(v, written.Index):
+        out["name"] = value(v.name)
         out["index"] = value(v.index)
     elif isinstance(v, written.Reference):
         out["declaration"] = variable(v.declaration)
@@ -213,10 +215,8 @@ def result(x: Any) -> dict[str, Any]:
         return {"slice": [x.name, x.start, x.end]}
     if isinstance(x, vl.IndexValue):
         return {"index": [x.name, x.index]}
-    if isinstance(x, vl.ExpandedWord | vl.ExpandedString | vl.ExpandedList | vl.ExpandedSlice | vl.ExpandedIndex):
-        return {"value": x.text}
-    if isinstance(x, tuple | list):
-        return {"list": [result(i) for i in x]}
+    if isinstance(x, tuple):  # the list reader's items
+        return {"list": [{"value": item.text} for item in x]}
     raise TypeError(f"not a reader result: {x!r}")
 
 
@@ -224,7 +224,28 @@ def snake(spec_name: str) -> str:
     return spec_name.replace(" ", "_")
 
 
+# Where each edit takes config text (the driver's OPS parameters): the adapter wraps the text the driver sends with
+# text(), as a program does with a text already written as villanelle text (spec 6.9). Names stay plain text.
+TEXT_AT = {
+    "set": 0,
+    "replace with text": 0,
+    "insert statements": 1,
+    "add statements": 0,
+    "insert before": 0,
+    "insert after": 0,
+    "set override": 1,
+}
+
+
+def config_text(given: Any) -> Any:
+    """``text(given)`` for a str; anything else as given (a case may pass a non-str to see the argument type error)."""
+    return vl.text(given) if isinstance(given, str) else given
+
+
 def edit(target: str, member: str, args: list[Any]) -> dict[str, Any]:
+    at = TEXT_AT.get(member)
+    if at is not None and at < len(args):
+        args = [config_text(a) if i == at else a for i, a in enumerate(args)]
     out = getattr(get(target), snake(member))(*args)
     return {"handles": [{"id": ref(h), "text": h.text} for h in out]} if isinstance(out, tuple) else {}
 
@@ -249,9 +270,10 @@ def save(graph: str, disk: dict[str, str] | None = None) -> dict[str, Any]:
     return {"files": sorted([path, text] for path, text in files.items())}
 
 
-def load(files: dict[str, str], root: str, extensions: list[str], overrides: dict[str, str] | None = None) -> Any:
+def load(files: dict[str, str], root: str, extensions: list[str], overrides: dict[str, Any] | None = None) -> Any:
     processor = vl.Processor(source=vl.memory_source(files), extensions=[include()] if "include" in extensions else [])
-    return {"graph": ref(processor.load(root, overrides=overrides))}
+    given = None if overrides is None else {name: config_text(text) for name, text in overrides.items()}
+    return {"graph": ref(processor.load(root, overrides=given))}
 
 
 OPS: dict[str, Callable[..., Any]] = {

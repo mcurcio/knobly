@@ -22,10 +22,10 @@ class ExtensionUse:
 
 
 class Extension(Protocol):
-    """An extension (R20): owns one directive name and turns each use of it into specs of files to splice in its
-    place. Pure: the load resolves and reads the specs through its document source, parses each file once, applies
-    the use's block of ``set`` lines, and enforces depth, cycles and limits. While registered, the name is reserved at
-    a line's start, as ``set``, ``snippet`` and ``use`` are."""
+    """An extension (R20): owns one name (``directive``, without ``@``) and turns each line written ``@`` and that name
+    into specs of files to splice in its place. Pure: the load resolves and reads the specs through its document
+    source, parses each file once, applies the line's block of ``@set`` lines, and enforces depth, cycles and limits.
+    The name is one word the ``nameText`` entry rule takes, and not ``set``, ``snippet`` or ``use``."""
 
     @property
     def directive(self) -> str: ...

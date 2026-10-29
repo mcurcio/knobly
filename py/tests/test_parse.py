@@ -20,7 +20,7 @@ def pos(offset: int, line: int, column: int) -> SourcePosition:
 
 
 def test_parses_the_tracer_slice_into_a_directive_holding_a_slice_node() -> None:
-    syntax = parse("connect hyperhdr_color[144:152];")
+    syntax = parse("connect hyperhdr_color[144~152];")
     assert syntax.diagnostics == ()
     assert [(t.kind, t.text) for t in syntax.tokens] == [
         ("WORD", "connect"),
@@ -28,7 +28,7 @@ def test_parses_the_tracer_slice_into_a_directive_holding_a_slice_node() -> None
         ("WORD", "hyperhdr_color"),
         ("LBRACK", "["),
         ("INTEGER", "144"),
-        ("COLON", ":"),
+        ("TILDE", "~"),
         ("INTEGER", "152"),
         ("RBRACK", "]"),
         ("SEMI", ";"),
@@ -52,11 +52,11 @@ def test_document_node_covers_leading_and_trailing_whitespace() -> None:
 
 
 def test_reports_empty_slice_as_one_located_diagnostic() -> None:
-    syntax = parse("connect foo[:];")
+    syntax = parse("connect foo[~];")
     assert len(syntax.diagnostics) == 1
     assert syntax.diagnostics[0].code is DiagnosticCode.BAD_SLICE
     assert syntax.diagnostics[0].span == SourceSpan(pos(13, 0, 13), pos(14, 0, 14))
-    assert text_of(syntax, syntax.root) == "connect foo[:];"
+    assert text_of(syntax, syntax.root) == "connect foo[~];"
 
 
 def test_codes_lexical_errors_by_the_offending_token() -> None:

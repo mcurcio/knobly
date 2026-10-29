@@ -9,7 +9,7 @@ from villanelle.syntax.cst import Node, NodeKind, ValueRef
 from villanelle.syntax.tokens import Token, TokenKind
 
 _VALUE_TOKENS = frozenset(
-    {TokenKind.WORD, TokenKind.INTEGER, TokenKind.DIGIT_WORD, TokenKind.STRING, TokenKind.VARIABLE}
+    {TokenKind.WORD, TokenKind.AT_WORD, TokenKind.INTEGER, TokenKind.DIGIT_WORD, TokenKind.STRING, TokenKind.VARIABLE}
 )
 _VALUE_NODES = frozenset({NodeKind.SLICE, NodeKind.LIST})
 
@@ -17,10 +17,11 @@ _VALUE_NODES = frozenset({NodeKind.SLICE, NodeKind.LIST})
 @dataclass(frozen=True, slots=True)
 class Anatomy:
     name: int
-    """Index of the name token (``node.start``, a WORD)."""
+    """Index of the head token (``node.start``): a WORD names a directive, an AT_WORD a language or extension
+    statement."""
     args: tuple[ValueRef, ...]
-    """In source order: each WORD, INTEGER, DIGIT_WORD, STRING or VARIABLE token directly in the node's range, and
-    each slice or list child."""
+    """In source order: each WORD, AT_WORD, INTEGER, DIGIT_WORD, STRING or VARIABLE token directly in the node's
+    range, and each slice or list child."""
     block: Node | None
 
 

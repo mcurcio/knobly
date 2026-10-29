@@ -58,7 +58,7 @@ class Step:
     name: str
     """The variable (without ``$``), snippet or extension directive name."""
     place: Place
-    """Where the reference was written: the ``$pixels`` token, the ``use`` keyword, the ``include`` line's name."""
+    """Where the reference was written: the ``$pixels`` token, the ``@use`` keyword, the ``@include`` token."""
 
     def __str__(self) -> str:
         """Its people form: ``<kind> <name> at <place>`` (``variable pixels at main.conf:7:15``)."""

@@ -18,7 +18,7 @@ from villanelle._api.kinds import (
     ValueKind,
     VariableKind,
 )
-from villanelle._text import quote
+from villanelle._text import ConfigText, quote, text
 from villanelle.diagnostics import Diagnostic, DiagnosticCode
 from villanelle.errors import (
     BadTextError,
@@ -76,7 +76,6 @@ from villanelle.written import (
     IndexValue,
     OverrideVariable,
     Parameter,
-    PlainValue,
     Processor,
     ReferenceResolution,
     Resolution,
@@ -104,6 +103,7 @@ __all__ = [
     "ChangeKind",
     "Changed",
     "Collecting",
+    "ConfigText",
     "Copy",
     "DetachedError",
     "Diagnostic",
@@ -143,7 +143,6 @@ __all__ = [
     "Parameter",
     "Place",
     "PlaceKind",
-    "PlainValue",
     "Processor",
     "ReadError",
     "ReferenceResolution",
@@ -186,5 +185,6 @@ __all__ = [
     "quote",
     "render",
     "span_of",
+    "text",
     "text_of",
 ]
