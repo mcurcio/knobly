@@ -57,8 +57,9 @@ The core has three layers, each built on the one below:
   reload, checked as `load` checks its overrides. `await graph.read()` reads files an edit added, through the
   source the graph was loaded with; `await graph.save(writer)` hands the changed files to a writer in one batch.
   `graph.expand()` gives the expansion: each directive copy with its values expanded and what won over each
-  `$name`. The low level never imports the rendered tree (`pnpm lint` checks it). Reference:
-  [docs/low-level-api.md](../docs/low-level-api.md) (still in the names before milestone 2).
+  `$name`. A variable's `references()` are lexical: the `$name`s in its own file that it declares. A use in an
+  included file is resolved per copy, so it is only in `wins()` and `shadowedAt()`. The low level never imports the
+  rendered tree (`pnpm lint` checks it). Reference: [docs/low-level-api.md](../docs/low-level-api.md).
 - **The rendered tree.** `render(graph)` builds on the low level's public objects only (`graph.expand()`; `pnpm
   lint` refuses a rendered module importing anything under `written/` but `written/index.js`): it gives the
   directives (`block`, `values`, `walk`), each value an `Argument` narrowed by `kind` (a list has `items`, a slice
@@ -67,7 +68,21 @@ The core has three layers, each built on the one below:
   `definition` (where it is written) and `chain` (the `$name` steps between) leading back to the low level.
   `rendered.addresses({ key })` names each directive under a key rule, and `before.diff(after, { key })` lists what
   changed between two renders. `Diagnostics` collects problems; `formatDiagnostic` prints one with its source line.
-  Reference: [docs/rendered-tree.md](../docs/rendered-tree.md) (still in the names before milestone 2).
+  A file included twice renders as two copies that share one written line, so an edit loop over the render meets
+  the same `written` handle twice, and the first `replaceWithText` detaches it: keep the handles already edited and
+  skip them.
+
+  ```ts
+  const edited = new Set<WrittenValue>();
+  loaded.walk((d) => {
+    const arg = d.values[0];
+    if (d.name !== "max_count" || arg === undefined || edited.has(arg.written)) return;
+    edited.add(arg.written);
+    arg.written.replaceWithText("2400");
+  });
+  ```
+
+  Reference: [docs/rendered-tree.md](../docs/rendered-tree.md).
 
 Every example in those pages is copied from a test that runs. The language is
 [docs/language.md](../docs/language.md).

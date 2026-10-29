@@ -53,16 +53,31 @@ own style: `Processor` for `villanelle()`, `walk()` as a generator, `match` on o
   line break outside a list is refused, since it would end the statement. `graph.read()` reads files an edit
   added, through the graph's own source; `graph.save(writer)` hands the changed files to a writer in one batch
   (`memory_writer(files)` writes into the same map a `memory_source(files)` reads; `file_writer()` to disk), and
-  `graph.expand()` gives every copy as read, which the rendered layer builds on. Reference:
-  [docs/low-level-api.md](../docs/low-level-api.md) (it still shows the old names until the docs pass).
+  `graph.expand()` gives every copy as read, which the rendered layer builds on. A variable's `references()` are
+  lexical: the `$name`s in its own file that it declares. A use in an included file is resolved per copy, so it is
+  only in `wins()` and `shadowed_at()`. Reference: [docs/low-level-api.md](../docs/low-level-api.md).
 - **The rendered tree.** `render(graph)` builds on the low level: it expands variables, snippets and included
   files into directives (`block`, `rendered.walk()`), each value an argument of its kind (`WordArgument`,
   `StringArgument`, `ListArgument` with its `items`, `SliceArgument`, `IndexArgument`; the union `Argument`) with
   its readers (`word()`, `string()`, `number()`, `integer()`, `boolean()`, `list()`, `slice()`, `plain()`), its
   origin, and `written` (the value on the same line), `definition` (where it is written) and `chain` (each `$name`
   it went through) leading back to the low level. `rendered.addresses(key=...)` names each directive under a key rule,
-  and `before.diff(after, key=...)` lists what changed, as `Added`, `Removed`, `Changed` and `Unknown`.
-  Reference: [docs/rendered-tree.md](../docs/rendered-tree.md) (old names, as above).
+  and `before.diff(after, key=...)` lists what changed, as `Added`, `Removed`, `Changed` and `Unknown`. Matching a
+  `StringArgument` by position gives its canonical `text`, quotes included; read `string()` for the decoded text.
+  A file included twice renders as two copies that share one written line, so an edit loop over the render meets
+  the same `written` handle twice, and the first `replace_with_text` detaches it: keep the handles already edited
+  and skip them.
+
+  ```python
+  edited: set[vl.WrittenValue] = set()
+  for d in vl.render(graph).walk():
+      match d:
+          case vl.Directive("max_count", [arg]) if arg.written not in edited:
+              edited.add(arg.written)
+              arg.written.replace_with_text("2400")
+  ```
+
+  Reference: [docs/rendered-tree.md](../docs/rendered-tree.md).
 
 There is no fetch source and no fetch writer in Python. Every example in the reference pages is copied from a test
 that runs; the language is [docs/language.md](../docs/language.md).

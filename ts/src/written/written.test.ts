@@ -51,7 +51,7 @@ describe("documents and handles", () => {
 
   it("detaches a replaced value: every member but kind throws DetachedError", async () => {
     const graph = await load({ "main.conf": "x 1;\n" });
-    const [value] = (graph.root.block.statements[0] as IWrittenDirective).values;
+    const [value] = graph.root.block.directives()[0]?.values ?? [];
     if (value === undefined) throw new Error("no value");
     const [made] = value.replaceWithText("2");
     expect(made?.text).toBe("2");
@@ -71,7 +71,8 @@ describe("documents and handles", () => {
 
   it("changes nothing when an edit's text is refused", async () => {
     const graph = await load({ "main.conf": "set $a 1;\n" });
-    const set = graph.root.block.statements[0] as ISetLine;
+    const [set] = graph.root.block.statements;
+    if (set?.kind !== "set") throw new Error("not a set line");
     for (const text of ["1; x", "{", "", "\"open"]) {
       expect(() => set.set(text), text).toThrow(BadTextError);
       expect(graph.root.text).toBe("set $a 1;\n");
@@ -87,7 +88,7 @@ describe("save", () => {
     expect(await graph.save(writer)).toEqual([]);
     expect(writer.batches).toEqual([]);
     const p = graph.documents.get("p.conf");
-    (p?.block.statements[0] as IWrittenDirective).values[0]?.replaceWithText("3");
+    p?.block.directives()[0]?.values[0]?.replaceWithText("3");
     expect(await graph.save(writer)).toEqual(["p.conf"]);
     expect(writer.batches).toEqual([[{ resolvedPath: "p.conf", text: "y 3;\n", savedText: "y 2;\n" }]]);
     expect(p?.savedText).toBe("y 3;\n");
@@ -97,7 +98,7 @@ describe("save", () => {
 
   it("throws SaveError with the paths and the cause when the writer rejects, and changes no source", async () => {
     const graph = await load({ "main.conf": "x 1;\n" });
-    (graph.root.block.statements[0] as IWrittenDirective).values[0]?.replaceWithText("2");
+    graph.root.block.directives()[0]?.values[0]?.replaceWithText("2");
     const cause = new Error("disk full");
     const error: unknown = await graph.save({ write: () => Promise.reject(cause) }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(SaveError);

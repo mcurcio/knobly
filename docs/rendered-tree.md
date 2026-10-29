@@ -39,7 +39,7 @@ import { fileURLToPath } from "node:url";
 
 import { type IDirective, type IProcessor, type IRendered, type KeyRule, render, villanelle } from "villanelle";
 import { include } from "villanelle/include";
-import { createFileSource } from "villanelle/node";
+import { fileSource } from "villanelle/node";
 
 /** The "rasl" key rule of conformance/load/format.md. */
 const RASL_KEY: KeyRule = (d) => {
@@ -75,7 +75,7 @@ export async function rendered(processor: IProcessor, path: string, options?: { 
 ```
 
 Excerpt of `ts/src/rendered/rasl.test.ts`, test "%s loads with the expected nodes and reload changes" (run once
-per fixture), and of `rendered` in `ts/src/rendered/testing.ts`. `files` is the file source from `createFileSource()`,
+per fixture), and of `rendered` in `ts/src/rendered/testing.ts`. `files` is the file source from `fileSource()`,
 wrapped so that `edit()` makes the next read say `set $pixels 2400;` instead of `2284`.
 
 Python:
@@ -154,10 +154,10 @@ file, then everything it splices in, so the root has one path however it is writ
 Each file is read once per load, however many places include it. A load never fails because of what a file says:
 every problem becomes a diagnostic and the rest is read. It fails only when:
 
-- the source cannot resolve `path` to exactly one file, or cannot read it: a `ReadError` (a `DiagnosticError`) with
-  code E3004, placed at `path` as written, at line 0, column 0 (test "rejects with ReadError, a DiagnosticError E3004
-  at the root path (B10)", `ts/src/written/edits.test.ts`; `test_a_root_the_source_cannot_read_raises_e3004_at_the_root`,
-  `py/tests/test_load.py`);
+- the source cannot resolve `path` to exactly one file, or cannot read it: a `ReadError` with `paths` (the root
+  path) and the source's failure as its cause, and no diagnostic or code (test "rejects with ReadError, paths the root
+  path and no diagnostic, when the source resolves no file (B10)", `ts/src/written/edits.test.ts`;
+  `test_a_root_the_source_cannot_read_raises_read_error_from_the_sources_failure`, `py/tests/test_load.py`);
 - an override has a bad name (TypeError in TypeScript, ValueError in Python), is not a string (TypeError), or has
   text the check of an override refuses (`BadTextError`, located in the text: see
   [low-level-api.md](low-level-api.md#overrides)).
@@ -290,20 +290,21 @@ A statement that could not be read stays in its block's `unreadable` list, with 
 
 ## Reading values
 
-Each value (`IArgument` / `Argument`) is an **expanded value** (`IExpandedValue` / `ExpandedValue`, the shared type
-an extension use holds too) with three links to the low level: a `kind` (word, string, list, slice, index; never
+Each value (`Argument`, a union over `kind` in both languages: `IWordArgument`, `IStringArgument`, `IListArgument`,
+`ISliceArgument`, `IIndexArgument`; Python `WordArgument`, `StringArgument`, ...) is an **expanded value**
+(`ExpandedValue`, the shared union an extension use holds too) with three links to the low level: a `kind` (word, string, list, slice, index; never
 reference), a canonical `text`, an `origin`, readers, and `written`, `definition` and `chain` (below). A reader that meets the wrong value throws a
 `DiagnosticError` placed on that value.
 
 | Reads | TypeScript | Python | Error |
 |---|---|---|---|
-| a bare word | `word()` | `as_word()` | E4002 |
-| a word or a string, decoded | `string()` | `as_str()` | E4002 |
-| a number (JSON's number syntax: `8080`, `0.5`, `-2E-2`; not `20hz`, `01`, `.5`) | `number()` | `as_number()` | E4004, E4002 |
-| a whole number within ±(2^53-1) (`1.0` is not one) | `integer()` | `as_int()` | E4005, E4002 |
-| `true` or `false` only (`on`, `yes` are not) | `boolean()` | `as_bool()` | E4006, E4002 |
-| a list's items, each with its own origin | `items()` | `as_list()` | E4002 |
-| a slice or an index | `slice()` | `as_slice()` | E4002 |
+| a bare word | `word()` | `word()` | E4002 |
+| a word or a string, decoded | `string()` | `string()` | E4002 |
+| a number (JSON's number syntax: `8080`, `0.5`, `-2E-2`; not `20hz`, `01`, `.5`) | `number()` | `number()` | E4004, E4002 |
+| a whole number within ±(2^53-1) (`1.0` is not one) | `integer()` | `integer()` | E4005, E4002 |
+| `true` or `false` only (`on`, `yes` are not) | `boolean()` | `boolean()` | E4006, E4002 |
+| a list's items, each with its own origin | `list()` | `list()` | E4002 |
+| a slice or an index | `slice()` | `slice()` | E4002 |
 | anything, by one rule | `plain()` | `plain()` | never |
 
 `plain()` reads a string as its text, a word as a number when it spells one, `true`/`false` as booleans, any other
@@ -327,13 +328,13 @@ word as its text, a list item by item, a slice or index as itself:
 `ts/src/rendered/readers.test.ts`, test "plain: one rule for every value; quoting means text".
 
 ```python
-    assert arg("hyperhdr_color[144:152]").as_slice() == vl.SliceValue("hyperhdr_color", 144, 152)
-    assert arg("c[144:]").as_slice() == vl.SliceValue("c", 144, None)
-    assert arg("c[:-2]").as_slice() == vl.SliceValue("c", None, -2)
-    assert arg("foo[1]").as_slice() == vl.IndexValue("foo", 1)
+    assert arg("hyperhdr_color[144:152]").slice() == vl.SliceValue("hyperhdr_color", 144, 152)
+    assert arg("c[144:]").slice() == vl.SliceValue("c", 144, None)
+    assert arg("c[:-2]").slice() == vl.SliceValue("c", None, -2)
+    assert arg("foo[1]").slice() == vl.IndexValue("foo", 1)
 ```
 
-Excerpt of `test_as_slice_gives_slices_with_an_absent_side_none_and_indexes`, `py/tests/test_readers.py`. In
+Excerpt of `test_slice_gives_slices_with_an_absent_side_none_and_indexes`, `py/tests/test_readers.py`. In
 TypeScript an absent side is left out of the object (`{ kind: "slice", name: "c", start: 144 }`).
 
 ### Canonical text
@@ -360,7 +361,11 @@ Three members lead from a rendered value back to the low level, where it can be 
 - `written`: the written value on the same line, the line of the statement the value is read in: for
   `max_count $pixels;`, the `$pixels` there; for a value written where it is read, the value itself. Never absent.
   Editing it edits that one line, which every copy of the line shares: in a file included twice, the edit shows in
-  both copies.
+  both copies. So a loop that edits every directive's `written` value meets the same handle twice, and the first
+  edit (`replaceWithText` or `remove()`) detaches it: keep the handles already edited (a `Set` in TypeScript, a
+  `set` in Python; handles are one object per written value) and skip them. Test "edits a line an included file
+  shares between two copies once, keeping the written values already edited", `ts/src/rendered/rasl.test.ts`;
+  `test_an_edit_loop_edits_a_line_an_included_file_shares_between_two_copies_once`, `py/tests/test_rasl.py`.
 - `definition`: the written value at the end of its chain (for `max_count $pixels;`, the `2284` of
   `set $pixels 2284;`); undefined (None) for an override. Editing it changes every use.
 - `chain`: one reference resolution per `$name` the value came through, starting with the `$name` written on the
@@ -578,8 +583,8 @@ file, `load` fails as above). In TypeScript both return promises; in Python both
 | Source | TypeScript | Python |
 |---|---|---|
 | texts held in memory (tests, editors) | `memorySource({ path: text })` | `memory_source({path: text})` |
-| the filesystem | `createFileSource()` from `villanelle/node` | `file_source()` from `villanelle.files` |
-| `fetch` (paths are URLs) | `createFetchSource(fetch)` from `villanelle/browser` | none |
+| the filesystem | `fileSource()` from `villanelle/node` | `file_source()` from `villanelle.files` |
+| `fetch` (paths are URLs) | `fetchSource(fetch)` from `villanelle/browser` | none |
 
 A program can write its own, for example to count reads:
 
@@ -701,8 +706,8 @@ By design (each language's own way):
 
 - TypeScript's `load`, `graph.read()`, `graph.save(writer)` and document sources are async (promises); Python's are
   plain calls. `render` and `diff` are plain calls in both.
-- Readers are `word()`, `integer()`... in TypeScript and `as_word()`, `as_int()`... in Python (a list's items are
-  `items()` and `as_list()`); `walk` is a method in both, taking a callback in TypeScript and returning a generator
+- Readers have the same names in both (`word()`, `string()`, `number()`, `integer()`, `boolean()`, `list()`,
+  `slice()`, `plain()`); `walk` is a method in both, taking a callback in TypeScript and returning a generator
   in Python; change kinds are a `kind` field in TypeScript and classes in Python.
 - The key rule is an options object in TypeScript (`{ key }`) and a keyword argument in Python (`key=`).
 - Misuse by a program is TypeError in TypeScript and ValueError in Python.

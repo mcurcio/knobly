@@ -67,7 +67,7 @@ const lineOf = (place: IPlace): string => `${place.resolvedPath}:${String(place.
     const table = graph.variables().map((v) => [
       v.name,
       v.kind,
-      v.place === undefined ? "an override" : lineOf(v.place),
+      v.kind === "override" ? "an override" : lineOf(v.place),
       v.wins().map((r) => lineOf(r.reference.place)),
       v.shadowedAt().map((r) => [lineOf(r.reference.place), r.winner?.kind]),
     ]);
@@ -104,7 +104,7 @@ Python:
         (
             v.name,
             v.kind,
-            "override" if v.place is None else line_of(v.place),
+            "override" if isinstance(v, vl.OverrideVariable) else line_of(v.place),
             [line_of(r.reference.place) for r in v.wins()],
             [(line_of(r.reference.place), None if r.winner is None else r.winner.kind) for r in v.shadowed_at()],
         )
@@ -130,8 +130,9 @@ takes villanelle text only: `quote()` a program string): main.conf:4 changes, so
     const rendered = render(graph);
     const maxCount = nodeNamed(rendered, "leds").block?.find((d) => d.name === "max_count")?.values[0];
     const read = maxCount?.chain[0];
-    expect(read?.winner?.kind).toBe("set");
-    read?.winner?.set("2400");
+    const winner = read?.winner;
+    if (winner?.kind !== "set") throw new Error("the winner is not a set line's variable");
+    winner.set("2400");
     const writer = recorder();
     expect(await graph.save(writer)).toEqual(["main.conf"]);
     expect(writer.batches).toHaveLength(1);
@@ -145,8 +146,9 @@ takes villanelle text only: `quote()` a program string): main.conf:4 changes, so
     expect(maxCount?.text).toBe("2284");
 ```
 
-Excerpt of the same test. `nodeNamed` walks the rendered tree for a `node` by its id; `recorder()` is a writer that
-keeps each batch it is handed; `maxCounts` lists each `max_count` value's text, where its `definition` is written
+Excerpt of the same test. `nodeNamed` walks the rendered tree for a `node` by its id; `recorder()` is the test's
+writer that keeps each batch it is handed (a program passes `memoryWriter(files)` or `fileWriter()`, under
+"Saving"); `maxCounts` lists each `max_count` value's text, where its `definition` is written
 and how long its `chain` is.
 
 Change the line instead: `max_count $pixels;` becomes `max_count 2400;` in sink.conf, `$pixels` wins nowhere,
@@ -170,7 +172,7 @@ The same in Python:
 
 ```python
     read = max_count.chain[0]
-    assert read.winner is not None and read.winner.kind == "set"
+    assert isinstance(read.winner, vl.SetVariable)
     read.winner.set("2400")  # (2)
     writer = Recorder()
     assert graph.save(writer) == ["main.conf"]
@@ -187,7 +189,7 @@ The same in Python:
 
 Excerpts of `test_lists_files_variables_and_overrides_then_changes_pixels_itself_and_saves_only_main_conf` and
 `test_changes_max_count_to_no_longer_use_the_variable_only_sink_conf_and_pixels_wins_nothing`,
-`py/tests/test_tracer.py`.
+`py/tests/test_tracer.py`. `Recorder` is the test's writer that keeps each batch, as `recorder()` above.
 
 An edit lands on the written line, so every place that reads that line sees it. sink.conf is read at two places:
 replacing `$pixels` there changes the `porch` sink as well as `leds` (a rendered value's `written` is that one
@@ -274,7 +276,7 @@ A document's `block`, and every statement's block, holds **statements**, in orde
 | Kind | What it is | Its own members |
 |---|---|---|
 | `directive` | a directive | `name`, `values`, `block`, `rename(name)`, `set(text)` |
-| `extension` | a line a registered extension owns: an include line | the same as a directive; its `values` are the path, its `block` its `set` lines |
+| `extension` | a line a registered extension owns: an include line | `name`, `values`, `block`, `set(text)`, but no `rename` (the extension owns the name); its `values` are the path, its `block` its `set` lines |
 | `set` | `set $name value...;` | `variable`, `values`, `set(text)` |
 | `snippet` | `snippet name $param... { ... }` | `name`, `parameters`, `block` |
 | `use` | `use name value...;` | `snippetName`, `snippet`, `snippets()`, `values`, `set(text)` |
@@ -288,16 +290,18 @@ statements, and each kind is its own class, so `match` narrows it:
 ```python
 def describe(statement: vl.Statement) -> str:
     match statement:
-        case vl.WrittenDirective():
-            return f"{statement.kind} {statement.name}"
-        case vl.SetLine():
-            return f"set ${statement.variable.name}"
-        case vl.SnippetLine():
-            return f"snippet {statement.name}"
-        case vl.UseLine():
-            return f"use {statement.snippet_name}"
-        case vl.UnreadableLine():
-            return "unreadable"
+        case vl.WrittenDirective(name, values, block):
+            return f"directive {name} {len(values)} {block is not None}"
+        case vl.ExtensionLine(name, values, _):
+            return f"extension {name} {values[0].text}"
+        case vl.SetLine(variable, values):
+            return f"set ${variable.name} {len(values)}"
+        case vl.SnippetLine(name, parameters, block):
+            return f"snippet {name} {len(parameters)} {len(block)}"
+        case vl.UseLine(snippet_name, values):
+            return f"use {snippet_name} {len(values)}"
+        case vl.UnreadableLine(text):
+            return f"unreadable {text}"
         case _:
             assert_never(statement)
 ```
@@ -324,22 +328,23 @@ Every value has `text` (exactly as written), `place`, `statement`, `list` (the l
 ```python
 def value_kind(value: vl.WrittenValue) -> str:
     match value:
-        case vl.Word() | vl.String():
-            return value.kind
-        case vl.List():
-            return f"list of {len(value.items)}"
-        case vl.Slice():
-            return f"slice {value.name}"
-        case vl.Index():
-            return f"index {value.name}[{value.index.text}]"
-        case vl.Reference():
-            return f"reference {value.name}"
+        case written.Word(text) | written.String(text):
+            return f"{value.kind} {text}"
+        case written.List(items):
+            return f"list of {len(items)}"
+        case written.Slice(name, start, end):
+            return f"slice {name} {start is not None} {end is not None}"
+        case written.Index(name, index):
+            return f"index {name}[{index.text}]"
+        case written.Reference(name):
+            return f"reference {name}"
         case _:
             assert_never(value)
 ```
 
-`py/tests/test_written.py`, used by the same test, which reads `x w "s" [1, 2] c[1:2] c[0] $a;` as word, string,
-list of 2, slice c, index c[0], reference a.
+`py/tests/test_written.py`, used by the same test, which reads `x w "s" [1, 2] c[1:2] c[0] $a;` as word w, string
+"s", list of 2, slice c, index c[0], reference a. The written value classes come from `villanelle.written` only
+(`from villanelle import written`), so `from villanelle import *` never replaces `typing.List`.
 
 ## Copies: every place a line is read
 
@@ -355,18 +360,21 @@ edges that splice that document in.
 ## Variables and what each `$name` reads
 
 A **variable** is a `set` line's `$name`, a snippet's parameter, or an override the program gives. Its `kind` is
-`set`, `parameter` or `override`.
+`set`, `parameter` or `override`, and each kind is its own type (TypeScript: `ISetVariable`, `IParameter`,
+`IOverrideVariable`, the union `Variable`; Python: `SetVariable`, `Parameter`, `OverrideVariable`), with only the
+members that can succeed on it. Narrow by `kind` (TypeScript) or with `match` / `isinstance` (Python) before using
+them:
 
-| Member | TypeScript | Python | What it is |
-|---|---|---|---|
-| | `kind`, `name` | `kind`, `name` | the name without `$` |
-| where its `$name` is written | `place` | `place` | undefined (None) for an override |
-| its line | `line` | `line` | the `set` or `snippet` line; undefined for an override |
-| the `$name`s declared by it | `references()` | `references()` | by where they are written, reached or not |
-| where it wins | `wins()` | `wins()` | one resolution per place it wins |
-| where another one wins | `shadowedAt()` | `shadowed_at()` | one resolution per place it is shadowed |
-| rename its `$name` | `rename(name)` | `rename(name)` | only the `$name` on its line; the references are not changed |
-| change its value | `set(text)` | `set(text)` | its `set` line's values; `NoSetLineError` for a parameter or an override (use `setOverride`) |
+| Member | TypeScript | Python | On | What it is |
+|---|---|---|---|---|
+| | `kind`, `name` | `kind`, `name` | every kind | the name without `$` |
+| where its `$name` is written | `place` | `place` | `set`, `parameter` | an override has none |
+| its line | `line` | `line` | `set`, `parameter` | the `set` or `snippet` line |
+| the `$name`s declared by it | `references()` | `references()` | every kind | lexical only: the `$name`s in its own file whose `declaration` it is, reached or not; empty for an override. A use in an included file has no declaration, so it is only in `wins()` and `shadowedAt()` |
+| where it wins | `wins()` | `wins()` | every kind | one resolution per place it wins: every use, per copy |
+| where another one wins | `shadowedAt()` | `shadowed_at()` | every kind | one resolution per place it is shadowed |
+| rename its `$name` | `rename(name)` | `rename(name)` | `set`, `parameter` | only the `$name` on its line; the references are not changed |
+| change its value | `set(text)` | `set(text)` | `set` | its `set` line's values. A parameter's value is on the `use` line; an override's changes with `setOverride` |
 
 A **reference** is one `$name` written as a value. It has two answers to "which variable is this?":
 
@@ -478,7 +486,8 @@ and column, as `parse` places them), with the same codes a load gives:
 
 ```ts
     const graph = await load({ "main.conf": "set $a 1;\n" });
-    const set = graph.root.block.statements[0] as ISetLine;
+    const [set] = graph.root.block.statements;
+    if (set?.kind !== "set") throw new Error("not a set line");
     for (const text of ["1; x", "{", "", "\"open"]) {
       expect(() => set.set(text), text).toThrow(BadTextError);
       expect(graph.root.text).toBe("set $a 1;\n");
@@ -493,12 +502,13 @@ and column, as `parse` places them), with the same codes a load gives:
 | the text is not what the edit takes | `BadTextError` (`diagnostics`) | `BadTextError` (`diagnostics`) | above |
 | the handle's tokens are gone | `DetachedError` | `DetachedError` | see "Handles" |
 | villanelle text was not given | `TypeError` | `TypeError` | a number, `null` / `None` or anything else where text is taken |
-| no `set` line to edit | `NoSetLineError` | `NoSetLineError` | `set` on a parameter (edit the `use` line) or an override (use `setOverride`); `rename` of an override |
 | an index outside the block | `RangeError` | `IndexError` | `insertStatements` |
-| the writer failed | `SaveError` (`files`, `cause`) | `SaveError` (`files`, `__cause__`) | see "Saving" |
-| the root file cannot be read | `ReadError` (a `DiagnosticError`, E3004) | `ReadError` | `load` |
+| the writer failed | `SaveError` (`paths`, `cause`) | `SaveError` (`paths`, `__cause__`) | see "Saving" |
+| the root file cannot be read | `ReadError` (`paths`, `cause`) | `ReadError` (`paths`, `__cause__`) | `load` |
 
-`BadTextError`, `DetachedError` and `NoSetLineError` share the base `EditError` (in Python a `ValueError`).
+`BadTextError` extends `EditError` (in Python also a `ValueError`). `DetachedError` is not an edit error (in Python
+it is also a `ReferenceError`). Every class villanelle defines extends `VillanelleError`. There is no error for a
+`set` on a parameter or an override: those kinds have no `set` member.
 
 ### Where new text goes
 
@@ -590,7 +600,7 @@ never reads stale text by mistake.
 
 ```ts
     const graph = await load({ "main.conf": "x 1;\n" });
-    const [value] = (graph.root.block.statements[0] as IWrittenDirective).values;
+    const [value] = graph.root.block.directives()[0]?.values ?? [];
     if (value === undefined) throw new Error("no value");
     const [made] = value.replaceWithText("2");
     expect(made?.text).toBe("2");
@@ -664,7 +674,7 @@ edit made while the writer ran stays unsaved.
     expect(await graph.save(writer)).toEqual([]);
     expect(writer.batches).toEqual([]);
     const p = graph.documents.get("p.conf");
-    (p?.block.statements[0] as IWrittenDirective).values[0]?.replaceWithText("3");
+    p?.block.directives()[0]?.values[0]?.replaceWithText("3");
     expect(await graph.save(writer)).toEqual(["p.conf"]);
     expect(writer.batches).toEqual([[{ resolvedPath: "p.conf", text: "y 3;\n", savedText: "y 2;\n" }]]);
     expect(p?.savedText).toBe("y 3;\n");
@@ -673,19 +683,20 @@ edit made while the writer ran stays unsaved.
 ```
 
 `ts/src/written/written.test.ts`, test "hands only changed files to the writer in one call, then updates source;
-nothing changed: no call". `recorder()` is a writer that keeps each batch.
+nothing changed: no call". `recorder()` is the test's writer that keeps each batch.
 
 The core does no input or output: the **writer** is the program's. It has one method, `write(files)` (a promise in
 TypeScript, a plain call in Python), given the batch. Each file in it has `resolvedPath`, `text` (what to write)
 and `savedText` (what was read or last saved, to compare with the disk). If the writer fails, `save` throws
-`SaveError` with the `files` and the writer's error as its cause, and no `savedText` changes. The writer and the
+`SaveError` with the `paths` and the writer's error as its cause, and no `savedText` changes. The writer and the
 file write are I/O ports, beside the document source (`villanelle` exports them; Python defines them in
 `villanelle.source`).
 
 | Writer | TypeScript | Python |
 |---|---|---|
-| the filesystem | `createFsWriter()` from `villanelle/node` | `fs_writer()` from `villanelle.files` |
-| `fetch` | `createFetchWriter(fetch, options?)` from `villanelle/browser` | none |
+| memory | `memoryWriter(files)` from `villanelle` | `memory_writer(files)` from `villanelle` |
+| the filesystem | `fileWriter()` from `villanelle/node` | `file_writer()` from `villanelle.files` |
+| `fetch` | `fetchWriter(fetch, options?)` from `villanelle/browser` | none |
 
 The filesystem writer first checks that each file on disk still holds its `savedText`; if any does not (someone else
 changed it), it writes nothing and fails, naming the files. Then it writes each text to a temporary file beside its
@@ -694,12 +705,12 @@ empty text, so a new file (`savedText` "") is written. A failure while renaming 
 replaced while their `savedText` stays the old text, so the next save refuses them as lost updates until you load again:
 
 ```python
-def test_fs_writer_refuses_a_lost_update_writing_nothing(tmp_path: Path) -> None:
+def test_file_writer_refuses_a_lost_update_writing_nothing(tmp_path: Path) -> None:
     a, b = tmp_path / "a.conf", tmp_path / "b.conf"
     a.write_text("a 1;\n")
     b.write_text("changed by someone else;\n")
     with pytest.raises(OSError, match=r"b\.conf"):
-        fs_writer().write([vl.FileWrite(str(a), "a 2;\n", "a 1;\n"), vl.FileWrite(str(b), "b 2;\n", "b 1;\n")])
+        file_writer().write([vl.FileWrite(str(a), "a 2;\n", "a 1;\n"), vl.FileWrite(str(b), "b 2;\n", "b 1;\n")])
     assert a.read_text() == "a 1;\n"
     assert b.read_text() == "changed by someone else;\n"
     assert sorted(p.name for p in tmp_path.iterdir()) == ["a.conf", "b.conf"]
