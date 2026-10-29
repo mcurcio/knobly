@@ -4,8 +4,8 @@
  */
 
 import { locatedForm, stepForm } from "../people.js";
-import type { ILocatedDiagnostic } from "../report.js";
-import type { IDocumentGraph } from "./model.js";
+import type { LocatedDiagnostic } from "../gen/api/shared.js";
+import type { DocumentGraph } from "../gen/api/written.js";
 
 /**
  * The located diagnostic's people form, `path:line:col: code: message` (spec/contract.md 2), then the source line and
@@ -13,7 +13,7 @@ import type { IDocumentGraph } from "./model.js";
  * innermost first. A line ends only at `"\n"` (`"\r\n"` included); a lone `"\r"` stays in the line. Columns and
  * carets count UTF-16 code units. Reads text only from `graph`; never does I/O.
  */
-export function formatDiagnostic(diagnostic: ILocatedDiagnostic, graph?: IDocumentGraph): string {
+export function formatDiagnostic(diagnostic: LocatedDiagnostic, graph?: DocumentGraph): string {
   const { place, via } = diagnostic;
   const lines = [locatedForm(diagnostic)];
   const source = graph?.documents.get(place.resolvedPath)?.text;

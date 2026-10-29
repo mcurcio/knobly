@@ -3,13 +3,10 @@
  * `render (graph)`. Not shipped (tsconfig.build.json leaves it out).
  */
 
-import type { IOrigin, IPlace, IStep } from "../origin.js";
-import type { ILocatedDiagnostic } from "../report.js";
-import { type IDocumentSource, memorySource } from "../source.js";
-import { type ConfigText, text } from "../text.js";
-import { type IExtension, type IProcessor, villanelle } from "../written/index.js";
-import type { IDirective, IKeyOptions, IRendered } from "./model.js";
+import { type Extension, type Processor, villanelle } from "../written/index.js";
 import { render } from "./render.js";
+import { type ConfigText, type DocumentSource, type LocatedDiagnostic, memorySource, type Origin, type Place, PlaceKind, type Step, text } from "../index.js";
+import type { Directive, KeyOptions, Rendered } from "./index.js";
 
 /** Plain test strings as config text, each through `text()` (spec 6.9). */
 export function configTexts(texts: Readonly<Record<string, string>>): Record<string, ConfigText> {
@@ -18,11 +15,11 @@ export function configTexts(texts: Readonly<Record<string, string>>): Record<str
 
 export interface ITestOptions {
   readonly overrides?: Readonly<Record<string, string>>;
-  readonly extensions?: readonly IExtension[];
+  readonly extensions?: readonly Extension[];
 }
 
 /** A processor over these files. */
-export function processorOf(files: Readonly<Record<string, string>>, options: ITestOptions = {}): IProcessor {
+export function processorOf(files: Readonly<Record<string, string>>, options: ITestOptions = {}): Processor {
   return villanelle({
     source: memorySource(files),
     ...(options.extensions === undefined ? {} : { extensions: options.extensions }),
@@ -30,23 +27,23 @@ export function processorOf(files: Readonly<Record<string, string>>, options: IT
 }
 
 /** `render(await processor.load(path, options))`. */
-export async function rendered(processor: IProcessor, path: string, options?: { readonly overrides?: Readonly<Record<string, ConfigText>> }): Promise<IRendered> {
+export async function rendered(processor: Processor, path: string, options?: { readonly overrides?: Readonly<Record<string, ConfigText>> }): Promise<Rendered> {
   return render(await processor.load(path, options));
 }
 
 /** Load `main.conf` (or `root`) from these files, and render it. */
-export async function loadFiles(files: Readonly<Record<string, string>>, options: ITestOptions = {}, root = "main.conf"): Promise<IRendered> {
+export async function loadFiles(files: Readonly<Record<string, string>>, options: ITestOptions = {}, root = "main.conf"): Promise<Rendered> {
   const processor = processorOf(files, options);
   return render(await processor.load(root, options.overrides === undefined ? undefined : { overrides: configTexts(options.overrides) }));
 }
 
 /** Load one text as `main.conf`, and render it. */
-export function loadText(text: string, options: ITestOptions = {}): Promise<IRendered> {
+export function loadText(text: string, options: ITestOptions = {}): Promise<Rendered> {
   return loadFiles({ "main.conf": text }, options);
 }
 
 /** A source that counts each `read` per path. */
-export function countingSource(files: Readonly<Record<string, string>>): { source: IDocumentSource; reads: Map<string, number> } {
+export function countingSource(files: Readonly<Record<string, string>>): { source: DocumentSource; reads: Map<string, number> } {
   const inner = memorySource(files);
   const reads = new Map<string, number>();
   return {
@@ -62,38 +59,39 @@ export function countingSource(files: Readonly<Record<string, string>>): { sourc
 }
 
 /** The one element of a list; fails the test otherwise. */
-export function only<T>(list: readonly T[] | undefined): T {
-  if (list?.length !== 1) throw new Error(`expected one element, found ${String(list?.length)}`);
-  return list[0] as T;
+export function only<T>(list: Iterable<T> | undefined): T {
+  const items = list === undefined ? [] : [...list];
+  if (items.length !== 1) throw new Error(`expected one element, found ${String(list === undefined ? undefined : items.length)}`);
+  return items[0] as T;
 }
 
 /** `path:line:col`, 0-based, as the load conformance format writes it. */
-export function placeText(place: IPlace): string {
+export function placeText(place: Place): string {
   return `${place.resolvedPath}:${String(place.span.start.line)}:${String(place.span.start.column)}`;
 }
 
 /** An origin as the load conformance format writes it. */
-export function originText({ place, via }: { readonly place: IOrigin["place"]; readonly via: readonly IStep[] }): string {
-  const head = place.kind === "override" ? `override ${place.variable}` : placeText(place);
+export function originText({ place, via }: { readonly place: Origin["place"]; readonly via: readonly Step[] }): string {
+  const head = place.kind === PlaceKind.Override ? `override ${place.variable}` : placeText(place);
   return head + via.map((step) => ` < ${step.kind} ${step.name} ${placeText(step.place)}`).join("");
 }
 
 /** Each diagnostic as `[code, origin]`. */
-export function problems(diagnostics: Iterable<ILocatedDiagnostic>): [string, string][] {
+export function problems(diagnostics: Iterable<LocatedDiagnostic>): [string, string][] {
   return [...diagnostics].map((d) => [d.code, originText(d)]);
 }
 
 /** Every directive's people address in walk order, under `options.key`. */
-export function addresses(rendered: IRendered, options?: IKeyOptions): string[] {
+export function addresses(rendered: Rendered, options?: KeyOptions): string[] {
   return [...rendered.addresses(options).values()].map((address) => address.toString());
 }
 
 /** One directive's people address under `options.key`. */
-export function addressOf(rendered: IRendered, directive: IDirective, options?: IKeyOptions): string {
+export function addressOf(rendered: Rendered, directive: Directive, options?: KeyOptions): string {
   return rendered.addresses(options).get(directive)?.toString() ?? "";
 }
 
 /** Each of the directive's values' canonical text. */
-export function texts(directive: IDirective | undefined): string[] {
+export function texts(directive: Directive | undefined): string[] {
   return directive?.values.map((a) => a.text) ?? [];
 }

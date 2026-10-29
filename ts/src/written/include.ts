@@ -5,27 +5,27 @@
  * lines are visible, is spec/expansion.md.
  */
 
-import { DiagnosticCode, messageOf } from "../diagnostics.js";
-import { DiagnosticError } from "../errors.js";
 import { codeError } from "../locate.js";
 import { makeLocated } from "../report.js";
-import type { IExtension } from "./extension.js";
-import type { ExpandedValue } from "./value.js";
+import type { ExpandedValue, Extension } from "../gen/api/written.js";
+import { DiagnosticCode, describe } from "../gen/api/codes.js";
+import { DiagnosticError } from "../gen/api/errors.js";
+import { ValueKind } from "../gen/api/kinds.js";
 
 /**
  * The include extension. Its one value must be a quoted path or glob (E3005 otherwise, placed on the value);
  * matching files are spliced in code-point order of resolvedPath (vil-bgz.1).
  */
-export function include(): IExtension {
+export function include(): Extension {
   return {
     directive: "include",
     specs({ values, origin }) {
       const [path, extra] = values;
       if (path === undefined) {
         const code = DiagnosticCode.IncludeBadPath;
-        throw new DiagnosticError(makeLocated(code, messageOf(code), origin.place, origin.via));
+        throw new DiagnosticError(makeLocated(code, describe(code).message, origin.place, origin.via));
       }
-      const bad: ExpandedValue | undefined = path.kind !== "string" ? path : extra;
+      const bad: ExpandedValue | undefined = path.kind !== ValueKind.String ? path : extra;
       if (bad !== undefined) throw codeError(bad.origin, DiagnosticCode.IncludeBadPath, bad.text);
       return [path.string()];
     },

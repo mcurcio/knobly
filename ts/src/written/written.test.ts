@@ -7,22 +7,17 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { include } from "../include.js";
-import { villanelle } from "./processor.js";
-import { memorySource } from "../source.js";
-import { BadTextError, DetachedError, MisuseError, SaveError } from "../errors.js";
-import type { IExtension } from "./extension.js";
-import type { IDocumentWriter, IFileWrite } from "../source.js";
-import type { IDocumentGraph, ISetLine, IWrittenDirective } from "./model.js";
-import { quote, text } from "../text.js";
 import { configTexts } from "../rendered/testing.js";
+import { BadTextError, DetachedError, type DocumentWriter, type FileWrite, memorySource, MisuseError, quote, SaveError, text } from "../index.js";
+import { type DocumentGraph, type Extension, type SetLine, villanelle, type WrittenDirective } from "./index.js";
 
-async function load(files: Record<string, string>, overrides?: Record<string, string>): Promise<IDocumentGraph> {
+async function load(files: Record<string, string>, overrides?: Record<string, string>): Promise<DocumentGraph> {
   const processor = villanelle({ source: memorySource(files), extensions: [include()] });
   return processor.load("main.conf", overrides === undefined ? undefined : { overrides: configTexts(overrides) });
 }
 
-function recorder(): IDocumentWriter & { batches: IFileWrite[][] } {
-  const batches: IFileWrite[][] = [];
+function recorder(): DocumentWriter & { batches: FileWrite[][] } {
+  const batches: FileWrite[][] = [];
   return {
     batches,
     write(files) {
@@ -36,16 +31,16 @@ describe("documents and handles", () => {
   it("keeps one handle per statement and value across an edit elsewhere in the file (===)", async () => {
     const graph = await load({ "main.conf": "@set $a 1;\nb 2 3;\nc { d 4; }\n" });
     const body = graph.root.block;
-    const [set, b, c] = body.statements as [ISetLine, IWrittenDirective, IWrittenDirective];
+    const [set, b, c] = [...body] as [SetLine, WrittenDirective, WrittenDirective];
     const [two, three] = b.values;
-    const d = c.block?.statements[0];
+    const d = c.block?.at(0);
     set.set(text("100 200"));
     expect(graph.root.text).toBe("@set $a 100 200;\nb 2 3;\nc { d 4; }\n");
-    expect(body.statements[0]).toBe(set);
-    expect(body.statements[1]).toBe(b);
+    expect(body.at(0)).toBe(set);
+    expect(body.at(1)).toBe(b);
     expect(b.values[0]).toBe(two);
     expect(b.values[1]).toBe(three);
-    expect(c.block?.statements[0]).toBe(d);
+    expect(c.block?.at(0)).toBe(d);
     expect([b.text, two?.text, three?.text, d?.text, set.text]).toEqual(["b 2 3;", "2", "3", "d 4;", "@set $a 100 200;"]);
     expect(set.variable).toBe(graph.variables("a")[0]);
     expect(b.place.span.start).toEqual({ offset: 17, line: 1, column: 0 });
@@ -64,7 +59,7 @@ describe("documents and handles", () => {
 
   it("owns the comment lines directly above a statement and its trailing comment", async () => {
     const graph = await load({ "main.conf": "# far\n\n# near\n  b 2; # end\nc;\n" });
-    const [b] = graph.root.block.statements;
+    const [b] = graph.root.block;
     expect(b?.text).toBe("# near\n  b 2; # end");
     expect(b?.place.span.start).toMatchObject({ line: 2, column: 0 });
     b?.remove();
@@ -73,7 +68,7 @@ describe("documents and handles", () => {
 
   it("changes nothing when an edit's text is refused", async () => {
     const graph = await load({ "main.conf": "@set $a 1;\n" });
-    const [set] = graph.root.block.statements;
+    const [set] = graph.root.block;
     if (set?.kind !== "set") throw new Error("not a set line");
     for (const given of ["1; x", "{", "", "\"open"]) {
       expect(() => set.set(text(given)), given).toThrow(BadTextError);
@@ -84,7 +79,7 @@ describe("documents and handles", () => {
 });
 
 describe("make processor checks an extension's name: its type, then a word, then reserved or taken (spec 5)", () => {
-  const named = (directive: unknown): IExtension => ({ directive, specs: () => [] }) as unknown as IExtension;
+  const named = (directive: unknown): Extension => ({ directive, specs: () => [] }) as unknown as Extension;
   const make = (directive: unknown) => () => villanelle({ source: memorySource({}), extensions: [named(directive)] });
 
   it("refuses a name that is not a string with the argument type error", () => {
@@ -126,7 +121,7 @@ describe("save", () => {
 
   it("keeps an edit made while the writer ran unsaved", async () => {
     const graph = await load({ "main.conf": "x 1;\n" });
-    const x = graph.root.block.statements[0] as IWrittenDirective;
+    const x = graph.root.block.at(0) as WrittenDirective;
     x.values[0]?.replaceWithText(text("2"));
     let release: () => void = () => undefined;
     const pending = graph.save({ write: () => new Promise<void>((resolve) => (release = resolve)) });

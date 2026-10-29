@@ -4,12 +4,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { BadTextError, DiagnosticError, MisuseError, ReadError } from "../errors.js";
 import { include } from "../include.js";
-import type { IExtension } from "../written/index.js";
+import type { Extension } from "../written/index.js";
 import { villanelle } from "../written/index.js";
-import { memorySource } from "../source.js";
 import { addresses, countingSource, loadFiles, loadText, only, originText, problems, rendered, texts } from "./testing.js";
+import { BadTextError, DiagnosticError, memorySource, MisuseError, ReadError } from "../index.js";
 
 const INCLUDE = { extensions: [include()] };
 
@@ -33,7 +32,7 @@ describe("rule 1: @ statements (spec 2.5, milestone 5)", () => {
 
   it("refuses an extension named like a language statement, like another extension, or not one word", () => {
     const source = memorySource({});
-    const named = (directive: string): IExtension => ({ directive, specs: () => [] });
+    const named = (directive: string): Extension => ({ directive, specs: () => [] });
     for (const bad of ["set", "use", "snippet", "@x", "a b", "1x", ""]) {
       expect(() => villanelle({ source, extensions: [named(bad)] }), bad).toThrow(MisuseError);
     }
@@ -89,7 +88,7 @@ describe("rule 3: overrides", () => {
     const loaded = await loadFiles(files, { ...INCLUDE, overrides: { h: "given" } });
     expect(loaded.diagnostics).toEqual([]);
     const values: string[] = [];
-    loaded.walk((d) => {
+    loaded.block.walk((d) => {
       values.push(...texts(d));
     });
     expect(values).toEqual(["given", "given", "given", "given"]);
@@ -151,7 +150,7 @@ describe("rule 4: $name as a value", () => {
     const loaded = await loadText("a { max_count $pixel; }\n");
     expect(problems(loaded.diagnostics)).toEqual([["E5001", "main.conf:0:14"]]);
     const a = only(loaded.block);
-    expect(a.block).toEqual([]);
+    expect(a.block?.length).toBe(0);
     expect(a.unreadable.map((u) => [u.reason, originText(u.origin)])).toEqual([["expansion", "main.conf:0:4"]]);
   });
 });
@@ -161,7 +160,7 @@ describe("rules 5 and 6: snippet and use", () => {
     const loaded = await loadText("@snippet s $a $b {\n  x $b $a;\n  y;\n}\nbefore;\n@use s 1 [2, 3];\nafter;\n");
     expect(loaded.diagnostics).toEqual([]);
     expect(addresses(loaded)).toEqual(["before", "x", "y", "after"]);
-    expect(texts(loaded.block[1])).toEqual(["[2, 3]", "1"]);
+    expect(texts(loaded.block.at(1))).toEqual(["[2, 3]", "1"]);
   });
 
   it("takes a snippet with no parameters", async () => {
@@ -208,7 +207,7 @@ describe("rules 5 and 6: snippet and use", () => {
     const loaded = await loadText("@snippet s { x $late; }\n@set $late 1;\n@use s;\nb { @set $mine 2; @snippet t { y $mine; } @use t; }\nc { @set $z 3; @use s; }\n");
     expect(loaded.diagnostics).toEqual([]);
     const named = loaded.addresses();
-    expect(loaded.block.map((d) => [named.get(d)?.toString(), ...texts(d)])).toEqual([
+    expect([...loaded.block].map((d) => [named.get(d)?.toString(), ...texts(d)])).toEqual([
       ["x", "1"],
       ["b"],
       ["c"],
@@ -269,7 +268,7 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
     const files = { "main.conf": '@include "lib.conf" { @set $v 2; }\nafter $v;\n', "lib.conf": "@set $v 1;\nin $v;\n" };
     const loaded = await loadFiles(files, INCLUDE);
     expect(loaded.diagnostics).toEqual([]);
-    expect(loaded.block.map((d) => [d.name, ...texts(d)])).toEqual([
+    expect([...loaded.block].map((d) => [d.name, ...texts(d)])).toEqual([
       ["in", "2"],
       ["after", "1"],
     ]);
@@ -318,7 +317,7 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
   it("gives E3001 when a spec matches nothing and E3004 when the source rejects, at the directive's name", async () => {
     const missing = await loadFiles({ "main.conf": 'x {\n  @include "nope.conf";\n}\n' }, INCLUDE);
     expect(problems(missing.diagnostics)).toEqual([["E3001", "main.conf:1:2"]]);
-    expect(missing.block[0]?.unreadable.map((u) => u.reason)).toEqual(["extension"]);
+    expect(missing.block.at(0)?.unreadable.map((u) => u.reason)).toEqual(["extension"]);
     expect(missing.graph.edges()[0]?.targets).toEqual([]);
 
     const failing = (resolve: boolean): ReturnType<typeof memorySource> => ({
@@ -335,7 +334,7 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
   });
 
   it("refuses a port result that is not a list of texts: E3006 from an extension, E3004 or a ReadError from a source", async () => {
-    const bare: IExtension = { directive: "pull", specs: () => "dark.conf" as unknown as readonly string[] };
+    const bare: Extension = { directive: "pull", specs: () => "dark.conf" as unknown as readonly string[] };
     const pulled = await loadText("@pull;\nok;\n", { extensions: [bare] });
     expect(problems(pulled.diagnostics)).toEqual([["E3006", "main.conf:0:0"]]);
     expect(pulled.diagnostics[0]?.message).toContain("string");
@@ -374,7 +373,7 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
   });
 
   it("gives E3006 when an extension throws anything but a DiagnosticError, and records a DiagnosticError as thrown", async () => {
-    const throwing: IExtension = {
+    const throwing: Extension = {
       directive: "pull",
       specs: (use) => {
         if (use.values.length === 0) throw new Error("boom");
@@ -453,7 +452,7 @@ describe("rule 9: limits and cycles", () => {
       ["E5008", "main.conf:10:2 < use a main.conf:22:2 < use b main.conf:34:2 < use c main.conf:46:2 < use d main.conf:58:2 < use e main.conf:61:0"],
     ]);
     let count = 0;
-    loaded.walk(() => {
+    loaded.block.walk(() => {
       count++;
     });
     expect(count).toBe(100_000);

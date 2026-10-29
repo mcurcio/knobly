@@ -12,7 +12,10 @@ It is not on npm. Releases attach the `npm pack` tarball to the GitHub Release (
 
 | Import | What it has |
 |---|---|
-| `villanelle` | The core. It does no input or output; `memorySource(files)` and `memoryWriter(files)` keep texts in one object; `checkLostUpdates(files, current)` is the one lost-update check every writer calls |
+| `villanelle` | The shared layer and the I/O ports: places, origins, diagnostics (`Diagnostics`, `DiagnosticCode`), the error classes, config text (`quote`, `text`), `PlaceKind`, `StepKind`, `WalkControl`, `PROGRAM_CODE`. It does no input or output; `memorySource(files)` and `memoryWriter(files)` keep texts in one object; `checkLostUpdates(files, current)` is the one lost-update check every writer calls |
+| `villanelle/syntax` | The syntax layer: `parse`, `spanOf`, `textOf`, `Token`, `Node`, `TokenKind`, `NodeKind`, `MAX_NESTING` |
+| `villanelle/written` | The low level: `villanelle(...)`, the document graph and its statements, values and variables, `formatDiagnostic`, `StatementKind`, `ValueKind`, `VariableKind`, `UnreadableReason`, the limits (`MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`) |
+| `villanelle/rendered` | The rendered tree: `render(graph)`, `Rendered`, `Directive`, `Address`, `Change`, `ChangeKind` |
 | `villanelle/include` | `include()`: the include extension |
 | `villanelle/node` | `fileSource()` and `fileWriter()`: files on disk |
 | `villanelle/browser` | `fetchSource(fetch)` and `fetchWriter(fetch, options?)`: files over `fetch` |
@@ -20,7 +23,9 @@ It is not on npm. Releases attach the `npm pack` tarball to the GitHub Release (
 Adapters are named by medium (`memory`, `file`, `fetch`) and port (`source`, `writer`). A memory source reads the
 object it was given at every call, so a memory writer over the same object saves into what the next load reads.
 
-The core has three layers, each built on the one below:
+Each layer has its own import path (binding guide rule 9), and no type has an `I` prefix. Every public type, kind
+list, error class and limit is generated from [`spec/schema/api.json`](../spec/schema/api.json) (spec/codegen.md);
+the package's classes implement the generated interfaces. The core has three layers, each built on the one below:
 
 - **The syntax tree.** `parse(text)` returns `{ tokens, root, diagnostics }`. It is synchronous and never
   throws. Every statement ends with `;` or a block, and a line break is whitespace (spec 3.2). The tree is lossless: every character of the text is in exactly one token, and
@@ -36,6 +41,10 @@ The core has three layers, each built on the one below:
   `text(String(n))`.
 
   ```ts
+  import { quote, text } from "villanelle";
+  import { fileSource, fileWriter } from "villanelle/node";
+  import { villanelle } from "villanelle/written";
+
   const graph = await villanelle({ source: fileSource() }).load("main.conf", { overrides: { port: text("8080") } });
   const server = graph.root.block.directives("server")[0];
   server?.set(quote("10.0.60.31")); // replaces the statement's values (not the language's `@set` line)
@@ -47,14 +56,20 @@ The core has three layers, each built on the one below:
   so no directive name is reserved: `events { use epoll; }` is a plain directive, and an `@name` no extension owns is
   an unreadable line (E3008).
 
-  Statements, values and variables are unions narrowed by `kind` (`"directive"`, `"extension"`, `"set"`,
-  `"snippet"`, `"use"`, `"unreadable"`; `"set"`, `"parameter"`, `"override"`), and each kind has only the members
-  that can succeed on it: an include line (`IExtensionLine`) has no `rename`, a parameter no `set`, an override
-  variable no `place`, `rename` or `set` (use `graph.setOverride`). So narrowing needs no cast:
+  Statements, values and variables are unions narrowed by `kind`, and each kind has only the members that can
+  succeed on it: an include line (`ExtensionLine`) has no `rename`, a parameter no `set`, an override variable no
+  `place`, `rename` or `set` (use `graph.setOverride`). Every kind list is an `as const` object and the
+  string-literal union derived from it, under one name (spec 2.10): `StatementKind.Set` is `"set"`, and a program may
+  compare with either. So narrowing needs no cast:
 
   ```ts
-  for (const s of graph.root.block.statements) if (s.kind === "set") s.variable.set(text("2"));
+  for (const s of graph.root.block) if (s.kind === StatementKind.Set) s.variable.set(text("2"));
   ```
+
+  Every block has one shape in every layer (spec 2.11): iterate it (`for...of`, `[...block]`), count it
+  (`block.length`), index it (`block.at(i)`, undefined out of range), take its directives (`block.directives(name?)`)
+  and walk everything below it (`block.walk(visit)`, the callback returning `WalkControl.Skip` or `WalkControl.Stop`).
+  A written block also has `insertStatements` and `addStatements`.
 
   `set(text)` replaces a statement's or a variable's values (a text with no value must be empty: `set(text(""))`
   clears them); on a written value it replaces that one value and keeps the handle, which takes the new value's kind
@@ -74,7 +89,7 @@ The core has three layers, each built on the one below:
   rendered tree (`pnpm lint` checks it). Reference: [docs/low-level-api.md](../docs/low-level-api.md).
 - **The rendered tree.** `render(graph)` builds on the low level's public objects only (`graph.expand()`; `pnpm
   lint` refuses a rendered module importing anything under `written/` but `written/index.js`): it gives the
-  directives (`block`, `values`, `walk`), each value its expansion's own `ExpandedValue`, narrowed by `kind` (a list has `items`, a slice
+  directives (`block`, `values`; `rendered.block.walk` visits them all), each value its expansion's own `ExpandedValue`, narrowed by `kind` (a list has `items`, a slice
   `name`, `start`, `end`, an index `name`, `index`) with its typed readers (`word()`, `string()`, `number()`,
   `integer()`, `boolean()`, `list()`, `slice()`: a word is untyped until the program reads it as one), its origin, and `written` (the value on its own line),
   `definition` (where it is written) and `chain` (the `$name` steps between) leading back to the low level.
@@ -84,7 +99,7 @@ The core has three layers, each built on the one below:
   the same `written` handle twice; a value's `set` keeps its handle, so the natural loop just writes it again:
 
   ```ts
-  loaded.walk((d) => {
+  loaded.block.walk((d) => {
     const arg = d.values[0];
     if (d.name === "max_count" && arg !== undefined) arg.written.set(text("2400"));
   });
@@ -124,9 +139,12 @@ corepack pnpm -C ts build       # dist/
 corepack pnpm -C ts conformance # the shared conformance driver, on the build above
 ```
 
-Each script first runs `bash ../tools/gen.sh ts`, which regenerates the parser into `src/gen/`
-and the diagnostic codes, kind lists and limits from `spec/schema/` into `src/gen/api/` (ignored by
-git, never committed). That needs Java 11+; the ANTLR jar is cached in
+Each script first runs `bash ../tools/gen.sh ts`, which regenerates the parser into `src/gen/`, and from
+`spec/schema/` the declarations into `src/gen/api/` (each layer's interfaces, the kind lists, the diagnostic codes,
+the error classes, the limits and `PUBLIC_NAMES`) and the adapter's protocol types into `conformance/shapes.ts`
+(ignored by git, never committed). `src/api-names.test.ts` checks every entry's exports against `PUBLIC_NAMES`, both
+ways. `pnpm lint` also runs the kind rule (`tools/lint/kind-rule.mjs`): inside the package a `.kind`, `.reason` or
+`.code` is compared with a generated member, never a string literal. That needs Java 11+; the ANTLR jar is cached in
 `$ANTLR_JAR_DIR` (default `~/.cache/antlr`).
 
 Two settings exist because of the generated code:
@@ -142,7 +160,8 @@ The shared corpora under [`conformance/`](../conformance/) are run by one driver
 ([spec/conformance.md](../spec/conformance.md)); no test in this package reads them. This binding's part is its
 conformance adapter, [`conformance/adapter.ts`](conformance/adapter.ts): a process that answers the driver's
 requests (one JSON object per line on standard input and output) through the built package's public entry points,
-with positions in UTF-16 units. It claims level L3 (spec/README.md). `corepack pnpm conformance` runs
+with positions in UTF-16 units. Its messages are typed by the generated `conformance/shapes.ts`, members are spelled
+by its `SPELLING` table and thrown errors named by `ERROR_GROUP_OF_CLASS`. It claims level L3 (spec/README.md). `corepack pnpm conformance` runs
 `python3 ../conformance/driver/run.py -- node conformance/adapter.ts` (Python 3.9 or later) after `build`; it prints
 TAP, one line per case, and exits 0 when every case at or below the claimed level passes. To run fewer cases, run
 that command yourself with `--corpus NAME` or `--case NAME` before the `--`. The adapter is typechecked and linted with the package but is not

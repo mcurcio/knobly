@@ -1,22 +1,22 @@
 import { describe, expect, it } from "vitest";
 
-import type { IDirective } from "./model.js";
-import type { IRendered } from "./model.js";
 import { render } from "./render.js";
 import { villanelle } from "../written/index.js";
-import { memorySource } from "../source.js";
 import { configTexts } from "./testing.js";
+import { memorySource } from "../index.js";
+import type { Directive, Rendered } from "./index.js";
 
 const RASL = "@set $pixels 2284;\ngraph {\n  node DdpSink leds { max_count $pixels; }\n}\n";
 
-async function load(text: string, overrides?: Record<string, string>): Promise<IRendered> {
+async function load(text: string, overrides?: Record<string, string>): Promise<Rendered> {
   const processor = villanelle({ source: memorySource({ "main.conf": text }) });
   return render(await processor.load("main.conf", overrides === undefined ? undefined : { overrides: configTexts(overrides) }));
 }
 
-function only(directives: readonly IDirective[] | undefined): IDirective {
-  expect(directives).toHaveLength(1);
-  const [directive] = directives ?? [];
+function only(directives: Iterable<Directive> | undefined): Directive {
+  const list = [...(directives ?? [])];
+  expect(list).toHaveLength(1);
+  const [directive] = list;
   if (directive === undefined) throw new Error("no directive");
   return directive;
 }
@@ -47,7 +47,7 @@ describe("the load tracer (set and $name)", () => {
       ["E5001", "main.conf", 2, 32],
     ]);
     const leds = only(only(loaded.block).block);
-    expect(leds.block).toEqual([]);
+    expect(leds.block?.length).toBe(0);
     expect(leds.unreadable).toHaveLength(1);
     expect(leds.unreadable[0]?.reason).toBe("expansion");
     expect(leds.unreadable[0]?.origin.place.span.start).toMatchObject({ line: 2, column: 22 });

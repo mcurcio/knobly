@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { fetchSource, fetchWriter } from "./browser.js";
-import { LostUpdateError } from "./errors.js";
 import { include } from "./include.js";
-import { villanelle } from "./written/processor.js";
 import { rendered } from "./rendered/testing.js";
+import { LostUpdateError } from "./index.js";
+import { villanelle } from "./written/index.js";
 
 /** A fetch over a map of URL to body that records every call. */
 const fakeFetch = (
@@ -31,7 +31,7 @@ describe("villanelle/browser", () => {
     const loaded = await rendered(villanelle({ source: fetchSource(fetchImpl), extensions: [include()] }), "https://h.test/root.conf");
     expect(loaded.diagnostics).toEqual([]);
     expect([...loaded.graph.documents.keys()]).toEqual(["https://h.test/root.conf", "https://h.test/conf/a.conf", "https://h.test/b.conf"]);
-    expect(loaded.block.map((d) => d.name)).toEqual(["b"]);
+    expect([...loaded.block].map((d) => d.name)).toEqual(["b"]);
   });
 
   it("resolves without fetching, resolves a glob to nothing, and rejects a non-2xx read", async () => {

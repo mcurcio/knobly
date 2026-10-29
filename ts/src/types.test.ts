@@ -7,34 +7,26 @@
 
 import { describe, expect, it } from "vitest";
 
-import type {
-  Change,
-  ChangeKind,
-  ExpandedValue,
-  IDiagnostic,
-  INode,
-  IOverride,
-  IPlace,
-  IStep,
-  IToken,
-  IUnreadableExpansion,
-  NodeKind,
-  PlaceKind,
-  Statement,
-  StatementKind,
-  StepKind,
-  TokenKind,
-  UnreadableReason,
-  ValueKind,
-  Variable,
-  VariableKind,
-  WrittenValue,
-} from "./index.js";
+import * as browserModule from "./browser.js";
+import type { BrowserFunctions, IoFunctions, NodeFunctions } from "./gen/api/io.js";
+import type { RenderedFunctions } from "./gen/api/rendered.js";
+import type { SharedFunctions } from "./gen/api/shared.js";
+import type { SyntaxFunctions } from "./gen/api/syntax.js";
+import type { IncludeFunctions, WrittenFunctions } from "./gen/api/written.js";
+import * as includeModule from "./include.js";
+import * as rootModule from "./index.js";
+import * as nodeModule from "./node.js";
+import * as renderedModule from "./rendered/index.js";
+import * as syntaxModule from "./syntax/index.js";
+import * as writtenModule from "./written/index.js";
+import type { Diagnostic, Override, Place, Step, PlaceKind, StepKind } from "./index.js";
 import { include } from "./include.js";
 import { render } from "./rendered/render.js";
-import { memorySource } from "./source.js";
 import { villanelle } from "./written/index.js";
-import { type ConfigText, quote, text } from "./text.js";
+import { type ConfigText, memorySource, quote, text } from "./index.js";
+import type { Change, ChangeKind } from "./rendered/index.js";
+import type { Node, NodeKind, Token, TokenKind } from "./syntax/index.js";
+import type { ExpandedValue, Statement, StatementKind, UnreadableExpansion, UnreadableReason, ValueKind, Variable, VariableKind, WrittenValue } from "./written/index.js";
 
 /** True exactly when A and B are the same type. */
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
@@ -48,14 +40,14 @@ assertType<Equal<WrittenValue["kind"], ValueKind>>();
 assertType<Equal<Variable["kind"], VariableKind>>();
 assertType<Equal<ExpandedValue["kind"], Exclude<ValueKind, "reference">>>();
 assertType<Equal<Change["kind"], ChangeKind>>();
-assertType<Equal<IStep["kind"], StepKind>>();
-assertType<Equal<(IPlace | IOverride)["kind"], PlaceKind>>();
-assertType<Equal<IUnreadableExpansion["reason"], UnreadableReason>>();
-assertType<Equal<INode["kind"], NodeKind>>();
-assertType<Equal<IToken["kind"], TokenKind>>();
+assertType<Equal<Step["kind"], StepKind>>();
+assertType<Equal<(Place | Override)["kind"], PlaceKind>>();
+assertType<Equal<UnreadableExpansion["reason"], UnreadableReason>>();
+assertType<Equal<Node["kind"], NodeKind>>();
+assertType<Equal<Token["kind"], TokenKind>>();
 // The generated lists are string-literal types: a literal narrows without an import.
 assertType<Equal<StatementKind, "directive" | "extension" | "set" | "snippet" | "use" | "unreadable">>();
-assertType<Equal<IDiagnostic["code"] extends string ? true : false, true>>();
+assertType<Equal<Diagnostic["code"] extends string ? true : false, true>>();
 // Milestone 5: `COLON` is gone from the token kinds (frozen-m5.md B), `~` and `@name` came.
 assertType<Equal<Extract<TokenKind, "COLON">, never>>();
 assertType<Equal<Extract<TokenKind, "TILDE" | "AT_WORD">, "TILDE" | "AT_WORD">>();
@@ -64,6 +56,18 @@ assertType<Equal<ConfigText extends string ? true : false, true>>();
 assertType<Equal<string extends ConfigText ? true : false, false>>();
 assertType<Equal<ReturnType<typeof quote>, ConfigText>>();
 assertType<Equal<ReturnType<typeof text>, ConfigText>>();
+
+// Each import path's free functions have the generated signatures (spec/codegen.md section 4: `<Module>Functions`).
+// `villanelle` is left out: its `LoadOptions` is written by hand until the generated one takes a record (errata).
+const FREE_FUNCTIONS: readonly [
+  SharedFunctions & IoFunctions,
+  SyntaxFunctions,
+  Omit<WrittenFunctions, "villanelle">,
+  RenderedFunctions,
+  BrowserFunctions,
+  NodeFunctions,
+  IncludeFunctions,
+] = [rootModule, syntaxModule, writtenModule, renderedModule, browserModule, nodeModule, includeModule];
 
 const MAIN = `@set $n 3;
 @snippet s $p {
@@ -79,7 +83,7 @@ async function loaded(): Promise<{ statements: readonly Statement[]; graph: Awai
   const graph = await villanelle({ source: memorySource({ "main.conf": MAIN, "part.conf": "" }), extensions: [include()] }).load("main.conf", {
     overrides: { o: text("1") },
   });
-  return { statements: graph.root.block.statements, graph };
+  return { statements: [...graph.root.block], graph };
 }
 
 function kindOf<K extends Statement["kind"]>(statements: readonly Statement[], kind: K): Extract<Statement, { kind: K }> {
@@ -87,6 +91,12 @@ function kindOf<K extends Statement["kind"]>(statements: readonly Statement[], k
   if (found === undefined) throw new Error(`no ${kind} statement`);
   return found;
 }
+
+describe("each import path's free functions (spec/codegen.md section 4)", () => {
+  it("match the generated interfaces (checked at compile time by FREE_FUNCTIONS' declared type)", () => {
+    expect(FREE_FUNCTIONS).toHaveLength(7);
+  });
+});
 
 describe("members exist only on the variants where they can succeed (section 2)", () => {
   it("statements", async () => {
@@ -161,7 +171,7 @@ describe("members exist only on the variants where they can succeed (section 2)"
     // @ts-expect-error a list has no name
     expect(list.name).toBeUndefined();
 
-    const x = render(graph).block.find((d) => d.name === "x");
+    const x = [...render(graph).block].find((d) => d.name === "x");
     const [a, l, s, i] = x?.values ?? [];
     if (a?.kind !== "string" || l?.kind !== "list" || s?.kind !== "slice" || i?.kind !== "index") throw new Error("expanded kinds");
     expect(l.items.map((v) => v.integer())).toEqual([1, 2]);
@@ -199,7 +209,7 @@ describe("members exist only on the variants where they can succeed (section 2)"
 
   it("a value's set keeps the handle and changes its kind (spec 6.1, milestone 5)", async () => {
     const graph = await villanelle({ source: memorySource({ "main.conf": "@set $p 2284;\nmax_count $p;\n" }) }).load("main.conf");
-    const directive = kindOf(graph.root.block.statements, "directive");
+    const directive = kindOf([...graph.root.block], "directive");
     const value = directive.values[0];
     if (value?.kind !== "reference") throw new Error("not a reference");
     expect(value.name).toBe("p");

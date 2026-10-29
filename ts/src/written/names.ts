@@ -3,9 +3,9 @@
  * kind of name, the same from every member that takes one. Package-internal.
  */
 
-import { MisuseError } from "../errors.js";
 import { VARIABLE_NAME } from "../gen/api/limits.js";
 import { parseEntry } from "../syntax/parse.js";
+import { MisuseError } from "../gen/api/errors.js";
 
 /**
  * A variable or override name, without `$`: `load`'s override names, `setOverride` and a variable's `rename`.

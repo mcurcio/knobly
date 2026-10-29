@@ -5,16 +5,16 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { IDirective, KeyRule } from "./model.js";
-import { type IProcessor, villanelle } from "../written/index.js";
-import { type IDocumentSource, memorySource } from "../source.js";
+import { type Processor, villanelle } from "../written/index.js";
 import { addresses, loadText, only, processorOf, rendered } from "./testing.js";
+import { type DocumentSource, memorySource } from "../index.js";
+import type { Directive, KeyRule } from "./index.js";
 
 const RASL_KEY: KeyRule = (d) => (d.name === "node" && d.parent?.name === "graph" ? d.values[1]?.text : undefined);
 
 /** A processor whose `main.conf` is whatever `text()` holds at each read. */
-function changing(text: () => string): IProcessor {
-  const source: IDocumentSource = {
+function changing(text: () => string): Processor {
+  const source: DocumentSource = {
     resolve: (spec, context) => memorySource({ "main.conf": text() }).resolve(spec, context),
     read: (path) => memorySource({ "main.conf": text() }).read(path),
   };
@@ -62,7 +62,7 @@ describe("address", () => {
 describe("key rule", () => {
   it("sees each rendered directive, parents first, once per call, and names only that call's addresses", async () => {
     const loaded = await loadText("@set $id leds;\ngraph {\n  node A $id { x; }\n  flag;\n}\n");
-    const seen: IDirective[] = [];
+    const seen: Directive[] = [];
     const key: KeyRule = (d) => {
       seen.push(d);
       return d.name === "node" ? d.values[1]?.text : undefined;
@@ -202,8 +202,8 @@ describe("diff", () => {
     text = "a 2;\nc;\n";
     const second = await rendered(processor, "main.conf");
     const [removed, changed, added] = first.diff(second);
-    expect(removed).toMatchObject({ kind: "removed", before: first.block[1] });
-    expect(changed).toMatchObject({ kind: "changed", before: first.block[0], after: second.block[0] });
-    expect(added).toMatchObject({ kind: "added", after: second.block[1] });
+    expect(removed).toMatchObject({ kind: "removed", before: first.block.at(1) });
+    expect(changed).toMatchObject({ kind: "changed", before: first.block.at(0), after: second.block.at(0) });
+    expect(added).toMatchObject({ kind: "added", after: second.block.at(1) });
   });
 });

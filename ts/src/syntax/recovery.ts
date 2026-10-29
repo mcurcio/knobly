@@ -12,17 +12,18 @@
 
 import * as antlr4 from "antlr4";
 
-import { DiagnosticCode, messageOf } from "../diagnostics.js";
 import { MAX_NESTING } from "../gen/api/limits.js";
 import VillanelleParser from "../gen/VillanelleParser.js";
-import type { ITokenRange } from "./cst.js";
-import { isWordKind, type TokenKind } from "./tokens.js";
+import { isWordKind } from "./tokens.js";
+import type { TokenRange } from "../gen/api/syntax.js";
+import { DiagnosticCode, describe } from "../gen/api/codes.js";
+import { TokenKind } from "../gen/api/kinds.js";
 
 /** A diagnostic located by token range; parse.ts turns the range into a source span. */
 export interface IRawDiagnostic {
   readonly code: DiagnosticCode;
   /** The offending token's range, or the empty range at tokens.length for the end of input. */
-  readonly range: ITokenRange;
+  readonly range: TokenRange;
   readonly message: string;
 }
 
@@ -34,10 +35,10 @@ export function nestingOverflow(kinds: readonly TokenKind[]): number | undefined
   let depth = 0;
   for (let i = 0; i < kinds.length; i++) {
     const kind = kinds[i];
-    if (kind === "LBRACE" || kind === "LBRACK") {
+    if (kind === TokenKind.LBRACE || kind === TokenKind.LBRACK) {
       depth++;
       if (depth > MAX_NESTING) return i;
-    } else if ((kind === "RBRACE" || kind === "RBRACK") && depth > 0) {
+    } else if ((kind === TokenKind.RBRACE || kind === TokenKind.RBRACK) && depth > 0) {
       depth--;
     }
   }
@@ -61,30 +62,30 @@ export function classifyError(kinds: readonly TokenKind[], at: number, from: num
   for (let i = from; i < at; i++) {
     const kind = kinds[i];
     closesValue = false;
-    if (kind === "LBRACK") {
+    if (kind === TokenKind.LBRACK) {
       const name = kinds[i - 1];
       brackets.push(name !== undefined && SLICE_NAMES.has(name));
     }
-    else if (kind === "RBRACK") closesValue = brackets.pop() !== undefined;
-    else if (kind === "LBRACE") braces++;
-    else if (kind === "RBRACE" && braces > 0) braces--;
+    else if (kind === TokenKind.RBRACK) closesValue = brackets.pop() !== undefined;
+    else if (kind === TokenKind.LBRACE) braces++;
+    else if (kind === TokenKind.RBRACE && braces > 0) braces--;
   }
   const t = kinds[at]; // undefined at the end of input
   const inBracket = brackets.length > 0;
   const inSlice = brackets.at(-1) === true;
   const before = kinds[at - 1];
 
-  if (t === "BAD_CHAR" || (t === "BOM" && at > 0)) return DiagnosticCode.UnexpectedCharacter;
-  if (t === "LONE_DOLLAR") return DiagnosticCode.LoneDollar;
-  if (t === "UNTERMINATED_STRING") return DiagnosticCode.UnterminatedString;
-  if (t === "BAD_ESCAPE") return DiagnosticCode.BadEscape;
+  if (t === TokenKind.BAD_CHAR || (t === TokenKind.BOM && at > 0)) return DiagnosticCode.UnexpectedCharacter;
+  if (t === TokenKind.LONE_DOLLAR) return DiagnosticCode.LoneDollar;
+  if (t === TokenKind.UNTERMINATED_STRING) return DiagnosticCode.UnterminatedString;
+  if (t === TokenKind.BAD_ESCAPE) return DiagnosticCode.BadEscape;
   if (inSlice) return DiagnosticCode.BadSlice;
-  if (t === "RBRACK" || (inBracket && (t === "RBRACE" || t === undefined))) {
+  if (t === TokenKind.RBRACK || (inBracket && (t === TokenKind.RBRACE || t === undefined))) {
     return DiagnosticCode.ExpectedClosingBracket;
   }
   if (t === undefined && (inBlock || braces > 0)) return DiagnosticCode.ExpectedClosingBrace;
-  const value = (kind: TokenKind | undefined): boolean => kind !== undefined && (isWordKind(kind) || kind === "STRING" || kind === "VARIABLE");
-  if ((value(t) || t === "LBRACK") && (value(before) || (before === "RBRACK" && closesValue))) {
+  const value = (kind: TokenKind | undefined): boolean => kind !== undefined && (isWordKind(kind) || kind === TokenKind.STRING || kind === TokenKind.VARIABLE);
+  if ((value(t) || t === TokenKind.LBRACK) && (value(before) || (before === TokenKind.RBRACK && closesValue))) {
     return DiagnosticCode.ValuesTouch;
   }
   return DiagnosticCode.UnexpectedToken;
@@ -196,7 +197,7 @@ class Recovery extends DefaultErrorStrategy {
     const code = classifyError(kinds, at, statementStart(statements, p._input.index), inBlock);
     const range = { start: at, end: Math.min(at + 1, kinds.length) };
     const what = offending.type === EOF ? "end of input" : JSON.stringify(offending.text);
-    this.report({ code, range, message: `${messageOf(code)}: ${what}` });
+    this.report({ code, range, message: describe(code, what).message });
   }
 
   /**
@@ -212,10 +213,10 @@ class Recovery extends DefaultErrorStrategy {
     let braces = 0;
     for (let i = statementStart(statements, current); i < current; i++) {
       const kind = kinds[i];
-      if (kind === "LBRACK") brackets++;
-      else if (kind === "RBRACK") brackets = Math.max(0, brackets - 1);
-      else if (kind === "LBRACE") braces++;
-      else if (kind === "RBRACE" && braces > 0) braces--;
+      if (kind === TokenKind.LBRACK) brackets++;
+      else if (kind === TokenKind.RBRACK) brackets = Math.max(0, brackets - 1);
+      else if (kind === TokenKind.LBRACE) braces++;
+      else if (kind === TokenKind.RBRACE && braces > 0) braces--;
     }
     for (;;) {
       const t = p._input.LA(1);

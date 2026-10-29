@@ -2,15 +2,18 @@
  * The "villanelle/browser" entry: fetch-based I/O edges.
  */
 
-import { LostUpdateError } from "./errors.js";
+import type { DocumentSource, DocumentWriter, FetchWriterOptions } from "./gen/api/io.js";
 import { hasGlob } from "./graph/glob.js";
-import { checkLostUpdates, type IDocumentSource, type IDocumentWriter } from "./source.js";
+import { checkLostUpdates } from "./source.js";
+import { LostUpdateError } from "./gen/api/errors.js";
+
+export type { FetchWriterOptions };
 
 /**
  * A document source over fetch. `resolve` resolves a spec as a URL against `context.parentPath` and returns it
  * without fetching; globs resolve to no paths. `read` fetches the URL and rejects on a non-2xx response.
  */
-export function fetchSource(fetchImpl: typeof fetch): IDocumentSource {
+export function fetchSource(fetchImpl: typeof fetch): DocumentSource {
   return {
     resolve(spec, context) {
       if (hasGlob(spec)) return Promise.resolve([]);
@@ -25,14 +28,6 @@ export function fetchSource(fetchImpl: typeof fetch): IDocumentSource {
   };
 }
 
-/** Options for fetchWriter. */
-export interface IFetchWriterOptions {
-  /** HTTP method. Default "PUT". */
-  readonly method?: string;
-  /** Content-Type header. Default "text/plain". */
-  readonly contentType?: string;
-}
-
 /**
  * A writer that sends each file's text to its resolvedPath with fetch (spec 4.3). First it `GET`s every file and
  * calls `checkLostUpdates` with the bodies (a 404 is absent), so a lost update rejects with a LostUpdateError before
@@ -42,7 +37,7 @@ export interface IFetchWriterOptions {
  * on the first failure (a non-2xx response or a rejected fetch), so it is not all-or-nothing: files sent before the
  * failure stay written.
  */
-export function fetchWriter(fetchImpl: typeof fetch, options?: IFetchWriterOptions): IDocumentWriter {
+export function fetchWriter(fetchImpl: typeof fetch, options?: FetchWriterOptions): DocumentWriter {
   const method = options?.method ?? "PUT";
   const contentType = options?.contentType ?? "text/plain";
   return {

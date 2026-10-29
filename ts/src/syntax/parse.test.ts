@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { DiagnosticCode } from "../diagnostics.js";
-import { spanOf, textOf } from "./cst.js";
 import { parse } from "./parse.js";
+import { DiagnosticCode } from "../index.js";
+import { spanOf, textOf } from "./index.js";
 
 describe("parse", () => {
   it("parses the tracer slice into a directive holding a slice node", () => {

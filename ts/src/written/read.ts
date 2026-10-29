@@ -4,18 +4,18 @@
  * PR 3's expansion read them (depth first), each path once (R21), and a rejection is kept, never retried.
  */
 
-import { ReadError } from "../errors.js";
-import type { IDocumentSource } from "../source.js";
 import { typeNameOf } from "../text.js";
 import { isTexts } from "./bind.js";
 import type { DocumentGraph } from "./graph.js";
+import type { DocumentSource } from "../gen/api/io.js";
+import { ReadError } from "../gen/api/errors.js";
 
 /**
  * Read the root file at `path` (resolved through the source, as an included file's spec is) into an empty graph,
  * then every file its include lines name. @throws (rejects) ReadError, `paths` = `[path]`, when the source cannot
  * resolve it to exactly one file (no cause) or rejects resolving or reading it (its rejection as the cause)
  */
-export async function readRoot(graph: DocumentGraph, source: IDocumentSource, path: string): Promise<void> {
+export async function readRoot(graph: DocumentGraph, source: DocumentSource, path: string): Promise<void> {
   const fail = (reason: string, cause?: unknown): ReadError =>
     new ReadError(`cannot read the root file ${path}: ${reason}`, [path], cause === undefined ? undefined : { cause });
   // The root is resolved through the source as an included file's spec is (F1-04), so one file has one path.
@@ -40,7 +40,7 @@ export async function readRoot(graph: DocumentGraph, source: IDocumentSource, pa
 }
 
 /** Resolve and read what `graph.unread()` names, until nothing new is named. Returns the paths read, in read order. */
-export async function readUnread(graph: DocumentGraph, source: IDocumentSource): Promise<readonly string[]> {
+export async function readUnread(graph: DocumentGraph, source: DocumentSource): Promise<readonly string[]> {
   const read: string[] = [];
   for (;;) {
     const binding = graph.binding();
@@ -48,7 +48,7 @@ export async function readUnread(graph: DocumentGraph, source: IDocumentSource):
     if (edge === undefined) return read;
     const need = binding.needOf(edge);
     if (need === undefined) throw new Error("an unread edge without a need");
-    if (need.kind === "resolve") {
+    if (need.tag === "resolve") {
       for (const spec of need.specs) {
         if (graph.resolved(need.parentPath, spec) !== undefined) continue;
         let paths: readonly string[] | Error;

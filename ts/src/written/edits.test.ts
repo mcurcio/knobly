@@ -6,16 +6,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { DiagnosticError } from "../errors.js";
 import { include } from "../include.js";
-import { villanelle } from "./processor.js";
-import { memorySource } from "../source.js";
 import { render } from "../rendered/render.js";
 import { countingSource } from "../rendered/testing.js";
-import { BadTextError, DetachedError, MisuseError, ReadError, VillanelleError } from "../errors.js";
-import type { IFileWrite } from "../source.js";
-import type { IDocumentGraph, IExtensionLine, ISetLine, ISnippetLine, IWrittenDirective } from "./model.js";
-import { text } from "../text.js";
+import { BadTextError, DetachedError, DiagnosticError, type FileWrite, memorySource, MisuseError, ReadError, text, VillanelleError } from "../index.js";
+import { type DocumentGraph, type ExtensionLine, type SetLine, type SnippetLine, VariableKind, villanelle, type WrittenDirective } from "./index.js";
 
 const MAIN = "a;\n";
 
@@ -24,19 +19,19 @@ describe("read(graph)", () => {
     const { source, reads } = countingSource({ "main.conf": MAIN, "part.conf": "p 1;\n", "other.conf": "o 1;\n" });
     const processor = villanelle({ source, extensions: [include()] });
     const graph = await processor.load("main.conf");
-    const [a] = graph.root.block.statements as [IWrittenDirective];
+    const [a] = [...graph.root.block] as [WrittenDirective];
     a.set(text("2"));
     const [line] = graph.root.block.addStatements(text('@include "part.conf";'));
     expect(line?.kind).toBe("extension");
     expect(graph.unread()).toHaveLength(1);
-    expect(render(graph).block.map((d) => d.name)).toEqual(["a"]);
+    expect([...render(graph).block].map((d) => d.name)).toEqual(["a"]);
     expect(render(graph).unreadable.map((u) => u.reason)).toEqual(["unread"]);
     expect(reads.get("part.conf")).toBeUndefined();
 
     expect(await graph.read()).toEqual(["part.conf"]);
     expect(graph.unread()).toEqual([]);
     expect(graph.root.text).toBe('a 2;\n@include "part.conf";\n');
-    expect(render(graph).block.map((d) => [d.name, d.values.map((v) => v.text)])).toEqual([
+    expect([...render(graph).block].map((d) => [d.name, d.values.map((v) => v.text)])).toEqual([
       ["a", ["2"]],
       ["p", ["1"]],
     ]);
@@ -75,7 +70,7 @@ describe("read(graph)", () => {
     const withInclude = await villanelle({ source: memorySource({ "main.conf": "a;\n", "part.conf": "p;\n" }), extensions: [include()] }).load("main.conf");
     withInclude.root.block.addStatements(text('@include "part.conf";'));
     await expect(withInclude.read()).resolves.toEqual(["part.conf"]);
-    expect(render(withInclude).block.map((d) => d.name)).toEqual(["a", "p"]);
+    expect([...render(withInclude).block].map((d) => d.name)).toEqual(["a", "p"]);
   });
 });
 
@@ -104,13 +99,13 @@ describe("load's root failure", () => {
 describe("IDocument.replaceWithText (B4)", () => {
   it("keeps source, detaches every handle, and save writes the new text", async () => {
     const graph = await villanelle({ source: memorySource({ "main.conf": "a 1;\n" }) }).load("main.conf");
-    const [a] = graph.root.block.statements as [IWrittenDirective];
+    const [a] = [...graph.root.block] as [WrittenDirective];
     graph.root.replaceWithText(text("b 2;\n"));
     expect(graph.root.savedText).toBe("a 1;\n");
     expect(() => a.text).toThrow(DetachedError);
-    const batches: IFileWrite[][] = [];
+    const batches: FileWrite[][] = [];
     const writer = {
-      write: (files: readonly IFileWrite[]) => {
+      write: (files: readonly FileWrite[]) => {
         batches.push([...files]);
         return Promise.resolve();
       },
@@ -125,17 +120,17 @@ describe("setOverride", () => {
     const { source, reads } = countingSource({ "main.conf": "@set $a 0;\nx $a;\n" });
     const processor = villanelle({ source });
     const graph = await processor.load("main.conf", { overrides: { a: text("1") } });
-    const override = graph.variables("a").find((v) => v.kind === "override");
+    const override = graph.variables("a").find((v) => v.kind === VariableKind.Override);
     graph.setOverride("a", text("2 3"));
-    expect(render(graph).block[0]?.values.map((v) => v.text)).toEqual(["2", "3"]);
+    expect(render(graph).block.at(0)?.values.map((v) => v.text)).toEqual(["2", "3"]);
     graph.setOverride("a", undefined);
     expect([...graph.overrides.keys()]).toEqual([]);
     expect(graph.variables("a").map((v) => v.kind)).toEqual(["set"]);
-    expect(render(graph).block[0]?.values.map((v) => v.text)).toEqual(["0"]);
+    expect(render(graph).block.at(0)?.values.map((v) => v.text)).toEqual(["0"]);
     graph.setOverride("b", text("9"));
     graph.setOverride("a", text("4"));
     expect([...graph.overrides.keys()]).toEqual(["b", "a"]);
-    expect(graph.variables("a").find((v) => v.kind === "override")).toBe(override);
+    expect(graph.variables("a").find((v) => v.kind === VariableKind.Override)).toBe(override);
     expect(override?.wins()).toHaveLength(1);
     expect(reads.get("main.conf")).toBe(1);
   });
@@ -168,23 +163,23 @@ describe("rendered directives point at what is written (B9)", () => {
     const graph = await processor.load("main.conf");
     const rendered = render(graph);
     const [g, h] = rendered.block;
-    const x = graph.documents.get("s.conf")?.block.statements[0];
-    const y = graph.documents.get("s.conf")?.block.statements[1];
-    expect(g?.block?.[0]?.written).toBe(x);
-    expect(h?.block?.[0]?.written).toBe(x);
+    const x = graph.documents.get("s.conf")?.block.at(0);
+    const y = graph.documents.get("s.conf")?.block.at(1);
+    expect(g?.block?.at(0)?.written).toBe(x);
+    expect(h?.block?.at(0)?.written).toBe(x);
     expect(g?.unreadable[0]?.written).toBe(y);
     expect(h?.unreadable[0]?.written).toBe(y);
-    expect(g?.written).toBe(graph.root.block.statements[0]);
+    expect(g?.written).toBe(graph.root.block.at(0));
   });
 });
 
 describe("rename", () => {
   it("renames a directive keeping its handle and values", async () => {
     const graph = await villanelle({ source: memorySource({ "main.conf": "fps 20;\n" }) }).load("main.conf");
-    const [fps] = graph.root.block.statements as [IWrittenDirective];
+    const [fps] = [...graph.root.block] as [WrittenDirective];
     const [twenty] = fps.values;
     fps.rename("rate");
-    expect(graph.root.block.statements[0]).toBe(fps);
+    expect(graph.root.block.at(0)).toBe(fps);
     expect(fps.name).toBe("rate");
     expect(fps.values[0]).toBe(twenty);
     expect(() => {
@@ -195,7 +190,7 @@ describe("rename", () => {
   it("has no rename on an extension line; a directive renamed to an extension's name stays a directive (no name is reserved)", async () => {
     const processor = villanelle({ source: memorySource({ "main.conf": '@include "p.conf";\nx;\n', "p.conf": "" }), extensions: [include()] });
     const graph = await processor.load("main.conf");
-    const [line, x] = graph.root.block.statements as [IExtensionLine, IWrittenDirective];
+    const [line, x] = [...graph.root.block] as [ExtensionLine, WrittenDirective];
     expect(line.kind).toBe("extension");
     expect("rename" in line).toBe(false);
     expect(() => {
@@ -203,14 +198,14 @@ describe("rename", () => {
     }).toThrow(MisuseError);
     expect(graph.root.text).toBe(graph.root.savedText);
     x.rename("include");
-    expect(graph.root.block.statements[1]).toBe(x);
+    expect(graph.root.block.at(1)).toBe(x);
     expect(x.kind).toBe("directive");
     expect(graph.edges()).toHaveLength(1);
   });
 
   it("renames a set line's and a parameter's $name only, keeping the variable", async () => {
     const graph = await villanelle({ source: memorySource({ "main.conf": "@set $a 1;\n@snippet s $p { x $p; }\ny $a;\n" }) }).load("main.conf");
-    const [set, snippet] = graph.root.block.statements as [ISetLine, ISnippetLine];
+    const [set, snippet] = [...graph.root.block] as [SetLine, SnippetLine];
     const variable = set.variable;
     const [parameter] = snippet.parameters;
     variable.rename("b");
@@ -232,14 +227,14 @@ describe("rename", () => {
 describe("insertStatements", () => {
   it("inserts before a statement and its comments, at an index, keeping other handles", async () => {
     const graph = await villanelle({ source: memorySource({ "main.conf": "b {\n    a 1;\n    # about c\n    c 3;\n}\n" }) }).load("main.conf");
-    const [b] = graph.root.block.statements as [IWrittenDirective];
+    const [b] = [...graph.root.block] as [WrittenDirective];
     const block = b.block;
     if (block === undefined) throw new Error("no block");
-    const [a, c] = block.statements;
+    const [a, c] = block;
     const made = block.insertStatements(1, text("x 1;\ny 2;"));
     expect(made.map((s) => s.text)).toEqual(["x 1;", "y 2;"]);
     expect(graph.root.text).toBe("b {\n    a 1;\n    x 1;\n    y 2;\n    # about c\n    c 3;\n}\n");
-    expect(block.statements).toEqual([a, ...made, c]);
+    expect([...block]).toEqual([a, ...made, c]);
     expect(c?.text).toBe("# about c\n    c 3;");
     expect(() => block.insertStatements(9, text("z;"))).toThrow(RangeError);
     expect(() => block.insertStatements(0, text("z {"))).toThrow(BadTextError);
@@ -263,8 +258,8 @@ describe("insertStatements", () => {
 });
 
 describe("a value's set keeps its handle (spec 6.1, milestone 5)", () => {
-  const open = (main: string): Promise<IDocumentGraph> => villanelle({ source: memorySource({ "main.conf": main }) }).load("main.conf");
-  const first = (graph: IDocumentGraph): IWrittenDirective => graph.root.block.directives()[0] as IWrittenDirective;
+  const open = (main: string): Promise<DocumentGraph> => villanelle({ source: memorySource({ "main.conf": main }) }).load("main.conf");
+  const first = (graph: DocumentGraph): WrittenDirective => graph.root.block.directives()[0] as WrittenDirective;
 
   it("sets a slice's name and bound in place: the slice, its name and the bound keep their handles", async () => {
     const graph = await open("@set $s leds;\nx $s[0~3];\n");
@@ -317,7 +312,7 @@ describe("render of something that is not a graph (spec 7.0, milestone 5)", () =
   it("raises the argument type error before any other work", async () => {
     const graph = await villanelle({ source: memorySource({ "main.conf": "a 1;\n" }) }).load("main.conf");
     const message = 'render(): argument "graph" must be a document graph (an object with an expand method), not object';
-    expect(() => render(graph.root as unknown as IDocumentGraph)).toThrow(new TypeError(message));
-    expect(() => render(null as unknown as IDocumentGraph)).toThrow(TypeError);
+    expect(() => render(graph.root as unknown as DocumentGraph)).toThrow(new TypeError(message));
+    expect(() => render(null as unknown as DocumentGraph)).toThrow(TypeError);
   });
 });

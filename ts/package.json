@@ -14,6 +14,18 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./syntax": {
+      "types": "./dist/syntax/index.d.ts",
+      "import": "./dist/syntax/index.js"
+    },
+    "./written": {
+      "types": "./dist/written/index.d.ts",
+      "import": "./dist/written/index.js"
+    },
+    "./rendered": {
+      "types": "./dist/rendered/index.d.ts",
+      "import": "./dist/rendered/index.js"
+    },
     "./include": {
       "types": "./dist/include.d.ts",
       "import": "./dist/include.js"

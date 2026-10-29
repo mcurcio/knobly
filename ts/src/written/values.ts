@@ -7,26 +7,15 @@
  * every kind's inner slots live on the shared base, one layout for all six, and `kind` is each class's getter.
  */
 
-import type { IPlace } from "../origin.js";
 import { textOf, type ValueRef } from "../syntax/cst.js";
-import { type ConfigText, requireText } from "../text.js";
+import { requireText } from "../text.js";
 import type { Document } from "./document.js";
 import { detached } from "./document.js";
-import type { ValueKind } from "../gen/api/kinds.js";
-import type {
-  IIndex,
-  IList,
-  IParameter,
-  IReference,
-  IReferenceResolution,
-  ISetVariable,
-  ISlice,
-  IString,
-  IWord,
-  Statement,
-  WrittenValue,
-} from "./model.js";
 import type { StatementHandle } from "./statements.js";
+import type { ValueKind } from "../gen/api/kinds.js";
+import type { ConfigText, Place } from "../gen/api/shared.js";
+import type { Index, List, Parameter, ReferenceResolution, SetVariable, Slice, Statement, String, Word, WrittenValue } from "../gen/api/written.js";
+import type * as api from "../gen/api/written.js";
 
 /** Where a value stands, which decides the entry rule its edits take (spec 2.8): a list item is told by its list. */
 export type ValueRole = "value" | "bound" | "name";
@@ -58,7 +47,7 @@ export abstract class ValueHandle {
     return textOf(this.doc.syntax, this.range());
   }
 
-  get place(): IPlace {
+  get place(): Place {
     this.live();
     return this.doc.place(this.doc.spanOf(this.range()));
   }
@@ -67,7 +56,7 @@ export abstract class ValueHandle {
     return this.live().statementHandle as Statement;
   }
 
-  get list(): IList | undefined {
+  get list(): List | undefined {
     return this.live().listHandle;
   }
 
@@ -99,19 +88,19 @@ export abstract class ValueHandle {
   }
 }
 
-export class WordValue extends ValueHandle implements IWord {
+export class WordValue extends ValueHandle implements Word {
   get kind(): "word" {
     return "word";
   }
 }
 
-export class StringValue extends ValueHandle implements IString {
+export class StringValue extends ValueHandle implements String {
   get kind(): "string" {
     return "string";
   }
 }
 
-export class ListValue extends ValueHandle implements IList {
+export class ListValue extends ValueHandle implements List {
   get kind(): "list" {
     return "list";
   }
@@ -126,27 +115,27 @@ export class ListValue extends ValueHandle implements IList {
 }
 
 /** A slice's or index's name value (its first token). */
-function nameOf(value: ValueHandle): IWord | IReference {
+function nameOf(value: ValueHandle): Word | api.Reference {
   const name = value.live().nameHandle;
   if (name === undefined) throw new Error("a slice without its name");
-  return name as IWord | IReference;
+  return name as Word | api.Reference;
 }
 
-export class SliceValue extends ValueHandle implements ISlice {
+export class SliceValue extends ValueHandle implements Slice {
   get kind(): "slice" {
     return "slice";
   }
 
-  get name(): IWord | IReference {
+  get name(): Word | api.Reference {
     return nameOf(this);
   }
 
-  get start(): IWord | IReference | undefined {
-    return this.live().startHandle as IWord | IReference | undefined;
+  get start(): Word | api.Reference | undefined {
+    return this.live().startHandle as Word | api.Reference | undefined;
   }
 
-  get end(): IWord | IReference | undefined {
-    return this.live().endHandle as IWord | IReference | undefined;
+  get end(): Word | api.Reference | undefined {
+    return this.live().endHandle as Word | api.Reference | undefined;
   }
 
   override innerHandles(): readonly ValueHandle[] {
@@ -154,19 +143,19 @@ export class SliceValue extends ValueHandle implements ISlice {
   }
 }
 
-export class IndexValue extends ValueHandle implements IIndex {
+export class IndexValue extends ValueHandle implements Index {
   get kind(): "index" {
     return "index";
   }
 
-  get name(): IWord | IReference {
+  get name(): Word | api.Reference {
     return nameOf(this);
   }
 
-  get index(): IWord | IReference {
+  get index(): Word | api.Reference {
     const index = this.live().indexHandle;
     if (index === undefined) throw new Error("an index without its bound");
-    return index as IWord | IReference;
+    return index as Word | api.Reference;
   }
 
   override innerHandles(): readonly ValueHandle[] {
@@ -174,7 +163,7 @@ export class IndexValue extends ValueHandle implements IIndex {
   }
 }
 
-export class Reference extends ValueHandle implements IReference {
+export class Reference extends ValueHandle implements api.Reference {
   get kind(): "reference" {
     return "reference";
   }
@@ -183,12 +172,12 @@ export class Reference extends ValueHandle implements IReference {
     return this.text.slice(1);
   }
 
-  get declaration(): ISetVariable | IParameter | undefined {
+  get declaration(): SetVariable | Parameter | undefined {
     this.live();
     return this.doc.declarationOf(this);
   }
 
-  resolutions(): readonly IReferenceResolution[] {
+  resolutions(): readonly ReferenceResolution[] {
     this.live();
     return this.doc.host.binding().resolutionsOf(this);
   }

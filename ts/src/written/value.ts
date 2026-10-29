@@ -4,135 +4,19 @@
  * holds expanded values, a directive expansion's `values` are expanded values, and a rendered directive's values are
  * the very same objects. A snapshot (worked out once per expansion) that holds live handles.
  *
- * `ExpandedValue` is a union over the value kind list less `reference` (spec 2.10): each variant is its own type,
+ * `ExpandedValue` (generated, gen/api/written.ts) is a union over the value kind list less `reference` (spec 2.10): each variant is its own type,
  * narrowed by `kind`, and only a list has `items`, only a slice `name`/`start`/`end`, only an index `name`/`index`.
  * The readers are on every variant by design: a value of the wrong kind is a problem in the config text, which the
  * program learns as a located E4002.
  */
 
-import { DiagnosticCode } from "../diagnostics.js";
-import type { DiagnosticError } from "../errors.js";
-import type { ValueKind } from "../gen/api/kinds.js";
+import type { Origin, ProgramCode, Step } from "../gen/api/shared.js";
+import type { ExpandedValue, IndexValue, ReferenceResolution, SliceValue, WrittenValue } from "../gen/api/written.js";
 import { codeError, programError } from "../locate.js";
-import type { IOrigin, IStep } from "../origin.js";
-import type { ProgramCode } from "../report.js";
 import { booleanOf, canonicalList, canonicalSlice, canonicalString, integerOf, numberOf } from "../values.js";
-import type { IReferenceResolution, WrittenValue } from "./model.js";
-
-export type { ValueKind };
-
-/**
- * `name[start~end]`, `name[start~]` or `name[~end]`. Bounds are integers (IntegerText, within the safe integer
- * range); what they mean (inclusive or exclusive end, negative counting) is the program's. The value's place is in
- * its value's origin.
- */
-export interface ISliceValue {
-  readonly kind: "slice";
-  readonly name: string;
-  readonly start?: number;
-  readonly end?: number;
-}
-
-/** `name[index]`: one element (vil-9ze.2). */
-export interface IIndexValue {
-  readonly kind: "index";
-  readonly name: string;
-  readonly index: number;
-}
-
-/**
- * What every expanded value has: kind, canonical text, origin, its three links to the low level, and the readers.
- * Invariants (the grammar's, so readers never meet them): a string's escapes are the six of EscapeText; a slice or
- * index bound is an IntegerText.
- */
-export interface IExpandedValueBase {
-  readonly kind: Exclude<ValueKind, "reference">;
-  /**
-   * The value's canonical text, the same in every binding: a word as written; a string as `"` + its decoded text
-   * with `\`, `"`, newline, tab and carriage return escaped + `"`; a slice `name[start~end]` (either side may be
-   * empty) and an index `name[i]` with decimal integers; a list `[` + its items' texts joined by `, ` + `]`.
-   * Comments and line breaks are never part of it. Two values are the same exactly when their texts are equal.
-   */
-  readonly text: string;
-  readonly origin: IOrigin;
-  /**
-   * The written value on the same line: the line of the statement this value is read in. For a value that came
-   * through a variable it is the `$name` there (`chain[0].reference`); a list item that came through a variable
-   * shares its list's `$name`; otherwise the value itself, which is also its `definition`. Never undefined. Editing it
-   * edits that one written line, which every copy of the line shares: a file included twice has one line read in
-   * both copies (`written.statement.copies()`), so the edit shows in both. To change one copy only, edit what that
-   * copy is given instead (its include block's `set`, at the include step of `chain`).
-   */
-  readonly written: WrittenValue;
-  /**
-   * The written value at the end of its chain (for `$pixels`, the `2284` of its `set`); undefined for an override.
-   * Editing it changes every use.
-   */
-  readonly definition: WrittenValue | undefined;
-  /**
-   * One per variable step of `origin.via`, from this value's own line toward where it is written: `[0]` is the
-   * `$name` written on the directive's line. Empty for a value read where it is written. The handles in it are live.
-   */
-  readonly chain: readonly IReferenceResolution[];
-
-  /** A bare word. @throws DiagnosticError E4002 for any other kind. */
-  word(): string;
-  /** A word or a string, decoded. @throws DiagnosticError E4002 for a list, slice or index. */
-  string(): string;
-  /**
-   * A word spelling a NumberText (JSON number: 8080, 0.5, -0.0176515; not 20hz), as a double; never negative zero
-   * (spec/contract.md 3). @throws DiagnosticError E4002; E4004, also beyond the double range (`1e400`).
-   */
-  number(): number;
-  /** A word spelling an IntegerText within plus or minus 2^53-1; never negative zero. @throws DiagnosticError E4002, E4005. */
-  integer(): number;
-  /** The word `true` or `false`. @throws DiagnosticError E4002, E4006. */
-  boolean(): boolean;
-  /** A list's items, each with its own origin and links. @throws DiagnosticError E4002 for any other kind. */
-  list(): readonly ExpandedValue[];
-  /** A slice or an index. @throws DiagnosticError E4002 for any other kind. */
-  slice(): ISliceValue | IIndexValue;
-  /**
-   * A located error for the program to throw or report, placed on this value. For an override it is placed on the
-   * `$name` that used it. @throws MisuseError when `code` has no "/".
-   */
-  error(message: string, code: ProgramCode): DiagnosticError;
-}
-
-/** A bare word after expansion. */
-export interface IExpandedWord extends IExpandedValueBase {
-  readonly kind: "word";
-}
-
-/** A string after expansion. */
-export interface IExpandedString extends IExpandedValueBase {
-  readonly kind: "string";
-}
-
-/** A list after expansion. */
-export interface IExpandedList extends IExpandedValueBase {
-  readonly kind: "list";
-  /** Its items, each with its own origin and links (the same as `list()`). */
-  readonly items: readonly ExpandedValue[];
-}
-
-/** `name[start~end]` after expansion. */
-export interface IExpandedSlice extends IExpandedValueBase {
-  readonly kind: "slice";
-  readonly name: string;
-  readonly start: number | undefined;
-  readonly end: number | undefined;
-}
-
-/** `name[index]` after expansion. */
-export interface IExpandedIndex extends IExpandedValueBase {
-  readonly kind: "index";
-  readonly name: string;
-  readonly index: number;
-}
-
-/** One value after expansion: a `$name` has already become its value(s). Narrow by `kind`. */
-export type ExpandedValue = IExpandedWord | IExpandedString | IExpandedList | IExpandedSlice | IExpandedIndex;
+import { DiagnosticCode } from "../gen/api/codes.js";
+import type { DiagnosticError } from "../gen/api/errors.js";
+import { ValueKind } from "../gen/api/kinds.js";
 
 /** What an expanded value holds, by kind; a list holds its items (`TItem`). Package-internal. */
 export type ExpandedData<TItem> =
@@ -145,15 +29,15 @@ export type ExpandedData<TItem> =
 /** The canonical text of a value (spec 2.9). */
 export function canonicalTextOf(data: ExpandedData<{ readonly text: string }>): string {
   switch (data.kind) {
-    case "word":
+    case ValueKind.Word:
       return data.text;
-    case "string":
+    case ValueKind.String:
       return canonicalString(data.value);
-    case "list":
+    case ValueKind.List:
       return canonicalList(data.items.map((item) => item.text));
-    case "slice":
+    case ValueKind.Slice:
       return canonicalSlice(data.name, data);
-    case "index":
+    case ValueKind.Index:
       return canonicalSlice(data.name, data);
   }
 }
@@ -164,7 +48,7 @@ export function canonicalTextOf(data: ExpandedData<{ readonly text: string }>): 
  * reads them. A member a kind does not have (`items` on a word) is not set on the object at all.
  */
 export class ExpandedRecord {
-  readonly kind: Exclude<ValueKind, "reference">;
+  readonly kind: Exclude<ValueKind, typeof ValueKind.Reference>;
   readonly text: string;
   declare readonly items?: readonly ExpandedRecord[];
   declare readonly name?: string;
@@ -175,25 +59,25 @@ export class ExpandedRecord {
 
   constructor(
     data: ExpandedData<ExpandedRecord>,
-    readonly origin: IOrigin,
+    readonly origin: Origin,
     /** The written value at the end of its chain; undefined for an override. */
     readonly definition: WrittenValue | undefined = undefined,
     /** One per variable step of `origin.via`, the `$name` on the statement's own line first. */
-    readonly chain: readonly IReferenceResolution[] = [],
+    readonly chain: readonly ReferenceResolution[] = [],
   ) {
     this.#data = data;
     this.kind = data.kind;
     this.text = canonicalTextOf(data);
     switch (data.kind) {
-      case "list":
+      case ValueKind.List:
         this.items = data.items;
         break;
-      case "slice":
+      case ValueKind.Slice:
         this.name = data.name;
         this.start = data.start;
         this.end = data.end;
         break;
-      case "index":
+      case ValueKind.Index:
         this.name = data.name;
         this.index = data.index;
         break;
@@ -203,13 +87,13 @@ export class ExpandedRecord {
   }
 
   word(): string {
-    if (this.#data.kind !== "word") throw this.wrongKind("a word");
+    if (this.#data.kind !== ValueKind.Word) throw this.wrongKind("a word");
     return this.#data.text;
   }
 
   string(): string {
-    if (this.#data.kind === "word") return this.#data.text;
-    if (this.#data.kind === "string") return this.#data.value;
+    if (this.#data.kind === ValueKind.Word) return this.#data.text;
+    if (this.#data.kind === ValueKind.String) return this.#data.value;
     throw this.wrongKind("a word or a string");
   }
 
@@ -238,20 +122,15 @@ export class ExpandedRecord {
   }
 
   list(): readonly ExpandedValue[] {
-    if (this.#data.kind !== "list") throw this.wrongKind("a list");
+    if (this.#data.kind !== ValueKind.List) throw this.wrongKind("a list");
     return this.#data.items as readonly ExpandedValue[];
   }
 
-  slice(): ISliceValue | IIndexValue {
+  slice(): SliceValue | IndexValue {
     const data = this.#data;
-    if (data.kind === "index") return { kind: data.kind, name: data.name, index: data.index };
-    if (data.kind !== "slice") throw this.wrongKind("a slice or an index");
-    return {
-      kind: data.kind,
-      name: data.name,
-      ...(data.start === undefined ? {} : { start: data.start }),
-      ...(data.end === undefined ? {} : { end: data.end }),
-    };
+    if (data.kind === ValueKind.Index) return { kind: data.kind, name: data.name, index: data.index };
+    if (data.kind !== ValueKind.Slice) throw this.wrongKind("a slice or an index");
+    return { kind: data.kind, name: data.name, start: data.start, end: data.end };
   }
 
   error(message: string, code: ProgramCode): DiagnosticError {
@@ -263,10 +142,10 @@ export class ExpandedRecord {
    * replaced by `append`. A variable's value is stored with `drop` = the set line's own steps, and read with
    * `append` = the variable step and the reading place's steps, and that `$name`'s `resolution` first.
    */
-  static rebase(value: ExpandedRecord, drop: number, append: readonly IStep[], resolution?: IReferenceResolution): ExpandedRecord {
+  static rebase(value: ExpandedRecord, drop: number, append: readonly Step[], resolution?: ReferenceResolution): ExpandedRecord {
     const via = [...value.origin.via.slice(0, value.origin.via.length - drop), ...append];
     const data = value.#data;
-    const moved = data.kind === "list" ? { kind: "list" as const, items: data.items.map((item) => ExpandedRecord.rebase(item, drop, append, resolution)) } : data;
+    const moved = data.kind === ValueKind.List ? { kind: ValueKind.List, items: data.items.map((item) => ExpandedRecord.rebase(item, drop, append, resolution)) } : data;
     const chain = resolution === undefined ? value.chain : [resolution, ...value.chain];
     return new ExpandedRecord(moved, { place: value.origin.place, via }, value.definition, chain);
   }

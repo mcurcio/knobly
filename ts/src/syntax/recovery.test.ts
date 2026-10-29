@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { DiagnosticCode } from "../diagnostics.js";
-import { type INode, textOf } from "./cst.js";
 import { type EntryRule, parse, parseEntry } from "./parse.js";
 import { MAX_NESTING } from "../gen/api/limits.js";
+import { DiagnosticCode } from "../index.js";
+import { type Node, textOf } from "./index.js";
 
 /** A node as [kind, source text, children], for readable tree assertions. */
 type Shape = [kind: string, text: string, children: Shape[]];
 
 function shape(text: string): { tree: Shape; codes: [string, number, number][] } {
   const syntax = parse(text);
-  const of = (node: INode): Shape => [node.kind, textOf(syntax, node), node.children.map(of)];
+  const of = (node: Node): Shape => [node.kind, textOf(syntax, node), node.children.map(of)];
   return {
     tree: of(syntax.root),
     codes: syntax.diagnostics.map((d) => [d.code, d.span.start.line, d.span.start.column]),

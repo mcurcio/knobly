@@ -1,18 +1,20 @@
 /**
  * The adapter: the only module that touches the ANTLR runtime and the generated parser (src/gen/, made by
- * tools/gen.sh). Everything it returns is ours: IToken, INode, IDiagnostic.
+ * tools/gen.sh). Everything it returns is ours: Token, Node, Diagnostic.
  */
 
 import { CharStreams, CommonTokenStream } from "antlr4";
 
-import { DiagnosticCode, type IDiagnostic, makeDiagnostic, messageOf } from "../diagnostics.js";
+import { makeDiagnostic } from "../diagnostics.js";
 import VillanelleLexer from "../gen/VillanelleLexer.js";
 import VillanelleParser from "../gen/VillanelleParser.js";
-import type { ISourcePosition } from "../span.js";
-import { type INode, type ISyntax, spanOf } from "./cst.js";
+import { spanOf } from "./cst.js";
 import { type IRawDiagnostic, installRecovery, nestingOverflow } from "./recovery.js";
-import type { IToken, TokenKind } from "./tokens.js";
 import { type IAntlrToken, type IAntlrTree, toCst, toEntryCst } from "./walk.js";
+import type { Diagnostic, SourcePosition } from "../gen/api/shared.js";
+import type { Node, Syntax, Token } from "../gen/api/syntax.js";
+import { DiagnosticCode, describe } from "../gen/api/codes.js";
+import type { TokenKind } from "../gen/api/kinds.js";
 
 /**
  * ANTLR token type -> our TokenKind. Both come from grammar/Villanelle.g4 (the generated lexer's symbolic names and
@@ -43,10 +45,10 @@ export type EntryRule = "statementsText" | "valuesText" | "valueText" | "itemsTe
 type IAntlrParser = IAntlrRecognizer & Record<"document" | EntryRule, () => IAntlrTree>;
 
 const EOF = -1;
-const ORIGIN: ISourcePosition = { offset: 0, line: 0, column: 0 };
+const ORIGIN: SourcePosition = { offset: 0, line: 0, column: 0 };
 
 /** The position after `text`, starting at `position` (UTF-16 units; a line ends after each "\n"). */
-function advance(position: ISourcePosition, text: string): ISourcePosition {
+function advance(position: SourcePosition, text: string): SourcePosition {
   const offset = position.offset + text.length;
   const lastNewline = text.lastIndexOf("\n");
   if (lastNewline < 0) return { offset, line: position.line, column: position.column + text.length };
@@ -55,8 +57,8 @@ function advance(position: ISourcePosition, text: string): ISourcePosition {
 }
 
 /** Our tokens, with positions computed from the token texts (ANTLR's columns count code points, not UTF-16). */
-function toTokens(antlrTokens: readonly IAntlrToken[]): IToken[] {
-  const tokens: IToken[] = [];
+function toTokens(antlrTokens: readonly IAntlrToken[]): Token[] {
+  const tokens: Token[] = [];
   let at = ORIGIN;
   for (const token of antlrTokens) {
     if (token.type === EOF) continue;
@@ -70,7 +72,7 @@ function toTokens(antlrTokens: readonly IAntlrToken[]): IToken[] {
 }
 
 /** The tokens of one text, and a parser over them with per-statement recovery reporting into `raw`. */
-function prepare(text: string): { tokens: IToken[]; parser: IAntlrParser; raw: IRawDiagnostic[] } {
+function prepare(text: string): { tokens: Token[]; parser: IAntlrParser; raw: IRawDiagnostic[] } {
   // antlr4's typings do not line up with the generated classes' parameter types: cast at the call.
   const input = CharStreams.fromString(text) as unknown as ConstructorParameters<typeof VillanelleLexer>[0];
   const lexer = new VillanelleLexer(input);
@@ -90,23 +92,23 @@ function prepare(text: string): { tokens: IToken[]; parser: IAntlrParser; raw: I
 }
 
 /** The diagnostic of nesting deeper than MAX_NESTING, or undefined (run first: it would overflow the stack). */
-function tooDeep(tokens: readonly IToken[]): IRawDiagnostic | undefined {
+function tooDeep(tokens: readonly Token[]): IRawDiagnostic | undefined {
   const at = nestingOverflow(tokens.map((t) => t.kind));
   if (at === undefined) return undefined;
   const code = DiagnosticCode.NestingTooDeep;
-  return { code, range: { start: at, end: at + 1 }, message: messageOf(code) };
+  return { code, range: { start: at, end: at + 1 }, message: describe(code).message };
 }
 
 /**
  * Parse one text. Synchronous, pure and total: it never throws for any input string, and never reads files.
  * Errors are reported in `diagnostics`; the tree still covers every token.
  */
-export function parse(text: string): ISyntax {
+export function parse(text: string): Syntax {
   const { tokens, parser, raw } = prepare(text);
   const n = tokens.length;
   const deep = tooDeep(tokens);
   if (deep !== undefined) {
-    const root: INode = { kind: "document", start: 0, end: n, children: [{ kind: "error", start: 0, end: n, children: [] }] };
+    const root: Node = { kind: "document", start: 0, end: n, children: [{ kind: "error", start: 0, end: n, children: [] }] };
     return located(tokens, root, [deep]);
   }
   return located(tokens, toCst(parser.document()), raw);
@@ -118,7 +120,7 @@ export function parse(text: string): ISyntax {
  * `document` node over every token whose children are the text's `list` and `slice` nodes (its values are read with
  * `valuesOf`). Package-internal.
  */
-export function parseEntry(text: string, rule: EntryRule): ISyntax {
+export function parseEntry(text: string, rule: EntryRule): Syntax {
   const { tokens, parser, raw } = prepare(text);
   const n = tokens.length;
   const deep = tooDeep(tokens);
@@ -136,8 +138,8 @@ export function parseEntry(text: string, rule: EntryRule): ISyntax {
 }
 
 /** The syntax result, with each token-range diagnostic turned into a source span (the one place that does). */
-function located(tokens: readonly IToken[], root: INode, raw: readonly IRawDiagnostic[]): ISyntax {
-  const unlocated: ISyntax = { tokens, root, diagnostics: [] };
-  const diagnostics: IDiagnostic[] = raw.map((d) => makeDiagnostic(d.code, d.message, spanOf(unlocated, d.range)));
+function located(tokens: readonly Token[], root: Node, raw: readonly IRawDiagnostic[]): Syntax {
+  const unlocated: Syntax = { tokens, root, diagnostics: [] };
+  const diagnostics: Diagnostic[] = raw.map((d) => makeDiagnostic(d.code, d.message, spanOf(unlocated, d.range)));
   return { tokens, root, diagnostics };
 }

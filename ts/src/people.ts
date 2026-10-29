@@ -4,11 +4,11 @@
  * count from 1; columns in UTF-16 code units, this binding's string unit (spec/contract.md 1).
  */
 
-import type { ISourceSpan } from "./span.js";
+import type { SourceSpan } from "./gen/api/shared.js";
 
 interface IPlaceLike {
   readonly resolvedPath: string;
-  readonly span: ISourceSpan;
+  readonly span: SourceSpan;
 }
 
 /** `path:line:col`, at the span's start: `sink.conf:4:5`. */
@@ -32,7 +32,7 @@ export function locatedForm(diagnostic: { readonly code: string; readonly messag
 }
 
 /** `line:col: <code>: <message>`, at the span's start (a syntax diagnostic has no file): `1:3: E2004: ...`. */
-export function diagnosticForm(diagnostic: { readonly code: string; readonly message: string; readonly span: ISourceSpan }): string {
+export function diagnosticForm(diagnostic: { readonly code: string; readonly message: string; readonly span: SourceSpan }): string {
   const { line, column } = diagnostic.span.start;
   return `${String(line + 1)}:${String(column + 1)}: ${diagnostic.code}: ${diagnostic.message}`;
 }

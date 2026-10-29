@@ -9,31 +9,30 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { include } from "../include.js";
-import type { IDirective, IRendered } from "../rendered/model.js";
 import { render } from "../rendered/render.js";
-import { villanelle } from "./processor.js";
-import { memorySource } from "../source.js";
-import type { IDocumentGraph, IDocumentWriter, IFileWrite, IPlace } from "../index.js";
-import { quote, text } from "../text.js";
+import type { DocumentWriter, FileWrite, Place } from "../index.js";
+import { memorySource, quote, text } from "../index.js";
+import type { Directive, Rendered } from "../rendered/index.js";
+import { type DocumentGraph, VariableKind, villanelle } from "./index.js";
 
 const SPLIT = new URL("../../../fixtures/rasl/split/", import.meta.url);
 const FILES = { "main.conf": readFileSync(new URL("main.conf", SPLIT), "utf8"), "sink.conf": readFileSync(new URL("sink.conf", SPLIT), "utf8") };
 
 /** 1-based `file:line`, as design.md §1 prints it. */
-const lineOf = (place: IPlace): string => `${place.resolvedPath}:${String(place.span.start.line + 1)}`;
+const lineOf = (place: Place): string => `${place.resolvedPath}:${String(place.span.start.line + 1)}`;
 
-function nodeNamed(rendered: IRendered, name: string): IDirective {
-  let found: IDirective | undefined;
-  rendered.walk((d) => {
+function nodeNamed(rendered: Rendered, name: string): Directive {
+  let found: Directive | undefined;
+  rendered.block.walk((d) => {
     if (d.name === "node" && d.values[1]?.text === name) found = d;
   });
   if (found === undefined) throw new Error(`no node ${name}`);
   return found;
 }
 
-function maxCounts(rendered: IRendered): [string, string | undefined, number][] {
+function maxCounts(rendered: Rendered): [string, string | undefined, number][] {
   const out: [string, string | undefined, number][] = [];
-  rendered.walk((d) => {
+  rendered.block.walk((d) => {
     if (d.name === "max_count") {
       const [arg] = d.values;
       out.push([arg?.text ?? "", arg?.definition === undefined ? undefined : `${lineOf(arg.definition.place)}:${String(arg.definition.place.span.start.column + 1)}`, arg?.chain.length ?? -1]);
@@ -42,12 +41,12 @@ function maxCounts(rendered: IRendered): [string, string | undefined, number][] 
   return out;
 }
 
-function recorder(): IDocumentWriter & { batches: IFileWrite[][] } {
-  const batches: IFileWrite[][] = [];
+function recorder(): DocumentWriter & { batches: FileWrite[][] } {
+  const batches: FileWrite[][] = [];
   return { batches, write: (files) => (batches.push([...files]), Promise.resolve()) };
 }
 
-async function open(): Promise<{ graph: IDocumentGraph }> {
+async function open(): Promise<{ graph: DocumentGraph }> {
   const config = villanelle({ source: memorySource(FILES), extensions: [include()] });
   const graph = await config.load("main.conf", { overrides: { leds_host: quote("10.0.70.1") } });
   return { graph };
@@ -63,7 +62,7 @@ describe("the round 12 tracer (fixtures/rasl/split)", () => {
     const table = graph.variables().map((v) => [
       v.name,
       v.kind,
-      v.kind === "override" ? "an override" : lineOf(v.place),
+      v.kind === VariableKind.Override ? "an override" : lineOf(v.place),
       v.wins().map((r) => lineOf(r.reference.place)),
       v.shadowedAt().map((r) => [lineOf(r.reference.place), r.winner?.kind]),
     ]);
@@ -78,7 +77,7 @@ describe("the round 12 tracer (fixtures/rasl/split)", () => {
     ]);
 
     const rendered = render(graph);
-    const maxCount = nodeNamed(rendered, "leds").block?.find((d) => d.name === "max_count")?.values[0];
+    const maxCount = nodeNamed(rendered, "leds").block?.directives("max_count")[0]?.values[0];
     const read = maxCount?.chain[0];
     const winner = read?.winner;
     if (winner?.kind !== "set") throw new Error("the winner is not a set line's variable");
@@ -98,7 +97,7 @@ describe("the round 12 tracer (fixtures/rasl/split)", () => {
 
   it("changes max_count to no longer use the variable (3): only sink.conf, and $pixels wins nowhere", async () => {
     const { graph } = await open();
-    const read = nodeNamed(render(graph), "leds").block?.find((d) => d.name === "max_count")?.values[0]?.chain[0];
+    const read = nodeNamed(render(graph), "leds").block?.directives("max_count")[0]?.values[0]?.chain[0];
     const reference = read?.reference;
     expect(reference?.text).toBe("$pixels");
     reference?.replaceWithText(text("2400"));

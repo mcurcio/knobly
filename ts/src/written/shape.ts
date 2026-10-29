@@ -5,12 +5,12 @@
  * the same codes at the same places. Private to the package.
  */
 
-import { DiagnosticCode } from "../diagnostics.js";
-import type { StatementKind } from "../gen/api/kinds.js";
-import type { ISourceSpan } from "../span.js";
-import { type INode } from "../syntax/cst.js";
-import { type IToken, isWordKind } from "../syntax/tokens.js";
+import { isWordKind } from "../syntax/tokens.js";
 import { anatomyOf, type IDirectiveAnatomy } from "../anatomy.js";
+import type { SourceSpan } from "../gen/api/shared.js";
+import type { Node, Token } from "../gen/api/syntax.js";
+import { DiagnosticCode } from "../gen/api/codes.js";
+import { NodeKind, StatementKind, statementOfKeyword, TokenKind } from "../gen/api/kinds.js";
 
 /** A statement's kind by its text alone: one of the generated statement kind list. */
 export type ShapeKind = StatementKind;
@@ -18,7 +18,7 @@ export type ShapeKind = StatementKind;
 /** One problem of a line's text alone. */
 export interface IShapeFault {
   readonly code: DiagnosticCode;
-  readonly span: ISourceSpan;
+  readonly span: SourceSpan;
   /** The detail PR 3's message carried (`$a`, a snippet name), if any. */
   readonly detail?: string;
 }
@@ -36,8 +36,8 @@ export interface IShape {
 }
 
 /** The shape of one node of a block, ignoring the one-per-block rules (E5002, E5005). */
-export function shapeOf(tokens: readonly IToken[], node: INode, extensions: ReadonlySet<string>): IShape {
-  if (node.kind !== "directive") return { kind: "unreadable", fault: undefined, claims: undefined };
+export function shapeOf(tokens: readonly Token[], node: Node, extensions: ReadonlySet<string>): IShape {
+  if (node.kind !== NodeKind.Directive) return { kind: "unreadable", fault: undefined, claims: undefined };
   return shapeOfAnatomy(tokens, anatomyOf(tokens, node), extensions);
 }
 
@@ -47,31 +47,31 @@ export function shapeOf(tokens: readonly IToken[], node: INode, extensions: Read
  * `@use`, an extension line (`@` and a registered extension's name), or else an unreadable line (E3008, which is no
  * text-alone rule: it depends on the registered extensions, so `isTextAlone` leaves it out).
  */
-export function shapeOfAnatomy(tokens: readonly IToken[], anatomy: IDirectiveAnatomy, extensions: ReadonlySet<string>): IShape {
+export function shapeOfAnatomy(tokens: readonly Token[], anatomy: IDirectiveAnatomy, extensions: ReadonlySet<string>): IShape {
   const name = tokens[anatomy.name];
   if (name === undefined) throw new Error("a directive node has no name token");
-  if (name.kind !== "AT_WORD") return { kind: "directive", fault: undefined, claims: undefined };
+  if (name.kind !== TokenKind.AT_WORD) return { kind: "directive", fault: undefined, claims: undefined };
   const [first, ...rest] = anatomy.values;
   const firstToken = typeof first === "number" ? tokens[first] : undefined;
-  switch (name.text) {
-    case "@set": {
-      if (firstToken?.kind !== "VARIABLE" || rest.length === 0 || anatomy.block !== undefined) {
+  switch (statementOfKeyword(name.text.slice(1))) {
+    case StatementKind.Set: {
+      if (firstToken?.kind !== TokenKind.VARIABLE || rest.length === 0 || anatomy.block !== undefined) {
         return { kind: "unreadable", fault: { code: DiagnosticCode.BadSet, span: name.span }, claims: undefined };
       }
       return { kind: "set", fault: undefined, claims: firstToken.text.slice(1) };
     }
-    case "@snippet": {
+    case StatementKind.Snippet: {
       const params: string[] = [];
       const bad = { kind: "unreadable", fault: { code: DiagnosticCode.BadSnippet, span: name.span }, claims: undefined } as const;
       for (const ref of rest) {
         const token = typeof ref === "number" ? tokens[ref] : undefined;
-        if (token?.kind !== "VARIABLE" || params.includes(token.text.slice(1))) return bad;
+        if (token?.kind !== TokenKind.VARIABLE || params.includes(token.text.slice(1))) return bad;
         params.push(token.text.slice(1));
       }
       if (firstToken === undefined || !isWordKind(firstToken.kind) || anatomy.block === undefined) return bad;
       return { kind: "snippet", fault: undefined, claims: firstToken.text };
     }
-    case "@use":
+    case StatementKind.Use:
       if (firstToken === undefined || !isWordKind(firstToken.kind) || anatomy.block !== undefined) {
         return { kind: "unreadable", fault: { code: DiagnosticCode.BadUse, span: name.span }, claims: undefined };
       }
@@ -88,7 +88,7 @@ export function isTextAlone(fault: IShapeFault): boolean {
 }
 
 /** A snippet line's parameter tokens (VARIABLE token indices), in order. Call only on a well-formed snippet. */
-export function parameterTokens(tokens: readonly IToken[], node: INode): readonly number[] {
+export function parameterTokens(tokens: readonly Token[], node: Node): readonly number[] {
   const [, ...rest] = anatomyOf(tokens, node).values;
   return rest.filter((ref): ref is number => typeof ref === "number");
 }
@@ -99,8 +99,8 @@ export function parameterTokens(tokens: readonly IToken[], node: INode): readonl
  * block already binds (a snippet body's parameters).
  */
 export function blockShapes(
-  tokens: readonly IToken[],
-  nodes: readonly INode[],
+  tokens: readonly Token[],
+  nodes: readonly Node[],
   extensions: ReadonlySet<string>,
   claimed: Iterable<string> = [],
 ): IShape[] {
@@ -108,18 +108,18 @@ export function blockShapes(
   const snippets = new Set<string>();
   return nodes.map((node) => {
     const shape = shapeOf(tokens, node, extensions);
-    if (shape.kind === "set" && shape.claims !== undefined) {
+    if (shape.kind === StatementKind.Set && shape.claims !== undefined) {
       if (sets.has(shape.claims)) {
         const variable = tokens[anatomyOf(tokens, node).values[0] as number];
-        const span = variable?.span ?? (tokens[node.start] as IToken).span;
+        const span = variable?.span ?? (tokens[node.start] as Token).span;
         return { kind: "unreadable", fault: { code: DiagnosticCode.VariableSetTwice, span, detail: variable?.text ?? "" }, claims: undefined };
       }
       sets.add(shape.claims);
     }
-    if (shape.kind === "snippet" && shape.claims !== undefined) {
+    if (shape.kind === StatementKind.Snippet && shape.claims !== undefined) {
       if (snippets.has(shape.claims)) {
         const nameToken = tokens[anatomyOf(tokens, node).values[0] as number];
-        const span = nameToken?.span ?? (tokens[node.start] as IToken).span;
+        const span = nameToken?.span ?? (tokens[node.start] as Token).span;
         return { kind: "unreadable", fault: { code: DiagnosticCode.SnippetDefinedTwice, span, detail: shape.claims }, claims: undefined };
       }
       snippets.add(shape.claims);
@@ -129,6 +129,6 @@ export function blockShapes(
 }
 
 /** The statement nodes of a document or block node: its directive and error children. */
-export function statementNodes(container: INode): readonly INode[] {
-  return container.children.filter((child) => child.kind === "directive" || child.kind === "error");
+export function statementNodes(container: Node): readonly Node[] {
+  return container.children.filter((child) => child.kind === NodeKind.Directive || child.kind === NodeKind.Error);
 }

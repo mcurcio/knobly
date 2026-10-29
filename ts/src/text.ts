@@ -3,18 +3,13 @@
  * type"), made only by `quote` (a program string written as a villanelle string) or `text` (text already written as
  * villanelle text). A branded string: the TypeScript handbook's and Zod's `.brand()` pattern, as the browser's Trusted
  * Types accept a sink's string only from a named factory. Shared: the one home of the argument type check and its
- * message (spec/schema/api.json, "argument type error message").
+ * message (spec/schema/api.json, "argument type error message", generated as `argumentTypeMessage`). The type
+ * `ConfigText` is generated (gen/api/shared.ts).
  */
 
+import { argumentTypeMessage } from "./gen/api/errors.js";
+import type { ConfigText } from "./gen/api/shared.js";
 import { canonicalString } from "./values.js";
-
-declare const configTextBrand: unique symbol;
-
-/**
- * Villanelle text an edit or an override takes: a string branded so that a plain string is a type error. Made only by
- * `quote()` or `text()`; reading members (a value's or statement's `text`) return plain strings.
- */
-export type ConfigText = string & { readonly [configTextBrand]: true };
 
 /**
  * The argument type check: `value` must be a string, else TypeError naming the member and the parameter as the caller
@@ -24,9 +19,7 @@ export type ConfigText = string & { readonly [configTextBrand]: true };
  */
 export function requireText(value: unknown, member: string, parameter: string): asserts value is string {
   if (typeof value === "string") return;
-  throw new TypeError(
-    `${member}(): argument "${parameter}" must be a string, not ${typeNameOf(value)}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, String() a number first`,
-  );
+  throw new TypeError(argumentTypeMessage(member, parameter, typeNameOf(value)));
 }
 
 /** What an argument type error says a value is: `null`, `array`, or its `typeof`. */

@@ -4,12 +4,11 @@ import { join, relative } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { LostUpdateError, SaveError } from "./errors.js";
 import { include } from "./include.js";
-import { villanelle } from "./written/processor.js";
 import { rendered } from "./rendered/testing.js";
 import { fileSource, fileWriter } from "./node.js";
-import { text } from "./text.js";
+import { LostUpdateError, SaveError, text } from "./index.js";
+import { villanelle } from "./written/index.js";
 
 describe("villanelle/node", () => {
   let dir = "";
@@ -37,7 +36,7 @@ describe("villanelle/node", () => {
     const [glob, plain] = loaded.graph.edges();
     expect(glob?.targets).toEqual(["C.conf", "a.conf", "b.conf", "x[1].conf", "é.conf"].map((name) => join(dir, "conf.d", name)));
     expect(plain?.targets).toEqual([join(dir, "plain.conf")]);
-    expect(loaded.block.map((d) => d.values[0]?.text)).toEqual(['"C.conf"', '"a.conf"', '"b.conf"', '"x[1].conf"', '"é.conf"', "1"]);
+    expect([...loaded.block].map((d) => d.values[0]?.text)).toEqual(['"C.conf"', '"a.conf"', '"b.conf"', '"x[1].conf"', '"é.conf"', "1"]);
   });
 
   it("resolves a relative root through the source, so the root has one path and is read once", async () => {
@@ -45,7 +44,7 @@ describe("villanelle/node", () => {
     const loaded = await rendered(villanelle({ source: fileSource(), extensions: [include()] }), relative(process.cwd(), join(dir, "self.conf")));
     expect([...loaded.graph.documents.keys()]).toEqual([join(dir, "self.conf")]);
     expect(loaded.diagnostics.map((d) => d.code)).toEqual(["E1001", "E5006"]);
-    expect(loaded.block.map((d) => d.name)).toEqual(["y"]);
+    expect([...loaded.block].map((d) => d.name)).toEqual(["y"]);
   });
 
   it("matches ? to one character", async () => {
@@ -89,8 +88,8 @@ describe("villanelle/node", () => {
     await writeFile(join(directory, "part.conf"), "p 1;\n");
     const graph = await villanelle({ source: fileSource(), extensions: [include()] }).load(join(directory, "main.conf"));
     const [main, part] = [...graph.documents.values()];
-    const m = main?.block.statements[1];
-    const p = part?.block.statements[0];
+    const m = main?.block.at(1);
+    const p = part?.block.at(0);
     if (m?.kind !== "directive" || p?.kind !== "directive") throw new Error("fixture");
     m.set(text("2"));
     p.set(text("2"));
@@ -108,7 +107,7 @@ describe("villanelle/node", () => {
     await writeFile(a, "a 1;\n");
     await writeFile(b, "b 1;\n");
     const graph = await villanelle({ source: fileSource() }).load(a);
-    const statement = graph.root.block.statements[0];
+    const statement = graph.root.block.at(0);
     if (statement?.kind !== "directive") throw new Error("fixture");
     statement.set(text("2"));
     // Someone else changes b after it was read.

@@ -7,15 +7,12 @@
 import { describe, expect, it } from "vitest";
 
 import { include } from "../include.js";
-import { memorySource } from "../source.js";
-import { type ConfigText, quote, text } from "../text.js";
-import { BadTextError, DetachedError, MisuseError } from "../errors.js";
-import type { IDocumentGraph, ISetLine, IWrittenDirective, IUseLine } from "./model.js";
-import { villanelle } from "./processor.js";
+import { BadTextError, type ConfigText, DetachedError, memorySource, MisuseError, quote, text } from "../index.js";
+import { type DocumentGraph, type SetLine, type UseLine, villanelle, type WrittenDirective } from "./index.js";
 
 const MAIN = '@set $port 80;\n@snippet s $a { x $a; }\n@use s 1;\nserver "web" [1, 2] {\n  listen $port;\n}\n';
 
-async function load(): Promise<IDocumentGraph> {
+async function load(): Promise<DocumentGraph> {
   return await villanelle({ source: memorySource({ "main.conf": MAIN }), extensions: [include()] }).load("main.conf", { overrides: { o: text("1") } });
 }
 
@@ -41,7 +38,7 @@ describe("text-only edits (spec 6.9)", () => {
   it.each(WRONG)("each member refuses a %s with a TypeError naming it, and changes nothing", async (got, value) => {
     const graph = await load();
     const doc = graph.root;
-    const [setPort, , use, server] = doc.block.statements as [ISetLine, unknown, IUseLine, IWrittenDirective];
+    const [setPort, , use, server] = [...doc.block] as [SetLine, unknown, UseLine, WrittenDirective];
     const before = doc.text;
     const cases: [string, string, () => unknown][] = [
       ["set", "text", misuse((v) => server.set(v), value)],
@@ -84,14 +81,14 @@ describe("text-only edits (spec 6.9)", () => {
 
   it("checks a detached handle first: DetachedError, not TypeError", async () => {
     const graph = await load();
-    const [, , , server] = graph.root.block.statements as [unknown, unknown, unknown, IWrittenDirective];
+    const [, , , server] = [...graph.root.block] as [unknown, unknown, unknown, WrittenDirective];
     server.remove();
     expect(misuse((v) => server.set(v), 2400)).toThrow(DetachedError);
   });
 
   it("shows quote() as the way to write a program string", async () => {
     const graph = await load();
-    const [, , , server] = graph.root.block.statements as [unknown, unknown, unknown, IWrittenDirective];
+    const [, , , server] = [...graph.root.block] as [unknown, unknown, unknown, WrittenDirective];
     server.set(quote("my host"));
     expect(server.text.split("\n")[0]).toBe('server "my host" {');
   });
@@ -143,7 +140,7 @@ describe("the check of an override (spec 6.3): one check for load and setOverrid
     await expect(processor.load("main.conf", { overrides: { "a-b": text("1") } })).rejects.toThrow(MisuseError);
     const graph = await processor.load("main.conf");
     expect(() => graph.setOverride("a-b", text("1"))).toThrow(MisuseError);
-    const [set] = graph.root.block.statements;
+    const [set] = graph.root.block;
     expect(() => (set?.kind === "set" ? set.variable.rename("a-b") : undefined)).toThrow(MisuseError);
   });
 });

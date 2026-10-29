@@ -2,24 +2,24 @@
  * The document graph (spec 6.3): the files one load read, the overrides, the read ledger, and the document source
  * it reads through. Everything else (copies, edges, variables, resolutions, diagnostics) is derived from them by
  * `bind`, cached per graph version; every edit, `setOverride` and read bumps the version. Package-internal: programs
- * see IDocumentGraph.
+ * see `DocumentGraph` (gen/api/written.ts).
  */
 
-import { LostUpdateError, SaveError } from "../errors.js";
-import { type ILocatedDiagnostic, makeLocated } from "../report.js";
-import type { IDocumentSource } from "../source.js";
-import { type ConfigText, typeNameOf } from "../text.js";
+import { makeLocated } from "../report.js";
+import { typeNameOf } from "../text.js";
 import { bind, type IBindingWithNeeds, type IOverrideInput, type IOverrideValues, type IReadLedger } from "./bind.js";
 import { Document, type IDocumentHost } from "./document.js";
 import { expansionOf } from "./expansion.js";
-import type { IExtension } from "./extension.js";
-import type { IDocumentWriter, IFileWrite } from "../source.js";
-import type { IDocumentEdge, IDocumentGraph, IExpansion, Variable } from "./model.js";
 import { checkOverride, checkOverrideName } from "./override.js";
 import { readUnread } from "./read.js";
 import { OverrideVariable } from "./statements.js";
+import { LostUpdateError, SaveError } from "../gen/api/errors.js";
+import type { DocumentSource, DocumentWriter, FileWrite } from "../gen/api/io.js";
+import type { ConfigText, LocatedDiagnostic } from "../gen/api/shared.js";
+import type { DocumentEdge, Expansion, Extension, Variable } from "../gen/api/written.js";
+import type * as api from "../gen/api/written.js";
 
-export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger {
+export class DocumentGraph implements api.DocumentGraph, IDocumentHost, IReadLedger {
   readonly documents = new Map<string, Document>();
   readonly extensionNames: ReadonlySet<string>;
   private readonly overrideTexts = new Map<string, ConfigText>();
@@ -31,7 +31,7 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
   private readonly failedReads = new Map<string, Error>();
   private version = 0;
   private cache:
-    | { readonly version: number; readonly binding: IBindingWithNeeds; diagnostics?: readonly ILocatedDiagnostic[]; expansion?: IExpansion }
+    | { readonly version: number; readonly binding: IBindingWithNeeds; diagnostics?: readonly LocatedDiagnostic[]; expansion?: Expansion }
     | undefined;
   private rootDocument: Document | undefined;
 
@@ -41,8 +41,8 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
    * text
    */
   constructor(
-    private readonly source: IDocumentSource,
-    readonly extensions: ReadonlyMap<string, IExtension>,
+    private readonly source: DocumentSource,
+    readonly extensions: ReadonlyMap<string, Extension>,
     overrides: Readonly<Record<string, unknown>>,
   ) {
     this.extensionNames = new Set(extensions.keys());
@@ -91,13 +91,13 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
    * with none, the writer is not called. When the writer resolves, each written document's `savedText` becomes the
    * text handed over (an edit made while the writer ran stays unsaved); when it rejects, no `savedText` changes.
    */
-  async save(writer: IDocumentWriter): Promise<readonly string[]> {
-    if (typeof (writer as Partial<IDocumentWriter> | null)?.write !== "function") {
+  async save(writer: DocumentWriter): Promise<readonly string[]> {
+    if (typeof (writer as Partial<DocumentWriter> | null)?.write !== "function") {
       throw new TypeError(
         `save(): argument "writer" must be a document writer (an object with a write method), not ${typeNameOf(writer)}`,
       );
     }
-    const files: IFileWrite[] = [];
+    const files: FileWrite[] = [];
     for (const doc of this.documents.values()) {
       if (doc.text !== doc.savedText) files.push({ resolvedPath: doc.resolvedPath, text: doc.text, savedText: doc.savedText });
     }
@@ -114,11 +114,11 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
     return files.map((file) => file.resolvedPath);
   }
 
-  edges(): readonly IDocumentEdge[] {
+  edges(): readonly DocumentEdge[] {
     return this.binding().edges;
   }
 
-  unread(): readonly IDocumentEdge[] {
+  unread(): readonly DocumentEdge[] {
     return this.binding().unread;
   }
 
@@ -132,7 +132,7 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
   }
 
   /** The one list (spec 6.3): every syntax diagnostic, then every problem the walk found, in walk order. */
-  get diagnostics(): readonly ILocatedDiagnostic[] {
+  get diagnostics(): readonly LocatedDiagnostic[] {
     const binding = this.binding();
     const cache = this.cache;
     if (cache === undefined) throw new Error("no binding");
@@ -140,7 +140,7 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
     return cache.diagnostics;
   }
 
-  expand(): IExpansion {
+  expand(): Expansion {
     const diagnostics = this.diagnostics;
     const cache = this.cache;
     if (cache === undefined) throw new Error("no binding");
@@ -149,7 +149,7 @@ export class DocumentGraph implements IDocumentGraph, IDocumentHost, IReadLedger
   }
 
   /** Each document's syntax diagnostics, documents in order, located. */
-  private syntaxDiagnostics(): ILocatedDiagnostic[] {
+  private syntaxDiagnostics(): LocatedDiagnostic[] {
     return [...this.documents.values()].flatMap((doc) =>
       doc.syntax.diagnostics.map((d) => makeLocated(d.code, d.message, doc.place(d.span), [])),
     );

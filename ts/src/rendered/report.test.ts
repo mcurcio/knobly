@@ -4,11 +4,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { DiagnosticError, MisuseError } from "../errors.js";
 import { include } from "../include.js";
-import { Diagnostics, type ILocatedDiagnostic, type ProgramCode } from "../report.js";
 import { formatDiagnostic } from "../written/index.js";
 import { loadFiles, loadText, only, problems } from "./testing.js";
+import { DiagnosticCode, DiagnosticError, Diagnostics, type LocatedDiagnostic, MisuseError, type ProgramCode } from "../index.js";
 
 describe("Diagnostics", () => {
   it("starts with the load's problems and records add and report in order", async () => {
@@ -18,7 +17,7 @@ describe("Diagnostics", () => {
     sink.report(node, "no such node", "rasl/unknown-node");
     sink.report(only(node.values), "bad id", "rasl/bad-id");
     sink.report(loaded, "no graph", "rasl/no-graph");
-    const extra: ILocatedDiagnostic = { code: "rasl/x", message: "x", place: loaded.origin.place, via: [] };
+    const extra: LocatedDiagnostic = { code: "rasl/x", message: "x", place: loaded.origin.place, via: [] };
     sink.add(extra);
     expect(sink.length).toBe(5);
     expect(problems(sink)).toEqual([
@@ -81,20 +80,20 @@ describe("formatDiagnostic", () => {
 
   it("prints the via lines for a problem reached through a use", async () => {
     const loaded = await loadText("@snippet s {\n\tx $nope;\n}\n@use s;\n");
-    expect(formatDiagnostic(loaded.diagnostics[0] as ILocatedDiagnostic, loaded.graph)).toBe(
+    expect(formatDiagnostic(loaded.diagnostics[0] as LocatedDiagnostic, loaded.graph)).toBe(
       ["main.conf:2:4: E5001: unknown variable: $nope", "\tx $nope;", "\t  ^^^^^", "  via use s at main.conf:4:1"].join("\n"),
     );
   });
 
   it("prints only the first line without the file in the graph", async () => {
     const loaded = await loadText("x $nope;\n");
-    expect(formatDiagnostic(loaded.diagnostics[0] as ILocatedDiagnostic)).toBe("main.conf:1:3: E5001: unknown variable: $nope");
+    expect(formatDiagnostic(loaded.diagnostics[0] as LocatedDiagnostic)).toBe("main.conf:1:3: E5001: unknown variable: $nope");
   });
 
   it("keeps a lone carriage return in the source line (spec/contract.md 1)", async () => {
     const loaded = await loadText("x $nope; # a\rb\n");
-    const unknown = loaded.diagnostics.find((d) => d.code === "E5001");
-    expect(formatDiagnostic(unknown as ILocatedDiagnostic, loaded.graph).split("\n")).toEqual([
+    const unknown = loaded.diagnostics.find((d) => d.code === DiagnosticCode.UnknownVariable);
+    expect(formatDiagnostic(unknown as LocatedDiagnostic, loaded.graph).split("\n")).toEqual([
       "main.conf:1:3: E5001: unknown variable: $nope",
       "x $nope; # a\rb",
       "  ^^^^^",

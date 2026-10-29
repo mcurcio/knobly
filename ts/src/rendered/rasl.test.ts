@@ -10,11 +10,10 @@ import { describe, expect, it } from "vitest";
 
 import { include } from "../include.js";
 import { fileSource } from "../node.js";
-import type { IDirective, IRendered, KeyRule } from "./model.js";
 import { villanelle, type WrittenValue } from "../written/index.js";
-import type { IDocumentSource } from "../source.js";
 import { rendered } from "./testing.js";
-import { text } from "../text.js";
+import { type DocumentSource, text } from "../index.js";
+import type { Directive, KeyRule, Rendered } from "./index.js";
 
 const FIXTURES = new URL("../../../fixtures/rasl/", import.meta.url);
 
@@ -35,7 +34,7 @@ const RASL_KEY: KeyRule = (d) => {
 };
 
 /** The file source, with `@set $pixels 2284;` read as `2400` once `edited` is set. */
-function source(): { source: IDocumentSource; edit: () => void } {
+function source(): { source: DocumentSource; edit: () => void } {
   const files = fileSource();
   let edited = false;
   return {
@@ -52,9 +51,9 @@ function source(): { source: IDocumentSource; edit: () => void } {
   };
 }
 
-function nodeIds(loaded: IRendered): string[] {
+function nodeIds(loaded: Rendered): string[] {
   const ids: string[] = [];
-  loaded.walk((d: IDirective) => {
+  loaded.block.walk((d: Directive) => {
     if (d.name === "node" && d.parent?.name === "graph") ids.push(d.values[1]?.text ?? "");
   });
   return ids;
@@ -83,7 +82,7 @@ describe("rasl's configs", () => {
     const loaded = await rendered(processor, path, { overrides: OVERRIDES });
     const targets: [string, string][] = [];
     const named = loaded.addresses({ key: RASL_KEY });
-    loaded.walk((d) => {
+    loaded.block.walk((d) => {
       if (d.name === "target") targets.push([named.get(d)?.toString() ?? "", d.values[0]?.text ?? ""]);
     });
     expect(targets).toEqual([
@@ -95,7 +94,7 @@ describe("rasl's configs", () => {
     // Without the override, the file's own default is used.
     const plain = await rendered(processor, path);
     let host = "";
-    plain.walk((d) => {
+    plain.block.walk((d) => {
       if (d.name === "target" && host === "") host = d.values[0]?.text ?? "";
     });
     expect(host).toBe('"10.0.60.30"');
@@ -108,7 +107,7 @@ describe("rasl's configs", () => {
     // sink.conf is included twice: both rendered `max_count`s share the one written `$pixels` of its line, and a
     // value's `set` keeps its handle (spec 6.1), so setting it through each copy just writes again.
     const written: WrittenValue[] = [];
-    loaded.walk((d) => {
+    loaded.block.walk((d) => {
       const arg = d.values[0];
       if (d.name !== "max_count" || arg === undefined) return;
       written.push(arg.written);

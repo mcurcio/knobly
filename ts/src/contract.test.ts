@@ -7,24 +7,11 @@
 import { describe, expect, it } from "vitest";
 
 import * as villanelleModule from "./index.js";
-import {
-  BadTextError,
-  checkLostUpdates,
-  DetachedError,
-  DiagnosticError,
-  type IDocumentGraph,
-  LostUpdateError,
-  memorySource,
-  memoryWriter,
-  MisuseError,
-  ReadError,
-  render,
-  SaveError,
-  villanelle,
-  VillanelleError,
-} from "./index.js";
+import { BadTextError, checkLostUpdates, DetachedError, DiagnosticError, LostUpdateError, memorySource, memoryWriter, MisuseError, ReadError, SaveError, VillanelleError } from "./index.js";
 import { parse } from "./syntax/parse.js";
-import { text } from "./text.js";
+import { text } from "./index.js";
+import { render } from "./rendered/index.js";
+import { type DocumentGraph, villanelle } from "./written/index.js";
 
 describe("the error classes (spec 2.8; spec/contract.md 4.2)", () => {
   it("put every expected outcome under VillanelleError and every program bug outside it", () => {
@@ -58,7 +45,7 @@ describe("the error classes (spec 2.8; spec/contract.md 4.2)", () => {
 
   it("a detached handle throws DetachedError, a program bug outside VillanelleError", async () => {
     const graph = await villanelle({ source: memorySource({ "main.conf": "a 1;\n" }) }).load("main.conf");
-    const [a] = graph.root.block.statements;
+    const [a] = graph.root.block;
     a?.remove();
     let thrown: unknown;
     try {
@@ -77,7 +64,7 @@ describe("save (writer)", () => {
     const graph = await villanelle({ source: memorySource({ "main.conf": "a 1;\n" }) }).load("main.conf");
     graph.root.block.directives()[0]?.set(text("2"));
     const write = (): Promise<void> => Promise.resolve();
-    const error: unknown = await graph.save(write as unknown as Parameters<IDocumentGraph["save"]>[0]).catch((e: unknown) => e);
+    const error: unknown = await graph.save(write as unknown as Parameters<DocumentGraph["save"]>[0]).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(TypeError);
     expect((error as TypeError).message).toBe(
       'save(): argument "writer" must be a document writer (an object with a write method), not function',
@@ -152,7 +139,7 @@ describe("the memory adapters (spec/contract.md 5)", () => {
 describe("render (graph) on the public low level (spec 7.0)", () => {
   it("takes any object with the document graph's public members", async () => {
     const graph = await villanelle({ source: memorySource({ "main.conf": "@set $a 1;\nx $a { y; }\n" }) }).load("main.conf");
-    const facade: IDocumentGraph = {
+    const facade: DocumentGraph = {
       get root() {
         return graph.root;
       },
@@ -169,7 +156,7 @@ describe("render (graph) on the public low level (spec 7.0)", () => {
     };
     const rendered = render(facade);
     expect(rendered.graph).toBe(facade);
-    expect(rendered.block.map((d) => [d.name, d.values.map((v) => v.text), d.block?.map((c) => c.name)])).toEqual([["x", ["1"], ["y"]]]);
+    expect([...rendered.block].map((d) => [d.name, d.values.map((v) => v.text), (d.block === undefined ? undefined : [...d.block].map((c) => c.name))])).toEqual([["x", ["1"], ["y"]]]);
     expect(String(rendered.origin.place)).toBe("main.conf:1:1");
   });
 
@@ -183,20 +170,20 @@ describe("render (graph) on the public low level (spec 7.0)", () => {
     expect(first.diagnostics).toBe(graph.diagnostics);
     graph.root.block.directives()[0]?.set(text("2"));
     expect(graph.expand()).not.toBe(first);
-    expect(graph.expand().block[0]?.values[0]?.text).toBe("2");
+    expect(graph.expand().block.at(0)?.values[0]?.text).toBe("2");
   });
 
   it("builds the rendered directive on the expansion's own objects (spec 7.0)", async () => {
     const graph = await villanelle({ source: memorySource({ "main.conf": "@set $p [1, 2];\nx $p;\nbad $nope;\nb { c 1; }\n" }) }).load("main.conf");
     const expansion = graph.expand();
     const rendered = render(graph);
-    expect(rendered.block[0]?.values).toBe(expansion.block[0]?.values);
-    expect(rendered.block[0]?.written).toBe(expansion.block[0]?.written);
-    expect(rendered.block[0]?.origin).toBe(expansion.block[0]?.origin);
+    expect(rendered.block.at(0)?.values).toBe(expansion.block.at(0)?.values);
+    expect(rendered.block.at(0)?.written).toBe(expansion.block.at(0)?.written);
+    expect(rendered.block.at(0)?.origin).toBe(expansion.block.at(0)?.origin);
     expect(rendered.unreadable).toBe(expansion.unreadable);
     expect(rendered.diagnostics).toBe(graph.diagnostics);
     expect(graph.diagnostics.map((d) => d.code)).toEqual(["E5001"]);
-    const [list] = rendered.block[0]?.values ?? [];
+    const [list] = rendered.block.at(0)?.values ?? [];
     expect(list?.kind === "list" ? list.items.map((i) => [i.text, i.written.text, i.definition?.text]) : []).toEqual([
       ["1", "$p", "1"],
       ["2", "$p", "2"],

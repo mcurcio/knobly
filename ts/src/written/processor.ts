@@ -5,22 +5,22 @@
  * to the rendered tree is the rendered layer's `render (graph)`. It returns only low-level objects.
  */
 
-import { MisuseError } from "../errors.js";
 import { RESERVED } from "../gen/api/limits.js";
-import type { IDocumentSource } from "../source.js";
-import { type ConfigText, requireText } from "../text.js";
-import type { IExtension } from "./extension.js";
+import type { ConfigText } from "../gen/api/shared.js";
+import type { DocumentGraph as DocumentGraphApi, Extension, ProcessorOptions } from "../gen/api/written.js";
+import { requireText } from "../text.js";
 import { DocumentGraph } from "./graph.js";
 import { checkDirectiveName } from "./names.js";
-import type { IDocumentGraph } from "./model.js";
 import { readRoot } from "./read.js";
+import { MisuseError } from "../gen/api/errors.js";
 
-export interface IProcessorOptions {
-  readonly source: IDocumentSource;
-  readonly extensions?: readonly IExtension[];
-}
-
-export interface ILoadOptions {
+/**
+ * Load's options (spec 6.2). Written by hand, not taken from gen/api/written.ts: the generated `LoadOptions` spells
+ * `overrides` as a `ReadonlyMap`, where spec/codegen.md section 3 gives a map passed in a `Readonly<Record>`, as this
+ * binding has always taken it (milestone 6 errata). It goes, with `Processor` below, when the emitter spells an
+ * options record's map as a parameter's.
+ */
+export interface LoadOptions {
   /**
    * Overrides, by name without `$`, each as villanelle text: "8080 443" is two values. An override wins over every
    * `set` of its name, which acts as the default (L3). Each goes through the check of an override (spec 6.3), one by
@@ -29,17 +29,17 @@ export interface ILoadOptions {
   readonly overrides?: Readonly<Record<string, ConfigText>>;
 }
 
-export interface IProcessor {
+/** The factory; load is its only operation (spec 6.2). By hand for `LoadOptions`' sake (above). */
+export interface Processor {
   /**
-   * The processor's only operation. Read the root file at `path` (resolved through the source, as an included
-   * file's spec is, so the root has one path in the graph) and every file its include lines name, once each (R21),
-   * repeating until nothing new is named. Never rejects for anything in the text.
+   * Read the root file at `path` (resolved through the source, as an included file's spec is, so the root has one
+   * path in the graph) and every file its include lines name, once each (R21), repeating until nothing new is named.
+   * Never rejects for anything in the text.
    * @throws (rejects) ReadError (`paths` = `[path]`, the source's rejection as `cause`) when the source cannot resolve
-   * the root to exactly one file or read it; MisuseError for an override name that is not letters, digits and `_`; TypeError
-   * for a text that is not a string;
-   * BadTextError for an override's text the check of an override refuses
+   * the root to exactly one file or read it; MisuseError for an override name that is not letters, digits and `_`;
+   * TypeError for a text that is not a string; BadTextError for an override's text the check of an override refuses
    */
-  load(path: string, options?: ILoadOptions): Promise<IDocumentGraph>;
+  load(path: string, options?: LoadOptions): Promise<DocumentGraphApi>;
 }
 
 /**
@@ -48,9 +48,9 @@ export interface IProcessor {
  * @throws TypeError for an extension name that is not a string; MisuseError for one that is not a word, then for one
  * that is reserved (`set`, `snippet`, `use`) or already taken
  */
-export function villanelle(options: IProcessorOptions): IProcessor {
+export function villanelle(options: ProcessorOptions): Processor {
   const { source } = options;
-  const extensions = new Map<string, IExtension>();
+  const extensions = new Map<string, Extension>();
   for (const extension of options.extensions ?? []) {
     const name: unknown = extension.directive;
     requireText(name, "villanelle", "directive");

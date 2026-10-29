@@ -4,12 +4,14 @@
  * milestone 1 they checked two ways and disagreed about "1;").
  */
 
-import { DiagnosticCode, makeDiagnostic, messageOf } from "../diagnostics.js";
-import { BadTextError } from "../errors.js";
+import { makeDiagnostic } from "../diagnostics.js";
 import { parseEntry } from "../syntax/parse.js";
 import { requireText } from "../text.js";
 import { type IOverrideValues, readOverride } from "./bind.js";
 import { checkVariableName } from "./names.js";
+import { DiagnosticCode, describe } from "../gen/api/codes.js";
+import { BadTextError } from "../gen/api/errors.js";
+import { TokenKind } from "../gen/api/kinds.js";
 
 /** How the caller named what it was given, for the argument type error: `setOverride` / `text`, `load` / `overrides["port"]`. */
 export interface IOverrideCaller {
@@ -34,12 +36,12 @@ export function checkOverride(name: unknown, text: unknown, caller: IOverrideCal
   requireText(text, caller.member, caller.textParameter);
   const syntax = parseEntry(text, "valuesText");
   if (syntax.diagnostics.length > 0) throw new BadTextError(syntax.diagnostics);
-  const values = syntax.tokens.filter((t) => t.kind !== "SPACE" && t.kind !== "NEWLINE" && t.kind !== "COMMENT");
-  const at = values.length === 0 ? undefined : values.find((t) => t.kind === "VARIABLE");
+  const values = syntax.tokens.filter((t) => t.kind !== TokenKind.SPACE && t.kind !== TokenKind.NEWLINE && t.kind !== TokenKind.COMMENT);
+  const at = values.length === 0 ? undefined : values.find((t) => t.kind === TokenKind.VARIABLE);
   if (values.length === 0 || at !== undefined) {
     const code = DiagnosticCode.UnexpectedToken;
     const position = at?.span.start ?? { offset: 0, line: 0, column: 0 };
-    throw new BadTextError([makeDiagnostic(code, messageOf(code), { start: position, end: position })]);
+    throw new BadTextError([makeDiagnostic(code, describe(code).message, { start: position, end: position })]);
   }
   return readOverride(name, syntax);
 }

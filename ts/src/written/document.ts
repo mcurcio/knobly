@@ -1,20 +1,17 @@
 /**
  * One file as written (round 12 slices.md 2.1-2.4): its text, its saved text, its tier-1 parse, and the tree of handles
  * over it. Every edit computes the new text, checks it (2.3), re-parses the whole document and reconciles the
- * handles (2.1). Private to the package; programs see IDocument and the statement and value interfaces.
+ * handles (2.1). Private to the package; programs see `Document` and the statement and value interfaces.
  */
 
 import { anatomyOf, itemsOf, valuesOf } from "../anatomy.js";
-import { DiagnosticCode, type IDiagnostic, makeDiagnostic, messageOf } from "../diagnostics.js";
-import { type IPlace, makePlace } from "../origin.js";
-import type { ISourcePosition, ISourceSpan } from "../span.js";
-import { type INode, type ISyntax, spanOf, type ValueRef } from "../syntax/cst.js";
+import { BlockBase } from "../block.js";
+import { makeDiagnostic } from "../diagnostics.js";
+import { makePlace } from "../origin.js";
+import { spanOf, type ValueRef } from "../syntax/cst.js";
 import { parse, parseEntry } from "../syntax/parse.js";
-import { type IToken } from "../syntax/tokens.js";
-import { type ConfigText, requireText } from "../text.js";
+import { requireText } from "../text.js";
 import type { IBinding } from "./bind.js";
-import { BadTextError, DetachedError, MisuseError } from "../errors.js";
-import type { IDocument, IDocumentEdge, IParameter, ISetVariable, IWrittenBlock, IWrittenDirective, Statement, WrittenValue } from "./model.js";
 import { checkDirectiveName, checkVariableName } from "./names.js";
 import { blockShapes, type IShape, isTextAlone, parameterTokens, type ShapeKind, statementNodes } from "./shape.js";
 import {
@@ -28,6 +25,13 @@ import {
   WrittenDirective,
 } from "./statements.js";
 import { becomeKind, IndexValue, ListValue, newValue, Reference, SliceValue, ValueHandle, type ValueRole } from "./values.js";
+import { DiagnosticCode, describe } from "../gen/api/codes.js";
+import { BadTextError, DetachedError, MisuseError } from "../gen/api/errors.js";
+import type { ConfigText, Diagnostic, Place, SourcePosition, SourceSpan } from "../gen/api/shared.js";
+import type { Node, Syntax, Token } from "../gen/api/syntax.js";
+import type { DocumentEdge, Parameter, SetVariable, Statement, WrittenValue } from "../gen/api/written.js";
+import type * as api from "../gen/api/written.js";
+import { NodeKind, StatementKind, TokenKind, ValueKind } from "../gen/api/kinds.js";
 
 /** What a document needs from the graph that holds it. */
 export interface IDocumentHost {
@@ -141,31 +145,37 @@ class Reconcile {
   }
 }
 
-/** The statements of a document or of a block. */
-export class Block implements IWrittenBlock {
+/** The statements of a document or of a block (spec 2.11): live, so each member re-reads the current statements. */
+export class Block extends BlockBase<Statement, api.WrittenDirective> implements api.WrittenBlock {
   /** Set by every build. */
-  items: StatementHandle[] = [];
+  handles: StatementHandle[] = [];
 
   constructor(
     private readonly document: Document,
     /** The statement whose block this is; undefined for a document's top level. */
     readonly owner: StatementHandle | undefined,
-  ) {}
-
-  get statements(): readonly Statement[] {
-    this.owner?.live();
-    return this.items as readonly Statement[];
+  ) {
+    super();
   }
 
-  directives(name?: string): readonly IWrittenDirective[] {
-    return this.statements.filter((s): s is IWrittenDirective => s.kind === "directive" && (name === undefined || s.name === name));
+  protected contents(): readonly Statement[] {
+    this.owner?.live();
+    return this.handles as readonly Statement[];
+  }
+
+  protected blockOf(statement: Statement): Iterable<Statement> | undefined {
+    return (statement as unknown as StatementHandle).blockHandle;
+  }
+
+  protected isDirective(statement: Statement, name: string | undefined): statement is api.WrittenDirective {
+    return statement.kind === StatementKind.Directive && (name === undefined || statement.name === name);
   }
 
   insertStatements(index: number, text: ConfigText): readonly Statement[] {
     this.owner?.live();
     requireText(text, "insertStatements", "text");
-    if (!Number.isInteger(index) || index < 0 || index > this.items.length) {
-      throw new RangeError(`statement index ${String(index)} is outside 0..${String(this.items.length)}`);
+    if (!Number.isInteger(index) || index < 0 || index > this.handles.length) {
+      throw new RangeError(`statement index ${String(index)} is outside 0..${String(this.handles.length)}`);
     }
     return this.document.insertStatements(this, index, text);
   }
@@ -173,16 +183,16 @@ export class Block implements IWrittenBlock {
   addStatements(text: ConfigText): readonly Statement[] {
     this.owner?.live();
     requireText(text, "addStatements", "text");
-    return this.insertStatements(this.statements.length, text);
+    return this.insertStatements(this.handles.length, text);
   }
 }
 
-const TRIVIA: ReadonlySet<string> = new Set(["SPACE", "NEWLINE"]);
+const TRIVIA: ReadonlySet<string> = new Set([TokenKind.SPACE, TokenKind.NEWLINE]);
 
-export class Document implements IDocument {
+export class Document implements api.Document {
   private current: string;
   private saved: string;
-  private parsed: ISyntax;
+  private parsed: Syntax;
   readonly block: Block;
   private statementsByToken = new Map<number, StatementHandle>();
   private valuesByToken = new Map<number, ValueHandle>();
@@ -207,11 +217,11 @@ export class Document implements IDocument {
     return this.current;
   }
 
-  get syntax(): ISyntax {
+  get syntax(): Syntax {
     return this.parsed;
   }
 
-  includedBy(): readonly IDocumentEdge[] {
+  includedBy(): readonly DocumentEdge[] {
     return this.host.binding().edgesInto(this.resolvedPath);
   }
 
@@ -233,7 +243,7 @@ export class Document implements IDocument {
   // --- Lookups for the binding and render ---
 
   /** The statement handle of a directive or error node of the current parse. */
-  statementOf(node: INode): StatementHandle {
+  statementOf(node: Node): StatementHandle {
     const statement = this.statementsByToken.get(node.start);
     if (statement === undefined) throw new Error(`no statement at token ${String(node.start)} of ${this.resolvedPath}`);
     return statement;
@@ -247,37 +257,37 @@ export class Document implements IDocument {
   }
 
   /** A place in this document. */
-  place(span: ISourceSpan): IPlace {
+  place(span: SourceSpan): Place {
     return makePlace(this.resolvedPath, span);
   }
 
   /** The span of a token range of the current parse. */
-  spanOf(range: { readonly start: number; readonly end: number }): ISourceSpan {
+  spanOf(range: { readonly start: number; readonly end: number }): SourceSpan {
     return spanOf(this.parsed, range);
   }
 
   /** A statement's owned token range (2.2): from a comment line above it to its trailing comment. */
-  ownedRange(node: INode): { start: number; end: number } {
+  ownedRange(node: Node): { start: number; end: number } {
     const { tokens } = this.parsed;
     let first = node.start;
     let last = node.end - 1;
     while (last > first && TRIVIA.has(tokens[last]?.kind ?? "")) last--;
     let j = last + 1;
-    while (tokens[j]?.kind === "SPACE") j++;
-    if (tokens[j]?.kind === "COMMENT") last = j;
+    while (tokens[j]?.kind === TokenKind.SPACE) j++;
+    if (tokens[j]?.kind === TokenKind.COMMENT) last = j;
     // Comment lines directly above, only when the statement starts its line.
     let k = first - 1;
-    while (tokens[k]?.kind === "SPACE") k--;
-    if (k < 0 || tokens[k]?.kind === "NEWLINE" || tokens[k]?.kind === "BOM") {
+    while (tokens[k]?.kind === TokenKind.SPACE) k--;
+    if (k < 0 || tokens[k]?.kind === TokenKind.NEWLINE || tokens[k]?.kind === TokenKind.BOM) {
       for (;;) {
-        if (tokens[k]?.kind !== "NEWLINE") break;
+        if (tokens[k]?.kind !== TokenKind.NEWLINE) break;
         let m = k - 1;
-        while (tokens[m]?.kind === "SPACE") m--;
-        if (tokens[m]?.kind !== "COMMENT") break;
+        while (tokens[m]?.kind === TokenKind.SPACE) m--;
+        if (tokens[m]?.kind !== TokenKind.COMMENT) break;
         const comment = m;
         m--;
-        while (tokens[m]?.kind === "SPACE") m--;
-        if (!(m < 0 || tokens[m]?.kind === "NEWLINE" || tokens[m]?.kind === "BOM")) break;
+        while (tokens[m]?.kind === TokenKind.SPACE) m--;
+        if (!(m < 0 || tokens[m]?.kind === TokenKind.NEWLINE || tokens[m]?.kind === TokenKind.BOM)) break;
         first = comment;
         k = m;
       }
@@ -302,18 +312,18 @@ export class Document implements IDocument {
       add(`s:${s.kind}`, s, this.trimmed(s.node));
       for (const v of s.valueHandles()) value(v);
       if (s instanceof SnippetLine) for (const p of s.parameterHandles) add("p", p, { start: p.token, end: p.token + 1 });
-      for (const child of s.blockHandle?.items ?? []) statement(child);
+      for (const child of s.blockHandle?.handles ?? []) statement(child);
     };
     const value = (v: ValueHandle): void => {
       add(`v:${v.kind}`, v, typeof v.ref === "number" ? { start: v.ref, end: v.ref + 1 } : v.ref);
       for (const inner of v.innerHandles()) value(inner);
     };
-    for (const s of this.block.items) statement(s);
+    for (const s of this.block.handles) statement(s);
     return entries;
   }
 
   /** A node's range without trailing spaces and line breaks. */
-  trimmed(node: INode): { start: number; end: number } {
+  trimmed(node: Node): { start: number; end: number } {
     const { tokens } = this.parsed;
     let end = node.end;
     while (end > node.start + 1 && TRIVIA.has(tokens[end - 1]?.kind ?? "")) end--;
@@ -325,16 +335,16 @@ export class Document implements IDocument {
   private build(reconcile: Reconcile): void {
     this.statementsByToken = new Map();
     this.valuesByToken = new Map();
-    this.block.items = this.buildBlock(this.parsed.root, undefined, [], reconcile);
+    this.block.handles = this.buildBlock(this.parsed.root, undefined, [], reconcile);
   }
 
-  private buildBlock(container: INode, owner: StatementHandle | undefined, claimed: readonly string[], reconcile: Reconcile): StatementHandle[] {
+  private buildBlock(container: Node, owner: StatementHandle | undefined, claimed: readonly string[], reconcile: Reconcile): StatementHandle[] {
     const nodes = statementNodes(container);
     const shapes = blockShapes(this.parsed.tokens, nodes, this.host.extensionNames, claimed);
     return nodes.map((node, i) => this.buildStatement(node, shapes[i] as IShape, owner, reconcile));
   }
 
-  private buildStatement(node: INode, shape: IShape, owner: StatementHandle | undefined, reconcile: Reconcile): StatementHandle {
+  private buildStatement(node: Node, shape: IShape, owner: StatementHandle | undefined, reconcile: Reconcile): StatementHandle {
     const { tokens } = this.parsed;
     const start = tokens[node.start]?.span.start.offset ?? 0;
     const kept = reconcile.take(`s:${shape.kind}`, start);
@@ -344,7 +354,7 @@ export class Document implements IDocument {
     handle.parentHandle = owner;
     handle.detached = false;
     this.statementsByToken.set(node.start, handle);
-    const anatomy = node.kind === "directive" ? anatomyOf(tokens, node) : undefined;
+    const anatomy = node.kind === NodeKind.Directive ? anatomyOf(tokens, node) : undefined;
     const values = (refs: readonly ValueRef[]): ValueHandle[] => refs.map((ref) => this.buildValue(ref, handle, undefined, "value", reconcile));
     const block = (claimed: readonly string[]): void => {
       if (anatomy?.block === undefined) {
@@ -352,7 +362,7 @@ export class Document implements IDocument {
         return;
       }
       handle.blockHandle ??= new Block(this, handle);
-      handle.blockHandle.items = this.buildBlock(anatomy.block, handle, claimed, reconcile);
+      handle.blockHandle.handles = this.buildBlock(anatomy.block, handle, claimed, reconcile);
     };
     if (handle instanceof WrittenDirective || handle instanceof ExtensionLine) {
       handle.valueList = values(anatomy?.values ?? []);
@@ -384,17 +394,17 @@ export class Document implements IDocument {
 
   private newStatement(kind: ShapeKind): StatementHandle {
     switch (kind) {
-      case "directive":
+      case StatementKind.Directive:
         return new WrittenDirective(this);
-      case "extension":
+      case StatementKind.Extension:
         return new ExtensionLine(this);
-      case "set":
+      case StatementKind.Set:
         return new SetLine(this);
-      case "snippet":
+      case StatementKind.Snippet:
         return new SnippetLine(this);
-      case "use":
+      case StatementKind.Use:
         return new UseLine(this);
-      case "unreadable":
+      case StatementKind.Unreadable:
         return new UnreadableLine(this);
     }
   }
@@ -421,11 +431,11 @@ export class Document implements IDocument {
       handle.nameHandle = this.buildValue(ref.start, statement, undefined, "name", reconcile);
       const inner: number[] = [];
       for (let i = ref.start + 2; i < ref.end - 1; i++) inner.push(i);
-      const tilde = inner.findIndex((i) => tokens[i]?.kind === "TILDE");
+      const tilde = inner.findIndex((i) => tokens[i]?.kind === TokenKind.TILDE);
       const boundAt = (i: number | undefined): ValueHandle | undefined => {
         if (i === undefined) return undefined;
         const kindOf = tokens[i]?.kind;
-        return kindOf === "INTEGER" || kindOf === "VARIABLE" ? this.buildValue(i, statement, undefined, "bound", reconcile) : undefined;
+        return kindOf === TokenKind.INTEGER || kindOf === TokenKind.VARIABLE ? this.buildValue(i, statement, undefined, "bound", reconcile) : undefined;
       };
       if (handle instanceof IndexValue) {
         handle.indexHandle = boundAt(inner[0]);
@@ -444,7 +454,7 @@ export class Document implements IDocument {
    * (it returns diagnostics located in the given text). Then re-parse, reconcile, and tell the host.
    * @returns the handles made for the inserted text. @throws BadTextError, changing nothing.
    */
-  splice(start: number, end: number, insert: string | IInsert, given: readonly IDiagnostic[], keep?: Handle): Handle[] {
+  splice(start: number, end: number, insert: string | IInsert, given: readonly Diagnostic[], keep?: Handle): Handle[] {
     if (given.length > 0) throw new BadTextError(given);
     const spliced = typeof insert === "string" ? insertOf(insert, [[0, insert.length]]) : insert;
     const text = this.current.slice(0, start) + spliced.text + this.current.slice(end);
@@ -550,7 +560,7 @@ export class Document implements IDocument {
       return [];
     }
     const eol = this.lineBreak();
-    const items = block.items;
+    const items = block.handles;
     const lines = (indentation: string): Piece[] => [indentation, ...this.reindent(text, indentation)];
     let at: number;
     let insert: Piece[];
@@ -624,7 +634,7 @@ export class Document implements IDocument {
   }
 
   /**
-   * `ISetVariable.rename` and `IParameter.rename`: its `$name` token only (2.3). A bad name is a misuse error (the one
+   * `SetVariable.rename` and `Parameter.rename`: its `$name` token only (2.3). A bad name is a misuse error (the one
    * variable name check); a second `set` of the name in its block is E5002, by the text-alone rules. The variable
    * keeps its handle.
    */
@@ -658,7 +668,7 @@ export class Document implements IDocument {
     const end = this.valueOffsets(last).end;
     if (text === "") {
       let from = first.ref === undefined ? start : this.tokenIndexOf(first);
-      while (tokens[from - 1]?.kind === "SPACE") from--;
+      while (tokens[from - 1]?.kind === TokenKind.SPACE) from--;
       this.splice(tokens[from]?.span.start.offset ?? start, end, "", given);
       return;
     }
@@ -711,13 +721,13 @@ export class Document implements IDocument {
     }
     const { start, end } = this.valueOffsets(value);
     if (value.listHandle !== undefined) {
-      const skipped: ReadonlySet<string> = new Set(["SPACE", "NEWLINE", "COMMENT"]);
+      const skipped: ReadonlySet<string> = new Set([TokenKind.SPACE, TokenKind.NEWLINE, TokenKind.COMMENT]);
       const ref = value.ref;
       const first = typeof ref === "number" ? ref : ref.start;
       const last = typeof ref === "number" ? ref : ref.end - 1;
       let after = last + 1;
       while (skipped.has(tokens[after]?.kind ?? "")) after++;
-      if (tokens[after]?.kind === "COMMA") {
+      if (tokens[after]?.kind === TokenKind.COMMA) {
         const commaEnd = tokens[after]?.span.end.offset ?? end;
         const between = this.current.slice(end, tokens[after]?.span.start.offset ?? end);
         if (/^[ \t]*$/u.test(between)) {
@@ -730,7 +740,7 @@ export class Document implements IDocument {
       }
       let before = first - 1;
       while (skipped.has(tokens[before]?.kind ?? "")) before--;
-      if (tokens[before]?.kind === "COMMA") {
+      if (tokens[before]?.kind === TokenKind.COMMA) {
         const commaStart = tokens[before]?.span.start.offset ?? start;
         const between = this.current.slice(tokens[before]?.span.end.offset ?? start, start);
         this.splice(commaStart, end, /^[ \t]*$/u.test(between) ? "" : between.replace(/[ \t]+$/u, ""), []);
@@ -740,7 +750,7 @@ export class Document implements IDocument {
       return;
     }
     let from = this.tokenIndexOf(value);
-    while (tokens[from - 1]?.kind === "SPACE") from--;
+    while (tokens[from - 1]?.kind === TokenKind.SPACE) from--;
     this.splice(tokens[from]?.span.start.offset ?? start, end, "", []);
   }
 
@@ -748,11 +758,11 @@ export class Document implements IDocument {
   private isOnlyBound(bound: ValueHandle): boolean {
     const { tokens } = this.parsed;
     let open = this.tokenIndexOf(bound);
-    while (open > 0 && tokens[open]?.kind !== "LBRACK") open--;
+    while (open > 0 && tokens[open]?.kind !== TokenKind.LBRACK) open--;
     let bounds = 0;
-    for (let i = open + 1; i < tokens.length && tokens[i]?.kind !== "RBRACK"; i++) {
+    for (let i = open + 1; i < tokens.length && tokens[i]?.kind !== TokenKind.RBRACK; i++) {
       const kind = tokens[i]?.kind;
-      if (kind === "INTEGER" || kind === "VARIABLE") bounds++;
+      if (kind === TokenKind.INTEGER || kind === TokenKind.VARIABLE) bounds++;
     }
     return bounds <= 1;
   }
@@ -773,11 +783,11 @@ export class Document implements IDocument {
    * picks (2.5): block by block outward, the `set` lines above in that block, then the parameters of the snippet
    * whose body it is (D-F1-8).
    */
-  declarationOf(reference: Reference): ISetVariable | IParameter | undefined {
+  declarationOf(reference: Reference): SetVariable | Parameter | undefined {
     const name = reference.name;
     for (let s: StatementHandle | undefined = reference.statementHandle; s !== undefined; s = s.parentHandle) {
       const parent = s.parentHandle;
-      const items = (parent?.blockHandle ?? this.block).items;
+      const items = (parent?.blockHandle ?? this.block).handles;
       for (let i = items.indexOf(s) - 1; i >= 0; i--) {
         const candidate = items[i];
         if (candidate instanceof SetLine && candidate.variableHandle.name === name) return candidate.variableHandle;
@@ -794,7 +804,7 @@ export class Document implements IDocument {
   above(statement: StatementHandle, match: (s: StatementHandle) => boolean): StatementHandle | undefined {
     for (let s: StatementHandle | undefined = statement; s !== undefined; s = s.parentHandle) {
       const block = s.parentHandle?.blockHandle ?? this.block;
-      const items = block.items;
+      const items = block.handles;
       for (let i = items.indexOf(s) - 1; i >= 0; i--) {
         const candidate = items[i] as StatementHandle;
         if (match(candidate)) return candidate;
@@ -812,52 +822,52 @@ export class Document implements IDocument {
     };
     const statement = (s: StatementHandle): void => {
       for (const v of s.valueHandles()) value(v);
-      for (const child of s.blockHandle?.items ?? []) statement(child);
+      for (const child of s.blockHandle?.handles ?? []) statement(child);
     };
-    for (const s of this.block.items) statement(s);
+    for (const s of this.block.handles) statement(s);
     return out;
   }
 
   /** Every `set` and snippet line's variables, in text order. */
-  variables(): (ISetVariable | IParameter)[] {
-    const out: (ISetVariable | IParameter)[] = [];
+  variables(): (SetVariable | Parameter)[] {
+    const out: (SetVariable | Parameter)[] = [];
     const statement = (s: StatementHandle): void => {
       if (s instanceof SetLine) out.push(s.variableHandle);
       if (s instanceof SnippetLine) out.push(...s.parameterHandles);
-      for (const child of s.blockHandle?.items ?? []) statement(child);
+      for (const child of s.blockHandle?.handles ?? []) statement(child);
     };
-    for (const s of this.block.items) statement(s);
+    for (const s of this.block.handles) statement(s);
     return out;
   }
 }
 
-function valueKindOf(tokens: readonly IToken[], ref: ValueRef): WrittenValue["kind"] {
+function valueKindOf(tokens: readonly Token[], ref: ValueRef): WrittenValue["kind"] {
   if (typeof ref !== "number") {
-    if (ref.kind === "list") return "list";
-    for (let i = ref.start + 2; i < ref.end - 1; i++) if (tokens[i]?.kind === "TILDE") return "slice";
-    return ref.end - ref.start > 3 ? "index" : "slice";
+    if (ref.kind === NodeKind.List) return ValueKind.List;
+    for (let i = ref.start + 2; i < ref.end - 1; i++) if (tokens[i]?.kind === TokenKind.TILDE) return ValueKind.Slice;
+    return ref.end - ref.start > 3 ? ValueKind.Index : ValueKind.Slice;
   }
   switch (tokens[ref]?.kind) {
-    case "STRING":
-      return "string";
-    case "VARIABLE":
-      return "reference";
+    case TokenKind.STRING:
+      return ValueKind.String;
+    case TokenKind.VARIABLE:
+      return ValueKind.Reference;
     default:
-      return "word";
+      return ValueKind.Word;
   }
 }
 
 /** The position of `offset` in `text` (0-based line and UTF-16 column). */
-export function positionIn(text: string, offset: number): ISourcePosition {
+export function positionIn(text: string, offset: number): SourcePosition {
   const at = Math.max(0, Math.min(offset, text.length));
   const before = text.slice(0, at);
   const line = before.split("\n").length - 1;
   return { offset: at, line, column: at - (before.lastIndexOf("\n") + 1) };
 }
 
-function at(given: string, offset: number, code: DiagnosticCode): IDiagnostic {
+function at(given: string, offset: number, code: DiagnosticCode): Diagnostic {
   const position = positionIn(given, offset);
-  return makeDiagnostic(code, messageOf(code), { start: position, end: position });
+  return makeDiagnostic(code, describe(code).message, { start: position, end: position });
 }
 
 /** A piece of an insert: text the edit adds, or the range [from, to) of the caller's text it copies. */
@@ -890,21 +900,21 @@ function insertOf(given: string, pieces: readonly Piece[]): IInsert {
  * touches (a `set` claiming a name of a snippet parameter the splice touches counts too): located in the caller's
  * text when the problem lies in what it gave (2.3), else at 0:0.
  */
-function ruleProblems(syntax: ISyntax, extensions: ReadonlySet<string>, from: number, insert: IInsert): IDiagnostic[] {
-  const out: IDiagnostic[] = [];
+function ruleProblems(syntax: Syntax, extensions: ReadonlySet<string>, from: number, insert: IInsert): Diagnostic[] {
+  const out: Diagnostic[] = [];
   const { tokens } = syntax;
   const to = from + insert.text.length;
   const overlaps = (s: number, e: number): boolean => (from === to ? s < from && e > from : s < to && e > from);
-  const touches = (node: INode): boolean => {
+  const touches = (node: Node): boolean => {
     const span = spanOf(syntax, node);
     return overlaps(span.start.offset, span.end.offset);
   };
-  const report = (fault: { code: DiagnosticCode; span: ISourceSpan }): void => {
+  const report = (fault: { code: DiagnosticCode; span: SourceSpan }): void => {
     const offset = fault.span.start.offset;
     const origin = offset >= from && offset < to ? (insert.origin[offset - from] ?? -1) : -1;
     out.push(at(insert.given, Math.max(origin, 0), fault.code));
   };
-  const visit = (container: INode, claimed: readonly string[], touchedClaims: ReadonlySet<string>): void => {
+  const visit = (container: Node, claimed: readonly string[], touchedClaims: ReadonlySet<string>): void => {
     const nodes = statementNodes(container);
     const shapes = blockShapes(tokens, nodes, extensions, claimed);
     nodes.forEach((node, i) => {
@@ -920,10 +930,10 @@ function ruleProblems(syntax: ISyntax, extensions: ReadonlySet<string>, from: nu
         }
         if (involved) report(shape.fault);
       }
-      if (node.kind !== "directive") return;
+      if (node.kind !== NodeKind.Directive) return;
       const { block } = anatomyOf(tokens, node);
-      if (block === undefined || shape.kind === "unreadable") return;
-      const params = shape.kind === "snippet" ? parameterTokens(tokens, node) : [];
+      if (block === undefined || shape.kind === StatementKind.Unreadable) return;
+      const params = shape.kind === StatementKind.Snippet ? parameterTokens(tokens, node) : [];
       const names = params.map((t) => tokens[t]?.text.slice(1) ?? "");
       const touched = new Set(
         params.flatMap((t) => {

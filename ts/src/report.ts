@@ -1,42 +1,20 @@
 /**
  * Located diagnostics, and the one sink that load, value readers and programs all report into
  * (round 11 review finding 2; R14's report helper). Prior art: PostCSS `Result.messages` / `node.warn(result)`,
- * HCL's `hcl.Diagnostics`.
+ * HCL's `hcl.Diagnostics`. The types are generated (gen/api/shared.ts).
  */
 
-import type { DiagnosticCode } from "./diagnostics.js";
-import { DiagnosticError } from "./errors.js";
-import type { IPlace, IStep } from "./origin.js";
+import type * as api from "./gen/api/shared.js";
 import { locatedForm } from "./people.js";
+import type { DiagnosticCode } from "./gen/api/codes.js";
+import { DiagnosticError } from "./gen/api/errors.js";
 
-/**
- * A program's own code: `<namespace>/<name>`, such as "rasl/unknown-node". Never collides with villanelle's codes
- * (which start with "E"). Checked when made: `error()` and `report()` throw MisuseError for a code without "/".
- */
-export type ProgramCode = `${string}/${string}`;
-
-/** One located problem of a load: villanelle's or a program's. Always at a place in a file (design rule 3). */
-export interface ILocatedDiagnostic {
-  readonly code: DiagnosticCode | ProgramCode;
-  /** For people; not part of the cross-language contract. */
-  readonly message: string;
-  /**
-   * Where the problem is. For an override (written in no file) this is the `$name` that used it, and the message
-   * names the override's variable.
-   */
-  readonly place: IPlace;
-  /** The variables, uses and extension directives that brought the text to `place`'s reader; innermost first. */
-  readonly via: readonly IStep[];
-  /** `path:line:col: code: message`, 1-based: `main.conf:7:15: E5001: unknown variable: $pixels`. */
-  toString(): string;
-}
-
-class LocatedDiagnostic implements ILocatedDiagnostic {
+class LocatedDiagnostic implements api.LocatedDiagnostic {
   constructor(
-    readonly code: DiagnosticCode | ProgramCode,
+    readonly code: DiagnosticCode | api.ProgramCode,
     readonly message: string,
-    readonly place: IPlace,
-    readonly via: readonly IStep[],
+    readonly place: api.Place,
+    readonly via: readonly api.Step[],
   ) {}
 
   toString(): string {
@@ -45,25 +23,19 @@ class LocatedDiagnostic implements ILocatedDiagnostic {
 }
 
 /** One located diagnostic. Package-internal. */
-export function makeLocated(code: DiagnosticCode | ProgramCode, message: string, place: IPlace, via: readonly IStep[]): ILocatedDiagnostic {
+export function makeLocated(code: DiagnosticCode | api.ProgramCode, message: string, place: api.Place, via: readonly api.Step[]): api.LocatedDiagnostic {
   return new LocatedDiagnostic(code, message, place, via);
-}
-
-/** Anything a program can place a problem on: a directive, a value, or the whole load (its root file). */
-export interface ILocatable {
-  /** A located error for the program to throw or report. @throws MisuseError when `code` has no "/". */
-  error(message: string, code: ProgramCode): DiagnosticError;
 }
 
 /**
  * The one place problems collect. A program starts it with `rendered.diagnostics`, reports its own problems into
  * it, and runs reads through `collect` so a reader's DiagnosticError is recorded instead of ending the program.
  */
-export class Diagnostics implements Iterable<ILocatedDiagnostic> {
-  private readonly items: ILocatedDiagnostic[];
+export class Diagnostics implements api.Diagnostics {
+  private readonly items: api.LocatedDiagnostic[];
 
   /** Start with these, in order (usually `rendered.diagnostics`). */
-  constructor(initial?: Iterable<ILocatedDiagnostic>) {
+  constructor(initial?: Iterable<api.LocatedDiagnostic>) {
     this.items = [...(initial ?? [])];
   }
 
@@ -73,12 +45,12 @@ export class Diagnostics implements Iterable<ILocatedDiagnostic> {
   }
 
   /** Record one problem. */
-  add(diagnostic: ILocatedDiagnostic): void {
+  add(diagnostic: api.LocatedDiagnostic): void {
     this.items.push(diagnostic);
   }
 
   /** Record a program's problem placed on `at`: `problems.report(d, "no such node", "rasl/unknown-node")`. */
-  report(at: ILocatable, message: string, code: ProgramCode): void {
+  report(at: api.Locatable, message: string, code: api.ProgramCode): void {
     this.add(at.error(message, code).diagnostic);
   }
 
@@ -97,11 +69,11 @@ export class Diagnostics implements Iterable<ILocatedDiagnostic> {
   }
 
   /** The problems recorded, in order. */
-  toArray(): readonly ILocatedDiagnostic[] {
+  toArray(): readonly api.LocatedDiagnostic[] {
     return [...this.items];
   }
 
-  [Symbol.iterator](): Iterator<ILocatedDiagnostic> {
+  [Symbol.iterator](): Iterator<api.LocatedDiagnostic> {
     return this.items[Symbol.iterator]();
   }
 }

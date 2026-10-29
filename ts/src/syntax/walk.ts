@@ -4,9 +4,9 @@
  */
 
 import VillanelleParser from "../gen/VillanelleParser.js";
+import type { Node } from "../gen/api/syntax.js";
+import { NodeKind } from "../gen/api/kinds.js";
 
-import type { NodeKind } from "./cst.js";
-import { type INode } from "./cst.js";
 
 /** The parts of an ANTLR token the walk reads (antlr4's typings are incomplete; the cast lives in parse.ts). */
 export interface IAntlrToken {
@@ -53,7 +53,7 @@ const CONCEPT_BY_RULE: ReadonlyMap<number, NodeKind> = new Map(
  * plain terminal.
  */
 type Item =
-  | { readonly tag: "node"; readonly node: INode }
+  | { readonly tag: "node"; readonly node: Node }
   | { readonly tag: "error"; readonly start: number; readonly end: number; readonly parent: unknown }
   | { readonly tag: "token"; readonly index: number };
 
@@ -77,12 +77,12 @@ function items(tree: IAntlrTree): Item[] {
   // A directive that ended with a recognition error before any block is a broken statement: it folds into one error
   // node with the tokens recovery skipped after it (spec 3.2). One whose block was entered keeps its node.
   const broken =
-    kind === "directive" && tree.exception != null && !(tree.children ?? []).some((child) => child.ruleIndex === BLOCK_RULE);
+    kind === NodeKind.Directive && tree.exception != null && !(tree.children ?? []).some((child) => child.ruleIndex === BLOCK_RULE);
   return broken ? [{ tag: "error", start: node.start, end: node.end, parent: tree.parentCtx }] : [{ tag: "node", node }];
 }
 
-function makeNode(kind: NodeKind, kids: readonly Item[], ctx: IAntlrTree): INode {
-  const children: INode[] = [];
+function makeNode(kind: NodeKind, kids: readonly Item[], ctx: IAntlrTree): Node {
+  const children: Node[] = [];
   let lo = Infinity;
   let hi = -Infinity;
   for (let i = 0; i < kids.length; i++) {
@@ -112,14 +112,14 @@ function makeNode(kind: NodeKind, kids: readonly Item[], ctx: IAntlrTree): INode
 }
 
 /** The CST of a `document` parse tree. */
-export function toCst(document: IAntlrTree): INode {
+export function toCst(document: IAntlrTree): Node {
   const [root] = items(document);
-  if (root?.tag !== "node" || root.node.kind !== "document") throw new Error("parse tree root is not a document");
+  if (root?.tag !== "node" || root.node.kind !== NodeKind.Document) throw new Error("parse tree root is not a document");
   return root.node;
 }
 
 /** The CST of an entry rule's parse tree: a `document` node over all `count` tokens, its concept nodes as children. */
-export function toEntryCst(tree: IAntlrTree, count: number): INode {
+export function toEntryCst(tree: IAntlrTree, count: number): Node {
   const children = items(tree).flatMap((item) => (item.tag === "node" ? [item.node] : []));
   return { kind: "document", start: 0, end: count, children };
 }

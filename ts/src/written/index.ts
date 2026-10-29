@@ -1,55 +1,52 @@
 /**
- * The low level's public API (spec 6): the config as written, editable, saved back. The rendered layer reaches the
- * low level only through this module (spec 7.0; checked by ts/eslint.config.js), and the package entry re-exports it.
+ * The low level's public API (spec 6; import path "villanelle/written"): the config as written, editable, saved back.
+ * The rendered layer reaches the low level only through this module (spec 7.0; checked by ts/eslint.config.js). Its
+ * types are generated (gen/api/written.ts), but for `LoadOptions` and `Processor` (processor.ts says why).
  */
 
-export type { IExtension, IExtensionUse } from "./extension.js";
-export { formatDiagnostic } from "./format.js";
-export { type ILoadOptions, type IProcessor, type IProcessorOptions, villanelle } from "./processor.js";
+export { StatementKind, UnreadableReason, ValueKind, VariableKind } from "../gen/api/kinds.js";
+export { MAX_DEPTH, MAX_DIRECTIVES, MAX_SAFE_INTEGER, RESERVED, VARIABLE_NAME } from "../gen/api/limits.js";
 export type {
-  ICopy,
-  IDirectiveExpansion,
-  IDocument,
-  IDocumentEdge,
-  IDocumentGraph,
-  IExpansion,
-  IExtensionLine,
-  IIndex,
-  IList,
-  IOverrideVariable,
-  IParameter,
-  IReference,
-  IReferenceResolution,
-  IResolution,
-  ISetLine,
-  ISetVariable,
-  ISlice,
-  ISnippetLine,
-  IStatementBase,
-  IString,
-  IUnreadableExpansion,
-  IUnreadableLine,
-  IUseLine,
-  IValueBase,
-  IVariableBase,
-  IWord,
-  IWrittenBlock,
-  IWrittenDirective,
-  Statement,
-  StatementKind,
-  Variable,
-  VariableKind,
-  WrittenValue,
-} from "./model.js";
-export type {
+  Copy,
+  DirectiveExpansion,
+  Document,
+  DocumentEdge,
+  DocumentGraph,
+  ExpandedIndex,
+  ExpandedList,
+  ExpandedSlice,
+  ExpandedString,
   ExpandedValue,
-  IExpandedIndex,
-  IExpandedList,
-  IExpandedSlice,
-  IExpandedString,
-  IExpandedValueBase,
-  IExpandedWord,
-  IIndexValue,
-  ISliceValue,
-  ValueKind,
-} from "./value.js";
+  ExpandedWord,
+  Expansion,
+  ExpansionBlock,
+  Extension,
+  ExtensionLine,
+  ExtensionUse,
+  Index,
+  IndexValue,
+  List,
+  OverrideVariable,
+  Parameter,
+  ProcessorOptions,
+  Reference,
+  ReferenceResolution,
+  Resolution,
+  SetLine,
+  SetVariable,
+  Slice,
+  SliceValue,
+  SnippetLine,
+  Statement,
+  String,
+  UnreadableExpansion,
+  UnreadableLine,
+  UseLine,
+  Variable,
+  Word,
+  WrittenBlock,
+  WrittenDirective,
+  WrittenValue,
+} from "../gen/api/written.js";
+export { formatDiagnostic } from "./format.js";
+export { type LoadOptions, type Processor, villanelle } from "./processor.js";

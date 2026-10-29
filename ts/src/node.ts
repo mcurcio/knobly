@@ -7,14 +7,15 @@ import { readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises
 import { basename, dirname, join, resolve } from "node:path";
 
 import { globToRegExp, hasGlob } from "./graph/glob.js";
-import { checkLostUpdates, type IDocumentSource, type IDocumentWriter } from "./source.js";
+import { checkLostUpdates } from "./source.js";
+import type { DocumentSource, DocumentWriter } from "./gen/api/io.js";
 
 /**
  * A document source over the filesystem. `read` reads a path as given, as UTF-8; `resolve` joins a spec to the
  * directory of `context.parentPath`; a glob (`*` and `?` in the last path segment only) lists that directory and
  * returns every matching file. A missing file resolves to no paths (E3001).
  */
-export function fileSource(): IDocumentSource {
+export function fileSource(): DocumentSource {
   return {
     async resolve(spec, context) {
       const path = resolve(dirname(context.parentPath), spec);
@@ -58,7 +59,7 @@ function isMissing(error: unknown): boolean {
  * failure while staging removes the temporaries and rejects with nothing replaced; a failure while renaming can
  * leave earlier files replaced (stated cost) and removes the temporaries not yet renamed.
  */
-export function fileWriter(): IDocumentWriter {
+export function fileWriter(): DocumentWriter {
   return {
     async write(files) {
       const current: (string | undefined)[] = [];

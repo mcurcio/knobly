@@ -5,10 +5,9 @@
 
 import { describe, expect, it } from "vitest";
 
-import { DiagnosticCode } from "../diagnostics.js";
-import { DiagnosticError } from "../errors.js";
-import type { ExpandedValue } from "../written/index.js";
+import { type ExpandedValue, ValueKind } from "../written/index.js";
 import { loadText, only, originText } from "./testing.js";
+import { DiagnosticCode, DiagnosticError } from "../index.js";
 
 /** The values of the one directive `v ...;`. */
 async function values(written: string, overrides?: Record<string, string>): Promise<readonly ExpandedValue[]> {
@@ -73,7 +72,7 @@ describe("readers", () => {
   it("list: a list's items, each with its own origin, also its items property; E4002 for another kind", async () => {
     const list = await value('[0.04, "x", [1, 2], c[0~1]]');
     const items = list.list();
-    expect(list.kind === "list" ? list.items : []).toEqual(items);
+    expect(list.kind === ValueKind.List ? list.items : []).toEqual(items);
     expect(items.map((i) => [i.kind, i.text, originText(i.origin)])).toEqual([
       ["word", "0.04", "main.conf:0:3"],
       ["string", '"x"', "main.conf:0:9"],
@@ -87,11 +86,10 @@ describe("readers", () => {
   it("slice: a slice (either side may be absent) or an index, negative bounds allowed; E4002 otherwise", async () => {
     const read = await values("hyperhdr_color[144~152] c[144~] c[~152] foo[1] foo[-3~-1] w");
     expect(read[0]?.slice()).toEqual({ kind: "slice", name: "hyperhdr_color", start: 144, end: 152 });
-    expect(read[1]?.slice()).toEqual({ kind: "slice", name: "c", start: 144 });
-    expect(read[2]?.slice()).toEqual({ kind: "slice", name: "c", end: 152 });
+    expect(read[1]?.slice()).toStrictEqual({ kind: "slice", name: "c", start: 144, end: undefined });
+    expect(read[2]?.slice()).toStrictEqual({ kind: "slice", name: "c", start: undefined, end: 152 });
     expect(read[3]?.slice()).toEqual({ kind: "index", name: "foo", index: 1 });
     expect(read[4]?.slice()).toEqual({ kind: "slice", name: "foo", start: -3, end: -1 });
-    expect(read[1]?.slice()).not.toHaveProperty("end");
     expect(thrown(() => read[5]?.slice())[0]).toBe(DiagnosticCode.WrongValueKind);
   });
 
