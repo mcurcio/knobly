@@ -174,3 +174,11 @@
   wrapper around the generated parser. The review's word for the per-binding conformance program is kept as
   `conformance adapter` in the glossary; the unqualified word keeps its port meaning. An owner call if he wants
   another word.
+- (2026-10-29, milestone 3 verifier) frozen-m3.md section 7 says the comment "must be found before the probe's
+  syntax diagnostics are reported"; spec 2.8's table orders the check as "the text's syntax diagnostics, then E2001
+  at the first token that is more than values". The two bindings took different readings, and no shared case pins
+  it: for `"1\n2 # c"` (set) TypeScript gives E2001 at 1:2 (the comment), Python at 1:0 (the `2`, the first token
+  after the line break); for `"1 \\ # c"` TypeScript gives E2001 at 0:4, Python the syntax diagnostic E1003 at 0:2;
+  for `"[1, # c"` TypeScript E2001 at 0:4, Python E2001 at 0:7. Python follows the spec's order; TypeScript reports
+  the comment ahead of earlier problems. Needs a ruling and shared cases for a comment after a line break or a
+  syntax error.
