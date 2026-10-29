@@ -264,3 +264,20 @@
   goes. The Python binding reports E4001 at each `$name` that reads the override (reason `value`), as for a bad
   bound through a variable (spec 2.4, E4001 "a bound reached through a variable"). No shared case covers it; the
   TypeScript lane should agree, or the spec should say.
+
+## 2026-10-29, milestone 4 TypeScript lane
+
+- **`add-include-unread` is the TypeScript binding's one red case too**, for the reason the Python lane gives: its
+  expected file predates vil-umh.4. TypeScript gives the same output as Python (`"diagnostics": [["E3007",
+  "main.conf:1:0"]]` in `list`; `"unreadable": [["", "unread", "main.conf:1:0"]]` and that diagnostic in `render`).
+  The expected file needs re-deriving in the spec lane.
+- **An override's literal bound beyond ±(2^53-1)**: TypeScript agrees with Python (E4001, reason `value`, at each
+  `$name` that reads the override); the spec should say so in 6.3.
+- **`slice value`, `index value` and `plain value` are `layer: shared` in `spec/schema/api.json`**, but the frozen
+  page moves them into `villanelle.written` for Python and moves `ts/src/value.ts` (which holds them) under
+  `ts/src/written/` for TypeScript. TypeScript followed the frozen page (they are reader results of the expanded
+  value, which the low level owns); the schema's layer should become `written`, or the page should keep them shared.
+- **The adapter now reports a native `TypeError` and `RangeError` as `thrown`** (argument type error, index out of
+  range), as spec/conformance.md 3 asks. A cost: an adapter's own JavaScript bug that throws a `TypeError` now shows
+  as an argument type error, not a fault. The TypeScript adapter's own refusals (unknown op, no member) throw a
+  plain `Error` so they stay faults.
