@@ -446,7 +446,7 @@ export class Document implements IDocument {
 
   /** `replaceWithText` of a statement: zero or more statements, indented as it is. */
   replaceStatement(statement: StatementHandle, text: string): readonly Statement[] {
-    const given = parse(text).diagnostics;
+    const given = parseEntry(text, "statementsText").diagnostics;
     if (text.trim() === "") {
       if (given.length > 0) throw new BadTextError(given);
       this.removeStatement(statement);
@@ -492,7 +492,7 @@ export class Document implements IDocument {
    * before `statements[index]` (its owned comments stay with it), or after the last statement.
    */
   insertStatements(block: Block, index: number, text: string): readonly Statement[] {
-    const given = parse(text).diagnostics;
+    const given = parseEntry(text, "statementsText").diagnostics;
     if (text.trim() === "") {
       if (given.length > 0) throw new BadTextError(given);
       return [];

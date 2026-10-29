@@ -95,7 +95,7 @@ def parse(text: str) -> Syntax:
     return _located(tokens, root, raw)
 
 
-EntryRule: TypeAlias = Literal["valuesText", "itemsText", "boundText", "nameText"]
+EntryRule: TypeAlias = Literal["statementsText", "valuesText", "itemsText", "boundText", "nameText"]
 """The grammar's entry rules (spec 2.8): a text a program gives an edit or an override, parsed on its own."""
 
 

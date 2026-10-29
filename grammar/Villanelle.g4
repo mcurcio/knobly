@@ -22,6 +22,7 @@ items         : value gap? (',' gap? value gap?)* (',' gap?)? ;
 
 // Entry rules (spec 2.8): a text a program hands to an edit or an override, parsed on its own. A binding parses
 // such a text with the rule named here, never by splicing it into a probe document.
+statementsText : statements EOF ;                                 // a statement's replace, insert or add statements: no BOM
 valuesText    : gap? (value (gap value)* gap?)? EOF ;             // a line's values: set, a value's replace, an override
 itemsText     : gap? (value gap? (',' gap? value gap?)*)? EOF ;   // a list item's replace: items, no trailing ','
 boundText     : bound EOF ;                                       // a slice or index bound's replace

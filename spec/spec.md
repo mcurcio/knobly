@@ -291,7 +291,7 @@ codes each edit checks, and where it places them:
 
 | Edit | Codes | Placed at |
 |---|---|---|
-| `replace with text`, `insert statements`, `add statements` (statements) | the text's syntax diagnostics; then the text-alone rules (E5002, E5005, E5009, E5010, E5011) for every statement the new text touches, checked in the document as it would be after the edit | the syntax diagnostic's span; a rule's fault at its place in the given text, or 0:0 when the fault lies in a statement already there (a `set` inserted before an existing `set` of the same name) |
+| `replace with text`, `insert statements`, `add statements` (statements) | the `statementsText` entry rule (so a byte-order mark is refused: it is allowed only at the start of a document); then the text-alone rules (E5002, E5005, E5009, E5010, E5011) for every statement the new text touches, checked in the document as it would be after the edit | the syntax diagnostic's span; a rule's fault at its place in the given text, or 0:0 when the fault lies in a statement already there (a `set` inserted before an existing `set` of the same name) |
 | `replace with text` (a value that is not a list item), `set` | the `valuesText` entry rule (so a `;`, a block, or a comment the text ends in is refused), then the same text-alone rules | the entry rule's diagnostic; as above |
 | `replace with text` (a list item) | the `itemsText` entry rule (values separated by `,`, no trailing `,`), then the same text-alone rules | as above |
 | a slice bound's `replace with text` | the `boundText` entry rule: exactly one integer word or `$name` | the entry rule's diagnostic (E2001 at 0:0 for anything else) |
@@ -561,7 +561,8 @@ writer` that the program supplies.
   anything, with a `lost update error` (2.8) whose `paths` are exactly the conflicting files, in batch order (not
   every file of the batch). There is **one check**, `check lost updates (files, current)`, a pure function of the
   io layer that every writer calls: given the batch and each file's text in the medium now (absent, read as empty
-  text, when the file does not exist), it raises the `lost update error` or returns. A program's own writer calls it
+  text, when the file does not exist), it raises the `lost update error` or returns. A `current` list that is not as long
+  as the batch is a misuse error (2.8), raised before any comparison. A program's own writer calls it
   too. `save` raises a `lost update error` from the writer as it is (it is already a `save error`), never wrapped.
   Prior art: HTTP's conditional requests (RFC 9110 13.1.1, `If-Match`) and optimistic concurrency.
 
@@ -744,6 +745,11 @@ raise the same errors; round 13 root cause 2). Given a name and a value:
    whose diagnostics are located in the given text: the entry rule's diagnostic; else E2001 at a `$name`, or at
    0:0 when it holds no value. (A bad escape, E1005, and a literal bound that is not an integer, E2007, are now
    the entry rule's; the old step 4, E4003 or E4001 from an override reader, is deleted.)
+
+A literal slice or index bound beyond ±(2^53-1) in an override's text passes this check (the grammar cannot see a
+number's size). It is E4001 at each `$name` that reads the override, found by the low level, with that `$name`'s
+statement an `unreadable expansion` of reason `value`, as for a bound reached through a variable (2.4;
+`load-override-bound-too-big`).
 
 `"1;"` is refused (E2001 at 0:1), from `load` as from `set override`; `"1\n2"` is two values. (Before milestone 1,
 `load` accepted `"1;"` with a different check: round 13 review, root cause 2.)

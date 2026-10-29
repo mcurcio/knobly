@@ -643,6 +643,11 @@ def test_check_lost_updates_reads_an_absent_file_as_empty_and_names_each_conflic
     assert raised.value.paths == ("a", "b", "c")
 
 
+def test_check_lost_updates_refuses_a_current_list_not_as_long_as_the_batch_as_misuse() -> None:
+    with pytest.raises(ValueError, match="1 files but 0 current texts"):
+        vl.check_lost_updates([vl.FileWrite("a", "1", "")], [])
+
+
 def test_save_raises_a_program_writers_lost_update_error_as_it_is() -> None:
     graph = load({"main.conf": "x 1;\n"})
     directive(graph.root.block[0]).set("2")

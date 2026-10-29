@@ -162,8 +162,8 @@ every problem becomes a diagnostic and the rest is read. It fails only when:
   text the check of an override refuses (`BadTextError`, located in the text: see
   [low-level-api.md](low-level-api.md#overrides)).
 
-`render` takes any graph a processor loaded (TypeError for anything else, in both languages), and a render's
-`diff` takes any other render.
+`render` takes any object with the document graph's public members ([spec/spec.md](../spec/spec.md) 7.0), and a
+render's `diff` takes any other render.
 
 **Overrides** are texts read as values: `{ ports: '8080 443 "x" [1, 2]' }` gives `$ports` four values. They win
 over every `set` of the same name ([spec/expansion.md](../spec/expansion.md) 6 has the whole precedence table). The low level can change them later without a reload (`graph.setOverride`,
@@ -530,7 +530,7 @@ override's value is placed on the `$name` that used it.
 
 A program places its own problems on what it read. Every directive, value and the render itself has
 `error(message, code)` (Python: `error(message, code=...)`), which returns a `DiagnosticError` to throw or record. A
-program's code is `<namespace>/<name>`, such as `rasl/unknown-node`; both parts must be there (TypeError /
+program's code is `<namespace>/<name>`, such as `rasl/unknown-node`; both parts must be there (MisuseError /
 ValueError otherwise), so a program's code never looks like villanelle's.
 
 **The sink** (`Diagnostics`) is the one place problems collect. Start it with the render's problems, report into it,

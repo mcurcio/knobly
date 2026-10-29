@@ -7,7 +7,7 @@
  * writer refuses a lost update through the one check, `checkLostUpdates` (spec 4.2).
  */
 
-import { LostUpdateError } from "./errors.js";
+import { LostUpdateError, MisuseError } from "./errors.js";
 import { globToRegExp, hasGlob } from "./graph/glob.js";
 
 /** Where a spec is being resolved from. */
@@ -85,9 +85,13 @@ export function memorySource(files: Readonly<Record<string, string>>): IDocument
  * The one lost-update check (spec 4.2): `current[i]` is `files[i]`'s text in the medium now, `undefined` when there
  * is none (read as `""`). Every writer calls it before it writes anything; a program's own writer should too. Prior
  * art: HTTP's conditional requests (RFC 9110 13.1.1) and optimistic concurrency.
- * @throws LostUpdateError naming every file whose current text differs from its `savedText`, in batch order
+ * @throws MisuseError when `current` is not as long as `files`; LostUpdateError naming every file whose current text
+ * differs from its `savedText`, in batch order
  */
 export function checkLostUpdates(files: readonly IFileWrite[], current: readonly (string | undefined)[]): void {
+  if (current.length !== files.length) {
+    throw new MisuseError(`checkLostUpdates: ${files.length} files but ${current.length} current texts`);
+  }
   const lost = files.filter((file, i) => (current[i] ?? "") !== file.savedText).map((file) => file.resolvedPath);
   if (lost.length > 0) throw new LostUpdateError(lost);
 }

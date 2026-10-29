@@ -2625,7 +2625,7 @@
     },
     {
       "name": "slice value",
-      "layer": "shared",
+      "layer": "written",
       "nature": "record",
       "ts": "ISliceValue",
       "py": "SliceValue",
@@ -2656,7 +2656,7 @@
     },
     {
       "name": "index value",
-      "layer": "shared",
+      "layer": "written",
       "nature": "record",
       "ts": "IIndexValue",
       "py": "IndexValue",
@@ -3115,7 +3115,7 @@
       "what": "misuse error class",
       "ts": "TypeError",
       "py": "ValueError",
-      "spec picks": "an allowed difference (binding guide section 3); not a defect"
+      "spec picks": "MisuseError in TypeScript, outside VillanelleError; ValueError in Python (milestone 4, spec 2.8): TypeError is now only the argument type error"
     },
     {
       "what": "walk",

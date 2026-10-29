@@ -136,6 +136,11 @@ describe("the memory adapters (spec/contract.md 5)", () => {
     expect((error as LostUpdateError).paths).toEqual(["a", "c"]);
   });
 
+  it("checkLostUpdates refuses a current list not as long as the batch, as a misuse error", () => {
+    expect(() => checkLostUpdates([{ resolvedPath: "a", text: "1", savedText: "y" }], [])).toThrow(MisuseError);
+    expect(() => checkLostUpdates([{ resolvedPath: "a", text: "1", savedText: "" }], [])).toThrow(MisuseError);
+  });
+
   it("memoryWriter treats a missing key as empty text", async () => {
     const files: Record<string, string> = {};
     await memoryWriter(files).write([{ resolvedPath: "new.conf", text: "n;\n", savedText: "" }]);

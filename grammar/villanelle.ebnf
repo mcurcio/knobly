@@ -26,6 +26,7 @@ List         ::= '[' Gap? Items? ']'                        /* cst: list */
 Items        ::= Value Gap? ( ',' Gap? Value Gap? )* ( ',' Gap? )?
 
 /* entry rules (spec 2.8): a text a program hands to an edit or an override, parsed on its own */
+StatementsText ::= Statements EOF
 ValuesText   ::= Gap? ( Value ( Gap Value )* Gap? )? EOF
 ItemsText    ::= Gap? ( Value Gap? ( ',' Gap? Value Gap? )* )? EOF
 BoundText    ::= Bound EOF

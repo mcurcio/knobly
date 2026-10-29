@@ -281,3 +281,36 @@
   range), as spec/conformance.md 3 asks. A cost: an adapter's own JavaScript bug that throws a `TypeError` now shows
   as an argument type error, not a fault. The TypeScript adapter's own refusals (unknown op, no member) throw a
   plain `Error` so they stay faults.
+
+## 2026-10-29, milestone 4 fix pass
+
+- **`add-include-unread` re-derived** from spec 6.10 (vil-umh.4): `list` now expects `[["E3007","main.conf:1:0"]]`
+  and `render` expects `"unreadable": [["","unread","main.conf:1:0"]]` with that diagnostic. Both bindings already
+  gave it; every shared case now passes in both.
+- **Contract 4.3 against spec 6.3** (order of checks): contract 4.3 said every text type check comes before
+  everything else, while spec 6.3's check of an override puts the name's misuse check first. Both bindings follow
+  6.3 (`setOverride("a-b", 5)` is a misuse error). Contract 4.3 now names the override check as the one exception;
+  the owner may prefer the other order (swap 6.3's steps 1 and 2, and both bindings).
+- **Spec 2.8 against spec 6.3** (not changed, owner call): 2.8 says every check of a text that depends only on the
+  text is the grammar's, but the override check still filters `valuesText`'s tokens by hand (E2001 at a `$name`, or
+  at 0:0 for a text with no value). An `overrideText` entry rule would need a second, variable-free copy of the value
+  rules (value, slice, bounds, list, items) in the .g4 and the .ebnf, and would move the empty-text diagnostic from
+  0:0 to the end of the text (a whitespace- or comment-only override). Options: add the rule and accept both costs,
+  or reword 2.8 to admit the override's `$name` and no-value checks. Related: `set ("# c\n")` (the `valuesText` rule
+  accepts a comment-only text) writes `a # c\n;`, a directive with no values; whether `set` should refuse a text with
+  no value is not stated.
+- **`render` given something that is not a graph**: spec 7.0 accepts any object with the graph's public members and
+  names no error group otherwise; TypeScript fails with a native `TypeError`, Python with `AttributeError` (a fault
+  in conformance terms). docs/rendered-tree.md claimed TypeError in both and now points at spec 7.0 instead. Owner
+  call: make it an `argument type error` (both bindings check for a callable `expand`) or leave it unspecified.
+- **Statements texts had no entry rule**: `replaceWithText`, `insertStatements` and `addStatements` parsed their text
+  as a document, which accepts a leading byte-order mark, so `addStatements("﻿b 2;")` wrote a document with
+  E1003. `statementsText : statements EOF` is added to the .g4 and the .ebnf and used for those edits; the BOM is
+  refused with E2001 at 0:0 (case `add-statements-bom-refused`). A cost: such a text now reports only its first
+  syntax error, as every entry rule does.
+- **`check lost updates` with a `current` list not as long as the batch** is now a misuse error in both bindings
+  (spec 4.2); TypeScript read missing entries as empty text.
+- **New load cases' expected outputs** (`load-override-bound-too-big`, `load-var-failed-set-shows-outer`,
+  `load-var-failed-set-top`, `load-var-set-reads-outer`, `load-var-set-reads-itself-top`) were taken from the
+  bindings, which agree byte for byte, and checked by hand against the behaviour spec/expansion.md 4, 8 and 9 and
+  spec 6.3 now state; they pin today's behaviour, not an independent derivation.

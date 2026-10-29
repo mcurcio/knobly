@@ -169,7 +169,9 @@ DetachedError extends      detached error  DetachedError(ReferenceError) detache
 ### 4.3 Which edits a detached or a mistyped call reaches
 
 Every member of a detached handle except `kind` raises `detached error` first, before any type check (spec 6.1);
-then the type check of each text parameter (spec 6.9); then everything else.
+then the type check of each text parameter (spec 6.9); then everything else. One exception: the check of an
+override (`load`'s `overrides`, `set override`) checks the name (a misuse error) before the text's type, in the
+order spec 6.3 gives.
 
 Conformance: the written cases `detached` (a detached handle's edit) and every `["error", "BadTextError", ...]`
 output. The class tree itself is not in a shared case (a case cannot name a class); each binding tests it, and its

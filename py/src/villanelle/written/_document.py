@@ -515,8 +515,8 @@ def _removal_range(text: str, start: int, end: int) -> tuple[int, int]:
 
 
 def _statements_text_problems(text: str) -> tuple[Diagnostic, ...]:
-    """A statements text's check: its own syntax diagnostics, as a document (2.8)."""
-    return parse(text).diagnostics
+    """A statements text's check: the grammar's ``statementsText`` entry rule (2.8), so a byte-order mark is refused."""
+    return parse_entry(text, "statementsText").diagnostics
 
 
 def replace_statement(statement: Statement, text: str) -> tuple[Statement, ...]:

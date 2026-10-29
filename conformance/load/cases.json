@@ -38,5 +38,10 @@
 {"name": "load-include-sees-includer", "needs": ["include"], "files": {"main.conf": "set $a 1;\ninclude \"f.conf\";\nset $b 2;\n", "f.conf": "t $a;\nu $b;\n"}, "root": "main.conf", "extensions": ["include"]},
 {"name": "load-include-twice-same-block", "needs": ["include"], "files": {"main.conf": "include \"f.conf\";\ninclude \"f.conf\";\n", "f.conf": "set $port 80;\nlisten $port;\n"}, "root": "main.conf", "extensions": ["include"]},
 {"name": "load-snippet-sees-later-set", "needs": ["snippet"], "files": {"main.conf": "snippet s {\n  t $c;\n}\nset $c 1;\nuse s;\n"}, "root": "main.conf"},
-{"name": "load-override-free", "needs": [], "files": {"main.conf": "t $x;\nblk {\n  u $x;\n}\n"}, "root": "main.conf", "overrides": {"x": "1"}}
+{"name": "load-override-free", "needs": [], "files": {"main.conf": "t $x;\nblk {\n  u $x;\n}\n"}, "root": "main.conf", "overrides": {"x": "1"}},
+{"name": "load-override-bound-too-big", "needs": [], "files": {"main.conf": "x $n;\ny 1;\n"}, "root": "main.conf", "overrides": {"n": "c[99999999999999999999]"}},
+{"name": "load-var-failed-set-shows-outer", "needs": [], "files": {"main.conf": "set $a 1;\nb {\n  set $a $nope;\n  x $a;\n}\n"}, "root": "main.conf"},
+{"name": "load-var-failed-set-top", "needs": [], "files": {"main.conf": "set $a $nope;\nx $a;\n"}, "root": "main.conf"},
+{"name": "load-var-set-reads-outer", "needs": [], "files": {"main.conf": "set $a 1;\nb {\n  set $a $a;\n  x $a;\n}\n"}, "root": "main.conf"},
+{"name": "load-var-set-reads-itself-top", "needs": [], "files": {"main.conf": "set $a $a;\n"}, "root": "main.conf"}
 ]

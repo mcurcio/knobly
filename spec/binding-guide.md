@@ -177,7 +177,8 @@ where TypeScript or Python break one, section 4 says so.
 | Casing | `camelCase` members, `PascalCase` types | `snake_case` members, `PascalCase` types | the language's style |
 | I/O | `load`, `read`, `save`, sources and writers are async | plain calls | the language's I/O habit. `render` and `diff` are always plain calls |
 | Absent | `undefined` | `None` | the language's no-value |
-| Misuse errors | `TypeError`, `RangeError` | `ValueError`, `IndexError` | the language's own classes (spec 2.8) |
+| Misuse error | `MisuseError` (outside `VillanelleError`) | `ValueError` | TypeScript has no built-in class for a bad argument value that is not `TypeError`, the argument type error's class (spec 2.8) |
+| Index out of range | `RangeError` | `IndexError` | the language's own classes (spec 2.8) |
 | How a kind list is spelled | a string-literal type | a `StrEnum` | narrowing without an import, against `match` and enums (spec 2.10) |
 | How a variant is matched | `switch (x.kind)` or `if (x.kind === "set")` narrows | `match x: case SetVariable(): ...`, `__match_args__` | the language's own pattern |
 | Options | an options object (`{ key }`) | keyword-only arguments (`key=`) | the language's habit |

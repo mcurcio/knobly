@@ -58,6 +58,9 @@ the second name). A nested environment may define the name again. The checks cou
   one block defines its names twice (E5002 on the second copy's `$name`, `load-include-twice-same-block`);
 - an include line's block on its own: its `set` lines never collide with the including block's.
 
+When a name is set twice in one environment, the first `set` is the definition and the second defines nothing:
+`set $a 1; set $a 2; x $a;` gives `x 1` (E5002 on the second, `load-var-set-twice`).
+
 ## 5. Lookup
 
 A `$name` written in environment E finds its **candidates** by going outward from E, nearest first:
@@ -101,6 +104,13 @@ never a declaration (spec 6.7), and it has no line to edit (spec 6.3 `set overri
 ## 8. Values
 
 - A `set` line's values are expanded at its line, in its environment: `set $b $a;` holds `$a`'s values there.
+- A `set` line's values are looked up before its own definition exists, so `set $a $a;` reads an outer `$a`
+  (`set $a 1; b { set $a $a; x $a; }` gives `x 1`, `load-var-set-reads-outer`) and, with none, is E5001
+  (`load-var-set-reads-itself-top`).
+- A `set` line whose values fail (E5001) defines nothing: a later `$name` of that name finds the next
+  candidate outward. `set $a 1; b { set $a $nope; x $a; }` gives `x 1`, with one E5001 at `$nope`
+  (`load-var-failed-set-shows-outer`); at the top level with nothing outward, `set $a $nope; x $a;` is E5001 twice,
+  at `$nope` and at `x`'s `$a` (`load-var-failed-set-top`).
 - An include block's `set` values are expanded in the including environment (`set $host $leds_host;`).
 - A `use` line's values are expanded at the `use`, in its environment, and bound to the parameters by position; a
   variable holding two values counts as two (E5004 when the count differs).
@@ -115,5 +125,8 @@ never a declaration (spec 6.7), and it has no line to edit (spec 6.3 `set overri
   include copies cannot keep their own values for an overridden name.
 - A snippet's body looks names up where the snippet is written, an included file where it is included: two scoping
   rules for two ways of reusing text.
+- A `set` whose values fail defines nothing (section 8), so an outer `set` of the same name shows through silently:
+  the only problem reported is the failing value, and the lines below read the outer value as if the inner `set`
+  were not there.
 
 Changing any of these is a language change, for the owner.
