@@ -512,3 +512,44 @@
   every class villanelle throws (each sets `name`); a program's own subclass of a group's class, which no case
   throws, would now be a fault. `ts/conformance/tsconfig.json` gains `allowImportingTsExtensions` so the adapter can
   import `./shapes.ts` at run time under Node's type stripping.
+
+## 2026-10-29, milestone 6 (Python lane)
+
+- **The generator writes the whole field list as `__match_args__` for two snapshots.** `DirectiveExpansion` gets
+  `(written, values, block, origin, unreadable)` and `UnreadableExpansion` `(reason, written, origin)`, while the
+  generated `MATCH_ARGS` (and spec 2.10's one field order) say `(written, values, block)` and `(reason, written)`:
+  `tools/api/emit_py.py` `record_lines` sorts the match-args fields first but never writes `match_args=False` with
+  an explicit `__match_args__`. The hand classes had the short lists. Python lane: uses the generated classes as
+  frozen-m6.md says, and `py/tests/test_api_names.py` marks these two `xfail(strict=True)` so the test fails once
+  the generator is fixed. A `case DirectiveExpansion(w, v, b, o)` now binds where it raised before.
+- **Generated records and callbacks are typed with Protocols a program cannot import.** The records' fields
+  (`Origin.place`, `Copy.statement`, `DirectiveExpansion.values`, `Added.after`, `DiagnosticError.diagnostic` ...)
+  and `KeyRule` name the generated Protocols, which live only in the private `villanelle._api`; the public names
+  (`villanelle.Place`, `written.SetLine`, `rendered.Directive` ...) are the hand classes, as they must be for
+  `match` and `isinstance`. So under mypy a function annotated with a public class refuses a value read from a
+  record until it is narrowed (`isinstance`, `match`), and `def key(d: rendered.Directive)` is not a
+  `rendered.KeyRule`. Found by the tests: `test_load.py`'s key rules and its `at(d: LocatedDiagnostic)` helper,
+  `test_tracer.py`'s `line_of(place: Place)`. In the lane: `Rendered.addresses` and `diff` take a function of
+  either `Directive` (a wider parameter, so the Protocol still holds); the adapter and three test helpers annotate
+  with `villanelle._api` types. Needs a decision above the lanes: public Protocol names, or records typed by
+  the binding's classes. Not decided here.
+- **Records with a people form are generated as Protocols, not dataclasses** (`place`, `override`, `step`,
+  `diagnostic`, `located diagnostic`, `address`: `is_record` excludes a member with a trait). frozen-m6.md 2.B lists
+  neither deleting them nor subclassing. Python lane: the hand dataclasses stay and subclass their Protocols, each
+  field written `= field()` (otherwise the Protocol's property becomes the field's default; checked under 3.11 and
+  3.13). No behaviour change.
+- **List to tuple, not in frozen-m6.md section 3.** The schema types `read()`, `save()` and `diff()` as tuples;
+  Python returned lists. Now `DocumentGraph.read()`, `DocumentGraph.save(writer)` and `Rendered.diff(after)` return
+  tuples, so `graph.save(w) == ["a"]` is now false. `Rendered.diff` also raises `TypeError` for an `after` that is
+  not a `Rendered` (it took the hand class; the Protocol parameter is wider), where it raised `AttributeError`.
+- **Positional field order of generated records, not in section 3.** `Node` is `(start, end, kind, children)` (was
+  `(kind, start, end, children)`: the generated `Node` extends `TokenRange`), `DirectiveExpansion`
+  `(written, values, block, origin, unreadable)` (was `written, origin, values, block, unreadable`). Construction
+  sites now pass keywords.
+- **The adapter names a group from the first class in the error's `__mro__` that `ERROR_GROUP_OF_CLASS` holds**, not
+  `ERROR_GROUP_OF_CLASS[type(e).__name__]` (frozen-m6.md 2.B): a builtin subclass (a `UnicodeError` is a
+  `ValueError`) keeps its group, as the old `isinstance` order did. Same result for every class villanelle raises.
+- **Not done, for a later call:** the package's internal modules keep names without `_` (`villanelle.origin`,
+  `villanelle.report`, `villanelle.source`, `villanelle.diagnostics`, `villanelle.syntax.cst`,
+  `villanelle.written.model` ...), so a public class is still importable from a second path. frozen-m6.md does not
+  ask to rename them.
