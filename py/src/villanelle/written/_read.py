@@ -19,18 +19,18 @@ from villanelle.written.errors import ReadError
 from villanelle.written.model import DocumentGraph
 
 if TYPE_CHECKING:
-    from villanelle.processor import Extension
+    from villanelle.extension import Extension
 
 _START = SourcePosition(0, 0, 0)
 
 
 def load_graph(
-    source: DocumentSource, extensions: Mapping[str, Extension], path: str, handed: Mapping[str, str], owner: object
+    source: DocumentSource, extensions: Mapping[str, Extension], path: str, overrides: Mapping[str, str]
 ) -> DocumentGraph:
     """Read the root file at ``path`` (resolved through the source, as an included file's spec is, F1-04) and every
-    file its include lines name. Raises ValueError for bad handed-in variables (checked first); ReadError E3004 at
+    file its include lines name. Checks the overrides first (``_graph.check_override``); raises ReadError E3004 at
     the root path when the source fails, finds no file, or finds more than one."""
-    graph = DocumentGraph(extensions, handed, owner)
+    graph = DocumentGraph(source, extensions, overrides)
     code = DiagnosticCode.INCLUDE_RESOLVER_FAILED
 
     def fail(reason: object) -> ReadError:
@@ -48,13 +48,14 @@ def load_graph(
     except Exception as error:
         raise fail(error) from error
     _graph.record_read(graph, paths[0], text)
-    read_unread(graph, source)
+    read_unread(graph)
     return graph
 
 
-def read_unread(graph: DocumentGraph, source: DocumentSource) -> list[str]:
-    """Resolve and read what ``graph.unread()`` names, until nothing new is named. Returns the paths read, in read
-    order."""
+def read_unread(graph: DocumentGraph) -> list[str]:
+    """Resolve and read what ``graph.unread()`` names through the graph's source, until nothing new is named. Returns
+    the paths read, in read order."""
+    source = graph._source
     read: list[str] = []
     while True:
         binding = _graph.binding(graph)

@@ -1,19 +1,18 @@
 """The value rules of grammar/villanelle.ebnf (NumberText, IntegerText, BooleanText, EscapeText) and the canonical
-text of a value (round 11 slices.md §1.3): the one home of each rule. Private; a port of ts/src/load/values.ts."""
+text of a value (round 11 slices.md §1.3): the one home of each rule. Private; a port of ts/src/values.ts."""
 
 from __future__ import annotations
 
 import re
 from collections.abc import Iterable
 
+from villanelle._api.limits import MAX_SAFE_INTEGER
+
 _INTEGER_TEXT = re.compile(r"-?(?:0|[1-9][0-9]*)")
 """IntegerText: ``'-'? Digits``, Digits being ``0`` or a non-zero digit then digits."""
 
 _NUMBER_TEXT = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?")
 """NumberText: a JSON number (RFC 8259 section 6)."""
-
-MAX_SAFE_INTEGER = 2**53 - 1
-"""TypeScript's safe-integer limit; integers outside ±this are refused so both languages read the same number."""
 
 
 def integer_of(word: str) -> int | None:

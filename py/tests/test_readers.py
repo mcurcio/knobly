@@ -8,15 +8,15 @@ import pytest
 import villanelle as vl
 
 
-def _render(processor: vl.Processor, variables: dict[str, str] | None = None) -> vl.Rendered:
+def _render(processor: vl.Processor, overrides: dict[str, str] | None = None) -> vl.Rendered:
     """``render(load("main.conf"))``."""
-    return processor.render(processor.load("main.conf", variables=variables))
+    return vl.render(processor.load("main.conf", overrides=overrides))
 
 
 def args(text: str) -> tuple[vl.Argument, ...]:
     loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})))
     assert loaded.diagnostics == ()
-    return loaded.body[0].args
+    return loaded.block[0].values
 
 
 def arg(text: str) -> vl.Argument:
@@ -89,7 +89,7 @@ def test_as_bool_reads_only_true_and_false() -> None:
 def test_as_list_gives_items_each_with_its_own_origin() -> None:
     items = arg("[a, [1, 2], 'z']").as_list()
     assert [i.text for i in items] == ["a", "[1, 2]", '"z"']
-    assert [i.origin.written.span.start.column for i in items if isinstance(i.origin.written, vl.Place)] == [3, 6, 14]
+    assert [i.origin.place.span.start.column for i in items if isinstance(i.origin.place, vl.Place)] == [3, 6, 14]
     raises(arg("a").as_list, "E4002")
 
 
@@ -120,9 +120,9 @@ def test_plain_reads_by_the_one_rule_quoting_means_text() -> None:
 
 def test_a_reader_error_is_placed_on_the_value_with_its_steps() -> None:
     loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": "set $v x;\na 1 $v;\n"})))
-    d = raises(loaded.body[0].args[1].as_int, "E4005")
-    assert (d.at.span.start.line, d.at.span.start.column) == (0, 7)
-    assert [(s.kind, s.name, s.at.span.start.column) for s in d.via] == [("variable", "v", 4)]
+    d = raises(loaded.block[0].values[1].as_int, "E4005")
+    assert (d.place.span.start.line, d.place.span.start.column) == (0, 7)
+    assert [(s.kind, s.name, s.place.span.start.column) for s in d.via] == [("variable", "v", 4)]
 
 
 # --- value rules at load -----------------------------------------------------------------------------------------
@@ -140,8 +140,8 @@ def test_strings_decode_the_six_escapes(literal: str, decoded: str) -> None:
 def test_a_non_integer_bound_is_e4001_at_the_bound(text: str, column: int) -> None:
     loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})))
     [d] = loaded.diagnostics
-    assert (d.code, d.at.span.start.column) == ("E4001", column)
-    assert loaded.body == ()
+    assert (d.code, d.place.span.start.column) == ("E4001", column)
+    assert loaded.block == ()
 
 
 # --- canonical text ----------------------------------------------------------------------------------------------
@@ -169,4 +169,4 @@ def test_canonical_text(written: str, text: str) -> None:
 
 def test_a_value_from_a_variable_has_the_values_text() -> None:
     loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": "set $v 'x';\na $v;\n"})))
-    assert loaded.body[0].args[0].text == '"x"'
+    assert loaded.block[0].values[0].text == '"x"'

@@ -18,9 +18,9 @@ class EditError(ValueError):
 
 
 class BadTextError(EditError):
-    """The text given to an edit is not what that edit takes: a syntax error, values where statements go (or the
-    other way), or a text-alone rule broken (E5002, E5005, E5009-E5011). ``diagnostics`` are located in the given
-    text, with the codes a load gives."""
+    """The text given to an edit, or an override's text, is not what it takes: a syntax error, values where
+    statements go (or the other way), or a text-alone rule broken (E5002, E5005, E5009-E5011). ``diagnostics`` are
+    located in the given text, with the codes a load gives."""
 
     def __init__(self, message: str, diagnostics: Sequence[Diagnostic]) -> None:
         super().__init__(message)
@@ -32,11 +32,12 @@ class DetachedError(EditError):
 
 
 class NoSetLineError(EditError):
-    """``Variable.set_values`` on a parameter (edit the ``use`` line) or a handed-in value (use ``set_handed``)."""
+    """``Variable.set`` or ``Variable.rename`` on a parameter (edit the ``use`` line) or an override (use
+    ``DocumentGraph.set_override``)."""
 
 
 class SaveError(Exception):
-    """The writer raised. No document's ``source`` changed. ``__cause__`` is what the writer raised."""
+    """The writer raised. No document's ``saved_text`` changed. ``__cause__`` is what the writer raised."""
 
     def __init__(self, message: str, files: Sequence[FileWrite]) -> None:
         super().__init__(message)

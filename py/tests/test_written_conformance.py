@@ -31,19 +31,19 @@ FEATURES = frozenset(
         "blocks",
         "rename",
         "document",
-        "handed",
+        "override",
     }
 )
 """Every ``needs`` token of format.md: this runner implements all of them."""
 
 _OPS = {
-    "setValues": "set_values",
+    "set": "set",
     "replaceWithText": "replace_with_text",
     "remove": "remove",
     "rename": "rename",
     "insertStatements": "insert_statements",
     "addStatements": "add_statements",
-    "setHanded": "set_handed",
+    "setOverride": "set_override",
 }
 
 
@@ -59,14 +59,14 @@ def to_bytes(value: Any) -> str:
     return re.sub(r"[\u0080-\U0010ffff]", _escape, json.dumps(value, ensure_ascii=False, separators=(",", ":"))) + "\n"
 
 
-def copy_text(written: vl.Place, via: tuple[vl.Step, ...]) -> str:
-    return origin(written, via)
+def copy_text(place: vl.Place, via: tuple[vl.Step, ...]) -> str:
+    return origin(place, via)
 
 
 def variable_text(variable: vl.Variable | None) -> str | None:
     if variable is None:
         return None
-    return f"handed {variable.name}" if variable.place is None else place(variable.place)
+    return f"override {variable.name}" if variable.place is None else place(variable.place)
 
 
 def statements_of(block: vl.WrittenBlock) -> list[vl.Statement]:
@@ -111,13 +111,12 @@ def name_at(doc: vl.Document, statement: vl.Statement) -> tuple[int, int]:
     return (-1, -1) if token is None else (token.span.start.line, token.span.start.column)
 
 
-def starts_at(at: vl.Place, line: int, col: int) -> bool:
-    return at.span.start.line == line and at.span.start.column == col
+def starts_at(place: vl.Place, line: int, col: int) -> bool:
+    return place.span.start.line == line and place.span.start.column == col
 
 
 class Runner:
-    def __init__(self, processor: vl.Processor, graph: vl.DocumentGraph) -> None:
-        self.processor = processor
+    def __init__(self, graph: vl.DocumentGraph) -> None:
         self.graph = graph
         self.previous: object = None
         self.returned: object = None
@@ -131,7 +130,7 @@ class Runner:
 
     def statement(self, path: str, line: int, col: int) -> vl.Statement:
         doc = self.doc(path)
-        return next(s for s in statements_of(doc.body) if name_at(doc, s) == (line, col))
+        return next(s for s in statements_of(doc.block) if name_at(doc, s) == (line, col))
 
     def target(self, target: list[Any]) -> object:
         kind, *rest = target
@@ -141,13 +140,13 @@ class Runner:
             return self.statement(*rest)
         if kind == "block":
             if len(rest) == 1:
-                return self.doc(rest[0]).body
+                return self.doc(rest[0]).block
             found = self.statement(*rest)
             assert isinstance(found, vl.WrittenDirective | vl.SnippetLine)
             return found.block
         if kind == "value":
             doc = self.doc(rest[0])
-            values = (v for s in statements_of(doc.body) for v in values_of(s))
+            values = (v for s in statements_of(doc.block) for v in values_of(s))
             return next(v for v in values if starts_at(v.place, rest[1], rest[2]))
         if kind == "variable":
             return next(
@@ -155,8 +154,8 @@ class Runner:
                 for v in self.graph.variables()
                 if v.place is not None and v.place.resolved_path == rest[0] and starts_at(v.place, rest[1], rest[2])
             )
-        if kind == "handed":
-            return next(v for v in self.graph.variables() if v.kind == "handed" and v.name == rest[0])
+        if kind == "override":
+            return next(v for v in self.graph.variables() if v.kind == "override" and v.name == rest[0])
         if kind == "graph":
             return self.graph
         if kind == "previous":
@@ -165,10 +164,10 @@ class Runner:
             return self.returned
         if kind == "rendered":
             address, arg, step, which = rest
-            rendered = self.processor.render(self.graph)
+            rendered = vl.render(self.graph)
             addresses = rendered.addresses()
-            directive = next(d for d in vl.walk(rendered) if str(addresses[d]) == address)
-            resolution = directive.args[arg].resolutions[step]
+            directive = next(d for d in rendered.walk() if str(addresses[d]) == address)
+            resolution = directive.values[arg].chain[step]
             return resolution.winner if which == "winner" else resolution.reference
         raise AssertionError(f"unknown target {kind}")
 
@@ -203,13 +202,13 @@ class Runner:
                 [
                     v.name,
                     v.kind,
-                    "handed" if v.place is None else place(v.place),
-                    [copy_text(r.reference.place, r.copy.via) for r in v.reaches()],
-                    [[copy_text(r.reference.place, r.copy.via), variable_text(r.winner)] for r in v.overridden()],
+                    "override" if v.place is None else place(v.place),
+                    [copy_text(r.reference.place, r.copy.via) for r in v.wins()],
+                    [[copy_text(r.reference.place, r.copy.via), variable_text(r.winner)] for r in v.shadowed_at()],
                 ]
                 for v in g.variables()
             ],
-            "diagnostics": [[str(d.code), origin(d.at, d.via)] for d in g.diagnostics()],
+            "diagnostics": [[str(d.code), origin(d.place, d.via)] for d in g.diagnostics],
         }
 
     def references(self) -> Any:
@@ -218,37 +217,37 @@ class Runner:
                 place(r.place),
                 variable_text(r.declaration),
                 [
-                    [copy_text(r.place, x.copy.via), variable_text(x.winner), [variable_text(o) for o in x.overridden]]
+                    [copy_text(r.place, x.copy.via), variable_text(x.winner), [variable_text(o) for o in x.shadowed]]
                     for x in r.resolutions()
                 ],
             ]
             for doc in self.graph.documents.values()
-            for s in statements_of(doc.body)
+            for s in statements_of(doc.block)
             for r in values_of(s)
             if isinstance(r, vl.Reference)
         ]
 
     def render(self) -> Any:
-        rendered = self.processor.render(self.graph)
+        rendered = vl.render(self.graph)
         addresses = rendered.addresses()
         directives: list[Any] = []
         unreadable: list[Any] = [
-            ["", u.kind.value, origin(u.origin.written, u.origin.via)] for u in rendered.unreadable
+            ["", u.reason.value, origin(u.origin.place, u.origin.via)] for u in rendered.unreadable
         ]
-        for d in vl.walk(rendered):
+        for d in rendered.walk():
             address = str(addresses[d])
             args = [
                 [
                     a.text,
-                    origin(a.origin.written, a.origin.via),
-                    None if a.written is None else place(a.written.place),
-                    [[copy_text(r.reference.place, r.copy.via), variable_text(r.winner)] for r in a.resolutions],
+                    origin(a.origin.place, a.origin.via),
+                    None if a.definition is None else place(a.definition.place),
+                    [[copy_text(r.reference.place, r.copy.via), variable_text(r.winner)] for r in a.chain],
                 ]
-                for a in d.args
+                for a in d.values
             ]
-            directives.append([address, d.body is not None, origin(d.origin.written, d.origin.via), args])
-            unreadable.extend([address, u.kind.value, origin(u.origin.written, u.origin.via)] for u in d.unreadable)
-        diagnostics = [[str(d.code), origin(d.at, d.via)] for d in rendered.diagnostics]
+            directives.append([address, d.block is not None, origin(d.origin.place, d.origin.via), args])
+            unreadable.extend([address, u.reason.value, origin(u.origin.place, u.origin.via)] for u in d.unreadable)
+        diagnostics = [[str(d.code), origin(d.place, d.via)] for d in rendered.diagnostics]
         return {"directives": directives, "unreadable": unreadable, "diagnostics": diagnostics}
 
     def step(self, step: list[Any]) -> Any:
@@ -260,10 +259,10 @@ class Runner:
         if kind == "render":
             return self.render()
         if kind == "texts":
-            return [[d.resolved_path, d.text] for d in self.graph.documents.values() if d.text != d.source]
+            return [[d.resolved_path, d.text] for d in self.graph.documents.values() if d.text != d.saved_text]
         if kind == "save":
             before = len(self.batches)
-            vl.save(self.graph, self)
+            self.graph.save(self)
             return [[f.resolved_path, f.text] for f in self.batches[-1]] if len(self.batches) > before else []
         if kind == "edit":
             return self.edit(args[0], args[1], args[2:])
@@ -285,7 +284,7 @@ def test_written_case_matches_expected_bytes(case: dict[str, Any]) -> None:
     files = fixture_files(case["fixture"]) if "fixture" in case else case.get("files", {})
     extensions = [include()] if "include" in case.get("extensions", ()) else []
     processor = vl.Processor(source=vl.memory_source(files), extensions=extensions)
-    graph = processor.load(case["root"], variables=case.get("variables"))
-    runner = Runner(processor, graph)
+    graph = processor.load(case["root"], overrides=case.get("overrides"))
+    runner = Runner(graph)
     out = [runner.step(step) for step in case["steps"]]
     assert to_bytes(out) == (EXPECTED / f"{case['name']}.json").read_text(encoding="utf-8")

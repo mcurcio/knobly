@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import TypeAlias
 
 from villanelle._anatomy import anatomy_of, items_of
+from villanelle._api.limits import RESERVED, VARIABLE_NAME
 from villanelle.diagnostics import Diagnostic, DiagnosticCode
 from villanelle.origin import Place
 from villanelle.span import SourcePosition, SourceSpan
@@ -20,7 +21,6 @@ from villanelle.syntax._recovery import message_of
 from villanelle.syntax.cst import Node, NodeKind, Syntax, ValueRef, span_of
 from villanelle.syntax.parse import parse
 from villanelle.syntax.tokens import TokenKind
-from villanelle.written._bind import RESERVED, VARIABLE_NAME
 from villanelle.written._shape import Shape, ShapeKind, block_shapes, parameter_tokens, statement_nodes
 from villanelle.written.errors import BadTextError
 from villanelle.written.model import (
@@ -250,7 +250,7 @@ def _entries(doc: Document) -> dict[tuple[str, int], tuple[Handle, int, int]]:
             for child in s._block._items:
                 statement(child)
 
-    for s in doc._body._items:
+    for s in doc._block._items:
         statement(s)
     return out
 
@@ -274,7 +274,7 @@ def _install(doc: Document, text: str, syntax: Syntax, reconcile: _Reconcile) ->
     doc._starts = starts_of(syntax)
     doc._statements = {}
     doc._values = {}
-    doc._body._items = _build_block(doc, syntax.root, None, (), reconcile)
+    doc._block._items = _build_block(doc, syntax.root, None, (), reconcile)
 
 
 def _build_block(
@@ -558,8 +558,8 @@ def _reindent(doc: Document, text: str, indentation: str) -> list[Piece]:
     return pieces
 
 
-def set_values(statement: Statement, after: int, text: str) -> None:
-    """``set_values`` of a statement's values (2.4): first value to last; with none, after token ``after``."""
+def replace_values(statement: Statement, after: int, text: str) -> None:
+    """``set`` of a statement's values (2.4): first value to last; with none, after token ``after``."""
     doc = statement._doc
     given = values_text_problems(text, in_list=False)
     values = statement._value_list
@@ -735,7 +735,7 @@ def rename_directive(statement: WrittenDirective, name: str) -> None:
 
 def rename_variable(line: SetLine | SnippetLine, token: int, name: str) -> None:
     """``Variable.rename``: its ``$name`` only; ``[A-Za-z0-9_]+``, then E5002 in its block."""
-    if not VARIABLE_NAME.fullmatch(name):
+    if not VARIABLE_NAME.match(name):
         raise BadTextError(f"not a variable name: {name!r}", [at(name, 0, DiagnosticCode.UNEXPECTED_TOKEN)])
     doc = line._doc
     keep = next((p for p in line._parameters if p._token == token), None) if isinstance(line, SnippetLine) else None
@@ -754,7 +754,7 @@ def declaration_of(reference: Reference) -> Variable | None:
     s: Statement | None = reference._statement
     while s is not None:
         parent = s._parent
-        block = parent._block if parent is not None and parent._block is not None else s._doc._body
+        block = parent._block if parent is not None and parent._block is not None else s._doc._block
         items = block._items
         i = next(j for j, item in enumerate(items) if item is s)
         for candidate in reversed(items[:i]):
@@ -773,7 +773,7 @@ def above(statement: Statement, match: Callable[[Statement], bool]) -> Statement
     s: Statement | None = statement
     while s is not None:
         parent = s._parent
-        block = parent._block if parent is not None and parent._block is not None else s._doc._body
+        block = parent._block if parent is not None and parent._block is not None else s._doc._block
         items = block._items
         i = next(j for j, item in enumerate(items) if item is s)
         for candidate in reversed(items[:i]):
@@ -800,7 +800,7 @@ def references(doc: Document) -> list[Reference]:
             for child in s._block._items:
                 statement(child)
 
-    for s in doc._body._items:
+    for s in doc._block._items:
         statement(s)
     return out
 
@@ -818,7 +818,7 @@ def variables(doc: Document) -> list[Variable]:
             for child in s._block._items:
                 statement(child)
 
-    for s in doc._body._items:
+    for s in doc._block._items:
         statement(s)
     return out
 
@@ -959,11 +959,16 @@ def wrapped_diagnostic(given: str, prefix: str, fault: tuple[DiagnosticCode, Sou
     return Diagnostic(code, message_of(code), SourceSpan(start, end))
 
 
-def handed_text_problems(text: str) -> tuple[Diagnostic, ...]:
-    """``set_handed``'s check (2.3): one or more values, without a ``$name``."""
+def override_text_problems(text: str) -> tuple[Diagnostic, ...]:
+    """The syntax half of the check of an override (spec 6.3): one or more values, without a ``$name``."""
     problems = values_text_problems(text, in_list=False)
     if problems:
         return problems
+    # A line break ends a statement: values after one would be a second statement, not this override's values.
+    wrapped = parse(f"x {text}")
+    later = [n for n in wrapped.root.children if n.kind in (NodeKind.DIRECTIVE, NodeKind.ERROR)][1:]
+    if later:
+        return (at(text, starts_of(wrapped)[later[0].start] - 2, DiagnosticCode.UNEXPECTED_TOKEN),)
     syntax = parse(text)
     starts = starts_of(syntax)
     meaningful = [i for i, t in enumerate(syntax.tokens) if t.kind not in _TRIVIA and t.kind is not TokenKind.COMMENT]

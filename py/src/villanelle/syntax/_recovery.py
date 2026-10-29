@@ -21,12 +21,11 @@ from antlr4 import Token as AntlrToken
 from antlr4.error.Errors import InputMismatchException
 from antlr4.error.ErrorStrategy import DefaultErrorStrategy
 
+from villanelle._api.codes import MESSAGES
+from villanelle._api.limits import MAX_NESTING
 from villanelle._gen.VillanelleParser import VillanelleParser
 from villanelle.diagnostics import DiagnosticCode
 from villanelle.syntax.tokens import TokenKind
-
-MAX_NESTING = 100
-"""Blocks and lists may nest this deep; one more level is E2010 (owner, vil-bzv.3)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,45 +107,9 @@ def classify_error(kinds: Sequence[TokenKind], at: int, start: int, in_block: bo
     return DiagnosticCode.UNEXPECTED_TOKEN
 
 
-_MESSAGES: dict[DiagnosticCode, str] = {
-    DiagnosticCode.UNTERMINATED_STRING: "unterminated string",
-    DiagnosticCode.UNEXPECTED_CHARACTER: "unexpected character",
-    DiagnosticCode.LONE_DOLLAR: "'$' must be followed by a variable name",
-    DiagnosticCode.UNEXPECTED_TOKEN: "unexpected token",
-    DiagnosticCode.EXPECTED_CLOSING_BRACE: "expected '}' to close the block",
-    DiagnosticCode.EXPECTED_CLOSING_BRACKET: "unmatched bracket",
-    DiagnosticCode.BAD_SLICE: "malformed slice",
-    DiagnosticCode.BRACE_ON_OWN_LINE: "'{' must open on its directive's line",
-    DiagnosticCode.VALUES_TOUCH: "values must be separated by a space or comment",
-    DiagnosticCode.NESTING_TOO_DEEP: f"blocks and lists nest deeper than {MAX_NESTING} levels",
-    DiagnosticCode.INCLUDE_NOT_FOUND: "include not found",
-    DiagnosticCode.INCLUDE_RESOLVER_FAILED: "include resolver failed",
-    DiagnosticCode.INCLUDE_BAD_PATH: "include takes one quoted path",
-    DiagnosticCode.EXTENSION_FAILED: "extension failed",
-    DiagnosticCode.NON_INTEGER_BOUND: "bound is not an integer",
-    DiagnosticCode.WRONG_VALUE_KIND: "wrong kind of value",
-    DiagnosticCode.BAD_ESCAPE: "unknown escape",
-    DiagnosticCode.NOT_A_NUMBER: "not a number",
-    DiagnosticCode.NOT_AN_INTEGER: "not an integer",
-    DiagnosticCode.NOT_A_BOOLEAN: "not true or false",
-    DiagnosticCode.UNKNOWN_VARIABLE: "unknown variable",
-    DiagnosticCode.VARIABLE_SET_TWICE: "variable set twice in one block",
-    DiagnosticCode.UNKNOWN_SNIPPET: "unknown snippet",
-    DiagnosticCode.SNIPPET_ARITY: "wrong number of values for the snippet",
-    DiagnosticCode.SNIPPET_DEFINED_TWICE: "snippet defined twice in one block",
-    DiagnosticCode.EXPANSION_CYCLE: "expansion reaches itself",
-    DiagnosticCode.EXPANSION_TOO_DEEP: "expansion nests too deep",
-    DiagnosticCode.TOO_MANY_DIRECTIVES: "too many directives after expansion",
-    DiagnosticCode.BAD_SET: "write set $name value...;",
-    DiagnosticCode.BAD_SNIPPET: "write snippet name $param... { ... }",
-    DiagnosticCode.BAD_USE: "write use name value...;",
-    DiagnosticCode.EXTENSION_BLOCK_NOT_SET: "an extension's block holds only set lines",
-}
-
-
 def message_of(code: DiagnosticCode) -> str:
     """The message for a code; not part of the cross-language contract."""
-    return _MESSAGES[code]
+    return MESSAGES[code]
 
 
 # --- the ANTLR strategy -------------------------------------------------------------------------------------------

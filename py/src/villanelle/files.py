@@ -49,9 +49,9 @@ class _FileSource:
 
 def fs_writer() -> DocumentWriter:
     """A writer for one batch (slices.md S3; D18): it raises, writing nothing, when any file on disk no longer holds
-    its ``source`` (a lost update; the error names the paths); otherwise it writes each text to a temporary file
+    its ``saved_text`` (a lost update; the error names the paths); otherwise it writes each text to a temporary file
     beside its target (``<name>.<random>.tmp``), then renames each over its target, as UTF-8 with line breaks as
-    written. A missing target holds "" (a new file has ``source`` "", D-S2-5). A failure while staging removes the
+    written. A missing target holds "" (a new file has ``saved_text`` "", D-S2-5). A failure while staging removes the
     temporaries and raises with nothing replaced; a failure while renaming can leave earlier files replaced (the
     stated cost) and removes the temporaries not yet renamed."""
     return _FsWriter()
@@ -61,7 +61,7 @@ class _FsWriter:
     __slots__ = ()
 
     def write(self, files: Sequence[FileWrite], /) -> None:
-        lost = [file.resolved_path for file in files if _read_or_empty(file.resolved_path) != file.source]
+        lost = [file.resolved_path for file in files if _read_or_empty(file.resolved_path) != file.saved_text]
         if lost:
             raise OSError(f"changed on disk since it was read (a lost update): {', '.join(lost)}")
         staged: list[tuple[str, str]] = []

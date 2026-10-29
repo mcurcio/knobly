@@ -3,22 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
 from typing import Protocol
 
+from villanelle._api.kinds import NodeKind as NodeKind
 from villanelle.diagnostics import Diagnostic
 from villanelle.span import SourcePosition, SourceSpan
 from villanelle.syntax.tokens import Token
-
-
-class NodeKind(StrEnum):
-    DOCUMENT = "document"
-    DIRECTIVE = "directive"
-    BLOCK = "block"
-    LIST = "list"
-    SLICE = "slice"
-    ERROR = "error"
-    """One bad statement, or a run of tokens the parser could not use. Never has children."""
 
 
 class TokenRange(Protocol):

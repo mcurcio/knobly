@@ -1,5 +1,6 @@
-"""``villanelle.written``: the low level, the config as written (round 12; slices.md S3). Slice S3 fills it and
-re-exports it from ``villanelle``."""
+"""``villanelle.written``: the low level, the config as written (spec 6). ``Processor.load`` returns a
+``DocumentGraph`` of editable documents; ``graph.read()`` reads what is still unread and ``graph.save(writer)``
+writes the edits back. It never imports the rendered layer (spec 5, "Layer direction")."""
 
 from villanelle.written.errors import BadTextError, DetachedError, EditError, NoSetLineError, ReadError, SaveError
 from villanelle.written.model import (
@@ -25,7 +26,8 @@ from villanelle.written.model import (
     WrittenDirective,
     WrittenValue,
 )
-from villanelle.written.save import DocumentWriter, FileWrite, quote, save
+from villanelle.written.processor import Processor
+from villanelle.written.save import DocumentWriter, FileWrite, quote
 
 __all__ = [
     "BadTextError",
@@ -40,6 +42,7 @@ __all__ = [
     "Index",
     "List",
     "NoSetLineError",
+    "Processor",
     "ReadError",
     "Reference",
     "ReferenceResolution",
@@ -58,5 +61,4 @@ __all__ = [
     "WrittenDirective",
     "WrittenValue",
     "quote",
-    "save",
 ]

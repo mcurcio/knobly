@@ -8,33 +8,33 @@ import villanelle as vl
 from villanelle.include import include
 
 
-def _render(processor: vl.Processor, variables: dict[str, str] | None = None) -> vl.Rendered:
+def _render(processor: vl.Processor, overrides: dict[str, str] | None = None) -> vl.Rendered:
     """``render(load("main.conf"))``."""
-    return processor.render(processor.load("main.conf", variables=variables))
+    return vl.render(processor.load("main.conf", overrides=overrides))
 
 
 MAIN = "set $pixels 2284;\ngraph {\n  node DdpSink leds { max_count $pixels; }\n}\n"
 
 
-def loaded(text: str = MAIN, variables: dict[str, str] | None = None) -> vl.Rendered:
-    return _render(vl.Processor(source=vl.memory_source({"main.conf": text})), variables=variables)
+def loaded(text: str = MAIN, overrides: dict[str, str] | None = None) -> vl.Rendered:
+    return _render(vl.Processor(source=vl.memory_source({"main.conf": text})), overrides=overrides)
 
 
 def max_count(load: vl.Rendered) -> vl.Directive:
-    return next(d for d in vl.walk(load) if d.name == "max_count")
+    return next(d for d in load.walk() if d.name == "max_count")
 
 
 def test_report_and_add_record_in_order_after_the_initial_ones() -> None:
     load = loaded("a $x;\nb 1;\n")
     problems = vl.Diagnostics(load.diagnostics)
-    b = load.body[0]
+    b = load.block[0]
     problems.report(b, "b is not wanted", code="rasl/unwanted")
     problems.add(load.error("no graph", code="rasl/no-graph").diagnostic)
     assert len(problems) == 3
     assert [str(d.code) for d in problems] == ["E5001", "rasl/unwanted", "rasl/no-graph"]
     reported = list(problems)[1]
-    assert (reported.at, reported.via, reported.message) == (b.origin.written, (), "b is not wanted")
-    assert list(problems)[2].at == load.origin.written
+    assert (reported.place, reported.via, reported.message) == (b.origin.place, (), "b is not wanted")
+    assert list(problems)[2].place == load.origin.place
 
 
 def test_collecting_records_a_diagnostic_error_and_ends_the_block() -> None:
@@ -42,7 +42,7 @@ def test_collecting_records_a_diagnostic_error_and_ends_the_block() -> None:
     problems = vl.Diagnostics()
     reached = []
     with problems.collecting():
-        load.body[0].args[0].as_int()
+        load.block[0].values[0].as_int()
         reached.append(True)
     assert reached == []
     assert [str(d.code) for d in problems] == ["E4005"]
@@ -62,7 +62,7 @@ def test_a_program_code_needs_a_namespace(code: str) -> None:
     with pytest.raises(ValueError, match="namespace"):
         directive.error("m", code=code)
     with pytest.raises(ValueError, match="namespace"):
-        directive.args[0].error("m", code=code)
+        directive.values[0].error("m", code=code)
     with pytest.raises(ValueError, match="namespace"):
         load.error("m", code=code)
     with pytest.raises(ValueError, match="namespace"):
@@ -70,7 +70,7 @@ def test_a_program_code_needs_a_namespace(code: str) -> None:
 
 
 def test_a_located_diagnostic_made_directly_checks_its_code() -> None:
-    place = loaded().origin.written
+    place = loaded().origin.place
     assert vl.LocatedDiagnostic("rasl/x", "m", place, ()).code == "rasl/x"
     made = vl.LocatedDiagnostic("E5001", "m", place, ())
     assert made.code is vl.DiagnosticCode.UNKNOWN_VARIABLE
@@ -78,19 +78,20 @@ def test_a_located_diagnostic_made_directly_checks_its_code() -> None:
         vl.LocatedDiagnostic("E9999", "m", place, ())
 
 
-def test_an_error_on_a_handed_in_value_is_placed_on_the_name_that_used_it() -> None:
-    load = loaded("blk { target $host; }\n", variables={"host": "h"})
-    [blk] = load.body
-    [target] = blk.body or ()
-    d = target.args[0].error("unreachable host", code="rasl/host").diagnostic
-    assert (d.at.resolved_path, d.at.span.start.line, d.at.span.start.column, d.via) == ("main.conf", 0, 13, ())
+def test_an_error_on_an_override_value_is_placed_on_the_name_that_used_it() -> None:
+    load = loaded("blk { target $host; }\n", overrides={"host": "h"})
+    [blk] = load.block
+    [target] = blk.block or ()
+    d = target.values[0].error("unreachable host", code="rasl/host").diagnostic
+    start = d.place.span.start
+    assert (d.place.resolved_path, start.line, start.column, d.via) == ("main.conf", 0, 13, ())
     assert "host" in d.message
 
 
 def test_format_diagnostic_prints_place_code_message_source_caret_and_via() -> None:
     files = {"main.conf": "snippet s $v {\n  value $v;\n}\nuse s 1;\n", "x.conf": ""}
     load = _render(vl.Processor(source=vl.memory_source(files), extensions=[include()]))
-    d = load.body[0].args[0].error("too small", code="rasl/small").diagnostic
+    d = load.block[0].values[0].error("too small", code="rasl/small").diagnostic
     assert vl.format_diagnostic(d, load.graph) == (
         "main.conf:4:7: rasl/small: too small\n"
         "use s 1;\n"

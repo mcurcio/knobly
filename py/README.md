@@ -12,29 +12,49 @@ It is not on PyPI. Releases attach the wheel and sdist to the GitHub Release (se
 
 It has the same parts as the TypeScript package ([`ts/README.md`](../ts/README.md)), in Python's
 own style: `Processor` for `villanelle()`, `as_int()` for `integer()`, `walk()` as a generator,
-`snake_case` names. The core does no input or output.
+`snake_case` names. The core does no input or output. The concepts and their names come from
+[`spec/`](../spec/README.md); each binding only changes the casing.
 
 | Import | What it has |
 |---|---|
-| `villanelle` | The core: `parse`, `Processor`, `save`, `quote`, `memory_source`, `walk`, `Diagnostics`, `format_diagnostic`, and the types they use |
+| `villanelle` | The core: `parse`, `Processor`, `render`, `quote`, `memory_source`, `Diagnostics`, `format_diagnostic`, and the types they use |
+| `villanelle.written` | The low level on its own: `Processor`, `DocumentGraph` and the written types. It never imports the rendered layer |
+| `villanelle.rendered` | The rendered layer on its own: `render`, `Rendered`, `Directive`, `Argument`, the change classes |
 | `villanelle.include` | `include()`: the include extension |
 | `villanelle.files` | `file_source()` and `fs_writer()`: files on disk |
 
 - **The syntax tree.** `parse(text)` returns a `Syntax` with `tokens`, `root` and `diagnostics`. It never
   raises. The tree is lossless: `text_of(syntax, syntax.root)` gives the text back.
-- **The low level: the files as written.** `Processor(source=..., extensions=[...])` is made once;
-  `processor.load(path, variables=...)` reads the root file and every file it includes and returns a
-  `DocumentGraph`: the documents, their statements and values (one class per kind, for `match`), the include
-  copies, the variables and what each `$name` reads at each place. Named edits (`set_values`,
-  `replace_with_text`, `insert_statements`, `rename`, `set_handed`, ...) change the text and keep comments and
-  layout; `processor.read(graph)` reads files an edit added; `save(graph, writer)` hands the changed files to a
-  writer in one batch. Reference: [docs/low-level-api.md](../docs/low-level-api.md).
-- **The rendered tree.** `processor.render(graph)` expands variables, snippets and included files into directives
-  (`body`, `walk(rendered)`), each value with its readers (`as_word()`, `as_str()`, `as_number()`, `as_int()`,
-  `as_bool()`, `as_list()`, `as_slice()`, `plain()`), its origin, and `written`/`resolutions` leading back to the
-  low level. `rendered.addresses(key=...)` names each directive under a key rule, and
-  `processor.diff(before, after, key=...)` lists what changed, as `Added`, `Removed`, `Changed` and `Unknown`.
-  Reference: [docs/rendered-tree.md](../docs/rendered-tree.md).
+- **The low level: the files as written.** `Processor(source=..., extensions=[...])` is made once, and loading
+  is all it does: `processor.load(path, overrides=...)` reads the root file and every file it includes and
+  returns a `DocumentGraph`: the documents, their statements and values (one class per kind, for `match`), the
+  include copies, the variables and what each `$name` reads at each place. An override is a value the program
+  passes in, as villanelle text, that wins over every `set` of its name (`overrides={"host": quote(host)}`;
+  change it later with `graph.set_override(name, text)`). Named edits change the text and keep comments and
+  layout. They take villanelle text only, and anything else raises `TypeError`: write a program string with
+  `quote()` and a number with `str()`.
+
+  ```python
+  from villanelle import Processor, memory_source, quote, render
+
+  graph = Processor(source=memory_source({"main.conf": "host a;\nport 80;\n"})).load("main.conf")
+  host, port = graph.root.block
+  host.set(quote("10.0.60.31"))  # set replaces a statement's values (not the language's `set` line)
+  port.set(str(8080))
+  assert graph.root.text == 'host "10.0.60.31";\nport 8080;\n'
+  ```
+
+  `set(text)`, `replace_with_text(text)`, `insert_statements(index, text)`, `add_statements(text)` and
+  `rename(name)` are the edits; `graph.read()` reads files an edit added, through the graph's own source;
+  `graph.save(writer)` hands the changed files to a writer in one batch. Reference:
+  [docs/low-level-api.md](../docs/low-level-api.md) (it still shows the old names until the docs pass).
+- **The rendered tree.** `render(graph)` builds on the low level: it expands variables, snippets and included
+  files into directives (`block`, `rendered.walk()`), each value an `Argument` with its readers (`as_word()`,
+  `as_str()`, `as_number()`, `as_int()`, `as_bool()`, `as_list()`, `as_slice()`, `plain()`), its origin, and
+  `written` (the value on the same line), `definition` (where it is written) and `chain` (each `$name` it went
+  through) leading back to the low level. `rendered.addresses(key=...)` names each directive under a key rule,
+  and `before.diff(after, key=...)` lists what changed, as `Added`, `Removed`, `Changed` and `Unknown`.
+  Reference: [docs/rendered-tree.md](../docs/rendered-tree.md) (old names, as above).
 
 There is no fetch source and no fetch writer in Python. Every example in the reference pages is copied from a test
 that runs; the language is [docs/language.md](../docs/language.md).
@@ -59,6 +79,7 @@ uv run --python 3.11 pytest   # the oldest supported Python
 ```
 
 `tests/conftest.py` first runs `bash ../tools/gen.sh py`, which regenerates the parser into
-`src/villanelle/_gen/` (ignored by git, never committed). That needs Java 11+; the ANTLR jar is
+`src/villanelle/_gen/` and the API lists (diagnostic codes and messages, kind lists, limits, from
+`spec/schema/`) into `src/villanelle/_api/` (both ignored by git, never committed). That needs Java 11+; the ANTLR jar is
 cached in `$ANTLR_JAR_DIR` (default `~/.cache/antlr`). Run `gen.sh` before `uv build` too:
-`pyproject.toml` forces the ignored `_gen/` files into the wheel and sdist, so they must exist.
+`pyproject.toml` forces the ignored `_gen/` and `_api/` files into the wheel and sdist, so they must exist.

@@ -1,5 +1,6 @@
-"""Diagnostics of the load layer, and the one sink that load, value readers and programs all report into (round 11
-review finding 2; R14's report helper). Prior art: HCL's ``hcl.Diagnostics``, PostCSS ``Result.messages``."""
+"""Located diagnostics (shared by the low level and the rendered layer), and the one sink that load, value readers
+and programs all report into (round 11 review finding 2; R14's report helper). Prior art: HCL's
+``hcl.Diagnostics``, PostCSS ``Result.messages``."""
 
 from __future__ import annotations
 
@@ -20,15 +21,15 @@ if TYPE_CHECKING:
 class LocatedDiagnostic:
     """One located problem of a load: villanelle's or a program's. Always at a place in a file (design rule 3).
 
-    ``code`` is a DiagnosticCode, or a program's own ``"<namespace>/<name>"`` (``"rasl/unknown-node"``). For a value
-    handed in by the program, ``at`` is the ``$name`` that used it and the message names the variable."""
+    ``code`` is a DiagnosticCode, or a program's own ``"<namespace>/<name>"`` (``"rasl/unknown-node"``). For an
+    override's value, ``place`` is the ``$name`` that used it and the message names the variable."""
 
     code: DiagnosticCode | str
     message: str
     """For people; not part of the cross-language contract."""
-    at: Place
+    place: Place
     via: tuple[Step, ...]
-    """The variables, uses and extension directives that brought the text to ``at``'s reader; innermost first."""
+    """The variables, uses and extension directives that brought the text to ``place``'s reader; innermost first."""
 
     def __post_init__(self) -> None:
         """Raise ValueError when ``code`` is neither a DiagnosticCode value nor a namespaced program code."""
@@ -106,10 +107,10 @@ def format_diagnostic(diagnostic: LocatedDiagnostic, graph: DocumentGraph | None
     """``path:line:col: code: message`` (1-based line and column, for people), then the source line and a caret under
     the span when ``graph`` holds the file (its current text), then one ``  via <kind> <name> at path:line:col`` line
     per step. Reads text only from ``graph``; never does I/O."""
-    lines = [f"{_place(diagnostic.at)}: {diagnostic.code}: {diagnostic.message}"]
-    document = None if graph is None else graph.documents.get(diagnostic.at.resolved_path)
+    lines = [f"{_place(diagnostic.place)}: {diagnostic.code}: {diagnostic.message}"]
+    document = None if graph is None else graph.documents.get(diagnostic.place.resolved_path)
     if document is not None:
-        start, end = diagnostic.at.span.start, diagnostic.at.span.end
+        start, end = diagnostic.place.span.start, diagnostic.place.span.end
         source_lines = document.text.split("\n")
         if start.line < len(source_lines):
             line = source_lines[start.line].removesuffix("\r")
@@ -126,7 +127,7 @@ def format_diagnostic(diagnostic: LocatedDiagnostic, graph: DocumentGraph | None
                 column += size
             lines.append(line)
             lines.append("".join(pad) + "^" * max(1, width))
-    lines.extend(f"  via {step.kind} {step.name} at {_place(step.at)}" for step in diagnostic.via)
+    lines.extend(f"  via {step.kind} {step.name} at {_place(step.place)}" for step in diagnostic.via)
     return "\n".join(lines)
 
 

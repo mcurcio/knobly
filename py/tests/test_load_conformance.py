@@ -22,37 +22,37 @@ CASES: list[dict[str, Any]] = json.loads((LOAD / "cases.json").read_text(encodin
 def rasl_key(d: vl.Directive) -> str | None:
     """The "rasl" key rule of format.md."""
     if d.name == "node" and d.parent is not None and d.parent.name == "graph":
-        return d.args[1].text if len(d.args) > 1 else None
+        return d.values[1].text if len(d.values) > 1 else None
     if d.name == "connect":
-        return " ".join(a.text for a in d.args)
+        return " ".join(a.text for a in d.values)
     if d.name == "fill":
-        return d.args[0].text if d.args else None
+        return d.values[0].text if d.values else None
     return None
 
 
-def place(at: vl.Place) -> str:
-    return f"{at.resolved_path}:{at.span.start.line}:{at.span.start.column}"
+def place(where: vl.Place) -> str:
+    return f"{where.resolved_path}:{where.span.start.line}:{where.span.start.column}"
 
 
-def origin(written: vl.Place | vl.Handed, via: Sequence[vl.Step]) -> str:
-    head = f"handed {written.variable}" if isinstance(written, vl.Handed) else place(written)
-    return head + "".join(f" < {step.kind} {step.name} {place(step.at)}" for step in via)
+def origin(where: vl.Place | vl.Override, via: Sequence[vl.Step]) -> str:
+    head = f"override {where.variable}" if isinstance(where, vl.Override) else place(where)
+    return head + "".join(f" < {step.kind} {step.name} {place(step.place)}" for step in via)
 
 
 def fmt(rendered: vl.Rendered, key: vl.KeyRule | None, changes: list[list[str]] | None) -> bytes:
     directives: list[Any] = []
-    unreadable: list[Any] = [["", u.kind.value, origin(u.origin.written, u.origin.via)] for u in rendered.unreadable]
+    unreadable: list[Any] = [["", u.reason.value, origin(u.origin.place, u.origin.via)] for u in rendered.unreadable]
     addresses = rendered.addresses(key=key)
-    for d in vl.walk(rendered):
+    for d in rendered.walk():
         address = str(addresses[d])
-        args = [[a.text, origin(a.origin.written, a.origin.via)] for a in d.args]
-        directives.append([address, d.body is not None, origin(d.origin.written, d.origin.via), args])
-        unreadable.extend([address, u.kind.value, origin(u.origin.written, u.origin.via)] for u in d.unreadable)
+        args = [[a.text, origin(a.origin.place, a.origin.via)] for a in d.values]
+        directives.append([address, d.block is not None, origin(d.origin.place, d.origin.via), args])
+        unreadable.extend([address, u.reason.value, origin(u.origin.place, u.origin.via)] for u in d.unreadable)
     value: dict[str, Any] = {
         "files": list(rendered.graph.documents),
         "directives": directives,
         "unreadable": unreadable,
-        "diagnostics": [[str(d.code), origin(d.at, d.via)] for d in rendered.diagnostics],
+        "diagnostics": [[str(d.code), origin(d.place, d.via)] for d in rendered.diagnostics],
     }
     if changes is not None:
         value["changes"] = changes
@@ -83,13 +83,13 @@ def test_load_case_matches_expected_bytes(case: dict[str, Any]) -> None:
     source = _Files(case["files"])
     processor = vl.Processor(source=source, extensions=[include()] if "include" in case.get("extensions", ()) else ())
     key = rasl_key if case.get("key") == "rasl" else None
-    variables = case.get("variables")
-    first = processor.render(processor.load(case["root"], variables=variables))
+    overrides = case.get("overrides")
+    first = vl.render(processor.load(case["root"], overrides=overrides))
     changes = None
     if "after" in case:
         source.files = {**case["files"], **case["after"]}
-        second = processor.render(processor.load(case["root"], variables=variables))
-        changes = [[change_kind(c), str(c.address)] for c in processor.diff(first, second, key=key)]
+        second = vl.render(processor.load(case["root"], overrides=overrides))
+        changes = [[change_kind(c), str(c.address)] for c in first.diff(second, key=key)]
     assert fmt(first, key, changes).decode() == (EXPECTED / f"{case['name']}.json").read_text(encoding="utf-8")
 
 

@@ -1,32 +1,33 @@
-"""The binding (design rule 3; slices.md 2.5): one derivation of the graph's current texts, handed-in values and read
+"""The binding (design rule 3; slices.md 2.5): one derivation of the graph's current texts, overrides and read
 ledger. It walks the copies (the root, then each include and ``use`` spliced in place), decides per copy what each
-``$name`` and ``use`` reads, and expands written values for the extension lines (an include's path) and for
-``render``. It is the one home of the name-lookup rule: ``render`` walks ``items`` and calls ``arguments_at``, and
-never looks a name up. Private; pure (no I/O); a port of ts/src/written/bind.ts.
+``$name`` and ``use`` reads, and expands written values for the extension lines (an include's path) and for the
+rendered layer. It is the one home of the name-lookup rule: the rendered layer walks ``items`` and calls
+``arguments_at``, and never looks a name up. It names no rendered type: it expands values into ``BoundValue``s, which
+the rendered layer turns into its own arguments. Private; pure (no I/O); a port of ts/src/written/bind.ts.
 
 The walk is PR 3's expander (cb08803) moved here, unchanged in what it decides and reports, with the read ledger in
 place of reading files during the walk."""
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
+from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias, final
 
 from villanelle import _values
-from villanelle import processor as _processor
 from villanelle._anatomy import Anatomy, anatomy_of, items_of
+from villanelle._api.kinds import UnreadableReason
+from villanelle._api.limits import MAX_DEPTH, MAX_DIRECTIVES
 from villanelle.diagnostics import DiagnosticCode, DiagnosticError
-from villanelle.directives import Argument, UnreadableKind
-from villanelle.origin import DirectiveOrigin, Handed, Origin, Place, Step, StepKind
+from villanelle.extension import ExtensionUse
+from villanelle.origin import DirectiveOrigin, Origin, Override, Place, Step, StepKind
 from villanelle.report import LocatedDiagnostic
 from villanelle.span import SourceSpan
 from villanelle.syntax._recovery import message_of
 from villanelle.syntax.cst import Node, NodeKind, Syntax, ValueRef, span_of
 from villanelle.syntax.parse import parse
 from villanelle.syntax.tokens import Token, TokenKind
-from villanelle.value import IndexValue, SliceValue, ValueKind
+from villanelle.value import ExpandedValue, IndexValue, SliceValue, ValueKind
 from villanelle.written._shape import shape_of_anatomy
 from villanelle.written.model import (
     Copy,
@@ -44,14 +45,52 @@ from villanelle.written.model import (
 )
 
 if TYPE_CHECKING:
-    from villanelle.processor import Extension
+    from villanelle.extension import Extension
 
-MAX_DEPTH = 16
-"""``use`` and extension directives may nest this many places deep (E5007 beyond)."""
-MAX_DIRECTIVES = 100_000
-"""At most this many directives after expansion (E5008 beyond, and expansion stops)."""
-RESERVED = frozenset({"set", "snippet", "use"})
-"""The names reserved at a statement's start in every block, besides each registered extension's (L6)."""
+
+@final
+class BoundValue:
+    """One value after expansion, with the two facts the rendered layer adds to it (spec 7.3): ``definition``, the
+    written value at the end of its chain (None for an override), and ``chain``, one reference resolution per
+    variable step of its origin, from its own line outward. ``expanded`` is the shared value an extension sees."""
+
+    __slots__ = ("chain", "definition", "expanded", "kind", "origin", "value")
+
+    kind: ValueKind
+    value: str | tuple[BoundValue, ...] | SliceValue | IndexValue
+    origin: Origin
+    definition: WrittenValue | None
+    chain: tuple[ReferenceResolution, ...]
+    expanded: ExpandedValue
+
+    def __init__(
+        self,
+        kind: ValueKind,
+        value: str | tuple[BoundValue, ...] | SliceValue | IndexValue,
+        origin: Origin,
+        definition: WrittenValue | None,
+        chain: tuple[ReferenceResolution, ...] = (),
+    ) -> None:
+        self.kind = kind
+        self.value = value
+        self.origin = origin
+        self.definition = definition
+        self.chain = chain
+        held = tuple(item.expanded for item in value) if isinstance(value, tuple) else value
+        self.expanded = ExpandedValue(kind, held, origin)
+
+    def rebase(self, drop: int, append: tuple[Step, ...], resolution: ReferenceResolution | None = None) -> BoundValue:
+        """The same value having travelled further: the last ``drop`` steps of its origin (and of each list item's)
+        are replaced by ``append``. A variable's value is stored with ``drop`` = the ``set`` line's own steps, and read
+        with ``append`` = the variable step and the reading place's steps, and that ``$name``'s ``resolution`` first
+        (D7)."""
+        via = self.origin.via
+        origin = Origin(self.origin.place, via[: len(via) - drop] + append)
+        value = self.value
+        if isinstance(value, tuple):
+            value = tuple(item.rebase(drop, append, resolution) for item in value)
+        chain = self.chain if resolution is None else (resolution, *self.chain)
+        return BoundValue(self.kind, value, origin, self.definition, chain)
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -68,7 +107,7 @@ class BoundUnreadable:
     """One copy of a statement that cannot be read there."""
 
     copy: Copy
-    reason: UnreadableKind
+    reason: UnreadableReason
     diagnostic: LocatedDiagnostic | None
     """None when the problem is already one of a document's syntax diagnostics."""
 
@@ -79,9 +118,9 @@ BoundItem: TypeAlias = BoundDirective | BoundUnreadable
 class BindingProblem(Exception):
     """A written value that cannot be expanded at a copy (E5001, E4001, E4003): the statement is unreadable there."""
 
-    def __init__(self, kind: UnreadableKind, diagnostic: LocatedDiagnostic) -> None:
+    def __init__(self, reason: UnreadableReason, diagnostic: LocatedDiagnostic) -> None:
         super().__init__(diagnostic.message)
-        self.kind = kind
+        self.reason = reason
         self.diagnostic = diagnostic
 
 
@@ -94,11 +133,11 @@ class ReadLedger(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
-class HandedInput:
-    """A handed-in value: its variable handle and its values, already read."""
+class OverrideInput:
+    """An override: its variable handle and its values, already read."""
 
     variable: Variable
-    values: tuple[Argument, ...]
+    values: tuple[BoundValue, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,64 +158,39 @@ Need: TypeAlias = ResolveNeed | ReadNeed
 def bind(
     root: Document,
     extensions: Mapping[str, Extension],
-    handed: Mapping[str, HandedInput],
+    overrides: Mapping[str, OverrideInput],
     reads: ReadLedger,
 ) -> Binding:
     """Derive the binding of these inputs. Pure and synchronous."""
-    binding = Binding(extensions, handed, reads)
+    binding = Binding(extensions, overrides, reads)
     binding._run(root)
     return binding
 
 
-VARIABLE_NAME = re.compile(r"[A-Za-z0-9_]+")
-"""A variable name (a ``$name`` without its ``$``, a handed-in name): the one home of the rule."""
-
-
-def read_handed(name: str, written: str) -> tuple[Argument, ...]:
-    """A handed-in value's values, read as PR 3's ``read_handed`` read them: the text as the values of one directive.
-    ValueError for a name that is not letters, digits and ``_``, or a text that is not one or more values (a syntax
-    error, a block, a variable, an unknown escape, a non-integer bound)."""
-    if not VARIABLE_NAME.fullmatch(name):
-        raise ValueError(f"handed-in variable name must be letters, digits and _: {name!r}")
-
-    def bad(why: str) -> ValueError:
-        return ValueError(f"handed-in variable {name}: {why}: {written!r}")
-
-    if not isinstance(written, str):
-        raise bad("not a string")
-    syntax = parse(f"x {written}")
-    nodes = syntax.root.children
-    if syntax.diagnostics or len(nodes) != 1 or nodes[0].kind is not NodeKind.DIRECTIVE:
-        raise bad("not a run of values")
-    if any(token.kind is TokenKind.VARIABLE for token in syntax.tokens):
-        raise bad("a handed-in value may not use a variable")
-    anatomy = anatomy_of(syntax.tokens, nodes[0])
-    if anatomy.block is not None:
-        raise bad("not a run of values")
-    if not anatomy.args:
-        raise bad("no value")
+def override_values(name: str, text: str) -> tuple[BoundValue, ...]:
+    """An override's values: the text, already checked (``_graph.check_override``), read as the values of one
+    directive."""
+    syntax = parse(f"x {text}")
+    anatomy = anatomy_of(syntax.tokens, syntax.root.children[0])
     reader = Binding({}, {}, None)
-    text = _Text(None, syntax, "", name)
-    try:
-        return tuple(argument for ref in anatomy.args for argument in reader.value(text, ref, _Scope(None), (), None))
-    except _Problem as problem:
-        raise bad(problem.diagnostic.message if problem.diagnostic else str(problem.kind)) from None
+    given = _Text(None, syntax, "", name)
+    return tuple(value for ref in anatomy.args for value in reader.value(given, ref, _Scope(None), (), None))
 
 
-def handed_value_problem(written: str) -> tuple[DiagnosticCode, SourceSpan] | None:
-    """What the handed-in reader refuses in a text already checked as values (an unknown escape, a non-integer
-    bound): its code and span in ``x <written>``, for ``set_handed``'s BadTextError."""
-    syntax = parse(f"x {written}")
+def override_value_problem(text: str) -> tuple[DiagnosticCode, SourceSpan] | None:
+    """What the value reader refuses in an override's text already checked as values (an unknown escape, a
+    non-integer bound): its code and span in ``x <text>``."""
+    syntax = parse(f"x {text}")
     if syntax.diagnostics or not syntax.root.children or syntax.root.children[0].kind is not NodeKind.DIRECTIVE:
         return None
     reader = Binding({}, {}, None)
-    text = _Text(None, syntax, "", "")
+    given = _Text(None, syntax, "", "")
     try:
         for ref in anatomy_of(syntax.tokens, syntax.root.children[0]).args:
-            reader.value(text, ref, _Scope(None), (), None)
+            reader.value(given, ref, _Scope(None), (), None)
     except _Problem as problem:
         if problem.diagnostic is not None:
-            return DiagnosticCode(problem.diagnostic.code), problem.diagnostic.at.span
+            return DiagnosticCode(problem.diagnostic.code), problem.diagnostic.place.span
     return None
 
 
@@ -185,15 +199,15 @@ def handed_value_problem(written: str) -> tuple[DiagnosticCode, SourceSpan] | No
 
 @dataclass(frozen=True, slots=True)
 class _Text:
-    """One text being walked: a document, or a value handed in by the program (``handed`` is its name)."""
+    """One text being walked: a document, or an override's text (``override`` is its name)."""
 
     doc: Document | None
     syntax: Syntax
     resolved_path: str
-    handed: str | None = None
+    override: str | None = None
 
-    def written(self, span: SourceSpan) -> Place | Handed:
-        return Place(self.resolved_path, span) if self.handed is None else Handed(self.handed)
+    def written(self, span: SourceSpan) -> Place | Override:
+        return Place(self.resolved_path, span) if self.override is None else Override(self.override)
 
     def place(self, span: SourceSpan) -> Place:
         return Place(self.resolved_path, span)
@@ -206,9 +220,9 @@ def _document_text(doc: Document) -> _Text:
 class _Problem(Exception):
     """A statement that cannot be read: raised inside a statement, caught where it is kept unreadable."""
 
-    def __init__(self, kind: UnreadableKind, diagnostic: LocatedDiagnostic | None) -> None:
-        super().__init__(kind if diagnostic is None else diagnostic.message)
-        self.kind = kind
+    def __init__(self, reason: UnreadableReason, diagnostic: LocatedDiagnostic | None) -> None:
+        super().__init__(reason if diagnostic is None else diagnostic.message)
+        self.reason = reason
         self.diagnostic = diagnostic
 
 
@@ -221,7 +235,7 @@ class _Definition:
     """One definition of a name: its variable, the values a reader gets (without the definer's steps), as written."""
 
     variable: Variable
-    values: tuple[Argument, ...]
+    values: tuple[BoundValue, ...]
     written: tuple[WrittenValue, ...]
 
 
@@ -344,10 +358,10 @@ class _SpliceScope:
         return self._target.define(snippet)
 
 
-def _pick(entries: Sequence[_Entry], handed: _Definition | None) -> _Definition | None:
-    """The winner among ``entries`` (innermost first) and a handed-in value, by PR 3's rule: the nearest ``set`` or
+def _pick(entries: Sequence[_Entry], override: _Definition | None) -> _Definition | None:
+    """The winner among ``entries`` (innermost first) and an override, by PR 3's rule: the nearest ``set`` or
     parameter; an include block's ``set`` wins over every ``set`` nearer than it, but a nearer parameter wins over
-    it; a handed-in value wins over every ``set`` and include-block ``set``, never over a parameter."""
+    it; an override wins over every ``set`` and include-block ``set``, never over a parameter."""
     found: _Entry | None = None
     for entry in entries:
         if entry.kind == "parameter" and found is None:
@@ -357,23 +371,23 @@ def _pick(entries: Sequence[_Entry], handed: _Definition | None) -> _Definition 
         if entry.kind == "forced":
             found = entry
             break
-    if handed is not None:
-        return handed
+    if override is not None:
+        return override
     return None if found is None else found.definition
 
 
-def _ordered(entries: Sequence[_Entry], handed: _Definition | None) -> list[_Definition]:
+def _ordered(entries: Sequence[_Entry], override: _Definition | None) -> list[_Definition]:
     """Every visible definition in the order the rule picks them, each as if those before it were removed."""
     out: list[_Definition] = []
     left = list(entries)
-    hand = handed
+    passed_in = override
     while True:
-        chosen = _pick(left, hand)
+        chosen = _pick(left, passed_in)
         if chosen is None:
             return out
         out.append(chosen)
-        if chosen is hand:
-            hand = None
+        if chosen is passed_in:
+            passed_in = None
         else:
             left = [entry for entry in left if entry.definition is not chosen]
 
@@ -410,14 +424,14 @@ class _TokenRange:
 
 
 class Binding:
-    """One derivation. Immutable once made; the graph makes a new one after any edit, ``set_handed`` or read."""
+    """One derivation. Immutable once made; the graph makes a new one after any edit, ``set_override`` or read."""
 
     def __init__(
-        self, extensions: Mapping[str, Extension], handed: Mapping[str, HandedInput], reads: ReadLedger | None
+        self, extensions: Mapping[str, Extension], overrides: Mapping[str, OverrideInput], reads: ReadLedger | None
     ) -> None:
         self._extensions = extensions
         self._reads = reads
-        self._handed = {name: _Definition(h.variable, h.values, ()) for name, h in handed.items()}
+        self._overrides = {name: _Definition(o.variable, o.values, ()) for name, o in overrides.items()}
         self.items: list[BoundItem] = []
         """The root document's top level at the root copy, includes and uses spliced in place."""
         self.edges: tuple[DocumentEdge, ...] = ()
@@ -432,11 +446,11 @@ class Binding:
         self._copies: dict[Statement, list[Copy]] = {}
         self._by_reference: dict[Reference, list[ReferenceResolution]] = {}
         self._by_use: dict[UseLine, list[Resolution[SnippetLine]]] = {}
-        self._args: dict[Copy, dict[WrittenValue, tuple[Argument, ...]] | BindingProblem] = {}
+        self._args: dict[Copy, dict[WrittenValue, tuple[BoundValue, ...]] | BindingProblem] = {}
         self._count = 0
         self._stopped = False
 
-    # --- What the graph, the documents and render ask ---
+    # --- What the graph, the documents and the rendered layer ask ---
 
     def need_of(self, edge: DocumentEdge) -> Need | None:
         return self._needs.get(edge)
@@ -450,7 +464,7 @@ class Binding:
     def snippets_of(self, use: UseLine) -> tuple[Resolution[SnippetLine], ...]:
         return tuple(self._by_use.get(use, ()))
 
-    def arguments_at(self, value: WrittenValue, copy: Copy) -> tuple[Argument, ...]:
+    def arguments_at(self, value: WrittenValue, copy: Copy) -> tuple[BoundValue, ...]:
         """One written value at one copy of its statement, expanded with PR 3's origins. Raises BindingProblem
         (E5001, E4001, E4003)."""
         found = self._args.get(copy)
@@ -482,7 +496,7 @@ class Binding:
 
     def _statements(self, scope_node: Node, context: _Context) -> None:
         doc = context.text.doc
-        assert doc is not None, "a handed-in text has no statements"
+        assert doc is not None, "an override's text has no statements"
         for node in scope_node.children:
             if self._stopped:
                 return
@@ -490,7 +504,7 @@ class Binding:
                 continue
             copy = self._copy_of(doc._statements[node.start], context.via)
             if node.kind is NodeKind.ERROR:
-                context.into.append(BoundUnreadable(copy, UnreadableKind.SYNTAX, None))
+                context.into.append(BoundUnreadable(copy, UnreadableReason.SYNTAX, None))
                 continue
             try:
                 self._statement(node, copy, context)
@@ -498,8 +512,8 @@ class Binding:
                 if problem.diagnostic is not None:
                     self.diagnostics.append(problem.diagnostic)
                     if isinstance(problem, _ValueProblem):
-                        self._args[copy] = BindingProblem(problem.kind, problem.diagnostic)
-                context.into.append(BoundUnreadable(copy, problem.kind, problem.diagnostic))
+                        self._args[copy] = BindingProblem(problem.reason, problem.diagnostic)
+                context.into.append(BoundUnreadable(copy, problem.reason, problem.diagnostic))
 
     def _statement(self, node: Node, copy: Copy, context: _Context) -> None:
         """One directive node: a reserved line does its work; any other becomes a directive, its block walked."""
@@ -521,20 +535,20 @@ class Binding:
             self._extension(extension, anatomy, name, copy, context)
             return
         statement = copy.statement
-        values: dict[WrittenValue, tuple[Argument, ...]] = {}
+        values: dict[WrittenValue, tuple[BoundValue, ...]] = {}
         for value in statement._value_list:
             try:
                 values[value] = tuple(self.value(text, value._ref, scope, via, copy))
             except _ValueProblem:
                 raise
             except _Problem as problem:
-                raise _ValueProblem(problem.kind, problem.diagnostic) from None
+                raise _ValueProblem(problem.reason, problem.diagnostic) from None
         self._args[copy] = values
         self._count += 1
         if self._count > MAX_DIRECTIVES:
             self._stopped = True
             raise self._problem(
-                UnreadableKind.EXPANSION,
+                UnreadableReason.EXPANSION,
                 DiagnosticCode.TOO_MANY_DIRECTIVES,
                 text,
                 name.span,
@@ -552,7 +566,7 @@ class Binding:
         fault = shape_of_anatomy(text.syntax.tokens, anatomy, frozenset()).fault
         if fault is not None:
             span = text.syntax.tokens[fault.token].span
-            raise self._problem(UnreadableKind.EXPANSION, fault.code, text, span, via)
+            raise self._problem(UnreadableReason.EXPANSION, fault.code, text, span, via)
 
     def _set(self, anatomy: Anatomy, copy: Copy, text: _Text, scope: _BlockScope, via: tuple[Step, ...]) -> None:
         """``set $name value...;`` (rule 2): binds from this line to the end of the enclosing block."""
@@ -564,15 +578,15 @@ class Binding:
         variable_name = variable.text[1:]
         if not scope.claim(variable_name):
             raise self._problem(
-                UnreadableKind.EXPANSION, DiagnosticCode.VARIABLE_SET_TWICE, text, variable.span, via, variable.text
+                UnreadableReason.EXPANSION, DiagnosticCode.VARIABLE_SET_TWICE, text, variable.span, via, variable.text
             )
         line = copy.statement
         assert isinstance(line, SetLine), "a set line that claims its name is kind set"
         bound = [argument for ref in args[1:] for argument in self.value(text, ref, scope, via, copy)]
-        # Stored without this line's own steps; a reader adds the variable step and its own (Argument._rebase).
+        # Stored without this line's own steps; a reader adds the variable step and its own (BoundValue.rebase).
         scope.bind(
             variable_name,
-            _Definition(line._variable, tuple(v._rebase(len(via), ()) for v in bound), tuple(line._value_list)),
+            _Definition(line._variable, tuple(v.rebase(len(via), ()) for v in bound), tuple(line._value_list)),
         )
 
     def _snippet(self, anatomy: Anatomy, copy: Copy, context: _Context) -> None:
@@ -590,7 +604,7 @@ class Binding:
         )
         if not defined:
             raise self._problem(
-                UnreadableKind.EXPANSION, DiagnosticCode.SNIPPET_DEFINED_TWICE, text, name.span, via, name.text
+                UnreadableReason.EXPANSION, DiagnosticCode.SNIPPET_DEFINED_TWICE, text, name.span, via, name.text
             )
 
     def _use(self, anatomy: Anatomy, keyword: Token, copy: Copy, context: _Context) -> None:
@@ -611,11 +625,11 @@ class Binding:
         self._by_use.setdefault(use, []).append(resolution)
         if not visible:
             raise self._problem(
-                UnreadableKind.EXPANSION, DiagnosticCode.UNKNOWN_SNIPPET, text, name.span, via, name.text
+                UnreadableReason.EXPANSION, DiagnosticCode.UNKNOWN_SNIPPET, text, name.span, via, name.text
             )
         snippet = visible[0]
         written: list[WrittenValue] = []
-        values: list[Argument] = []
+        values: list[BoundValue] = []
         doc = text.doc
         for ref in args[1:]:
             expanded = self.value(text, ref, scope, via, copy)
@@ -625,10 +639,11 @@ class Binding:
             values.extend(expanded)
         if len(values) != len(snippet.params):
             detail = f"{name.text} takes {len(snippet.params)}, given {len(values)}"
-            raise self._problem(UnreadableKind.EXPANSION, DiagnosticCode.SNIPPET_ARITY, text, keyword.span, via, detail)
+            code = DiagnosticCode.SNIPPET_ARITY
+            raise self._problem(UnreadableReason.EXPANSION, code, text, keyword.span, via, detail)
         if snippet in open_:
             raise self._problem(
-                UnreadableKind.EXPANSION, DiagnosticCode.EXPANSION_CYCLE, text, keyword.span, via, name.text
+                UnreadableReason.EXPANSION, DiagnosticCode.EXPANSION_CYCLE, text, keyword.span, via, name.text
             )
         self._check_depth(open_, text, keyword, via)
         # Parameters are the body block's own bindings (a `set` of one there is E5002, S3-03), stored without the
@@ -640,7 +655,7 @@ class Binding:
                     param,
                     _Definition(
                         snippet.line._parameters[i],
-                        (values[i]._rebase(len(via), ()),),
+                        (values[i].rebase(len(via), ()),),
                         (written[i],) if i < len(written) else (),
                     ),
                 )
@@ -657,13 +672,13 @@ class Binding:
         origin = DirectiveOrigin(text.place(name.span), via)
 
         def fail(code: DiagnosticCode, detail: str) -> _Problem:
-            return self._problem(UnreadableKind.EXTENSION, code, text, name.span, via, detail)
+            return self._problem(UnreadableReason.EXTENSION, code, text, name.span, via, detail)
 
         try:
-            draft.specs.extend(extension.specs(_processor.ExtensionUse(args, origin)))
+            draft.specs.extend(extension.specs(ExtensionUse(tuple(a.expanded for a in args), origin)))
         except DiagnosticError as error:
             draft.specs.clear()
-            raise _Problem(UnreadableKind.EXTENSION, error.diagnostic) from None
+            raise _Problem(UnreadableReason.EXTENSION, error.diagnostic) from None
         except Exception as error:
             draft.specs.clear()
             raise fail(DiagnosticCode.EXTENSION_FAILED, f"{name.text}: {error}") from None
@@ -682,7 +697,7 @@ class Binding:
             found.extend(sorted(paths))
         cycle = next((path for path in found if path in open_), None)
         if cycle is not None:
-            raise self._problem(UnreadableKind.EXPANSION, DiagnosticCode.EXPANSION_CYCLE, text, name.span, via, cycle)
+            raise self._problem(UnreadableReason.EXPANSION, DiagnosticCode.EXPANSION_CYCLE, text, name.span, via, cycle)
         self._check_depth(open_, text, name, via)
         files: list[Document] = []
         for path in found:
@@ -714,14 +729,14 @@ class Binding:
         for node in block.children:
             # Already reported by the parse; the broken line may be a `set` the files need: the include is unreadable.
             if node.kind is NodeKind.ERROR:
-                raise _Problem(UnreadableKind.SYNTAX, None)
+                raise _Problem(UnreadableReason.SYNTAX, None)
             if node.kind is not NodeKind.DIRECTIVE or doc is None:
                 continue
             anatomy = anatomy_of(tokens, node)
             name = tokens[anatomy.name]
             if name.text != "set":
                 raise self._problem(
-                    UnreadableKind.EXTENSION, DiagnosticCode.EXTENSION_BLOCK_NOT_SET, text, name.span, via
+                    UnreadableReason.EXTENSION, DiagnosticCode.EXTENSION_BLOCK_NOT_SET, text, name.span, via
                 )
             self._set(anatomy, self._copy_of(doc._statements[node.start], via), text, own, via)
         return own.own()
@@ -730,7 +745,7 @@ class Binding:
         """Rule 9's depth, after the cycle check (S3-10): a ``use`` or extension directive 17 places deep is E5007."""
         if len(open_) > MAX_DEPTH:
             raise self._problem(
-                UnreadableKind.EXPANSION,
+                UnreadableReason.EXPANSION,
                 DiagnosticCode.EXPANSION_TOO_DEEP,
                 text,
                 name.span,
@@ -740,7 +755,7 @@ class Binding:
 
     def value(
         self, text: _Text, ref: ValueRef, scope: _ScopeView, via: tuple[Step, ...], copy: Copy | None
-    ) -> list[Argument]:
+    ) -> list[BoundValue]:
         """One written value, expanded: a ``$name`` becomes all its values (rule 4); a list's items the same way."""
         syntax = text.syntax
         doc = text.doc
@@ -753,28 +768,29 @@ class Binding:
                     for item in items_of(syntax.tokens, ref)
                     for argument in self.value(text, item, scope, via, copy)
                 )
-                return [Argument(ValueKind.LIST, items, origin, written)]
+                return [BoundValue(ValueKind.LIST, items, origin, written)]
             return [self._slice(text, ref, scope, via, copy, origin, written)]
         token = syntax.tokens[ref]
         origin = Origin(text.written(token.span), via)
         if token.kind is TokenKind.WORD:
-            return [Argument(ValueKind.WORD, token.text, origin, written)]
+            return [BoundValue(ValueKind.WORD, token.text, origin, written)]
         if token.kind is TokenKind.STRING:
             if not _values.has_only_known_escapes(token.text):
-                raise self._problem(UnreadableKind.VALUE, DiagnosticCode.BAD_ESCAPE, text, token.span, via, token.text)
-            return [Argument(ValueKind.STRING, _values.decode_string(token.text), origin, written)]
+                code = DiagnosticCode.BAD_ESCAPE
+                raise self._problem(UnreadableReason.VALUE, code, text, token.span, via, token.text)
+            return [BoundValue(ValueKind.STRING, _values.decode_string(token.text), origin, written)]
         if token.kind is TokenKind.VARIABLE:
             return self._variable(text, ref, token, scope, via, copy)
         raise TypeError(f"not a value token: {token.kind}")
 
     def _variable(
         self, text: _Text, ref: int, token: Token, scope: _ScopeView, via: tuple[Step, ...], copy: Copy | None
-    ) -> list[Argument]:
+    ) -> list[BoundValue]:
         """``$name``'s values as read here: each with the variable step, then the reading place's steps."""
         name = token.text[1:]
         entries: list[_Entry] = []
         scope.entries(name, entries)
-        ordered = _ordered(entries, self._handed.get(name))
+        ordered = _ordered(entries, self._overrides.get(name))
         winner = ordered[0] if ordered else None
         resolution: ReferenceResolution | None = None
         reference = None if text.doc is None else text.doc._values.get(ref)
@@ -790,10 +806,10 @@ class Binding:
             self._by_reference.setdefault(reference, []).append(resolution)
         if winner is None:
             raise self._problem(
-                UnreadableKind.EXPANSION, DiagnosticCode.UNKNOWN_VARIABLE, text, token.span, via, token.text
+                UnreadableReason.EXPANSION, DiagnosticCode.UNKNOWN_VARIABLE, text, token.span, via, token.text
             )
         step = Step(StepKind.VARIABLE, name, text.place(token.span))
-        return [value._rebase(0, (step, *via), resolution) for value in winner.values]
+        return [value.rebase(0, (step, *via), resolution) for value in winner.values]
 
     def _slice(
         self,
@@ -804,7 +820,7 @@ class Binding:
         copy: Copy | None,
         origin: Origin,
         written: WrittenValue | None,
-    ) -> Argument:
+    ) -> BoundValue:
         """``name[bounds]``: each bound a literal IntegerText or a variable holding exactly one (rules 4 and 10)."""
         tokens = text.syntax.tokens
         name = tokens[node.start].text
@@ -818,10 +834,10 @@ class Binding:
         colon = next((i for i, t in enumerate(inner) if tokens[t].kind is TokenKind.COLON), -1)
         if colon < 0:
             index = bound(0)
-            return Argument(ValueKind.INDEX, IndexValue(name, 0 if index is None else index), origin, written)
+            return BoundValue(ValueKind.INDEX, IndexValue(name, 0 if index is None else index), origin, written)
         start = None if colon == 0 else bound(0)
         end = bound(colon + 1) if colon + 1 < len(inner) else None
-        return Argument(ValueKind.SLICE, SliceValue(name, start, end), origin, written)
+        return BoundValue(ValueKind.SLICE, SliceValue(name, start, end), origin, written)
 
     def _bound(
         self, text: _Text, ref: int, token: Token, scope: _ScopeView, via: tuple[Step, ...], copy: Copy | None
@@ -831,28 +847,28 @@ class Binding:
             value = _values.integer_of(token.text)
             if value is None:
                 raise self._problem(
-                    UnreadableKind.VALUE, DiagnosticCode.NON_INTEGER_BOUND, text, token.span, via, token.text
+                    UnreadableReason.VALUE, DiagnosticCode.NON_INTEGER_BOUND, text, token.span, via, token.text
                 )
             return value
         values = self._variable(text, ref, token, scope, via, copy)
         only = values[0] if values else None
         if len(values) == 1 and only is not None and only.kind is ValueKind.WORD:
-            integer = _values.integer_of(only.text)
+            integer = _values.integer_of(only.expanded.text)
             if integer is not None:
                 return integer
-        at = None if only is None else only.origin.written
+        at = None if only is None else only.origin.place
         if only is None or not isinstance(at, Place):
-            # A handed-in value is written in no file: the problem is placed on the `$name` that used it.
+            # An override is written in no file: the problem is placed on the `$name` that used it.
             raise self._problem(
-                UnreadableKind.VALUE, DiagnosticCode.NON_INTEGER_BOUND, text, token.span, via, token.text
+                UnreadableReason.VALUE, DiagnosticCode.NON_INTEGER_BOUND, text, token.span, via, token.text
             )
         code = DiagnosticCode.NON_INTEGER_BOUND
-        message = f"{message_of(code)}: {token.text} is {only.text}"
-        raise _Problem(UnreadableKind.VALUE, LocatedDiagnostic(code, message, at, only.origin.via))
+        message = f"{message_of(code)}: {token.text} is {only.expanded.text}"
+        raise _Problem(UnreadableReason.VALUE, LocatedDiagnostic(code, message, at, only.origin.via))
 
     def _problem(
         self,
-        kind: UnreadableKind,
+        reason: UnreadableReason,
         code: DiagnosticCode,
         text: _Text,
         span: SourceSpan,
@@ -860,4 +876,4 @@ class Binding:
         detail: str = "",
     ) -> _Problem:
         message = message_of(code) if detail == "" else f"{message_of(code)}: {detail}"
-        return _Problem(kind, LocatedDiagnostic(code, message, text.place(span), via))
+        return _Problem(reason, LocatedDiagnostic(code, message, text.place(span), via))

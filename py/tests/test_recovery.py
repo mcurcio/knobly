@@ -6,8 +6,8 @@ import sys
 from typing import Any
 
 from villanelle import Node, NodeKind, parse, text_of
+from villanelle._api.limits import MAX_NESTING
 from villanelle.diagnostics import DiagnosticCode
-from villanelle.syntax._recovery import MAX_NESTING
 
 
 def shape(text: str) -> dict[str, Any]:

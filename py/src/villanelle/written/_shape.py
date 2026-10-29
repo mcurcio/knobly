@@ -7,14 +7,15 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Literal, TypeAlias
+from typing import TypeAlias
 
 from villanelle._anatomy import Anatomy, anatomy_of
+from villanelle._api.kinds import StatementKind
 from villanelle.diagnostics import DiagnosticCode
 from villanelle.syntax.cst import Node, NodeKind
 from villanelle.syntax.tokens import Token, TokenKind
 
-ShapeKind: TypeAlias = Literal["directive", "extension", "set", "snippet", "use", "unreadable"]
+ShapeKind: TypeAlias = StatementKind
 
 
 @dataclass(frozen=True, slots=True)

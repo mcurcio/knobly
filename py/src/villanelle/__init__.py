@@ -1,32 +1,27 @@
 """villanelle: a configuration language defined by one grammar (grammar/Villanelle.g4), with a lossless syntax tree
-(tier 1: ``parse``), the config as written (the low level: ``Processor.load`` returns a ``DocumentGraph`` of
-editable documents, saved back with ``save``), and the rendered tree (``Processor.render``: variables, snippets and
-included files expanded into directives a program reads). The core does no I/O: ``villanelle.files`` gives a
-filesystem source and writer."""
+(``parse``), the config as written (the low level: ``Processor.load`` returns a ``DocumentGraph`` of editable
+documents, read further with ``graph.read()`` and saved back with ``graph.save(writer)``), and the rendered tree
+(``render(graph)``: variables, snippets and included files expanded into directives a program reads). The core does
+no I/O: ``villanelle.files`` gives a filesystem source and writer."""
 
+from villanelle._api.kinds import UnreadableReason
 from villanelle.diagnostics import Diagnostic, DiagnosticCode, DiagnosticError
-from villanelle.directives import (
+from villanelle.extension import Extension, ExtensionUse
+from villanelle.origin import DirectiveOrigin, Origin, Override, Place, Step, StepKind
+from villanelle.rendered import (
+    Added,
     Address,
     AddressStep,
     Argument,
-    Directive,
-    KeyRule,
-    PlainValue,
-    Unreadable,
-    UnreadableKind,
-    walk,
-)
-from villanelle.origin import DirectiveOrigin, Handed, Origin, Place, Step, StepKind
-from villanelle.processor import (
-    Added,
     Change,
     Changed,
-    Extension,
-    ExtensionUse,
-    Processor,
+    Directive,
+    KeyRule,
     Removed,
     Rendered,
     Unknown,
+    Unreadable,
+    render,
 )
 from villanelle.report import Collecting, Diagnostics, Locatable, LocatedDiagnostic, format_diagnostic
 from villanelle.source import DocumentSource, LoadContext, memory_source
@@ -34,7 +29,7 @@ from villanelle.span import SourcePosition, SourceSpan
 from villanelle.syntax.cst import Node, NodeKind, Syntax, TokenRange, ValueRef, span_of, text_of
 from villanelle.syntax.parse import parse
 from villanelle.syntax.tokens import Token, TokenKind
-from villanelle.value import IndexValue, SliceValue, ValueKind
+from villanelle.value import ExpandedValue, IndexValue, PlainValue, SliceValue, ValueKind
 from villanelle.written import (
     BadTextError,
     Copy,
@@ -48,6 +43,7 @@ from villanelle.written import (
     Index,
     List,
     NoSetLineError,
+    Processor,
     ReadError,
     Reference,
     ReferenceResolution,
@@ -66,7 +62,6 @@ from villanelle.written import (
     WrittenDirective,
     WrittenValue,
     quote,
-    save,
 )
 
 __all__ = [
@@ -92,10 +87,10 @@ __all__ = [
     "DocumentSource",
     "DocumentWriter",
     "EditError",
+    "ExpandedValue",
     "Extension",
     "ExtensionUse",
     "FileWrite",
-    "Handed",
     "Index",
     "IndexValue",
     "KeyRule",
@@ -107,6 +102,7 @@ __all__ = [
     "Node",
     "NodeKind",
     "Origin",
+    "Override",
     "Place",
     "PlainValue",
     "Processor",
@@ -133,8 +129,8 @@ __all__ = [
     "TokenRange",
     "Unknown",
     "Unreadable",
-    "UnreadableKind",
     "UnreadableLine",
+    "UnreadableReason",
     "UseLine",
     "ValueKind",
     "ValueRef",
@@ -147,8 +143,7 @@ __all__ = [
     "memory_source",
     "parse",
     "quote",
-    "save",
+    "render",
     "span_of",
     "text_of",
-    "walk",
 ]

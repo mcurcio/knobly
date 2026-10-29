@@ -17,14 +17,15 @@ dev = ["pytest", "ruff", "mypy"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-# src/villanelle/_gen/ is made by `bash ../tools/gen.sh py` and ignored by git, so hatchling would drop it:
-# artifacts force it into the wheel and sdist (proven by tests/test_build.py). Run gen.sh before building.
+# src/villanelle/_gen/ (the parser) and src/villanelle/_api/ (the API lists from spec/schema/) are made by
+# `bash ../tools/gen.sh py` and ignored by git, so hatchling would drop them: artifacts force them into the wheel and
+# sdist (proven by tests/test_build.py). Run gen.sh before building.
 [tool.hatch.build.targets.wheel]
 packages = ["src/villanelle"]
-artifacts = ["src/villanelle/_gen/*"]
+artifacts = ["src/villanelle/_gen/*", "src/villanelle/_api/*"]
 
 [tool.hatch.build.targets.sdist]
-artifacts = ["src/villanelle/_gen/*"]
+artifacts = ["src/villanelle/_gen/*", "src/villanelle/_api/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -33,6 +34,9 @@ testpaths = ["tests"]
 line-length = 120
 target-version = "py311"
 extend-exclude = ["src/villanelle/_gen"]
+# The generated src/villanelle/_api/ is git-ignored but must stay checked (the generator emits clean code); ruff skips
+# git-ignored files unless told not to. .venv/ and dist/ are in ruff's default excludes.
+respect-gitignore = false
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
