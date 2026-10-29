@@ -10,7 +10,7 @@ import tempfile
 from collections.abc import Sequence
 
 from villanelle._glob import glob_pattern, has_glob
-from villanelle.source import DocumentSource, DocumentWriter, FileWrite, LoadContext
+from villanelle.source import DocumentSource, DocumentWriter, FileWrite, LoadContext, check_lost_updates
 
 
 def file_source() -> DocumentSource:
@@ -24,21 +24,21 @@ def file_source() -> DocumentSource:
 class _FileSource:
     __slots__ = ()
 
-    def resolve(self, spec: str, context: LoadContext, /) -> Sequence[str]:
+    def resolve(self, spec: str, context: LoadContext, /) -> tuple[str, ...]:
         path = os.path.normpath(os.path.join(os.path.dirname(context.parent_path), spec))
         if not has_glob(path):
-            return [path] if _is_file(path) else []
+            return (path,) if _is_file(path) else ()
         directory, name = os.path.split(path)
         pattern = glob_pattern(name)
         try:
             entries = os.listdir(directory or ".")
         except (FileNotFoundError, NotADirectoryError):
-            return []
-        return [
+            return ()
+        return tuple(
             os.path.join(directory, entry)
             for entry in entries
             if pattern.fullmatch(entry) is not None and _is_file(os.path.join(directory, entry))
-        ]
+        )
 
     def read(self, resolved_path: str, /) -> str:
         # newline="" keeps "\r\n" as written: positions count every character of the file.
@@ -47,12 +47,12 @@ class _FileSource:
 
 
 def file_writer() -> DocumentWriter:
-    """A writer for one batch (slices.md S3; D18): it raises, writing nothing, when any file on disk no longer holds
-    its ``saved_text`` (a lost update; the error names the paths); otherwise it writes each text to a temporary file
-    beside its target (``<name>.<random>.tmp``), then renames each over its target, as UTF-8 with line breaks as
-    written. A missing target holds "" (a new file has ``saved_text`` "", D-S2-5). A failure while staging removes the
-    temporaries and raises with nothing replaced; a failure while renaming can leave earlier files replaced (the
-    stated cost) and removes the temporaries not yet renamed."""
+    """A writer for one batch (slices.md S3; D18): ``check_lost_updates`` with each file's text on disk first, so it
+    raises ``LostUpdateError``, writing nothing, when any file on disk no longer holds its ``saved_text``; otherwise
+    it writes each text to a temporary file beside its target (``<name>.<random>.tmp``), then renames each over its
+    target, as UTF-8 with line breaks as written. A missing target holds "" (a new file has ``saved_text`` "",
+    D-S2-5). A failure while staging removes the temporaries and raises with nothing replaced; a failure while
+    renaming can leave earlier files replaced (the stated cost) and removes the temporaries not yet renamed."""
     return _FileWriter()
 
 
@@ -60,9 +60,7 @@ class _FileWriter:
     __slots__ = ()
 
     def write(self, files: Sequence[FileWrite], /) -> None:
-        lost = [file.resolved_path for file in files if _read_or_empty(file.resolved_path) != file.saved_text]
-        if lost:
-            raise OSError(f"changed on disk since it was read (a lost update): {', '.join(lost)}")
+        check_lost_updates(files, [_read_or_none(file.resolved_path) for file in files])
         staged: list[tuple[str, str]] = []
         try:
             for file in files:
@@ -86,13 +84,13 @@ class _FileWriter:
                 raise
 
 
-def _read_or_empty(path: str) -> str:
-    """The file's text as written, or "" when nothing is there."""
+def _read_or_none(path: str) -> str | None:
+    """The file's text as written, or None when nothing is there."""
     try:
         with open(path, encoding="utf-8", newline="") as file:
             return file.read()
     except (FileNotFoundError, NotADirectoryError):
-        return ""
+        return None
 
 
 def _is_file(path: str) -> bool:

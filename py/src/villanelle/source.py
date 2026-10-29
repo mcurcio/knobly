@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from villanelle._glob import glob_pattern, has_glob
+from villanelle.errors import LostUpdateError
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,14 +27,16 @@ class DocumentSource(Protocol):
     """The document source. The load calls ``read`` at most once per resolved path, however many places splice the
     file in (R21: "Obviously the file only needs to be read once")."""
 
-    def resolve(self, spec: str, context: LoadContext, /) -> Sequence[str]:
+    def resolve(self, spec: str, context: LoadContext, /) -> tuple[str, ...]:
         """The resolved paths a spec names (a path, or a glob with ``*`` and ``?`` in its last segment), in any order;
-        empty means not found (E3001). An exception becomes E3004 at the extension directive."""
+        empty means not found (E3001). An exception becomes E3004 at the extension directive (for the root file,
+        ``load`` raises ReadError). Checked at run time (spec 4.1): anything but a sequence of str, a bare ``str``
+        included, is the source's failure."""
         ...
 
     def read(self, resolved_path: str, /) -> str:
-        """The text of one resolved file. An exception becomes E3004 at the extension line (for the root file,
-        ``load`` raises ReadError)."""
+        """The text of one resolved file. An exception, or anything but a ``str``, becomes E3004 at the extension
+        line (for the root file, ``load`` raises ReadError)."""
         ...
 
 
@@ -45,18 +48,31 @@ class FileWrite:
     text: str
     """What to write."""
     saved_text: str
-    """The document's ``saved_text``: compare it with the disk to find a lost update."""
+    """The document's ``saved_text``: what ``check_lost_updates`` compares with the medium's text now."""
 
 
 class DocumentWriter(Protocol):
     """The program's writer."""
 
     def write(self, files: Sequence[FileWrite], /) -> None:
-        """One batch: stage every file, then commit them together. Raising while staging means nothing was committed;
-        a writer that can fail part way through committing (the fs writer's renames) leaves the files it committed
-        changed on disk while their ``saved_text`` stays the old text, so the next save refuses them as lost updates
-        until the program reloads (stated cost, D-F1-10)."""
+        """One batch: ``check_lost_updates`` with each file's text in the medium now, then stage every file and
+        commit them together. Raising while staging means nothing was committed; a writer that can fail part way
+        through committing (the fs writer's renames) leaves the files it committed changed on disk while their
+        ``saved_text`` stays the old text, so the next save refuses them as lost updates until the program reloads
+        (stated cost, D-F1-10)."""
         ...
+
+
+def check_lost_updates(files: Sequence[FileWrite], current: Sequence[str | None], /) -> None:
+    """The one lost-update check (spec 4.2) every writer calls before it writes anything, a program's own writer
+    included: ``current[i]`` is ``files[i]``'s text in the medium now, None when there is none (read as ""). Raises
+    ``LostUpdateError`` naming every file whose current text differs from its ``saved_text``, in batch order. Prior
+    art: HTTP conditional requests (RFC 9110 13.1.1, ``If-Match``), optimistic concurrency. Pure."""
+    if len(current) != len(files):
+        raise ValueError(f"check_lost_updates: {len(files)} files but {len(current)} current texts")
+    lost = [file.resolved_path for file, now in zip(files, current, strict=True) if (now or "") != file.saved_text]
+    if lost:
+        raise LostUpdateError(lost)
 
 
 def memory_source(files: Mapping[str, str], /) -> DocumentSource:
@@ -74,17 +90,17 @@ class _MemorySource:
     def __init__(self, texts: Mapping[str, str]) -> None:
         self._texts = texts
 
-    def resolve(self, spec: str, context: LoadContext, /) -> Sequence[str]:
+    def resolve(self, spec: str, context: LoadContext, /) -> tuple[str, ...]:
         path = _normalize(spec if spec.startswith("/") else _directory_of(context.parent_path) + spec)
         if not has_glob(path):
-            return [path] if path in self._texts else []
+            return (path,) if path in self._texts else ()
         directory = _directory_of(path)
         pattern = glob_pattern(path[len(directory) :])
-        return [
+        return tuple(
             key
             for key in self._texts
             if _directory_of(key) == directory and pattern.fullmatch(key[len(directory) :]) is not None
-        ]
+        )
 
     def read(self, resolved_path: str, /) -> str:
         if resolved_path not in self._texts:
@@ -94,9 +110,9 @@ class _MemorySource:
 
 def memory_writer(files: MutableMapping[str, str], /) -> DocumentWriter:
     """A writer into texts held in memory, keyed by resolved path: the map a ``memory_source`` reads, so a save is
-    seen by the next load. Each batch first checks every file's text in the map ("" when the key is absent) against
-    its ``saved_text``, raising (writing nothing) and naming the paths when any differs (a lost update, as the file
-    writer refuses one); then it sets every file's text. All or nothing. Pure: no I/O."""
+    seen by the next load. Each batch first runs ``check_lost_updates`` with every file's text in the map (absent when
+    the key is), so a lost update raises ``LostUpdateError`` and writes nothing; then it sets every file's text. All
+    or nothing. Pure: no I/O."""
     return _MemoryWriter(files)
 
 
@@ -107,9 +123,7 @@ class _MemoryWriter:
         self._texts = texts
 
     def write(self, files: Sequence[FileWrite], /) -> None:
-        lost = [file.resolved_path for file in files if self._texts.get(file.resolved_path, "") != file.saved_text]
-        if lost:
-            raise RuntimeError(f"changed since it was read (a lost update): {', '.join(lost)}")
+        check_lost_updates(files, [self._texts.get(file.resolved_path) for file in files])
         for file in files:
             self._texts[file.resolved_path] = file.text
 

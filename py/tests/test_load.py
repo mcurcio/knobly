@@ -4,7 +4,7 @@ and ``memory_source``."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from typing import cast
 
 import pytest
@@ -55,7 +55,7 @@ def texts(directive: vl.Directive) -> list[str]:
 
 
 def test_gives_args_in_written_order_without_spaces_comments_or_punctuation() -> None:
-    loaded = load('listen 80 "a b" c[1:2] [x, # note\n  y];\nend\n')
+    loaded = load('listen 80 "a b" c[1:2] [x, # note\n  y];\nend;\n')
     assert codes(loaded) == []
     listen, end = loaded.block
     assert texts(listen) == ["80", '"a b"', "c[1:2]", "[x, y]"]
@@ -105,7 +105,7 @@ def test_directive_matches_by_name_values_and_block() -> None:
         case _:
             pytest.fail("no match")
     match graph.block[0].values[0]:
-        case vl.WordArgument("DdpSink"):
+        case vl.ExpandedWord("DdpSink"):
             pass
         case _:
             pytest.fail("no match")
@@ -140,11 +140,11 @@ def test_the_root_origin_is_the_root_file_at_0_0() -> None:
 
 def test_the_root_is_resolved_through_the_source_so_it_has_one_path_and_is_read_once() -> None:
     reads: list[str] = []
-    files = {"d/main.conf": 'x "1;\ninclude "main.conf";\ny 1;\n'}
+    files = {"d/main.conf": 'x 1;\ninclude "main.conf";\ny 1;\n'}
     memory = vl.memory_source(files)
 
     class Counting:
-        def resolve(self, spec: str, context: vl.LoadContext, /) -> Sequence[str]:
+        def resolve(self, spec: str, context: vl.LoadContext, /) -> tuple[str, ...]:
             return memory.resolve(spec, context)
 
         def read(self, resolved_path: str, /) -> str:
@@ -154,8 +154,8 @@ def test_the_root_is_resolved_through_the_source_so_it_has_one_path_and_is_read_
     loaded = rendered(vl.Processor(source=Counting(), extensions=[include_extension()]), "./d/../d/main.conf")
     assert reads == ["d/main.conf"]
     assert list(loaded.graph.documents) == ["d/main.conf"]
-    assert codes(loaded) == ["E1001", "E5006"]
-    assert names(loaded) == ["y"]
+    assert codes(loaded) == ["E5006"]
+    assert names(loaded) == ["x", "y"]
 
 
 def test_a_root_the_source_cannot_resolve_to_one_file_raises_read_error_with_the_path_as_written() -> None:
@@ -171,8 +171,8 @@ def test_a_root_the_source_cannot_resolve_to_one_file_raises_read_error_with_the
 
 def test_a_root_the_source_cannot_read_raises_read_error_from_the_sources_failure() -> None:
     class Failing:
-        def resolve(self, spec: str, context: vl.LoadContext, /) -> Sequence[str]:
-            return [spec]
+        def resolve(self, spec: str, context: vl.LoadContext, /) -> tuple[str, ...]:
+            return (spec,)
 
         def read(self, resolved_path: str, /) -> str:
             raise PermissionError(resolved_path)
@@ -192,8 +192,8 @@ def test_the_processor_refuses_an_extension_named_set_snippet_or_use_or_two_of_o
         def __init__(self, directive: str) -> None:
             self.directive = directive
 
-        def specs(self, use: vl.ExtensionUse, /) -> Sequence[str]:
-            return []
+        def specs(self, use: vl.ExtensionUse, /) -> tuple[str, ...]:
+            return ()
 
     with pytest.raises(ValueError, match="name taken"):
         vl.Processor(source=vl.memory_source({}), extensions=[Named(name) for name in names])
@@ -246,13 +246,13 @@ def test_an_override_wins_over_every_set_of_its_name_and_is_visible_everywhere()
 
 @pytest.mark.parametrize("name", ["", "a-b", "$a", "a b", "é"])
 def test_a_bad_override_name_raises_value_error(name: str) -> None:
-    with pytest.raises(ValueError, match="an override's name"):
+    with pytest.raises(ValueError, match="letters, digits and _"):
         load("x;\n", overrides={name: "1"})
 
 
-@pytest.mark.parametrize("text", ["", "   ", 'x"y"', "$other", "1; y 2", "1 { a; }", '"\\q"', "c[a:1]", "1\n2"])
+@pytest.mark.parametrize("text", ["", "   ", 'x"y"', "$other", "1; y 2", "1 { a; }", '"\\q"', "c[a:1]", "1 # c"])
 def test_an_override_text_that_is_not_one_run_of_values_raises_bad_text_error(text: str) -> None:
-    with pytest.raises(vl.BadTextError, match=r"not an override's values \(\$v\)"):
+    with pytest.raises(vl.BadTextError, match=r"^bad text: 1:\d+: E\d{4}: "):
         load("x;\n", overrides={"v": text})
 
 
@@ -410,9 +410,9 @@ def test_include_errors(line: str, code: str, where: tuple[int, int]) -> None:
 
 def test_memory_source_joins_to_the_parents_directory_and_removes_dot_dot_segments() -> None:
     source = vl.memory_source({"x.conf": "", "../y.conf": ""})
-    assert source.resolve("../x.conf", vl.LoadContext("a/b.conf")) == ["x.conf"]
-    assert source.resolve("../../y.conf", vl.LoadContext("a/b.conf")) == ["../y.conf"]
-    assert source.resolve("./x.conf", vl.LoadContext("")) == ["x.conf"]
+    assert source.resolve("../x.conf", vl.LoadContext("a/b.conf")) == ("x.conf",)
+    assert source.resolve("../../y.conf", vl.LoadContext("a/b.conf")) == ("../y.conf",)
+    assert source.resolve("./x.conf", vl.LoadContext("")) == ("x.conf",)
 
 
 def test_an_include_glob_splices_matches_in_code_point_order() -> None:
@@ -429,7 +429,7 @@ class _Counting:
         self.resolve_fails = resolve_fails
         self.read_fails = read_fails
 
-    def resolve(self, spec: str, context: vl.LoadContext, /) -> Sequence[str]:
+    def resolve(self, spec: str, context: vl.LoadContext, /) -> tuple[str, ...]:
         if spec == self.resolve_fails:
             raise OSError("resolve failed")
         return self.inner.resolve(spec, context)
@@ -467,11 +467,66 @@ def test_an_extension_that_raises_something_else_is_e3006() -> None:
     class Broken:
         directive = "broken"
 
-        def specs(self, use: vl.ExtensionUse, /) -> Sequence[str]:
+        def specs(self, use: vl.ExtensionUse, /) -> tuple[str, ...]:
             raise RuntimeError("boom")
 
     loaded = rendered(vl.Processor(source=vl.memory_source({"main.conf": "broken 1;\n"}), extensions=[Broken()]))
     assert codes(loaded) == ["E3006"]
+
+
+@pytest.mark.parametrize("result", ["dark.conf", None, ["a", 1], 3])
+def test_an_extension_whose_specs_are_not_a_tuple_of_str_is_e3006_at_the_directive(result: object) -> None:
+    class Bare:
+        directive = "theme"
+
+        def specs(self, use: vl.ExtensionUse, /) -> tuple[str, ...]:
+            return result  # type: ignore[return-value]
+
+    files = {"main.conf": "ok;\ntheme 1;\n", "dark.conf": "x;\n"}
+    loaded = rendered(vl.Processor(source=vl.memory_source(files), extensions=[Bare()]))
+    assert codes(loaded) == ["E3006"]
+    assert at(loaded.diagnostics[0]) == (1, 0)
+    assert "specs() must return a tuple of str" in loaded.diagnostics[0].message
+    assert [d.name for d in loaded.block] == ["ok"]
+
+
+class _Bare:
+    """A source whose ``resolve`` returns a bare str for one spec (a str is a sequence of one-letter strs)."""
+
+    def __init__(self, files: Mapping[str, str], bare: str) -> None:
+        self.inner = vl.memory_source(files)
+        self.bare = bare
+
+    def resolve(self, spec: str, context: vl.LoadContext, /) -> tuple[str, ...]:
+        if spec == self.bare:
+            return spec  # type: ignore[return-value]
+        return self.inner.resolve(spec, context)
+
+    def read(self, resolved_path: str, /) -> str:
+        return self.inner.read(resolved_path)
+
+
+def test_a_source_whose_resolve_returns_a_bare_str_is_e3004_or_a_read_error_for_the_root() -> None:
+    files = {"main.conf": 'include "p";\nok;\n', "p": "x;\n"}
+    loaded = rendered(vl.Processor(source=_Bare(files, "p"), extensions=[include_extension()]))
+    assert codes(loaded) == ["E3004"]
+    assert "resolve() must return a tuple of str, not str" in loaded.diagnostics[0].message
+    with pytest.raises(vl.ReadError) as raised:
+        vl.Processor(source=_Bare(files, "main.conf")).load("main.conf")
+    assert isinstance(raised.value.__cause__, TypeError)
+
+
+def test_a_source_whose_read_returns_anything_but_a_str_is_e3004() -> None:
+    class Bytes:
+        def resolve(self, spec: str, context: vl.LoadContext, /) -> tuple[str, ...]:
+            return (spec,)
+
+        def read(self, resolved_path: str, /) -> str:
+            return 'include "p";\n' if resolved_path == "main.conf" else b"x;"  # type: ignore[return-value]
+
+    loaded = rendered(vl.Processor(source=Bytes(), extensions=[include_extension()]))
+    assert codes(loaded) == ["E3004"]
+    assert "read() must return a str, not bytes" in loaded.diagnostics[0].message
 
 
 # --- rule 9: limits and cycles -----------------------------------------------------------------------------------
@@ -510,11 +565,28 @@ def test_more_than_100000_directives_is_e5008_and_expansion_stops() -> None:
 # --- rule 10: value rules at load --------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(("text", "code"), [("a c[x:2];", "E4001"), ("a c[1.5];", "E4001"), ('a "\\q";', "E4003")])
-def test_a_value_rule_broken_at_load_makes_the_directive_unreadable(text: str, code: str) -> None:
+@pytest.mark.parametrize(
+    "text", ["a c[99999999999999999999];", "set $n x;\na c[$n:2];", "set $n 1 2;\na c[$n];"], ids=["long", "x", "two"]
+)
+def test_a_value_rule_broken_at_load_makes_the_directive_unreadable(text: str) -> None:
+    loaded = load(f"{text}\nok;\n")
+    assert codes(loaded) == ["E4001"]
+    assert [u.reason for u in loaded.unreadable] == ["value"]
+    assert [d.name for d in loaded.block] == ["ok"]
+
+
+@pytest.mark.parametrize(("text", "code"), [("a c[x:2];", "E2007"), ("a c[1.5];", "E2007"), ('a "\\q";', "E1005")])
+def test_a_literal_bound_that_is_not_an_integer_and_a_bad_escape_are_syntax_errors(text: str, code: str) -> None:
     loaded = load(f"{text}\nok;\n")
     assert codes(loaded) == [code]
-    assert [u.reason for u in loaded.unreadable] == ["value"]
+    assert [u.reason for u in loaded.unreadable] == ["syntax"]
+    assert [d.name for d in loaded.block] == ["ok"]
+
+
+def test_an_override_with_a_literal_bound_beyond_the_integer_range_is_e4001_where_it_is_read() -> None:
+    loaded = load("ok;\nx $n;\n", overrides={"n": "c[99999999999999999999]"})
+    assert codes(loaded) == ["E4001"]
+    assert at(loaded.diagnostics[0]) == (1, 2)
     assert [d.name for d in loaded.block] == ["ok"]
 
 
@@ -610,8 +682,8 @@ class _Swap:
     def __init__(self, text: str) -> None:
         self.text = text
 
-    def resolve(self, spec: str, context: vl.LoadContext, /) -> Sequence[str]:
-        return [spec]
+    def resolve(self, spec: str, context: vl.LoadContext, /) -> tuple[str, ...]:
+        return (spec,)
 
     def read(self, resolved_path: str, /) -> str:
         return self.text

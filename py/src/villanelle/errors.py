@@ -1,7 +1,10 @@
-"""Every error class the package defines (spec/contract.md 4), shared by all layers, under one base class,
-``VillanelleError``, so one ``except`` clause catches them all. The program-bug groups raise the language's own
-classes instead (``TypeError`` for an argument of the wrong type, ``ValueError`` for misuse, ``IndexError`` for an
-index out of range), which are not under it. The same tree as TypeScript's ``ts/src/errors.ts``."""
+"""Every error class the package defines (spec 2.8, spec/contract.md 4), on the spec's two sorts. An **expected
+outcome** (the input or the outside world decides it) is under the one base class ``VillanelleError``, so one
+``except VillanelleError`` clause catches every outcome and no bug. A **program bug** (the program could have checked
+first) is outside it: ``DetachedError`` (a ``ReferenceError``), and the language's own ``TypeError`` (an argument of
+the wrong type), ``ValueError`` (misuse: every bad name among them) and ``IndexError`` (an index out of range). Prior
+art: Midori's "bugs are not recoverable errors" (Joe Duffy), Rust's panic against ``Result``. The same tree as
+TypeScript's ``ts/src/errors.ts``."""
 
 from __future__ import annotations
 
@@ -14,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class VillanelleError(Exception):
-    """The base of every error class villanelle defines. Never raised by itself."""
+    """The base of every expected-outcome class villanelle defines, and of nothing else. Never raised by itself."""
 
 
 class DiagnosticError(VillanelleError):
@@ -38,6 +41,18 @@ class ReadError(VillanelleError):
         self.paths: tuple[str, ...] = tuple(paths)
 
 
+class BadTextError(VillanelleError):
+    """The text given to an edit, or an override's text, is not what it takes: its entry rule's first error (spec
+    2.8), values where statements go (or the other way), or a text-alone rule broken (E5002, E5005, E5009-E5011).
+    Nothing changed. ``diagnostics`` are located in the given text, in code points, with the codes a load gives; the
+    message is built from them: ``bad text: 1:2: E2001: unexpected token: ";"`` (each diagnostic's people form,
+    joined by ``; ``). Not a ``ValueError``: that is misuse, a program bug."""
+
+    def __init__(self, diagnostics: Sequence[Diagnostic]) -> None:
+        self.diagnostics: tuple[Diagnostic, ...] = tuple(diagnostics)
+        super().__init__("bad text: " + "; ".join(str(d) for d in self.diagnostics))
+
+
 class SaveError(VillanelleError):
     """The writer failed. No document's ``saved_text`` changed. ``paths`` are the resolved paths handed to the writer,
     in batch order; ``__cause__`` is what the writer raised."""
@@ -47,32 +62,26 @@ class SaveError(VillanelleError):
         self.paths: tuple[str, ...] = tuple(paths)
 
 
-class EditError(VillanelleError, ValueError):
-    """Base of the refusals of an edit; nothing changed when one is raised. Also a ``ValueError``: a refused text is a
-    bad value."""
+class LostUpdateError(SaveError):
+    """A file the save would write changed since it was read or last saved (spec 4.2): its text in the medium now
+    differs from its ``saved_text``. ``paths`` are only the conflicting files, in batch order; no cause. Raised by
+    ``check_lost_updates`` inside every writer, before it writes anything; ``save`` raises it as it is."""
+
+    def __init__(self, paths: Sequence[str]) -> None:
+        super().__init__(f"lost update: changed since read: {', '.join(paths)}", paths)
 
 
-class BadTextError(EditError):
-    """The text given to an edit, or an override's text, is not what it takes: a syntax error, values where
-    statements go (or the other way), a line break that would end the statement, or a text-alone rule broken
-    (E5002, E5005, E5009-E5011). ``diagnostics`` are located in the given text, in code points, with the codes a
-    load gives."""
-
-    def __init__(self, message: str, diagnostics: Sequence[Diagnostic]) -> None:
-        super().__init__(message)
-        self.diagnostics: tuple[Diagnostic, ...] = tuple(diagnostics)
-
-
-class DetachedError(VillanelleError, ReferenceError):
-    """The handle's tokens were removed by an edit, or its document's whole text was replaced. Raised by every member
-    but ``kind``. Also a ``ReferenceError``, the error a dead ``weakref`` proxy raises; not an edit error."""
+class DetachedError(ReferenceError):
+    """A program bug, outside ``VillanelleError``: the handle's tokens were removed by an edit, or its document's
+    whole text was replaced, and a member but ``kind`` was used. A ``ReferenceError``, the error a dead ``weakref``
+    proxy raises: a reference that no longer leads anywhere."""
 
 
 __all__ = [
     "BadTextError",
     "DetachedError",
     "DiagnosticError",
-    "EditError",
+    "LostUpdateError",
     "ReadError",
     "SaveError",
     "VillanelleError",

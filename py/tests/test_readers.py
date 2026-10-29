@@ -1,5 +1,5 @@
 """Value readers and canonical text (round 11 slices.md §1.3; S3 criteria 4 and 5), through a load. Replaces the old
-``value_of`` tests: slices, indexes, bounds and string escapes are now read by ``Argument``."""
+``value_of`` tests: slices, indexes, bounds and string escapes are read by the expanded values."""
 
 from __future__ import annotations
 
@@ -13,13 +13,13 @@ def _render(processor: vl.Processor, overrides: dict[str, str] | None = None) ->
     return vl.render(processor.load("main.conf", overrides=overrides))
 
 
-def args(text: str) -> tuple[vl.Argument, ...]:
+def args(text: str) -> tuple[vl.ExpandedValue, ...]:
     loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})))
     assert loaded.diagnostics == ()
     return loaded.block[0].values
 
 
-def arg(text: str) -> vl.Argument:
+def arg(text: str) -> vl.ExpandedValue:
     [only] = args(text)
     return only
 
@@ -136,12 +136,20 @@ def test_strings_decode_the_six_escapes(literal: str, decoded: str) -> None:
     assert arg(literal).string() == decoded
 
 
-@pytest.mark.parametrize(("text", "column"), [("c[x:2]", 4), ("c[1:x]", 6), ("c[007]", 4), (f"c[{2**53}]", 4)])
-def test_a_non_integer_bound_is_e4001_at_the_bound(text: str, column: int) -> None:
+@pytest.mark.parametrize(("text", "column"), [(f"c[{2**53}]", 4), (f"c[1:-{2**53}]", 6)])
+def test_a_literal_bound_beyond_the_integer_range_is_e4001_at_the_bound(text: str, column: int) -> None:
     loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})))
     [d] = loaded.diagnostics
     assert (d.code, d.place.span.start.column) == ("E4001", column)
     assert loaded.block == ()
+
+
+@pytest.mark.parametrize(("text", "column"), [("c[x:2]", 4), ("c[1:x]", 6), ("c[007]", 4)])
+def test_a_literal_bound_that_is_not_an_integer_is_e2007_at_parse(text: str, column: int) -> None:
+    loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})))
+    [d] = loaded.diagnostics
+    assert (d.code, d.place.span.start.column) == ("E2007", column)
+    assert [u.reason for u in loaded.unreadable] == ["syntax"]
 
 
 # --- canonical text ----------------------------------------------------------------------------------------------

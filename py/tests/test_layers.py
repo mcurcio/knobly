@@ -54,7 +54,7 @@ def governed() -> list[Path]:
 
 def test_the_check_covers_the_low_level_the_shared_modules_and_the_generated_ones() -> None:
     names = {module_name(path) for path in governed()}
-    assert {"villanelle.written.model", "villanelle.written.processor", "villanelle.value"} <= names
+    assert {"villanelle.written.model", "villanelle.written.processor", "villanelle.written.value"} <= names
     assert {"villanelle._api.kinds", "villanelle.include"} <= names
     assert not any(name.startswith(RENDERED) for name in names)
 
@@ -74,8 +74,8 @@ def test_no_module_below_the_rendered_layer_imports_it(path: Path) -> None:
         "from villanelle.rendered._render import render",
         "from villanelle import rendered",
         "from .. import rendered",
-        "from ..rendered import Argument",
-        "from ..rendered._tree import Argument",
+        "from ..rendered import Directive",
+        "from ..rendered._tree import Directive",
         "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from villanelle.rendered import Rendered",
     ],
 )
@@ -84,7 +84,7 @@ def test_the_check_bites_on_a_planted_import(line: str) -> None:
 
 
 def test_the_check_passes_imports_of_other_layers() -> None:
-    source = "from villanelle import value\nfrom . import _bind\nfrom ..origin import Place\nimport villanelle.written"
+    source = "from villanelle import origin\nfrom . import _bind\nfrom ..origin import Place\nimport villanelle.written"
     assert forbidden_imports(source, "villanelle.written.model", package=False) == []
 
 
@@ -192,7 +192,7 @@ def test_the_public_check_bites_on_a_planted_private_reach(line: str) -> None:
 def test_the_public_check_passes_public_imports_and_own_private_state() -> None:
     source = (
         "from villanelle.written import DocumentGraph, WrittenDirective\n"
-        "from villanelle.value import ExpandedWord\n"
+        "from villanelle.written import ExpandedWord\n"
         "from . import _tree\n"
         "self._block = ()\n"
         "x = cls._made\n"

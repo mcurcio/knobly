@@ -17,9 +17,9 @@ own style: `Processor` for `villanelle()`, `walk()` as a generator, `match` on o
 
 | Import | What it has |
 |---|---|
-| `villanelle` | The core: `parse`, `Processor`, `render`, `quote`, `memory_source`, `memory_writer`, `Diagnostics`, `format_diagnostic`, the error classes, the kind lists (`StatementKind`, `ValueKind`, ...) and the types they use |
-| `villanelle.written` | The low level on its own: `Processor`, `DocumentGraph` and the written types, and the only home of the written values `Word`, `String`, `List`, `Slice`, `Index` and `Reference` (so `from villanelle import *` never replaces `typing.List`). It never imports the rendered layer |
-| `villanelle.rendered` | The rendered layer on its own: `render`, `Rendered`, `Directive`, the argument classes, the change classes. It reaches the low level only through `villanelle.written`'s public names |
+| `villanelle` | The core: `parse`, `Processor`, `render`, `quote`, `memory_source`, `memory_writer`, `check_lost_updates`, `Diagnostics`, `format_diagnostic`, the error classes, the kind lists (`StatementKind`, `ValueKind`, ...) and the types they use |
+| `villanelle.written` | The low level on its own: `Processor`, `DocumentGraph`, the written types, the expansion and its expanded values (`ExpandedWord` ... `ExpandedIndex`), the extension port (`Extension`, `ExtensionUse`), and the only home of the written values `Word`, `String`, `List`, `Slice`, `Index` and `Reference` (so `from villanelle import *` never replaces `typing.List`). It never imports the rendered layer |
+| `villanelle.rendered` | The rendered layer on its own: `render`, `Rendered`, `Directive`, addresses and the change classes. It reaches the low level only through `villanelle.written`'s public names |
 | `villanelle.include` | `include()`: the include extension |
 | `villanelle.files` | `file_source()` and `file_writer()`: files on disk |
 
@@ -32,9 +32,9 @@ own style: `Processor` for `villanelle()`, `walk()` as a generator, `match` on o
   copies, the variables (`SetVariable`, `Parameter`, `OverrideVariable`) and what each `$name` reads at each place.
   An operation exists only where it can succeed: `rename` on a written directive and on set variables and
   parameters, `set` on statements with values and on set variables; an include line is an `ExtensionLine`, with no
-  `rename`. An override is a value the program
-  passes in, as villanelle text, that wins over every `set` of its name (`overrides={"host": quote(host)}`;
-  change it later with `graph.set_override(name, text)`). Named edits change the text and keep comments and
+  `rename`. An override is a value the program passes in, as villanelle text (`overrides={"host": quote(host)}`;
+  change it later with `graph.set_override(name, text)`); which `set` lines it wins over, and what an included
+  file sees, is [spec/expansion.md](../spec/expansion.md). Named edits change the text and keep comments and
   layout. They take villanelle text only, and anything else raises `TypeError`: write a program string with
   `quote()` and a number with `str()`.
 
@@ -49,22 +49,29 @@ own style: `Processor` for `villanelle()`, `walk()` as a generator, `match` on o
   ```
 
   `set(text)`, `replace_with_text(text)`, `insert_before(text)`, `insert_after(text)`,
-  `insert_statements(index, text)`, `add_statements(text)` and `rename(name)` are the edits; a values text with a
-  line break outside a list, or one that ends in a comment, is refused (`BadTextError`, E2001), since either would
-  end the statement or swallow its `;`. `graph.read()` reads files an edit
-  added, through the graph's own source; `graph.save(writer)` hands the changed files to a writer in one batch
-  (`memory_writer(files)` writes into the same map a `memory_source(files)` reads; `file_writer()` to disk), and
-  `graph.expand()` gives every copy as read, which the rendered layer builds on. A variable's `references()` are
+  `insert_statements(index, text)`, `add_statements(text)` and `rename(name)` are the edits. Every statement ends
+  with `;` or a block, and a line break is whitespace, so a values text may hold line breaks (`port.set("1\n2")`
+  writes `port 1\n2;`). A given text is checked with the grammar's entry rule for it (spec 2.8): a values text that
+  holds a `;` or a block, or ends in a comment (which would swallow the `;`), raises `BadTextError` (E2001, its
+  message built from its diagnostics). A bad name in `rename`, `set_override` or an override is a program bug,
+  `ValueError`. `graph.read()` reads files an edit added, through the graph's own source; until then an include
+  copy not read renders as an unreadable with reason `unread` (E3007). `graph.save(writer)` hands the changed
+  files to a writer in one batch (`memory_writer(files)` writes into the same map a `memory_source(files)` reads;
+  `file_writer()` to disk); every writer refuses a file changed since it was read with `LostUpdateError` (a
+  `SaveError`, `paths` the conflicting files) through the one check `check_lost_updates`, which a program's own
+  writer calls too. `graph.expand()` gives every copy as read, which the rendered layer builds on, and
+  `graph.diagnostics` is the one list a render shows. A variable's `references()` are
   lexical: the `$name`s in its own file that it declares. A use in an included file is resolved per copy, so it is
   only in `wins()` and `shadowed_at()`. Reference: [docs/low-level-api.md](../docs/low-level-api.md).
 - **The rendered tree.** `render(graph)` builds on the low level: it expands variables, snippets and included
-  files into directives (`block`, `rendered.walk()`), each value an argument of its kind (`WordArgument`,
-  `StringArgument`, `ListArgument` with its `items`, `SliceArgument`, `IndexArgument`; the union `Argument`) with
-  its readers (`word()`, `string()`, `number()`, `integer()`, `boolean()`, `list()`, `slice()`, `plain()`), its
+  files into directives (`block`, `rendered.walk()`). A directive's values are the low level's expanded values,
+  the same objects its directive expansion holds, one class per kind (`ExpandedWord`, `ExpandedString`,
+  `ExpandedList` with its `items`, `ExpandedSlice`, `ExpandedIndex`; the union `ExpandedValue`), equal when their
+  canonical texts are (`==`, `hash`), with its readers (`word()`, `string()`, `number()`, `integer()`, `boolean()`, `list()`, `slice()`, `plain()`), its
   origin, and `written` (the value on the same line), `definition` (where it is written) and `chain` (each `$name`
   it went through) leading back to the low level. `rendered.addresses(key=...)` names each directive under a key rule,
   and `before.diff(after, key=...)` lists what changed, as `Added`, `Removed`, `Changed` and `Unknown`. Matching a
-  `StringArgument` by position gives its canonical `text`, quotes included; read `string()` for the decoded text.
+  `ExpandedString` by position gives its canonical `text`, quotes included; read `string()` for the decoded text.
   A file included twice renders as two copies that share one written line, so an edit loop over the render meets
   the same `written` handle twice, and the first `replace_with_text` detaches it: keep the handles already edited
   and skip them.
@@ -86,8 +93,10 @@ that runs; the language is [docs/language.md](../docs/language.md).
 Diagnostic codes are the same as in TypeScript. Offsets and columns count code points, Python's own string unit
 ([spec/contract.md](../spec/contract.md) 1), so `text[span.start.offset:span.end.offset]` is a span's text
 (TypeScript counts UTF-16 code units; the two differ after a character outside the Basic Multilingual Plane). A
-place prints as `main.conf:4:5` (`str(place)`, counting from 1), as do diagnostics and steps. Every error class the
-package defines is under `VillanelleError`. The shared cases in `conformance/` stay in UTF-16 units; one shared
+place prints as `main.conf:4:5` (`str(place)`, counting from 1), as do diagnostics and steps. Every expected
+outcome (a diagnostic, read, bad text, save or lost update error) is under `VillanelleError`, and no program bug
+is: a detached handle raises `DetachedError` (a `ReferenceError`), misuse `ValueError`, a wrong argument type
+`TypeError`, an index out of range `IndexError` (spec 2.8). The shared cases in `conformance/` stay in UTF-16 units; one shared
 driver ([spec/conformance.md](../spec/conformance.md)) runs every corpus against this package through its adapter,
 `conformance/adapter.py`, converts positions, and compares. The Python package claims level L3 (syntax, low level,
 rendered tree, extensions) and passes every case, as the TypeScript package does.

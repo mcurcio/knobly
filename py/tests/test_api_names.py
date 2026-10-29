@@ -39,7 +39,7 @@ def snake(name: str) -> str:
 
 
 def leading(text: str) -> str:
-    """The identifier a binding spelling starts with ("EditError (subclass of ValueError)" -> "EditError")."""
+    """The identifier a binding spelling starts with ("ReadError (subclass of X)" -> "ReadError")."""
     m = re.match(r"[A-Za-z_]\w*", text)
     assert m is not None, f"no name in {text!r}"
     return m.group()
@@ -212,7 +212,7 @@ def test_error_group(group: dict[str, Any]) -> None:
     if parent is not None:
         base = group_class(parent)
         assert isinstance(base, type) and issubclass(cls, base), f"{group['py']} does not extend {parent['py']}"
-    # "EditError (subclass of VillanelleError and ValueError)": every class the spelling names is a base.
+    # "DetachedError (subclass of ReferenceError, ...)": every class the spelling names is a base.
     if m := re.search(r"\(subclass of ([^)]*)\)", group["py"]):
         for base_name in re.split(r"\s+and\s+", m.group(1).split(",")[0]):
             base = named_class(base_name.strip())

@@ -5,6 +5,8 @@ from __future__ import annotations
 import sys
 from typing import Any
 
+import pytest
+
 from villanelle import Node, NodeKind, parse, text_of
 from villanelle._api.limits import MAX_NESTING
 from villanelle.diagnostics import DiagnosticCode
@@ -24,7 +26,7 @@ def shape(text: str) -> dict[str, Any]:
 
 
 def test_makes_a_bad_statement_inside_a_block_one_error_node_and_keeps_later_siblings() -> None:
-    text = "server {\n  listen 80 ]\n  root /x\n}\nnext 1\n"
+    text = "server {\n  listen 80 ];\n  root /x;\n}\nnext 1;\n"
     assert shape(text) == {
         "tree": [
             "document",
@@ -32,19 +34,19 @@ def test_makes_a_bad_statement_inside_a_block_one_error_node_and_keeps_later_sib
             [
                 [
                     "directive",
-                    "server {\n  listen 80 ]\n  root /x\n}",
+                    "server {\n  listen 80 ];\n  root /x;\n}",
                     [
                         [
                             "block",
-                            "{\n  listen 80 ]\n  root /x\n}",
+                            "{\n  listen 80 ];\n  root /x;\n}",
                             [
-                                ["error", "listen 80 ]\n", []],
-                                ["directive", "root /x\n", []],
+                                ["error", "listen 80 ];", []],
+                                ["directive", "root /x;", []],
                             ],
                         ],
                     ],
                 ],
-                ["directive", "next 1\n", []],
+                ["directive", "next 1;", []],
             ],
         ],
         "codes": [["E2004", 1, 12]],
@@ -52,81 +54,109 @@ def test_makes_a_bad_statement_inside_a_block_one_error_node_and_keeps_later_sib
 
 
 def test_reports_the_first_error_of_each_bad_statement_at_its_real_position_and_only_that_one() -> None:
-    text = 'a ]\nb 1\nc "x ] ]\nd 2\n'
+    text = "a ];\nb 1;\nc x ] ];\nd 2;\n"
     assert shape(text) == {
         "tree": [
             "document",
             text,
             [
-                ["error", "a ]\n", []],
-                ["directive", "b 1\n", []],
-                ["error", 'c "x ] ]\n', []],
-                ["directive", "d 2\n", []],
+                ["error", "a ];", []],
+                ["directive", "b 1;", []],
+                ["error", "c x ] ];", []],
+                ["directive", "d 2;", []],
             ],
         ],
-        "codes": [["E2004", 0, 2], ["E1001", 2, 2]],
+        "codes": [["E2004", 0, 2], ["E2004", 2, 4]],
     }
+
+
+def test_resumes_after_the_bad_statements_semicolon_never_at_a_line_break() -> None:
+    # spec 3.2: an unterminated string's statement runs on to the next `;`, hiding the line after it.
+    assert [n[:2] for n in shape('c "x;\nd 2;\ne 3;\n')["tree"][2]] == [["error", 'c "x;\nd 2;'], ["directive", "e 3;"]]
+    assert shape("a ]\nb 1;\nc;\n")["tree"][2] == [["error", "a ]\nb 1;", []], ["directive", "c;", []]]
+    # a stray `}` at the top level ends the bad statement
+    assert [n[:2] for n in shape("x 1 }\ny 2;")["tree"][2]] == [["error", "x 1 }"], ["directive", "y 2;"]]
+
+
+def test_a_missing_semicolon_is_e2001_where_it_was_due_and_mid_block_joins_the_next_line() -> None:
+    assert shape("x 1") == {"tree": ["document", "x 1", [["error", "x 1", []]]], "codes": [["E2001", 0, 3]]}
+    assert shape("a { x 1 }")["codes"] == [["E2001", 0, 8]]
+    result = shape("a 1;\nb 2\nc 3;\nd 4\n")
+    assert [n[:2] for n in result["tree"][2]] == [["directive", "a 1;"], ["directive", "b 2\nc 3;"], ["error", "d 4\n"]]
+    assert result["codes"] == [["E2001", 4, 0]]
+
+
+def test_a_line_break_is_whitespace_so_a_wrapped_line_is_one_directive() -> None:
+    syntax = parse("ranges 0.0627\n 0.922;\n")
+    assert syntax.diagnostics == ()
+    [directive] = syntax.root.children
+    assert directive.kind is NodeKind.DIRECTIVE and text_of(syntax, directive) == "ranges 0.0627\n 0.922;"
+
+
+@pytest.mark.parametrize("text", ["0.922;", "-x 1;", "1[0];", "20hz 1;"])
+def test_a_directive_name_that_starts_with_a_digit_or_dash_is_e2001_at_it(text: str) -> None:
+    assert shape(text) == {"tree": ["document", text, [["error", text, []]]], "codes": [["E2001", 0, 0]]}
 
 
 def test_reports_where_the_statement_breaks_never_conjuring_or_deleting_a_token() -> None:
     # ANTLR's default inline recovery would conjure the missing '}' and report it as a different error.
-    assert shape("a {\n b 1\n")["codes"] == [["E2003", 2, 0]]
-    assert shape("x [a b]\ny 1\n")["codes"] == [["E2001", 0, 5]]
-    assert shape("x a[1 2]\ny 1\n")["codes"] == [["E2007", 0, 5]]
-    assert [n[0] for n in shape("x a[1:2 z]\ny 1\n")["tree"][2]] == ["error", "directive"]
+    assert shape("a {\n b 1;\n")["codes"] == [["E2003", 2, 0]]
+    assert shape("x [a b];\ny 1;\n")["codes"] == [["E2001", 0, 5]]
+    assert shape("x a[1 2];\ny 1;\n")["codes"] == [["E2007", 0, 5]]
+    assert [n[0] for n in shape("x a[1:2 z];\ny 1;\n")["tree"][2]] == ["error", "directive"]
 
 
 def test_gives_a_stray_bracket_and_an_unclosed_bracket_one_located_e2004_each() -> None:
-    assert shape("x ]\ny 1\n")["codes"] == [["E2004", 0, 2]]
+    assert shape("x ];\ny 1;\n")["codes"] == [["E2004", 0, 2]]
     assert shape("a {\n x [1\n}\n")["codes"] == [["E2004", 2, 0]]
     assert shape("x [1, 2")["codes"] == [["E2004", 0, 7]]
 
 
-def test_gives_a_brace_that_starts_its_line_e2008_and_keeps_the_directive_before_it() -> None:
-    result = shape("a\n  # c\n  {\n b 1\n}\nc 2\n")
-    assert result["codes"] == [["E2008", 2, 2]]
+def test_a_brace_that_starts_its_line_opens_the_block_of_the_directive_before_it() -> None:
+    result = shape("a\n  # c\n  {\n b 1;\n}\nc 2;\n")
+    assert result["codes"] == []
     assert [[n[0], n[1]] for n in result["tree"][2]] == [
-        ["directive", "a\n"],
-        ["error", "{\n b 1\n}"],
-        ["directive", "c 2\n"],
+        ["directive", "a\n  # c\n  {\n b 1;\n}"],
+        ["directive", "c 2;"],
     ]
 
 
 def test_gives_touching_values_e2009() -> None:
-    assert shape('x "a""b"')["codes"] == [["E2009", 0, 5]]
-    assert shape('x a"b"')["codes"] == [["E2009", 0, 3]]
-    assert shape("x [a][b]")["codes"] == [["E2009", 0, 5]]
-    assert shape("x a[0:1]b")["codes"] == [["E2009", 0, 8]]
+    assert shape('x "a""b";')["codes"] == [["E2009", 0, 5]]
+    assert shape('x a"b";')["codes"] == [["E2009", 0, 3]]
+    assert shape("x [a][b];")["codes"] == [["E2009", 0, 5]]
+    assert shape("x a[0:1]b;")["codes"] == [["E2009", 0, 8]]
+    assert shape("x 1[0];")["codes"] == [["E2009", 0, 3]]  # a slice's name is a WORD: 1 and [0] touch
 
 
 def test_resumes_after_a_long_run_of_bad_statements_in_a_loop_never_overflowing_the_stack() -> None:
     run = 5000
-    bad = "a ]\n" * run
+    bad = "a ];\n" * run
     for text, count in (
         (bad, run),
         ("a ];" * run, run),
         (f"a {{\n{bad}}}\n", run),
-        ("a ]\nb 1\n" * (run // 2), run // 2),
+        ("a ];\nb 1;\n" * (run // 2), run // 2),
     ):
         syntax = parse(text)
         assert len(syntax.diagnostics) == count
         assert text_of(syntax, syntax.root) == text
     top = shape(bad)
-    assert top["tree"][2] == [["error", "a ]\n", []]] * run
+    assert top["tree"][2] == [["error", "a ];", []]] * run
     assert top["codes"][run - 1] == ["E2004", run - 1, 2]
-    assert shape(f"a {{\n{bad}}}\n")["tree"][2][0][2][0][2] == [["error", "a ]\n", []]] * run
-    assert shape("a ]\nb 1\n" * (run // 2))["tree"][2][:4] == [
-        ["error", "a ]\n", []],
-        ["directive", "b 1\n", []],
-        ["error", "a ]\n", []],
-        ["directive", "b 1\n", []],
+    assert shape(f"a {{\n{bad}}}\n")["tree"][2][0][2][0][2] == [["error", "a ];", []]] * run
+    assert shape("a ];\nb 1;\n" * (run // 2))["tree"][2][:4] == [
+        ["error", "a ];", []],
+        ["directive", "b 1;", []],
+        ["error", "a ];", []],
+        ["directive", "b 1;", []],
     ]
 
 
 def test_parses_wrong_format_files_and_bad_runs_at_full_nesting_depth_without_raising() -> None:
-    deep = "a {" * MAX_NESTING + "x ]\n" * 200 + "}" * MAX_NESTING
+    deep = "a {" * MAX_NESTING + "x ];\n" * 200 + "}" * MAX_NESTING
     for text in (
-        "".join(f"key{i}: [value, {i}]]\n" for i in range(600)),
+        "".join(f"key{i}: [value, {i}]];\n" for i in range(600)),
         "".join(f'"k{i}": "v",\n' for i in range(600)),
         deep,
     ):
@@ -141,7 +171,7 @@ def blocks(n: int) -> str:
 
 
 def lists(n: int) -> str:
-    return "x " + "[" * n + "]" * n
+    return "x " + "[" * n + "]" * n + ";"
 
 
 def test_parses_max_nesting_levels_of_blocks_and_lists_clean_without_touching_the_recursion_limit() -> None:

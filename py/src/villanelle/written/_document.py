@@ -12,17 +12,17 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TypeAlias
 
-from villanelle._anatomy import anatomy_of, items_of
+from villanelle._anatomy import anatomy_of, items_of, values_of
 from villanelle._api.kinds import StatementKind
-from villanelle._api.limits import RESERVED, VARIABLE_NAME
 from villanelle.diagnostics import Diagnostic, DiagnosticCode
 from villanelle.errors import BadTextError
 from villanelle.origin import Place
 from villanelle.span import SourcePosition, SourceSpan
 from villanelle.syntax._recovery import message_of
 from villanelle.syntax.cst import Node, NodeKind, Syntax, ValueRef, span_of
-from villanelle.syntax.parse import parse
+from villanelle.syntax.parse import EntryRule, parse, parse_entry
 from villanelle.syntax.tokens import TokenKind
+from villanelle.written import _names
 from villanelle.written._shape import Shape, ShapeKind, block_shapes, parameter_tokens, statement_nodes
 from villanelle.written.model import (
     Document,
@@ -425,7 +425,7 @@ def _build_value(
             if not 0 <= position < len(inner):
                 return None
             at = inner[position]
-            if tokens[at].kind not in (TokenKind.WORD, TokenKind.VARIABLE):
+            if tokens[at].kind not in (TokenKind.WORD, TokenKind.INTEGER, TokenKind.DIGIT_WORD, TokenKind.VARIABLE):
                 return None
             made = _build_value(doc, at, statement, None, True, reconcile)
             assert isinstance(made, Word | Reference)
@@ -449,13 +449,13 @@ def _splice(
     text-alone rules found nothing wrong; then re-parse, reconcile and tell the graph. Raises BadTextError, changing
     nothing. Returns the handles made for the inserted text."""
     if given:
-        raise BadTextError(f"bad text: {', '.join(d.code for d in given)}", given)
+        raise BadTextError(given)
     spliced = _insert_of(insert, [(0, len(insert))]) if isinstance(insert, str) else insert
     text = doc._text[:start] + spliced.text + doc._text[end:]
     syntax = parse(text)
     rules = _rule_problems(syntax, starts_of(syntax), doc._graph._extension_names, start, spliced)
     if rules:
-        raise BadTextError(f"breaks a rule: {', '.join(d.code for d in rules)}", rules)
+        raise BadTextError(rules)
     reconcile = _Reconcile(_entries(doc), (start, end, len(spliced.text)), keep)
     _install(doc, text, syntax, reconcile)
     _detach(reconcile.leftovers())
@@ -515,6 +515,7 @@ def _removal_range(text: str, start: int, end: int) -> tuple[int, int]:
 
 
 def _statements_text_problems(text: str) -> tuple[Diagnostic, ...]:
+    """A statements text's check: its own syntax diagnostics, as a document (2.8)."""
     return parse(text).diagnostics
 
 
@@ -524,7 +525,7 @@ def replace_statement(statement: Statement, text: str) -> tuple[Statement, ...]:
     given = _statements_text_problems(text)
     if text.strip() == "":
         if given:
-            raise BadTextError("bad text", given)
+            raise BadTextError(given)
         remove_statement(statement)
         return ()
     start, end = offsets(doc, owned_range(doc, statement._node))
@@ -569,7 +570,7 @@ def _reindent(doc: Document, text: str, indentation: str) -> list[Piece]:
 def replace_values(statement: Statement, after: int, text: str) -> None:
     """``set`` of a statement's values (2.4): first value to last; with none, after token ``after``."""
     doc = statement._doc
-    given = values_text_problems(text, in_list=False)
+    given = entry_problems(text, "valuesText")
     values = statement._value_list
     if not values:
         if text.strip() == "":
@@ -592,14 +593,11 @@ def replace_values(statement: Statement, after: int, text: str) -> None:
 def replace_value(value: WrittenValue, text: str) -> tuple[WrittenValue, ...]:
     """``replace_with_text`` of a value."""
     doc = value._doc
-    if value._bound:
-        problems = _bound_text_problems(text)
-        if problems:
-            raise BadTextError("a slice bound takes one word or $name", problems)
-    given = () if value._bound else values_text_problems(text, in_list=value._list is not None)
+    rule: EntryRule = "boundText" if value._bound else "itemsText" if value._list is not None else "valuesText"
+    given = entry_problems(text, rule)
     if text.strip() == "":
         if given:
-            raise BadTextError("bad text", given)
+            raise BadTextError(given)
         remove_value(value)
         return ()
     start, end = offsets(doc, ref_range(value._ref))
@@ -612,7 +610,7 @@ def replace_value(value: WrittenValue, text: str) -> tuple[WrittenValue, ...]:
         if isinstance(h, Word | String | List | Slice | Index | Reference)
         and h._list is container
         and h._statement is statement
-        and not h._bound
+        and h._bound == value._bound
     )
 
 
@@ -669,7 +667,7 @@ def insert_statements(block: WrittenBlock, index: int, text: str) -> tuple[State
     given = _statements_text_problems(text)
     if text.strip() == "":
         if given:
-            raise BadTextError("bad text", given)
+            raise BadTextError(given)
         return ()
     eol = line_break(doc)
     owner = block._owner
@@ -731,22 +729,18 @@ def _insert_into_empty_block(
 
 
 def rename_directive(statement: WrittenDirective, name: str) -> None:
-    """``rename`` (D17, D-S1-10): one WORD, never a name that would change its kind (an extension line has no
-    ``rename``)."""
+    """``rename`` (D17, D-S1-10): a name the one directive-name check takes (``_names``: misuse otherwise), never one
+    that would change its kind (an extension line has no ``rename``)."""
     doc = statement._doc
-    tokens = parse(name).tokens
-    one_word = len(tokens) == 1 and tokens[0].kind is TokenKind.WORD
-    if not one_word or name in RESERVED or name in doc._graph._extension_names:
-        raise BadTextError(f"not a directive name: {name!r}", [at(name, 0, DiagnosticCode.UNEXPECTED_TOKEN)])
+    _names.directive_name(name, doc._graph._extension_names, member="rename")
     start, end = offsets(doc, (statement._node.start, statement._node.start + 1))
     _splice(doc, start, end, name, [], statement)
 
 
 def rename_variable(line: SetLine | SnippetLine, token: int, name: str) -> None:
-    """``SetVariable.rename`` and ``Parameter.rename``: its ``$name`` only; ``[A-Za-z0-9_]+``, then E5002 in its
-    block."""
-    if not VARIABLE_NAME.match(name):
-        raise BadTextError(f"not a variable name: {name!r}", [at(name, 0, DiagnosticCode.UNEXPECTED_TOKEN)])
+    """``SetVariable.rename`` and ``Parameter.rename``: its ``$name`` only; the one variable-name check (misuse
+    otherwise), then E5002 in its block (a bad text error: the document decides it)."""
+    _names.variable_name(name, member="rename")
     doc = line._doc
     keep = next((p for p in line._parameters if p._token == token), None) if isinstance(line, SnippetLine) else None
     start, end = offsets(doc, (token, token + 1))
@@ -848,81 +842,11 @@ def at(given: str, index: int, code: DiagnosticCode) -> Diagnostic:
     return Diagnostic(code, message_of(code), SourceSpan(position, position))
 
 
-def _shifted(given: str, shift: int, d: Diagnostic) -> Diagnostic:
-    """A diagnostic of a wrapped text, moved into the given text (which starts at ``str`` index ``shift``)."""
-    start = position_in(given, d.span.start.offset - shift)
-    end = position_in(given, d.span.end.offset - shift)
-    return Diagnostic(d.code, d.message, SourceSpan(start, end))
-
-
-def values_text_problems(text: str, *, in_list: bool) -> tuple[Diagnostic, ...]:
-    """2.3's check of a values text: parsed as the values of one directive (``x <text>;``; in a list,
-    ``x [<text>];``). Its syntax diagnostics, shifted to the given text; when it is more than values, one E2001 at
-    the first such token (D16). A comment the text ends in is more than values (vil-033, spec 2.8): it would swallow
-    the probe's closer as it would the statement's ``;`` (or a list's ``,`` or ``]``), so the probe is parsed again
-    with a line break before the closer, and the comment is refused after every earlier problem."""
-    prefix = "x [" if in_list else "x "
-    closer = "];" if in_list else ";"
-    syntax = parse(f"{prefix}{text}{closer}")
-    last = len(syntax.tokens) - 1
-    comment = starts_of(syntax)[last] - len(prefix) if syntax.tokens[last].kind is TokenKind.COMMENT else None
-    if comment is not None:
-        syntax = parse(f"{prefix}{text}\n{closer}")
-    if syntax.diagnostics:
-        return tuple(_shifted(text, len(prefix), d) for d in syntax.diagnostics)
-    starts = starts_of(syntax)
-    depth = 0
-    for i, token in enumerate(syntax.tokens):
-        offset = starts[i]
-        if offset < len(prefix) or offset >= len(prefix) + len(text):
-            continue
-        if token.kind is TokenKind.LBRACK:
-            depth += 1
-        if token.kind is TokenKind.RBRACK:
-            depth -= 1
-        more = (
-            token.kind in (TokenKind.SEMI, TokenKind.LBRACE, TokenKind.RBRACE)
-            or (in_list and depth < 0)
-            or (not in_list and token.kind is TokenKind.COMMA and depth == 0)
-        )
-        if more:
-            return (at(text, offset - len(prefix), DiagnosticCode.UNEXPECTED_TOKEN),)
-    broken = _line_break_problem(text, syntax, starts, len(prefix)) if not in_list else ()
-    if broken or comment is None:
-        return broken
-    return (at(text, comment, DiagnosticCode.UNEXPECTED_TOKEN),)
-
-
-_GAP = frozenset({TokenKind.SPACE, TokenKind.COMMENT, TokenKind.NEWLINE})
-
-
-def _line_break_problem(text: str, syntax: Syntax, starts: Sequence[int], shift: int) -> tuple[Diagnostic, ...]:
-    """A line break outside a list ends the statement (vil-5ya, spec 2.8): the first ``NEWLINE`` at list depth 0 of
-    the given text is refused with E2001 at the first token after it that is not a space, comment or line break, or
-    at the line break itself when only those follow."""
-    inside = [i for i in range(len(syntax.tokens)) if shift <= starts[i] < shift + len(text)]
-    depth = 0
-    for n, i in enumerate(inside):
-        kind = syntax.tokens[i].kind
-        depth += (kind is TokenKind.LBRACK) - (kind is TokenKind.RBRACK)
-        if kind is not TokenKind.NEWLINE or depth != 0:
-            continue
-        after = next((j for j in inside[n + 1 :] if syntax.tokens[j].kind not in _GAP), i)
-        return (at(text, starts[after] - shift, DiagnosticCode.UNEXPECTED_TOKEN),)
-    return ()
-
-
-def _bound_text_problems(text: str) -> tuple[Diagnostic, ...]:
-    """A slice bound's text: exactly one WORD or ``$name`` (E2001 otherwise)."""
-    syntax = parse(f"x {text};")
-    starts = starts_of(syntax)
-    inside = [(starts[i], t) for i, t in enumerate(syntax.tokens) if 2 <= starts[i] < 2 + len(text)]
-    for offset, token in inside:
-        if token.kind not in (TokenKind.WORD, TokenKind.VARIABLE):
-            return (at(text, offset - 2, DiagnosticCode.UNEXPECTED_TOKEN),)
-    if len(inside) != 1:
-        return (at(text, inside[1][0] - 2 if len(inside) > 1 else 0, DiagnosticCode.UNEXPECTED_TOKEN),)
-    return ()
+def entry_problems(text: str, rule: EntryRule) -> tuple[Diagnostic, ...]:
+    """2.8's check of a text that depends only on the text: the grammar's entry rule ``rule`` (``valuesText`` for a
+    ``set`` or a value's replace, ``itemsText`` for a list item's, ``boundText`` for a slice or index bound's), its
+    first error placed in ``text``. The text-alone rules come after, in ``_splice``."""
+    return parse_entry(text, rule).diagnostics
 
 
 def _rule_problems(
@@ -974,25 +898,16 @@ def _rule_problems(
     return out
 
 
-def wrapped_diagnostic(given: str, prefix: str, fault: tuple[DiagnosticCode, SourceSpan]) -> Diagnostic:
-    """A problem found in ``<prefix><given>``, located in the given text."""
-    code, span = fault
-    start = position_in(given, span.start.offset - len(prefix))
-    end = position_in(given, span.end.offset - len(prefix))
-    return Diagnostic(code, message_of(code), SourceSpan(start, end))
-
-
 def override_text_problems(text: str) -> tuple[Diagnostic, ...]:
-    """The syntax half of the check of an override (spec 6.3): one or more values, without a ``$name``."""
-    problems = values_text_problems(text, in_list=False)
-    if problems:
-        return problems
-    syntax = parse(text)
+    """The text half of the check of an override (spec 6.3): the ``valuesText`` entry rule's first error, else E2001
+    at the first ``$name`` (an override holds values only), or at 0:0 when the text holds no value."""
+    syntax = parse_entry(text, "valuesText")
+    if syntax.diagnostics:
+        return syntax.diagnostics
     starts = starts_of(syntax)
-    meaningful = [i for i, t in enumerate(syntax.tokens) if t.kind not in _TRIVIA and t.kind is not TokenKind.COMMENT]
-    if not meaningful:
+    variable = next((i for i, t in enumerate(syntax.tokens) if t.kind is TokenKind.VARIABLE), None)
+    if variable is not None:
+        return (at(text, starts[variable], DiagnosticCode.UNEXPECTED_TOKEN),)
+    if not values_of(syntax.tokens, syntax.root):
         return (at(text, 0, DiagnosticCode.UNEXPECTED_TOKEN),)
-    for i in meaningful:
-        if syntax.tokens[i].kind is TokenKind.VARIABLE:
-            return (at(text, starts[i], DiagnosticCode.UNEXPECTED_TOKEN),)
     return ()

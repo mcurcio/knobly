@@ -1,10 +1,10 @@
 """The binding (design rule 3; slices.md 2.5): one derivation of the graph's current texts, overrides and read
 ledger. It walks the copies (the root, then each include and ``use`` spliced in place), decides per copy what each
-``$name`` and ``use`` reads, and expands written values for the extension lines (an include's path) and for the
-rendered layer. It is the one home of the name-lookup rule: ``_expand`` turns its ``items`` into the public expansion
-(``DocumentGraph.expand()``), which the rendered layer builds on, so nothing above it looks a name up. It names no
-rendered type: it expands values into ``BoundValue``s, each holding the shared expanded value. Private; pure (no
-I/O); a port of ts/src/written/bind.ts.
+``$name`` and ``use`` reads (spec/expansion.md), and expands written values into the low level's expanded values,
+with their links, for the extension lines (an include's path) and for the expansion. It is the one home of the
+name-lookup rule: ``_expand`` turns its ``items`` into the public expansion (``DocumentGraph.expand()``), which the
+rendered layer builds on, so nothing above it looks a name up. It names no rendered type. Private; pure (no I/O); a
+port of ts/src/written/bind.ts.
 
 The walk is PR 3's expander (cb08803) moved here, unchanged in what it decides and reports, with the read ledger in
 place of reading files during the walk."""
@@ -13,34 +13,24 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias, final
+from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
 
 from villanelle import _values
-from villanelle._anatomy import Anatomy, anatomy_of, items_of
-from villanelle._api.kinds import UnreadableReason
+from villanelle._anatomy import Anatomy, anatomy_of, items_of, values_of
+from villanelle._api.kinds import UnreadableReason, ValueKind
 from villanelle._api.limits import MAX_DEPTH, MAX_DIRECTIVES
+from villanelle._text import port_texts
 from villanelle.diagnostics import DiagnosticCode
 from villanelle.errors import DiagnosticError
-from villanelle.extension import ExtensionUse
 from villanelle.origin import DirectiveOrigin, Origin, Override, Place, Step, StepKind
 from villanelle.report import LocatedDiagnostic
 from villanelle.span import SourceSpan
 from villanelle.syntax._recovery import message_of
 from villanelle.syntax.cst import Node, NodeKind, Syntax, ValueRef, span_of
-from villanelle.syntax.parse import parse
+from villanelle.syntax.parse import parse_entry
 from villanelle.syntax.tokens import Token, TokenKind
-from villanelle.value import (
-    ExpandedIndex,
-    ExpandedList,
-    ExpandedSlice,
-    ExpandedString,
-    ExpandedValue,
-    ExpandedWord,
-    IndexValue,
-    SliceValue,
-    ValueKind,
-)
 from villanelle.written._shape import shape_of_anatomy
+from villanelle.written.extension import ExtensionUse
 from villanelle.written.model import (
     Copy,
     Document,
@@ -55,66 +45,17 @@ from villanelle.written.model import (
     Variable,
     WrittenValue,
 )
+from villanelle.written.value import (
+    ExpandedIndex,
+    ExpandedList,
+    ExpandedSlice,
+    ExpandedString,
+    ExpandedValue,
+    ExpandedWord,
+)
 
 if TYPE_CHECKING:
-    from villanelle.extension import Extension
-
-
-@final
-class BoundValue:
-    """One value after expansion, with the two facts the rendered layer adds to it (spec 7.3): ``definition``, the
-    written value at the end of its chain (None for an override), and ``chain``, one reference resolution per
-    variable step of its origin, from its own line outward. ``expanded`` is the shared value an extension sees."""
-
-    __slots__ = ("chain", "definition", "expanded", "kind", "origin", "value")
-
-    kind: ValueKind
-    value: str | tuple[BoundValue, ...] | SliceValue | IndexValue
-    origin: Origin
-    definition: WrittenValue | None
-    chain: tuple[ReferenceResolution, ...]
-    expanded: ExpandedValue
-
-    def __init__(
-        self,
-        kind: ValueKind,
-        value: str | tuple[BoundValue, ...] | SliceValue | IndexValue,
-        origin: Origin,
-        definition: WrittenValue | None,
-        chain: tuple[ReferenceResolution, ...] = (),
-    ) -> None:
-        self.kind = kind
-        self.value = value
-        self.origin = origin
-        self.definition = definition
-        self.chain = chain
-        self.expanded = _expanded(kind, value, origin)
-
-    def rebase(self, drop: int, append: tuple[Step, ...], resolution: ReferenceResolution | None = None) -> BoundValue:
-        """The same value having travelled further: the last ``drop`` steps of its origin (and of each list item's)
-        are replaced by ``append``. A variable's value is stored with ``drop`` = the ``set`` line's own steps, and read
-        with ``append`` = the variable step and the reading place's steps, and that ``$name``'s ``resolution`` first
-        (D7)."""
-        via = self.origin.via
-        origin = Origin(self.origin.place, via[: len(via) - drop] + append)
-        value = self.value
-        if isinstance(value, tuple):
-            value = tuple(item.rebase(drop, append, resolution) for item in value)
-        chain = self.chain if resolution is None else (resolution, *self.chain)
-        return BoundValue(self.kind, value, origin, self.definition, chain)
-
-
-def _expanded(
-    kind: ValueKind, value: str | tuple[BoundValue, ...] | SliceValue | IndexValue, origin: Origin
-) -> ExpandedValue:
-    """The shared expanded value of one bound value; a list's items are its items' own expanded values."""
-    if isinstance(value, tuple):
-        return ExpandedList(tuple(item.expanded for item in value), origin)
-    if isinstance(value, SliceValue):
-        return ExpandedSlice(value.name, value.start, value.end, origin)
-    if isinstance(value, IndexValue):
-        return ExpandedIndex(value.name, value.index, origin)
-    return ExpandedString(value, origin) if kind is ValueKind.STRING else ExpandedWord(value, origin)
+    from villanelle.written.extension import Extension
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -140,7 +81,7 @@ BoundItem: TypeAlias = BoundDirective | BoundUnreadable
 
 
 class BindingProblem(Exception):
-    """A written value that cannot be expanded at a copy (E5001, E4001, E4003): the statement is unreadable there."""
+    """A written value that cannot be expanded at a copy (E5001, E4001): the statement is unreadable there."""
 
     def __init__(self, reason: UnreadableReason, diagnostic: LocatedDiagnostic) -> None:
         super().__init__(diagnostic.message)
@@ -157,11 +98,21 @@ class ReadLedger(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
+class OverrideValues:
+    """An override's text, read once as values. ``long_bound``: the text holds a literal slice or index bound beyond
+    ±(2**53 - 1) (the grammar cannot check the range), so every ``$name`` that reads the override is E4001 there, as
+    for a bad bound through a variable."""
+
+    values: tuple[ExpandedValue, ...]
+    long_bound: bool
+
+
+@dataclass(frozen=True, slots=True)
 class OverrideInput:
     """An override: its variable handle and its values, already read."""
 
     variable: Variable
-    values: tuple[BoundValue, ...]
+    values: OverrideValues
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,31 +142,21 @@ def bind(
     return binding
 
 
-def override_values(name: str, text: str) -> tuple[BoundValue, ...]:
-    """An override's values: the text, already checked (``_graph.check_override``), read as the values of one
-    directive."""
-    syntax = parse(f"x {text}")
-    anatomy = anatomy_of(syntax.tokens, syntax.root.children[0])
+def override_values(name: str, text: str) -> OverrideValues:
+    """An override's values: the text, already checked (``_graph.check_override``), parsed with the ``valuesText``
+    entry rule and read as values (never through a probe document)."""
+    syntax = parse_entry(text, "valuesText")
     reader = Binding({}, {}, None)
     given = _Text(None, syntax, "", name)
-    return tuple(value for ref in anatomy.args for value in reader.value(given, ref, _Scope(None), (), None))
-
-
-def override_value_problem(text: str) -> tuple[DiagnosticCode, SourceSpan] | None:
-    """What the value reader refuses in an override's text already checked as values (an unknown escape, a
-    non-integer bound): its code and span in ``x <text>``."""
-    syntax = parse(f"x {text}")
-    if syntax.diagnostics or not syntax.root.children or syntax.root.children[0].kind is not NodeKind.DIRECTIVE:
-        return None
-    reader = Binding({}, {}, None)
-    given = _Text(None, syntax, "", "")
     try:
-        for ref in anatomy_of(syntax.tokens, syntax.root.children[0]).args:
-            reader.value(given, ref, _Scope(None), (), None)
-    except _Problem as problem:
-        if problem.diagnostic is not None:
-            return DiagnosticCode(problem.diagnostic.code), problem.diagnostic.place.span
-    return None
+        values = tuple(
+            value
+            for ref in values_of(syntax.tokens, syntax.root)
+            for value in reader.value(given, ref, _Scope(None), (), None)
+        )
+    except _Problem:
+        return OverrideValues((), True)
+    return OverrideValues(values, False)
 
 
 # --- The walk ---
@@ -259,8 +200,10 @@ class _Definition:
     """One definition of a name: its variable, the values a reader gets (without the definer's steps), as written."""
 
     variable: Variable
-    values: tuple[BoundValue, ...]
+    values: tuple[ExpandedValue, ...]
     written: tuple[WrittenValue, ...]
+    long_bound: bool = False
+    """An override's literal bound beyond the integer range (``OverrideValues``): reading it is E4001."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -354,9 +297,9 @@ class _Scope:
 
 
 class _SpliceScope:
-    """The including block's scope as a spliced file sees it: the file's top-level ``set`` and ``snippet`` lines
-    claim, bind and define in the including block (L2), and inside the spliced files the extension block's ``set``
-    lines win over every ``set`` of the files, at any depth, but not over a parameter (rule 8, F1-01)."""
+    """The including block's scope as a spliced file sees it (the rules: spec/expansion.md 4 and 7): the file's
+    top-level ``set`` and ``snippet`` lines bind in the including block, and the extension block's ``set`` lines are
+    "forced" entries for ``_pick``."""
 
     __slots__ = ("_overrides", "_target")
 
@@ -383,9 +326,8 @@ class _SpliceScope:
 
 
 def _pick(entries: Sequence[_Entry], override: _Definition | None) -> _Definition | None:
-    """The winner among ``entries`` (innermost first) and an override, by PR 3's rule: the nearest ``set`` or
-    parameter; an include block's ``set`` wins over every ``set`` nearer than it, but a nearer parameter wins over
-    it; an override wins over every ``set`` and include-block ``set``, never over a parameter."""
+    """The winner among ``entries`` (innermost first) and an override: the precedence table of spec/expansion.md
+    (the one statement of the rule; this is its code)."""
     found: _Entry | None = None
     for entry in entries:
         if entry.kind == "parameter" and found is None:
@@ -455,14 +397,16 @@ class Binding:
     ) -> None:
         self._extensions = extensions
         self._reads = reads
-        self._overrides = {name: _Definition(o.variable, o.values, ()) for name, o in overrides.items()}
+        self._overrides = {
+            name: _Definition(o.variable, o.values.values, (), o.values.long_bound) for name, o in overrides.items()
+        }
         self.items: list[BoundItem] = []
         """The root document's top level at the root copy, includes and uses spliced in place."""
         self.edges: tuple[DocumentEdge, ...] = ()
         """Every copy of every extension line, in walk order (a failed or unread one included)."""
         self.unread: tuple[DocumentEdge, ...] = ()
         self.diagnostics: list[LocatedDiagnostic] = []
-        """Every diagnostic the walk found, in walk order, render's codes included (the graph filters them)."""
+        """Every diagnostic the walk found, in walk order: the second half of the graph's one list."""
         self.resolutions: list[ReferenceResolution] = []
         """Every resolution, in walk order."""
         self._drafts: list[_EdgeDraft] = []
@@ -470,7 +414,7 @@ class Binding:
         self._copies: dict[Statement, list[Copy]] = {}
         self._by_reference: dict[Reference, list[ReferenceResolution]] = {}
         self._by_use: dict[UseLine, list[Resolution[SnippetLine]]] = {}
-        self._args: dict[Copy, dict[WrittenValue, tuple[BoundValue, ...]] | BindingProblem] = {}
+        self._args: dict[Copy, dict[WrittenValue, tuple[ExpandedValue, ...]] | BindingProblem] = {}
         self._count = 0
         self._stopped = False
 
@@ -488,9 +432,9 @@ class Binding:
     def snippets_of(self, use: UseLine) -> tuple[Resolution[SnippetLine], ...]:
         return tuple(self._by_use.get(use, ()))
 
-    def arguments_at(self, value: WrittenValue, copy: Copy) -> tuple[BoundValue, ...]:
+    def arguments_at(self, value: WrittenValue, copy: Copy) -> tuple[ExpandedValue, ...]:
         """One written value at one copy of its statement, expanded with PR 3's origins. Raises BindingProblem
-        (E5001, E4001, E4003)."""
+        (E5001, E4001)."""
         found = self._args.get(copy)
         if isinstance(found, BindingProblem):
             raise found
@@ -559,7 +503,7 @@ class Binding:
             self._extension(extension, anatomy, name, copy, context)
             return
         statement = copy.statement
-        values: dict[WrittenValue, tuple[BoundValue, ...]] = {}
+        values: dict[WrittenValue, tuple[ExpandedValue, ...]] = {}
         for value in statement._value_list:
             try:
                 values[value] = tuple(self.value(text, value._ref, scope, via, copy))
@@ -607,10 +551,10 @@ class Binding:
         line = copy.statement
         assert isinstance(line, SetLine), "a set line that claims its name is kind set"
         bound = [argument for ref in args[1:] for argument in self.value(text, ref, scope, via, copy)]
-        # Stored without this line's own steps; a reader adds the variable step and its own (BoundValue.rebase).
+        # Stored without this line's own steps; a reader adds the variable step and its own (``_moved``).
         scope.bind(
             variable_name,
-            _Definition(line._variable, tuple(v.rebase(len(via), ()) for v in bound), tuple(line._value_list)),
+            _Definition(line._variable, tuple(v._moved(len(via), (), None) for v in bound), tuple(line._value_list)),
         )
 
     def _snippet(self, anatomy: Anatomy, copy: Copy, context: _Context) -> None:
@@ -653,7 +597,7 @@ class Binding:
             )
         snippet = visible[0]
         written: list[WrittenValue] = []
-        values: list[BoundValue] = []
+        values: list[ExpandedValue] = []
         doc = text.doc
         for ref in args[1:]:
             expanded = self.value(text, ref, scope, via, copy)
@@ -679,7 +623,7 @@ class Binding:
                     param,
                     _Definition(
                         snippet.line._parameters[i],
-                        (values[i].rebase(len(via), ()),),
+                        (values[i]._moved(len(via), (), None),),
                         (written[i],) if i < len(written) else (),
                     ),
                 )
@@ -699,7 +643,7 @@ class Binding:
             return self._problem(UnreadableReason.EXTENSION, code, text, name.span, via, detail)
 
         try:
-            draft.specs.extend(extension.specs(ExtensionUse(tuple(a.expanded for a in args), origin)))
+            draft.specs.extend(port_texts(extension.specs(ExtensionUse(args, origin)), port="specs()"))
         except DiagnosticError as error:
             draft.specs.clear()
             raise _Problem(UnreadableReason.EXTENSION, error.diagnostic) from None
@@ -713,7 +657,7 @@ class Binding:
             paths = reads.resolved(text.resolved_path, spec)
             if paths is None:
                 draft.need = ResolveNeed(text.resolved_path, tuple(draft.specs))
-                return
+                raise self._unread(text, name, via)
             if isinstance(paths, Exception):
                 raise fail(DiagnosticCode.INCLUDE_RESOLVER_FAILED, f"{spec}: {paths}")
             if not paths:
@@ -728,7 +672,7 @@ class Binding:
             doc = reads.read(path)
             if doc is None:
                 draft.need = ReadNeed(tuple(found))
-                return
+                raise self._unread(text, name, via)
             if isinstance(doc, Exception):
                 raise fail(DiagnosticCode.INCLUDE_RESOLVER_FAILED, f"{path}: {doc}")
             files.append(doc)
@@ -740,6 +684,11 @@ class Binding:
                 file._syntax.root,
                 _Context(_document_text(file), spliced, (step, *via), (*open_, file._path), context.into),
             )
+
+    def _unread(self, text: _Text, name: Token, via: tuple[Step, ...]) -> _Problem:
+        """An extension copy not read yet (its edge is in ``unread()``): unreadable with reason ``unread``, and E3007
+        on the extension line's name (spec 6.10), so a render shows it and ``diff`` reports what it held as unknown."""
+        return self._problem(UnreadableReason.UNREAD, DiagnosticCode.UNREAD_COPY, text, name.span, via)
 
     def _extension_block(
         self, block: Node | None, text: _Text, scope: _BlockScope, via: tuple[Step, ...]
@@ -779,8 +728,9 @@ class Binding:
 
     def value(
         self, text: _Text, ref: ValueRef, scope: _ScopeView, via: tuple[Step, ...], copy: Copy | None
-    ) -> list[BoundValue]:
-        """One written value, expanded: a ``$name`` becomes all its values (rule 4); a list's items the same way."""
+    ) -> list[ExpandedValue]:
+        """One written value, expanded: a ``$name`` becomes all its values (rule 4); a list's items the same way.
+        Read where it is written, its ``definition`` is its own handle (None in an override's text)."""
         syntax = text.syntax
         doc = text.doc
         written = None if doc is None else doc._values.get(ref if isinstance(ref, int) else ref.start)
@@ -792,24 +742,21 @@ class Binding:
                     for item in items_of(syntax.tokens, ref)
                     for argument in self.value(text, item, scope, via, copy)
                 )
-                return [BoundValue(ValueKind.LIST, items, origin, written)]
+                return [ExpandedList(items, origin, written, ())]
             return [self._slice(text, ref, scope, via, copy, origin, written)]
         token = syntax.tokens[ref]
         origin = Origin(text.written(token.span), via)
-        if token.kind is TokenKind.WORD:
-            return [BoundValue(ValueKind.WORD, token.text, origin, written)]
+        if token.kind in (TokenKind.WORD, TokenKind.INTEGER, TokenKind.DIGIT_WORD):
+            return [ExpandedWord(token.text, origin, written, ())]
         if token.kind is TokenKind.STRING:
-            if not _values.has_only_known_escapes(token.text):
-                code = DiagnosticCode.BAD_ESCAPE
-                raise self._problem(UnreadableReason.VALUE, code, text, token.span, via, token.text)
-            return [BoundValue(ValueKind.STRING, _values.decode_string(token.text), origin, written)]
+            return [ExpandedString(_values.decode_string(token.text), origin, written, ())]
         if token.kind is TokenKind.VARIABLE:
             return self._variable(text, ref, token, scope, via, copy)
         raise TypeError(f"not a value token: {token.kind}")
 
     def _variable(
         self, text: _Text, ref: int, token: Token, scope: _ScopeView, via: tuple[Step, ...], copy: Copy | None
-    ) -> list[BoundValue]:
+    ) -> list[ExpandedValue]:
         """``$name``'s values as read here: each with the variable step, then the reading place's steps."""
         name = token.text[1:]
         entries: list[_Entry] = []
@@ -832,8 +779,11 @@ class Binding:
             raise self._problem(
                 UnreadableReason.EXPANSION, DiagnosticCode.UNKNOWN_VARIABLE, text, token.span, via, token.text
             )
+        if winner.long_bound:
+            code = DiagnosticCode.NON_INTEGER_BOUND
+            raise self._problem(UnreadableReason.VALUE, code, text, token.span, via, f"{token.text} (override)")
         step = Step(StepKind.VARIABLE, name, text.place(token.span))
-        return [value.rebase(0, (step, *via), resolution) for value in winner.values]
+        return [value._moved(0, (step, *via), resolution) for value in winner.values]
 
     def _slice(
         self,
@@ -844,8 +794,8 @@ class Binding:
         copy: Copy | None,
         origin: Origin,
         written: WrittenValue | None,
-    ) -> BoundValue:
-        """``name[bounds]``: each bound a literal IntegerText or a variable holding exactly one (rules 4 and 10)."""
+    ) -> ExpandedValue:
+        """``name[bounds]``: each bound a literal INTEGER or a variable holding exactly one (rules 4 and 10)."""
         tokens = text.syntax.tokens
         name = tokens[node.start].text
         inner = list(range(node.start + 2, node.end - 1))
@@ -858,16 +808,17 @@ class Binding:
         colon = next((i for i, t in enumerate(inner) if tokens[t].kind is TokenKind.COLON), -1)
         if colon < 0:
             index = bound(0)
-            return BoundValue(ValueKind.INDEX, IndexValue(name, 0 if index is None else index), origin, written)
+            return ExpandedIndex(name, 0 if index is None else index, origin, written, ())
         start = None if colon == 0 else bound(0)
         end = bound(colon + 1) if colon + 1 < len(inner) else None
-        return BoundValue(ValueKind.SLICE, SliceValue(name, start, end), origin, written)
+        return ExpandedSlice(name, start, end, origin, written, ())
 
     def _bound(
         self, text: _Text, ref: int, token: Token, scope: _ScopeView, via: tuple[Step, ...], copy: Copy | None
     ) -> int:
-        """One bound's integer. E4001 at the bound, or for a variable at its value's place via the variable."""
-        if token.kind is TokenKind.WORD:
+        """One bound's integer. A literal is an INTEGER (the grammar's rule): E4001 at it beyond ±(2**53 - 1). For a
+        variable, E4001 at its value's place via the variable unless it holds exactly one integer word."""
+        if token.kind is TokenKind.INTEGER:
             value = _values.integer_of(token.text)
             if value is None:
                 raise self._problem(
@@ -877,7 +828,7 @@ class Binding:
         values = self._variable(text, ref, token, scope, via, copy)
         only = values[0] if values else None
         if len(values) == 1 and only is not None and only.kind is ValueKind.WORD:
-            integer = _values.integer_of(only.expanded.text)
+            integer = _values.integer_of(only.text)
             if integer is not None:
                 return integer
         at = None if only is None else only.origin.place
@@ -887,7 +838,7 @@ class Binding:
                 UnreadableReason.VALUE, DiagnosticCode.NON_INTEGER_BOUND, text, token.span, via, token.text
             )
         code = DiagnosticCode.NON_INTEGER_BOUND
-        message = f"{message_of(code)}: {token.text} is {only.expanded.text}"
+        message = f"{message_of(code)}: {token.text} is {only.text}"
         raise _Problem(UnreadableReason.VALUE, LocatedDiagnostic(code, message, at, only.origin.via))
 
     def _problem(

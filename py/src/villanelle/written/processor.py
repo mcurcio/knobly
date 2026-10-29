@@ -10,8 +10,8 @@ from collections.abc import Mapping, Sequence
 from typing import final
 
 from villanelle._api.limits import RESERVED
-from villanelle.extension import Extension
 from villanelle.source import DocumentSource
+from villanelle.written.extension import Extension
 from villanelle.written.model import DocumentGraph
 
 
@@ -36,11 +36,11 @@ class Processor:
         """Read the root file at ``path`` (resolved through the source, as an included file's spec is, so the root
         has one path in the graph) and every file its include lines name, once each (R21), repeating until nothing
         new is named. Never raises for anything in the text. ``overrides`` are by name without ``$``, each villanelle
-        text (``{"host": quote("10.0.60.30"), "port": "8080"}``); an override wins over every ``set`` of its name
-        (L3). Each is checked as ``DocumentGraph.set_override`` checks it: TypeError for a text that is not a str,
-        ValueError for a name that is not letters, digits and ``_``, BadTextError for a text that is not one or more
-        values. Raises ReadError (``paths``: ``[path]``; ``__cause__``: the source's failure) when the source cannot
-        resolve the root to exactly one file or read it."""
+        text (``{"host": quote("10.0.60.30"), "port": "8080"}``); which ``set`` lines an override wins over is
+        spec/expansion.md 5. Each is checked as ``DocumentGraph.set_override`` checks it: TypeError for a text that is
+        not a str, ValueError (misuse) for a name that is not letters, digits and ``_``, BadTextError for a text that
+        is not one or more values. Raises ReadError (``paths``: ``[path]``; ``__cause__``: the source's failure) when
+        the source cannot resolve the root to exactly one file or read it."""
         from villanelle.written import _read
 
         return _read.load_graph(self._source, self._extensions, path, overrides or {})

@@ -42,7 +42,8 @@ class Syntax:
 
 
 ValueRef = int | Node
-"""The index of a WORD, STRING or VARIABLE token, or a ``slice`` or ``list`` node: one value as written."""
+"""The index of a WORD, INTEGER, DIGIT_WORD, STRING or VARIABLE token, or a ``slice`` or ``list`` node: one value as
+written."""
 
 _ORIGIN = SourcePosition(offset=0, line=0, column=0)
 

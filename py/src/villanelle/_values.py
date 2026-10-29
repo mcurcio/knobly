@@ -1,4 +1,4 @@
-"""The value rules of grammar/villanelle.ebnf (NumberText, IntegerText, BooleanText, EscapeText) and the canonical
+"""The value rules of the grammar (NumberText, IntegerText, BooleanText, EscapeText) and the canonical
 text of a value (round 11 slices.md §1.3): the one home of each rule. Private; a port of ts/src/values.ts."""
 
 from __future__ import annotations
@@ -55,13 +55,9 @@ _ESCAPES = {'"': '"', "'": "'", "\\": "\\", "n": "\n", "t": "\t", "r": "\r"}
 _ESCAPE = re.compile(r"\\(.)", re.DOTALL)
 
 
-def has_only_known_escapes(token: str) -> bool:
-    """Whether every backslash escape in a STRING token's text is one of the six of EscapeText."""
-    return all(m[1] in _ESCAPES for m in _ESCAPE.finditer(token[1:-1]))
-
-
 def decode_string(token: str) -> str:
-    """The text between a STRING token's quotes, escapes decoded. Call only after ``has_only_known_escapes``."""
+    """The text between a STRING token's quotes, escapes decoded. A STRING token holds only the six escapes (the
+    grammar's rule: any other makes the string a BAD_ESCAPE token, E1005)."""
     return _ESCAPE.sub(lambda m: _ESCAPES[m[1]], token[1:-1])
 
 

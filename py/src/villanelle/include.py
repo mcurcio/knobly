@@ -1,17 +1,15 @@
 """``villanelle.include``: the first-party include extension (R20). ``include "palettes.conf";``, or with this place's
-own variables (R22): ``include "palettes.conf" { set $hue 0.3; }``. An included file's top-level ``set`` and
-``snippet`` are visible after the include line in the including block (L2)."""
+own variables (R22): ``include "palettes.conf" { set $hue 0.3; }``. What an included file sees, and where its own
+``set`` and ``snippet`` lines are visible, is spec/expansion.md (3, 4 and 7)."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 from villanelle.diagnostics import DiagnosticCode
 from villanelle.errors import DiagnosticError
-from villanelle.extension import Extension, ExtensionUse
 from villanelle.report import LocatedDiagnostic
 from villanelle.syntax._recovery import message_of
-from villanelle.value import ExpandedString, value_error
+from villanelle.written.extension import Extension, ExtensionUse
+from villanelle.written.value import ExpandedString, value_error
 
 
 def include() -> Extension:
@@ -27,7 +25,7 @@ class _Include:
     def directive(self) -> str:
         return "include"
 
-    def specs(self, use: ExtensionUse, /) -> Sequence[str]:
+    def specs(self, use: ExtensionUse, /) -> tuple[str, ...]:
         """D18: exactly one quoted path or glob. E3005 at the first value that breaks that: the first value when it
         is not a string, else the second value; with no value, at the directive's name (F1-05)."""
         code = DiagnosticCode.INCLUDE_BAD_PATH
@@ -37,4 +35,4 @@ class _Include:
         bad = first if not isinstance(first, ExpandedString) else (use.values[1] if len(use.values) > 1 else None)
         if bad is not None:
             raise value_error(bad, code, f"{message_of(code)}: {bad.text}")
-        return [first.string()]
+        return (first.string(),)

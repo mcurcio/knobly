@@ -17,6 +17,9 @@ from villanelle.syntax.tokens import Token, TokenKind
 
 ShapeKind: TypeAlias = StatementKind
 
+_WORDS = frozenset({TokenKind.WORD, TokenKind.INTEGER, TokenKind.DIGIT_WORD})
+"""The bare-word tokens: a ``snippet``'s or ``use``'s snippet name is any of them."""
+
 
 @dataclass(frozen=True, slots=True)
 class Fault:
@@ -62,11 +65,11 @@ def shape_of_anatomy(tokens: tuple[Token, ...], anatomy: Anatomy, extensions: fr
             if token is None or token.kind is not TokenKind.VARIABLE or token.text[1:] in params:
                 return bad
             params.append(token.text[1:])
-        if first is None or first.kind is not TokenKind.WORD or anatomy.block is None:
+        if first is None or first.kind not in _WORDS or anatomy.block is None:
             return bad
         return Shape(StatementKind.SNIPPET, None, first.text)
     if name.text == "use":
-        if first is None or first.kind is not TokenKind.WORD or anatomy.block is not None:
+        if first is None or first.kind not in _WORDS or anatomy.block is not None:
             return Shape(StatementKind.UNREADABLE, Fault(DiagnosticCode.BAD_USE, anatomy.name))
         return Shape(StatementKind.USE)
     return Shape(StatementKind.EXTENSION if name.text in extensions else StatementKind.DIRECTIVE)

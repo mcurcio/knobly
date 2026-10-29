@@ -14,10 +14,10 @@ from typing import Literal, TypeAlias, final
 from villanelle._api.kinds import ChangeKind
 from villanelle.errors import DiagnosticError
 from villanelle.origin import DirectiveOrigin, Place
-from villanelle.rendered._tree import Address, AddressStep, Directive, KeyRule, Unreadable, unreadable_of, walk_block
+from villanelle.rendered._tree import Address, AddressStep, Directive, KeyRule, walk_block
 from villanelle.report import LocatedDiagnostic, check_program_code
 from villanelle.span import SourcePosition, SourceSpan
-from villanelle.written import DocumentGraph
+from villanelle.written import DocumentGraph, UnreadableExpansion
 
 _START = SourcePosition(0, 0, 0)
 
@@ -32,7 +32,7 @@ class Rendered:
     def __init__(
         self,
         block: tuple[Directive, ...],
-        unreadable: tuple[Unreadable, ...],
+        unreadable: tuple[UnreadableExpansion, ...],
         origin: DirectiveOrigin,
         diagnostics: tuple[LocatedDiagnostic, ...],
         graph: DocumentGraph,
@@ -50,8 +50,9 @@ class Rendered:
         return self._block
 
     @property
-    def unreadable(self) -> tuple[Unreadable, ...]:
-        """Top-level statements that could not be read (R6: their siblings stay)."""
+    def unreadable(self) -> tuple[UnreadableExpansion, ...]:
+        """Top-level statements that could not be read (R6: their siblings stay): the expansion's own objects; an
+        include copy not read yet is one, reason ``unread``."""
         return self._unreadable
 
     @property
@@ -61,8 +62,8 @@ class Rendered:
 
     @property
     def diagnostics(self) -> tuple[LocatedDiagnostic, ...]:
-        """PR 3's content and order (D11): every file's syntax diagnostics (documents in order), then the walk's
-        problems in walk order."""
+        """The graph's one diagnostics list (spec 7.1): every file's syntax diagnostics (documents in order), then
+        the low level's problems in walk order."""
         return self._diagnostics
 
     @property
@@ -123,13 +124,12 @@ class Rendered:
 
 def render(graph: DocumentGraph, /) -> Rendered:
     """The rendered tree of the graph's current texts and overrides: variables substituted, snippets used, included
-    files spliced in. Pure: reads no file; an unread include copy renders as nothing (its edge is in
-    ``graph.unread()``). Builds on ``graph.expand()`` only."""
+    files spliced in. Pure: reads no file; an unread include copy renders as an unreadable with reason ``unread`` at
+    the include line (its edge is in ``graph.unread()``). Builds on ``graph.expand()`` only, on its own objects."""
     expansion = graph.expand()
     block = tuple(Directive(directive, None) for directive in expansion.block)
-    unreadable = tuple(unreadable_of(u) for u in expansion.unreadable)
     origin = DirectiveOrigin(Place(graph.root.resolved_path, SourceSpan(_START, _START)), ())
-    return Rendered(block, unreadable, origin, expansion.diagnostics, graph)
+    return Rendered(block, expansion.unreadable, origin, expansion.diagnostics, graph)
 
 
 @final

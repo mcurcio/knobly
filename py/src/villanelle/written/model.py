@@ -31,10 +31,10 @@ from villanelle.report import LocatedDiagnostic
 from villanelle.syntax.cst import Node, Syntax, ValueRef
 
 if TYPE_CHECKING:
-    from villanelle.extension import Extension
     from villanelle.source import DocumentSource, DocumentWriter
-    from villanelle.value import ExpandedValue
-    from villanelle.written._bind import Binding, BoundValue
+    from villanelle.written._bind import Binding, OverrideValues
+    from villanelle.written.extension import Extension
+    from villanelle.written.value import ExpandedValue
 
 
 def _detached(what: str) -> DetachedError:
@@ -70,7 +70,7 @@ class DocumentGraph:
     _documents: dict[str, Document]
     _root: Document | None
     _override_texts: dict[str, str]
-    _override_values: dict[str, tuple[BoundValue, ...]]
+    _override_values: dict[str, OverrideValues]
     _override_variables: dict[str, OverrideVariable]
     _resolutions: dict[tuple[str, str], tuple[str, ...] | Exception]
     _failed: dict[str, Exception]
@@ -104,16 +104,18 @@ class DocumentGraph:
 
     @property
     def diagnostics(self) -> tuple[LocatedDiagnostic, ...]:
-        """Syntax diagnostics per document, then what the binding found in walk order, except render's codes."""
+        """The one list (spec 6.3): each document's syntax diagnostics (documents in order), then every problem the
+        low level finds, in walk order. The expansion's and the render's ``diagnostics`` are this same list."""
         from villanelle.written import _graph
 
         return _graph.diagnostics(self)
 
     def set_override(self, name: str, text: str | None, /) -> None:
-        """Add, change or (None) remove one override without a reload; it wins over every ``set`` of its name. Raises
-        TypeError for a name or text that is not a str (``quote()`` a program string); ValueError for a name that is
-        not letters, digits and ``_``; BadTextError for a text that is not one or more values without a ``$name``,
-        located in that text."""
+        """Add, change or (None) remove one override without a reload; which ``set`` lines it wins over is
+        spec/expansion.md 5. Raises TypeError for a name or text that is not a str (``quote()`` a program string);
+        ValueError (misuse) for a name that is not letters, digits and ``_``; BadTextError for a text the
+        ``valuesText`` entry rule refuses or that is not one or more values without a ``$name``, located in that
+        text."""
         from villanelle.written import _graph
 
         _graph.set_override(self, name, text)
@@ -128,10 +130,11 @@ class DocumentGraph:
     def save(self, writer: DocumentWriter, /) -> list[str]:
         """Hand every document whose ``text`` differs from its ``saved_text`` to ``writer`` in one batch, in
         ``documents`` order; with none, the writer is not called. When the writer returns, each written document's
-        ``saved_text`` becomes the text given to it; when it raises, nothing changes and ``SaveError`` (its ``paths``
-        the batch's resolved paths) is raised from it. Returns the resolved paths given to the writer. Raises
-        TypeError first when ``writer`` is not a document writer (no callable ``write``)."""
-        from villanelle.errors import SaveError
+        ``saved_text`` becomes the text given to it; when it raises, nothing changes: a ``LostUpdateError`` (the
+        writer's ``check_lost_updates``) is raised as it is, anything else as a ``SaveError`` (its ``paths`` the
+        batch's resolved paths) from it. Returns the resolved paths given to the writer. Raises TypeError first when
+        ``writer`` is not a document writer (no callable ``write``)."""
+        from villanelle.errors import LostUpdateError, SaveError
         from villanelle.source import FileWrite
 
         if not callable(getattr(writer, "write", None)):
@@ -147,6 +150,8 @@ class DocumentGraph:
         paths = [file.resolved_path for file in batch]
         try:
             writer.write(tuple(batch))
+        except LostUpdateError:
+            raise
         except Exception as error:
             raise SaveError(f"the writer raised: {error}", paths) from error
         for file in batch:
@@ -158,7 +163,8 @@ class DocumentGraph:
         return self._binding().edges
 
     def unread(self) -> tuple[DocumentEdge, ...]:
-        """The edges naming a spec not resolved or a file not read yet."""
+        """The edges naming a spec not resolved or a file not read yet; each such copy expands to an unreadable
+        with reason ``unread`` and E3007 in ``diagnostics`` (spec 6.10)."""
         return self._binding().unread
 
     def variables(self, name: str | None = None) -> tuple[Variable, ...]:
@@ -394,8 +400,8 @@ class _NamedLine(_Statement):
     def set(self, text: str, /) -> None:
         """Replace this statement's values with ``text`` (villanelle values: ``stmt.set(quote(host))``,
         ``stmt.set(str(port))``); an empty text removes them. Not the language's ``set`` line: this edits any
-        statement's values. TypeError for a ``text`` that is not a str; BadTextError for one that is not values (a
-        line break outside a list included: it would end the statement)."""
+        statement's values. TypeError for a ``text`` that is not a str; BadTextError for one the ``valuesText``
+        entry rule refuses (spec 2.8: a ``;``, a block, a comment the text ends in); a line break is whitespace."""
         from villanelle.written import _document
 
         self._live()
@@ -416,8 +422,9 @@ class WrittenDirective(_NamedLine):
         return StatementKind.DIRECTIVE
 
     def rename(self, name: str, /) -> None:
-        """Change its name to one word. TypeError for a ``name`` that is not a str; BadTextError for a reserved or
-        extension name, or more than one word."""
+        """Change its name. TypeError for a ``name`` that is not a str; ValueError (misuse, spec 2.8) for a name the
+        grammar's ``nameText`` entry rule refuses (not one word, or starting with a digit or ``-``), or a reserved or
+        registered extension name."""
         from villanelle.written import _document
 
         self._live()
@@ -694,8 +701,9 @@ class _Value:
         return self._list
 
     def replace_with_text(self, text: str, /) -> tuple[WrittenValue, ...]:
-        """Zero or more values in its place. TypeError for a ``text`` that is not a str; BadTextError for one that is
-        not values (a slice bound: one word or ``$name``; outside a list, a line break included)."""
+        """Zero or more values in its place. TypeError for a ``text`` that is not a str; BadTextError for one its
+        entry rule refuses (spec 2.8): ``valuesText``; a list item's ``itemsText`` (no trailing ``,``); a slice or index
+        bound's ``boundText`` (one integer word or ``$name``)."""
         from villanelle.written import _document
 
         self._live()
@@ -949,7 +957,8 @@ class SetVariable(_Variable):
 
     def rename(self, name: str, /) -> None:
         """Change its ``$name`` (only this one; references keep theirs). TypeError for a ``name`` that is not a str;
-        BadTextError for a name that is not letters, digits and ``_``, or one set twice in its block (E5002)."""
+        ValueError (misuse) for a name that is not letters, digits and ``_``; BadTextError for one set twice in its
+        block (E5002)."""
         from villanelle.written import _document
 
         token = self._token()
@@ -1016,8 +1025,8 @@ class Parameter(_Variable):
         return self._owner()
 
     def rename(self, name: str, /) -> None:
-        """Change its ``$name`` (only this one). TypeError for a ``name`` that is not a str; BadTextError for a name
-        that is not letters, digits and ``_``."""
+        """Change its ``$name`` (only this one). TypeError for a ``name`` that is not a str; ValueError (misuse) for a
+        name that is not letters, digits and ``_``."""
         from villanelle.written import _document
 
         line = self._owner()
@@ -1097,8 +1106,7 @@ class Expansion:
     unreadable: tuple[UnreadableExpansion, ...]
     """The top-level copies that could not be read."""
     diagnostics: tuple[LocatedDiagnostic, ...]
-    """Syntax diagnostics per document, then everything the expansion found in walk order, render's codes included:
-    what ``rendered.diagnostics`` is."""
+    """The graph's ``diagnostics``: the one list (spec 6.3), what ``rendered.diagnostics`` is too."""
 
 
 @final
@@ -1106,48 +1114,36 @@ class Expansion:
 class DirectiveExpansion:
     """One copy of a written directive, as read."""
 
-    __match_args__ = ("statement", "values", "block")
+    __match_args__ = ("written", "values", "block")
 
-    statement: WrittenDirective
-    """The line this is a copy of."""
+    written: WrittenDirective
+    """The written directive this is a copy of: the same handle for every copy of one line."""
     origin: DirectiveOrigin
     """Its name's place and the copy's via."""
-    values: tuple[ValueExpansion, ...]
-    """In order; a ``$name`` gives every value it reaches."""
+    values: tuple[ExpandedValue, ...]
+    """Its values, expanded, with their links (spec 2.9), in order; a ``$name`` gives every value it reaches. A
+    rendered directive's ``values`` are these same objects."""
     block: tuple[DirectiveExpansion, ...] | None
     """None when written without a block."""
     unreadable: tuple[UnreadableExpansion, ...]
+    """Its block's copies that could not be read."""
 
 
 @final
 @dataclass(frozen=True, slots=True, match_args=False)
 class UnreadableExpansion:
-    """One copy of a statement that could not be read there."""
+    """One copy of a statement that could not be read there, kept in its place so a reader and ``diff`` know the
+    block is incomplete. The rendered tree lists these same objects."""
 
-    __match_args__ = ("statement", "reason")
+    __match_args__ = ("reason", "written")
 
-    statement: Statement
     reason: UnreadableReason
+    """``syntax``, ``expansion``, ``value``, ``extension``, or ``unread`` for an extension copy not read yet (E3007)."""
+    written: Statement
+    """The statement that could not be read: an unreadable line, or a directive, ``use`` or extension line this copy
+    could not expand or has not read."""
     origin: DirectiveOrigin
     """The statement's own tokens (owned comments left out) and the copy's via."""
-
-
-@final
-@dataclass(frozen=True, slots=True, match_args=False)
-class ValueExpansion:
-    """One value of a directive copy after expansion, with its links to the written text."""
-
-    __match_args__ = ("value", "written", "definition")
-
-    value: ExpandedValue
-    written: WrittenValue
-    """The same line: ``chain[0].reference`` when the value came through a variable, else the value itself."""
-    definition: WrittenValue | None
-    """The end of the chain (the written value it was defined as); None for an override."""
-    chain: tuple[ReferenceResolution, ...]
-    """One per variable step of the value's origin, own line first."""
-    items: tuple[ValueExpansion, ...]
-    """A list's items with their own links; empty for every other kind."""
 
 
 __all__ = [
@@ -1174,7 +1170,6 @@ __all__ = [
     "UnreadableExpansion",
     "UnreadableLine",
     "UseLine",
-    "ValueExpansion",
     "Variable",
     "Word",
     "WrittenBlock",

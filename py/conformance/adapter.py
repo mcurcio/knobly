@@ -169,10 +169,10 @@ def address(a: vl.Address) -> dict[str, Any]:
 def rendered(r: vl.Rendered, rules: Sequence[Mapping[str, Any]] | None) -> dict[str, Any]:
     addresses = r.addresses(key=key_rule(rules))
 
-    def unreadable(u: vl.Unreadable) -> dict[str, Any]:
+    def unreadable(u: vl.UnreadableExpansion) -> dict[str, Any]:
         return {"reason": str(u.reason), "origin": origin(u.origin)}
 
-    def argument(a: vl.Argument) -> dict[str, Any]:
+    def expanded(a: vl.ExpandedValue) -> dict[str, Any]:
         return {
             "id": ref(a),
             "kind": str(a.kind),
@@ -188,7 +188,7 @@ def rendered(r: vl.Rendered, rules: Sequence[Mapping[str, Any]] | None) -> dict[
             "name": d.name,
             "address": address(addresses[d]),
             "origin": origin(d.origin),
-            "values": [argument(a) for a in d.values],
+            "values": [expanded(a) for a in d.values],
             "block": None if d.block is None else [directive(x) for x in d.block],
             "unreadable": [unreadable(u) for u in d.unreadable],
         }
@@ -237,10 +237,16 @@ class Recorder:
         self.batches.append([[f.resolved_path, f.text] for f in files])
 
 
-def save(graph: str) -> dict[str, Any]:
-    recorder = Recorder()
-    get(graph).save(recorder)
-    return {"batches": recorder.batches}
+def save(graph: str, disk: dict[str, str] | None = None) -> dict[str, Any]:
+    """Without ``disk``, what a recording writer got; with it, a memory writer over a new map holding ``disk`` (so a
+    file whose text there differs from its saved text is a lost update), then the map after, sorted by path."""
+    if disk is None:
+        recorder = Recorder()
+        get(graph).save(recorder)
+        return {"batches": recorder.batches}
+    files = dict(disk)
+    get(graph).save(vl.memory_writer(files))
+    return {"files": sorted([path, text] for path, text in files.items())}
 
 
 def load(files: dict[str, str], root: str, extensions: list[str], overrides: dict[str, str] | None = None) -> Any:
@@ -269,13 +275,30 @@ OPS: dict[str, Callable[..., Any]] = {
 }
 
 
-def group(error: vl.VillanelleError) -> dict[str, Any]:
-    """The error's group by its spec name (PascalCase back to words), with its code or diagnostics."""
-    out: dict[str, Any] = {"group": re.sub(r"(?<!^)(?=[A-Z])", " ", type(error).__name__).lower()}
+# The program-bug groups that raise the language's own classes (spec 2.8), most specific first.
+BUGS: tuple[tuple[type[Exception], str], ...] = (
+    (TypeError, "argument type error"),
+    (IndexError, "index out of range"),
+    (ValueError, "misuse error"),
+)
+
+
+def group(error: Exception) -> dict[str, Any] | None:
+    """The spec 2.8 group of an error, the most specific its class belongs to (a package class by its name, PascalCase
+    back to words), with its code, diagnostics or paths; None for anything else (a fault)."""
+    if isinstance(error, vl.VillanelleError | vl.DetachedError):
+        name = re.sub(r"(?<!^)(?=[A-Z])", " ", type(error).__name__).lower()
+    else:
+        name = next((spec for cls, spec in BUGS if isinstance(error, cls)), "")
+        if not name:
+            return None
+    out: dict[str, Any] = {"group": name}
     if isinstance(error, vl.DiagnosticError):
         out["code"] = str(error.diagnostic.code)
     if isinstance(error, vl.BadTextError):
         out["diagnostics"] = [diagnostic(d) for d in error.diagnostics]
+    if isinstance(error, vl.ReadError | vl.SaveError):
+        out["paths"] = list(error.paths)
     return out
 
 
@@ -285,10 +308,10 @@ def main() -> None:
         id_, op = request.pop("id"), request.pop("op")
         try:
             response = {"id": id_, "ok": OPS[op](**request)}
-        except vl.VillanelleError as error:
-            response = {"id": id_, "thrown": group(error)}
         except Exception as error:
-            response = {"id": id_, "fault": f"{type(error).__name__}: {error}"}
+            thrown = group(error)
+            fault = f"{type(error).__name__}: {error}"
+            response = {"id": id_, "thrown": thrown} if thrown is not None else {"id": id_, "fault": fault}
         sys.stdout.write(json.dumps(response) + "\n")
         sys.stdout.flush()
 

@@ -1,15 +1,15 @@
-"""Extensions (spec 5), shared by the low level and the rendered layer: an extension owns one directive name and
-turns each use of it into specs of files to splice in its place. An extension use names no rendered type: its values
-are shared ``ExpandedValue``s."""
+"""Extensions (spec 5), owned by the low level (vil-umh.8): an extension owns one directive name and turns each use of
+it into specs of files to splice in its place. Pure, like the rest of the expansion: the load resolves and reads the
+specs through its document source. An extension use holds the low level's expanded values and names no rendered
+type."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
 from villanelle.origin import DirectiveOrigin
-from villanelle.value import ExpandedValue
+from villanelle.written.value import ExpandedValue
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,7 +17,7 @@ class ExtensionUse:
     """One use of an extension directive, as the extension sees it."""
 
     values: tuple[ExpandedValue, ...]
-    """The directive's values, expanded."""
+    """The directive's values, expanded, with their links."""
     origin: DirectiveOrigin
 
 
@@ -30,9 +30,10 @@ class Extension(Protocol):
     @property
     def directive(self) -> str: ...
 
-    def specs(self, use: ExtensionUse, /) -> Sequence[str]:
-        """The specs for one use, in splice order. Raise DiagnosticError for a located failure; any other exception
-        becomes E3006 at the directive."""
+    def specs(self, use: ExtensionUse, /) -> tuple[str, ...]:
+        """The specs for one use, in splice order. Raise DiagnosticError for a located failure; any other exception,
+        or a result that is not a sequence of str (a bare ``str`` included, checked at run time), becomes E3006 at the
+        directive."""
         ...
 
 

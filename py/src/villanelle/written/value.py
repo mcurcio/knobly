@@ -1,21 +1,26 @@
-"""Values after expansion, shared by the low level and the rendered layer (spec 2.9): one class per value kind
+"""Values after expansion (spec 2.9), owned by the low level (vil-umh.8): one class per value kind
 (``ExpandedWord``, ``ExpandedString``, ``ExpandedList``, ``ExpandedSlice``, ``ExpandedIndex``; the union
-``ExpandedValue``), each with the readers, and the plain values of a slice and an index. An extension use holds
-expanded values; the rendered layer's arguments build on them. The rules each reader applies live in
-``villanelle._values``."""
+``ExpandedValue``), each with the readers and three links to the lines it came through (``written``, ``definition``,
+``chain``), and the plain values of a slice and an index. An extension use holds them, a directive expansion's
+``values`` are them, and a rendered directive's ``values`` are the same objects: one family, one home of the readers.
+Two expanded values are equal exactly when their canonical texts are (``==`` and ``hash``). The rules each reader
+applies live in ``villanelle._values``."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import ClassVar, Literal, TypeAlias
+from typing import TYPE_CHECKING, ClassVar, Literal, TypeAlias
 
 from villanelle import _values
 from villanelle._api.codes import MESSAGES
 from villanelle._api.kinds import ValueKind
 from villanelle.diagnostics import DiagnosticCode
 from villanelle.errors import DiagnosticError
-from villanelle.origin import Origin, Place
+from villanelle.origin import Origin, Place, Step
 from villanelle.report import LocatedDiagnostic, check_program_code
+
+if TYPE_CHECKING:
+    from villanelle.written.model import ReferenceResolution, WrittenValue
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,22 +49,43 @@ as a number (NumberText) or as true/false (BooleanText)."""
 
 
 class _Expanded:
-    """What every expanded value has: ``kind``, ``text``, ``origin``, the readers and ``error``. Private: the public
-    type is the union ``ExpandedValue``. Invariants checked at load, so readers never meet them: a string's escapes are
-    the six of EscapeText; a slice bound is an IntegerText. (The readers ``list`` and ``slice`` shadow the builtins in
-    this class body: no annotation below names them.)"""
+    """What every expanded value has: ``kind``, ``text``, ``origin``, the links, the readers and ``error``. Private:
+    the public type is the union ``ExpandedValue``. Made by the low level's expansion only. Invariants the grammar
+    checks, so readers never meet them: a string's escapes are the six of EscapeText (E1005 otherwise); a literal
+    slice bound is an INTEGER (E2007 otherwise). (The readers ``list`` and ``slice`` shadow the builtins in this
+    class body: no annotation below names them.)"""
 
-    __slots__ = ("_origin", "_text")
+    __slots__ = ("_chain", "_definition", "_origin", "_text")
 
     _origin: Origin
     _text: str
+    _definition: WrittenValue | None
+    _chain: tuple[ReferenceResolution, ...]
 
-    def __init__(self, text: str, origin: Origin) -> None:
+    def __init__(
+        self,
+        text: str,
+        origin: Origin,
+        definition: WrittenValue | None,
+        chain: tuple[ReferenceResolution, ...],
+    ) -> None:
         self._text = text
         self._origin = origin
+        self._definition = definition
+        self._chain = chain
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._text!r})"
+
+    def __eq__(self, other: object) -> bool:
+        """Two expanded values are the same exactly when their canonical texts are equal (spec 2.9), whatever their
+        origins and links."""
+        if not isinstance(other, _Expanded):
+            return NotImplemented
+        return self._text == other._text
+
+    def __hash__(self) -> int:
+        return hash(self._text)
 
     @property
     def kind(self) -> ValueKind:
@@ -74,6 +100,49 @@ class _Expanded:
     @property
     def origin(self) -> Origin:
         return self._origin
+
+    @property
+    def written(self) -> WrittenValue:
+        """The written value on the same line: for a value that came through a variable, the ``$name`` there
+        (``chain[0].reference``; a list item shares its list's); otherwise the value itself, also its ``definition``.
+        Never None. Editing it edits that one written line, which every copy of the line shares: a file included
+        twice has one line read in both copies (``written.statement.copies()``), so the edit shows in both. To change
+        one copy only, edit what that copy is given instead (its include block's ``set``, at the include step of
+        ``chain``). A live handle: the value itself is a snapshot of one expansion."""
+        written = self._chain[0].reference if self._chain else self._definition
+        assert written is not None, "an expanded value a program reads always has a line"
+        return written
+
+    @property
+    def definition(self) -> WrittenValue | None:
+        """The written value at the end of its chain (for ``$pixels``, the ``2284`` of its ``set``); None for an
+        override. Editing it changes every use."""
+        return self._definition
+
+    @property
+    def chain(self) -> tuple[ReferenceResolution, ...]:
+        """One per variable step of ``origin.via``, from this value's own line toward where it is written:
+        ``[0]`` is the ``$name`` written on the directive's line. Empty for a value read where it is written."""
+        return self._chain
+
+    def _moved(self, drop: int, append: tuple[Step, ...], resolution: ReferenceResolution | None) -> ExpandedValue:
+        """The same value having travelled further (private to the low level's expansion): the last ``drop`` steps of
+        its origin (and of each list item's) are replaced by ``append``, and ``resolution`` (a ``$name`` read) goes
+        first in the chain."""
+        via = self._origin.via
+        origin = Origin(self._origin.place, via[: len(via) - drop] + append)
+        chain = self._chain if resolution is None else (resolution, *self._chain)
+        return self._remade(origin, chain, drop, append, resolution)
+
+    def _remade(
+        self,
+        origin: Origin,
+        chain: tuple[ReferenceResolution, ...],
+        drop: int,
+        append: tuple[Step, ...],
+        resolution: ReferenceResolution | None,
+    ) -> ExpandedValue:
+        raise NotImplementedError
 
     def word(self) -> str:
         """A bare word. Raises DiagnosticError E4002 for any other kind."""
@@ -165,6 +234,16 @@ class ExpandedWord(_Expanded):
     def kind(self) -> Literal[ValueKind.WORD]:
         return ValueKind.WORD
 
+    def _remade(
+        self,
+        origin: Origin,
+        chain: tuple[ReferenceResolution, ...],
+        drop: int,
+        append: tuple[Step, ...],
+        resolution: ReferenceResolution | None,
+    ) -> ExpandedValue:
+        return ExpandedWord(self._text, origin, self._definition, chain)
+
 
 class ExpandedString(_Expanded):
     """A quoted string: ``text`` is its canonical quoted text, ``string()`` the decoded text."""
@@ -174,26 +253,48 @@ class ExpandedString(_Expanded):
 
     _value: str
 
-    def __init__(self, value: str, origin: Origin) -> None:
+    def __init__(
+        self,
+        value: str,
+        origin: Origin,
+        definition: WrittenValue | None,
+        chain: tuple[ReferenceResolution, ...],
+    ) -> None:
         """``value`` is the decoded text."""
-        super().__init__(_values.canonical_string(value), origin)
+        super().__init__(_values.canonical_string(value), origin, definition, chain)
         self._value = value
 
     @property
     def kind(self) -> Literal[ValueKind.STRING]:
         return ValueKind.STRING
 
+    def _remade(
+        self,
+        origin: Origin,
+        chain: tuple[ReferenceResolution, ...],
+        drop: int,
+        append: tuple[Step, ...],
+        resolution: ReferenceResolution | None,
+    ) -> ExpandedValue:
+        return ExpandedString(self._value, origin, self._definition, chain)
+
 
 class ExpandedList(_Expanded):
-    """A list: ``items`` are its values, each with its own origin."""
+    """A list: ``items`` are its values, each with its own origin and links."""
 
     __match_args__ = ("items",)
     __slots__ = ("_items",)
 
     _items: tuple[ExpandedValue, ...]
 
-    def __init__(self, items: tuple[ExpandedValue, ...], origin: Origin) -> None:
-        super().__init__(_values.canonical_list(item.text for item in items), origin)
+    def __init__(
+        self,
+        items: tuple[ExpandedValue, ...],
+        origin: Origin,
+        definition: WrittenValue | None,
+        chain: tuple[ReferenceResolution, ...],
+    ) -> None:
+        super().__init__(_values.canonical_list(item.text for item in items), origin, definition, chain)
         self._items = items
 
     @property
@@ -203,6 +304,17 @@ class ExpandedList(_Expanded):
     @property
     def items(self) -> tuple[ExpandedValue, ...]:
         return self._items
+
+    def _remade(
+        self,
+        origin: Origin,
+        chain: tuple[ReferenceResolution, ...],
+        drop: int,
+        append: tuple[Step, ...],
+        resolution: ReferenceResolution | None,
+    ) -> ExpandedValue:
+        items = tuple(item._moved(drop, append, resolution) for item in self._items)
+        return ExpandedList(items, origin, self._definition, chain)
 
 
 class ExpandedSlice(_Expanded):
@@ -215,8 +327,16 @@ class ExpandedSlice(_Expanded):
     _start: int | None
     _end: int | None
 
-    def __init__(self, name: str, start: int | None, end: int | None, origin: Origin) -> None:
-        super().__init__(_values.canonical_slice(name, start, end), origin)
+    def __init__(
+        self,
+        name: str,
+        start: int | None,
+        end: int | None,
+        origin: Origin,
+        definition: WrittenValue | None,
+        chain: tuple[ReferenceResolution, ...],
+    ) -> None:
+        super().__init__(_values.canonical_slice(name, start, end), origin, definition, chain)
         self._name = name
         self._start = start
         self._end = end
@@ -224,6 +344,16 @@ class ExpandedSlice(_Expanded):
     @property
     def kind(self) -> Literal[ValueKind.SLICE]:
         return ValueKind.SLICE
+
+    def _remade(
+        self,
+        origin: Origin,
+        chain: tuple[ReferenceResolution, ...],
+        drop: int,
+        append: tuple[Step, ...],
+        resolution: ReferenceResolution | None,
+    ) -> ExpandedValue:
+        return ExpandedSlice(self._name, self._start, self._end, origin, self._definition, chain)
 
     @property
     def name(self) -> str:
@@ -247,14 +377,31 @@ class ExpandedIndex(_Expanded):
     _name: str
     _index: int
 
-    def __init__(self, name: str, index: int, origin: Origin) -> None:
-        super().__init__(_values.canonical_index(name, index), origin)
+    def __init__(
+        self,
+        name: str,
+        index: int,
+        origin: Origin,
+        definition: WrittenValue | None,
+        chain: tuple[ReferenceResolution, ...],
+    ) -> None:
+        super().__init__(_values.canonical_index(name, index), origin, definition, chain)
         self._name = name
         self._index = index
 
     @property
     def kind(self) -> Literal[ValueKind.INDEX]:
         return ValueKind.INDEX
+
+    def _remade(
+        self,
+        origin: Origin,
+        chain: tuple[ReferenceResolution, ...],
+        drop: int,
+        append: tuple[Step, ...],
+        resolution: ReferenceResolution | None,
+    ) -> ExpandedValue:
+        return ExpandedIndex(self._name, self._index, origin, self._definition, chain)
 
     @property
     def name(self) -> str:
@@ -266,13 +413,15 @@ class ExpandedIndex(_Expanded):
 
 
 ExpandedValue: TypeAlias = ExpandedWord | ExpandedString | ExpandedList | ExpandedSlice | ExpandedIndex
-"""One value after expansion: a ``$name`` has already become its value(s). Plain data; it holds no low-level handle.
-Its kind is never ``reference``. Match it by class: ``case ExpandedWord("true"):``."""
+"""One value after expansion: a ``$name`` has already become its value(s), with its links to the written lines it
+came through. A snapshot that holds live handles. Its kind is never ``reference``. Match it by class:
+``case ExpandedWord("true"):``."""
 
 
 def value_error(value: _Expanded, code: DiagnosticCode | str, message: str) -> DiagnosticError:
     """A located error placed on a value. An override is written in no file: the problem is placed on the ``$name``
-    that used it (``via[0]``) and the message names the variable. Private to the package."""
+    that used it (``via[0]``) and the message names the variable. Private to the package (the include extension
+    places E3005 with it)."""
     place, via = value.origin.place, value.origin.via
     if isinstance(place, Place):
         return DiagnosticError(LocatedDiagnostic(code, message, place, via))
@@ -289,5 +438,4 @@ __all__ = [
     "IndexValue",
     "PlainValue",
     "SliceValue",
-    "ValueKind",
 ]

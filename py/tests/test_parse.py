@@ -27,9 +27,9 @@ def test_parses_the_tracer_slice_into_a_directive_holding_a_slice_node() -> None
         ("SPACE", " "),
         ("WORD", "hyperhdr_color"),
         ("LBRACK", "["),
-        ("WORD", "144"),
+        ("INTEGER", "144"),
         ("COLON", ":"),
-        ("WORD", "152"),
+        ("INTEGER", "152"),
         ("RBRACK", "]"),
         ("SEMI", ";"),
     ]
@@ -60,10 +60,36 @@ def test_reports_empty_slice_as_one_located_diagnostic() -> None:
 
 
 def test_codes_lexical_errors_by_the_offending_token() -> None:
-    assert [d.code for d in parse("a \u0001").diagnostics] == [DiagnosticCode.UNEXPECTED_CHARACTER]
+    assert [d.code for d in parse("a \u0001;").diagnostics] == [DiagnosticCode.UNEXPECTED_CHARACTER]
     assert [d.code for d in parse('a "b').diagnostics] == [DiagnosticCode.UNTERMINATED_STRING]
-    assert [d.code for d in parse("a ﻿").diagnostics] == [DiagnosticCode.UNEXPECTED_CHARACTER]
-    assert parse("﻿a").diagnostics == ()
+    assert [d.code for d in parse("a ﻿;").diagnostics] == [DiagnosticCode.UNEXPECTED_CHARACTER]
+    assert [d.code for d in parse('a "b\\qc";').diagnostics] == [DiagnosticCode.BAD_ESCAPE]
+    assert parse("﻿a;").diagnostics == ()
+
+
+def test_a_word_is_one_of_three_tokens_and_a_bad_escape_is_one_token() -> None:
+    kinds = [
+        (t.kind, t.text) for t in parse('x 8080 -1 1.5 20hz 007 - -x a.b "\\n" "\\q";').tokens if t.kind != "SPACE"
+    ]
+    assert kinds == [
+        ("WORD", "x"),
+        ("INTEGER", "8080"),
+        ("INTEGER", "-1"),
+        ("DIGIT_WORD", "1.5"),
+        ("DIGIT_WORD", "20hz"),
+        ("DIGIT_WORD", "007"),
+        ("DIGIT_WORD", "-"),
+        ("DIGIT_WORD", "-x"),
+        ("WORD", "a.b"),
+        ("STRING", '"\\n"'),
+        ("BAD_ESCAPE", '"\\q"'),
+        ("SEMI", ";"),
+    ]
+
+
+@pytest.mark.parametrize("text", ["a[i];", "a[1.5];", "a[1:x];", "a[007];"])
+def test_a_literal_bound_that_is_not_an_integer_is_e2007_at_parse(text: str) -> None:
+    assert [d.code for d in parse(f"x {text}").diagnostics] == [DiagnosticCode.BAD_SLICE]
 
 
 def test_locates_unexpected_end_of_input_at_the_end_of_the_text() -> None:
@@ -74,11 +100,12 @@ def test_locates_unexpected_end_of_input_at_the_end_of_the_text() -> None:
 
 def test_counts_positions_in_code_points_lines_after_each_newline() -> None:
     # spec/contract.md 1: Python's own string unit, so the span cuts the source at the token's text.
-    text = "a '\U0001f600'\r\nb"
+    text = "a '\U0001f600';\r\nb;"
     syntax = parse(text)
-    b = syntax.tokens[-1]
+    assert syntax.diagnostics == ()
+    b = syntax.tokens[-2]
     assert b.text == "b"
-    assert b.span.start == pos(7, 1, 0)
+    assert b.span.start == pos(8, 1, 0)
     smile = syntax.tokens[2]
     assert smile.span == SourceSpan(pos(2, 0, 2), pos(5, 0, 5))
     assert text[smile.span.start.offset : smile.span.end.offset] == smile.text

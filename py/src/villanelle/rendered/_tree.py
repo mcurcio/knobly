@@ -1,219 +1,22 @@
 """The rendered tree's nodes (spec 7; R15 tier 2): what a program walks after ``render``. Model: the standard ``ast``
 module. Nodes are read-only objects with ``__match_args__``, read with ``match``; ``walk()`` iterates a subtree as
 ``ast.walk`` does (here in written order); every node carries where it came from. Directives and values are expanded
-(variables replaced, snippets and extension files spliced in). These are the rendered layer's own types: they build
-on the shared ``ExpandedValue`` and name low-level handles (``written``), never the other way round."""
+(variables replaced, snippets and extension files spliced in). A directive is built on its directive expansion's own
+objects (vil-umh.8): its ``values`` are the low level's expanded values and its ``unreadable`` the low level's
+unreadable expansions, the same objects; this layer adds ``name``, ``parent``, ``walk``, ``closest``, the address and
+``error``. It names low-level handles, never the other way round."""
 
 from __future__ import annotations
 
 import json
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
-from typing import TypeAlias, cast, final
+from typing import TypeAlias, final
 
-from villanelle._api.kinds import UnreadableReason
 from villanelle.errors import DiagnosticError
-from villanelle.origin import DirectiveOrigin, Origin
+from villanelle.origin import DirectiveOrigin
 from villanelle.report import LocatedDiagnostic, check_program_code
-from villanelle.value import ExpandedIndex, ExpandedList, ExpandedSlice, ExpandedString, ExpandedWord
-from villanelle.written import (
-    DirectiveExpansion,
-    ReferenceResolution,
-    Statement,
-    UnreadableExpansion,
-    ValueExpansion,
-    WrittenDirective,
-    WrittenValue,
-)
-
-
-class _Links:
-    """What every argument adds to its expanded value (spec 7.3): three links to the low level, ``written``,
-    ``definition`` and ``chain``, and ``list()`` narrowed to arguments. Private: the public type is the union
-    ``Argument``."""
-
-    __slots__ = ()
-
-    _written: WrittenValue
-    _definition: WrittenValue | None
-    _chain: tuple[ReferenceResolution, ...]
-
-    @property
-    def written(self) -> WrittenValue:
-        """The written value on the same line: for a value that came through a variable, the ``$name`` there
-        (``chain[0].reference``; a list item shares its list's); otherwise the value itself. Never None. Editing it
-        edits that one written line, which every copy of the line shares: a file included twice has one line read in
-        both copies (``written.statement.copies()``), so the edit shows in both. To change one copy only, edit what
-        that copy is given instead (its include block's ``set``, at the include step of ``chain``). A live handle: the
-        argument itself is a snapshot of one render."""
-        return self._written
-
-    @property
-    def definition(self) -> WrittenValue | None:
-        """The written value at the end of its chain (for ``$pixels``, the ``2284`` of its ``set``); None for an
-        override. Editing it changes every use."""
-        return self._definition
-
-    @property
-    def chain(self) -> tuple[ReferenceResolution, ...]:
-        """One per variable step of ``origin.via``, from this value's own line toward where it is written (D7):
-        ``[0]`` is the ``$name`` written on the directive's line. Empty for a value written where it is read."""
-        return self._chain
-
-    def list(self) -> tuple[Argument, ...]:
-        """A list's items, each an argument with its own origin. E4002 for any other kind."""
-        return cast("tuple[Argument, ...]", ExpandedList.list(cast("ExpandedList", self)))
-
-
-@final
-class WordArgument(_Links, ExpandedWord):
-    """A word value of a directive. Match it: ``case WordArgument("true"):``."""
-
-    __match_args__ = ("text",)
-    __slots__ = ("_chain", "_definition", "_written")
-
-    def __init__(
-        self,
-        text: str,
-        origin: Origin,
-        *,
-        written: WrittenValue,
-        definition: WrittenValue | None,
-        chain: tuple[ReferenceResolution, ...],
-    ) -> None:
-        """Made by ``render`` only."""
-        super().__init__(text, origin)
-        self._written = written
-        self._definition = definition
-        self._chain = chain
-
-
-@final
-class StringArgument(_Links, ExpandedString):
-    """A string value of a directive; ``string()`` is its decoded text. Its match field is ``text``, the canonical
-    text with its quotes: ``case StringArgument('"10.0.60.30"'):``, or read ``string()`` in a guard."""
-
-    __match_args__ = ("text",)
-    __slots__ = ("_chain", "_definition", "_written")
-
-    def __init__(
-        self,
-        value: str,
-        origin: Origin,
-        *,
-        written: WrittenValue,
-        definition: WrittenValue | None,
-        chain: tuple[ReferenceResolution, ...],
-    ) -> None:
-        """Made by ``render`` only. ``value`` is the decoded text."""
-        super().__init__(value, origin)
-        self._written = written
-        self._definition = definition
-        self._chain = chain
-
-
-@final
-class ListArgument(_Links, ExpandedList):
-    """A list value of a directive: its ``items`` are arguments, each with its own origin and links."""
-
-    __match_args__ = ("items",)
-    __slots__ = ("_chain", "_definition", "_written")
-
-    def __init__(
-        self,
-        items: tuple[Argument, ...],
-        origin: Origin,
-        *,
-        written: WrittenValue,
-        definition: WrittenValue | None,
-        chain: tuple[ReferenceResolution, ...],
-    ) -> None:
-        """Made by ``render`` only."""
-        super().__init__(items, origin)
-        self._written = written
-        self._definition = definition
-        self._chain = chain
-
-    @property
-    def items(self) -> tuple[Argument, ...]:
-        return cast("tuple[Argument, ...]", self._items)
-
-
-@final
-class SliceArgument(_Links, ExpandedSlice):
-    """A slice value of a directive."""
-
-    __match_args__ = ("name", "start", "end")
-    __slots__ = ("_chain", "_definition", "_written")
-
-    def __init__(
-        self,
-        name: str,
-        start: int | None,
-        end: int | None,
-        origin: Origin,
-        *,
-        written: WrittenValue,
-        definition: WrittenValue | None,
-        chain: tuple[ReferenceResolution, ...],
-    ) -> None:
-        """Made by ``render`` only."""
-        super().__init__(name, start, end, origin)
-        self._written = written
-        self._definition = definition
-        self._chain = chain
-
-
-@final
-class IndexArgument(_Links, ExpandedIndex):
-    """An index value of a directive."""
-
-    __match_args__ = ("name", "index")
-    __slots__ = ("_chain", "_definition", "_written")
-
-    def __init__(
-        self,
-        name: str,
-        index: int,
-        origin: Origin,
-        *,
-        written: WrittenValue,
-        definition: WrittenValue | None,
-        chain: tuple[ReferenceResolution, ...],
-    ) -> None:
-        """Made by ``render`` only."""
-        super().__init__(name, index, origin)
-        self._written = written
-        self._definition = definition
-        self._chain = chain
-
-
-Argument: TypeAlias = WordArgument | StringArgument | ListArgument | SliceArgument | IndexArgument
-"""One value of a directive, after expansion (spec 7.3): the expanded value of its kind plus its links to the low
-level. Match it by class: ``case WordArgument("true"):``."""
-
-
-def argument_of(expansion: ValueExpansion) -> Argument:
-    """The argument of one value expansion: the variant of its value's kind, with the expansion's links. Private to
-    the rendered layer."""
-    value = expansion.value
-    written, definition, chain = expansion.written, expansion.definition, expansion.chain
-    match value:
-        case ExpandedList():
-            items = tuple(argument_of(item) for item in expansion.items)
-            return ListArgument(items, value.origin, written=written, definition=definition, chain=chain)
-        case ExpandedString():
-            return StringArgument(value.string(), value.origin, written=written, definition=definition, chain=chain)
-        case ExpandedSlice():
-            return SliceArgument(
-                value.name, value.start, value.end, value.origin, written=written, definition=definition, chain=chain
-            )
-        case ExpandedIndex():
-            return IndexArgument(
-                value.name, value.index, value.origin, written=written, definition=definition, chain=chain
-            )
-        case ExpandedWord():
-            return WordArgument(value.text, value.origin, written=written, definition=definition, chain=chain)
+from villanelle.written import DirectiveExpansion, ExpandedValue, UnreadableExpansion, WrittenDirective
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,27 +61,6 @@ class Address:
 
 
 @final
-@dataclass(frozen=True, slots=True, match_args=False)
-class Unreadable:
-    """A statement of a block (or of the top level) that could not be read, kept in its place so a reader and ``diff``
-    know the block is incomplete. It has no name or address: what it would have been is unknown."""
-
-    __match_args__ = ("reason",)
-
-    reason: UnreadableReason
-    """Why: ``syntax`` (the parser could not read it), ``expansion`` (a variable, ``set``, ``snippet`` or ``use``
-    failed), ``value`` (a value broke a value rule checked at load) or ``extension`` (an extension line failed)."""
-    origin: DirectiveOrigin
-    written: Statement
-    """The statement that could not be read here."""
-
-
-def unreadable_of(expansion: UnreadableExpansion) -> Unreadable:
-    """The rendered unreadable of one unreadable expansion. Private to the rendered layer."""
-    return Unreadable(expansion.reason, expansion.origin, expansion.statement)
-
-
-@final
 class Directive:
     """One directive after expansion. ``set``, ``snippet``, ``use`` and extension directives never appear: their results
     do, in their place. Match it: ``case vl.Directive("node", [kind, node_id, *rest], block):``. Its address is
@@ -290,13 +72,13 @@ class Directive:
     def __init__(self, expansion: DirectiveExpansion, parent: Directive | None) -> None:
         """Made by ``render`` only, from one directive copy of the graph's expansion: its block's directives are made
         with it, each with this one as its parent."""
-        self._name = expansion.statement.name
-        self._values = tuple(argument_of(value) for value in expansion.values)
+        self._name = expansion.written.name
+        self._values = expansion.values
         self._parent = parent
         self._origin = expansion.origin
-        self._written = expansion.statement
+        self._written = expansion.written
         self._block = None if expansion.block is None else tuple(Directive(child, self) for child in expansion.block)
-        self._unreadable = tuple(unreadable_of(u) for u in expansion.unreadable)
+        self._unreadable = expansion.unreadable
 
     def __repr__(self) -> str:
         return f"Directive({self._name!r}, {[a.text for a in self._values]!r})"
@@ -306,8 +88,8 @@ class Directive:
         return self._name
 
     @property
-    def values(self) -> tuple[Argument, ...]:
-        """Its values, expanded."""
+    def values(self) -> tuple[ExpandedValue, ...]:
+        """Its values, expanded, with their links: its directive expansion's own objects."""
         return self._values
 
     @property
@@ -316,8 +98,9 @@ class Directive:
         return self._block
 
     @property
-    def unreadable(self) -> tuple[Unreadable, ...]:
-        """The block's statements that could not be read; empty when there is no block or all were read."""
+    def unreadable(self) -> tuple[UnreadableExpansion, ...]:
+        """The block's statements that could not be read (its directive expansion's own objects); empty when there
+        is no block or all were read."""
         return self._unreadable
 
     @property

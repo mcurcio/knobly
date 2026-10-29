@@ -8,13 +8,14 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
+from villanelle._text import port_text, port_texts
 from villanelle.errors import ReadError
 from villanelle.source import DocumentSource, LoadContext
 from villanelle.written import _bind, _graph
 from villanelle.written.model import DocumentGraph
 
 if TYPE_CHECKING:
-    from villanelle.extension import Extension
+    from villanelle.written.extension import Extension
 
 
 def load_graph(
@@ -22,20 +23,21 @@ def load_graph(
 ) -> DocumentGraph:
     """Read the root file at ``path`` (resolved through the source, as an included file's spec is, F1-04) and every
     file its include lines name. Checks the overrides first (``_graph.check_override``); raises ReadError (``paths``:
-    the root path) when the source fails, finds no file, or finds more than one."""
+    the root path) when the source fails, finds no file, finds more than one, or returns anything but a tuple of
+    str (``resolve``) or a str (``read``)."""
     graph = DocumentGraph(source, extensions, overrides)
 
     def fail(reason: object) -> ReadError:
         return ReadError(f"cannot read the root file {path}: {reason}", [path])
 
     try:
-        paths = source.resolve(path, LoadContext(""))
+        paths = port_texts(source.resolve(path, LoadContext("")), port="resolve()")
     except Exception as error:
         raise fail(error) from error
     if len(paths) != 1:
         raise fail("no such file" if not paths else f"it names {len(paths)} files")
     try:
-        text = source.read(paths[0])
+        text = port_text(source.read(paths[0]), port="read()")
     except Exception as error:
         raise fail(error) from error
     _graph.record_read(graph, paths[0], text)
@@ -45,7 +47,8 @@ def load_graph(
 
 def read_unread(graph: DocumentGraph) -> list[str]:
     """Resolve and read what ``graph.unread()`` names through the graph's source, until nothing new is named. Returns
-    the paths read, in read order."""
+    the paths read, in read order. A source's result that is not a tuple of str (``resolve``) or a str (``read``) is
+    its failure, as a raise is: E3004 at the extension line."""
     source = graph._source
     read: list[str] = []
     while True:
@@ -59,7 +62,7 @@ def read_unread(graph: DocumentGraph) -> list[str]:
                     continue
                 paths: tuple[str, ...] | Exception
                 try:
-                    paths = tuple(source.resolve(spec, LoadContext(need.parent_path)))
+                    paths = port_texts(source.resolve(spec, LoadContext(need.parent_path)), port="resolve()")
                 except Exception as error:
                     paths = error
                 _graph.record_resolved(graph, need.parent_path, spec, paths)
@@ -73,7 +76,7 @@ def read_unread(graph: DocumentGraph) -> list[str]:
                 continue
             text: str | Exception
             try:
-                text = source.read(path)
+                text = port_text(source.read(path), port="read()")
             except Exception as error:
                 text = error
             _graph.record_read(graph, path, text)
