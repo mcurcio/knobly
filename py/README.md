@@ -11,24 +11,28 @@ It is not on PyPI. Releases attach the wheel and sdist to the GitHub Release (se
 ## What it has
 
 It has the same parts as the TypeScript package ([`ts/README.md`](../ts/README.md)), in Python's
-own style: `Processor` for `villanelle()`, `as_int()` for `integer()`, `walk()` as a generator,
+own style: `Processor` for `villanelle()`, `walk()` as a generator, `match` on one class per kind,
 `snake_case` names. The core does no input or output. The concepts and their names come from
 [`spec/`](../spec/README.md); each binding only changes the casing.
 
 | Import | What it has |
 |---|---|
-| `villanelle` | The core: `parse`, `Processor`, `render`, `quote`, `memory_source`, `Diagnostics`, `format_diagnostic`, and the types they use |
-| `villanelle.written` | The low level on its own: `Processor`, `DocumentGraph` and the written types. It never imports the rendered layer |
-| `villanelle.rendered` | The rendered layer on its own: `render`, `Rendered`, `Directive`, `Argument`, the change classes |
+| `villanelle` | The core: `parse`, `Processor`, `render`, `quote`, `memory_source`, `memory_writer`, `Diagnostics`, `format_diagnostic`, the error classes, the kind lists (`StatementKind`, `ValueKind`, ...) and the types they use |
+| `villanelle.written` | The low level on its own: `Processor`, `DocumentGraph` and the written types, and the only home of the written values `Word`, `String`, `List`, `Slice`, `Index` and `Reference` (so `from villanelle import *` never replaces `typing.List`). It never imports the rendered layer |
+| `villanelle.rendered` | The rendered layer on its own: `render`, `Rendered`, `Directive`, the argument classes, the change classes. It reaches the low level only through `villanelle.written`'s public names |
 | `villanelle.include` | `include()`: the include extension |
-| `villanelle.files` | `file_source()` and `fs_writer()`: files on disk |
+| `villanelle.files` | `file_source()` and `file_writer()`: files on disk |
 
 - **The syntax tree.** `parse(text)` returns a `Syntax` with `tokens`, `root` and `diagnostics`. It never
   raises. The tree is lossless: `text_of(syntax, syntax.root)` gives the text back.
 - **The low level: the files as written.** `Processor(source=..., extensions=[...])` is made once, and loading
   is all it does: `processor.load(path, overrides=...)` reads the root file and every file it includes and
-  returns a `DocumentGraph`: the documents, their statements and values (one class per kind, for `match`), the
-  include copies, the variables and what each `$name` reads at each place. An override is a value the program
+  returns a `DocumentGraph`: the documents, their statements and values (one class per kind, each with a `kind`
+  from its generated `StrEnum` and `__match_args__`, for `match`: `case SetLine(variable, values):`), the include
+  copies, the variables (`SetVariable`, `Parameter`, `OverrideVariable`) and what each `$name` reads at each place.
+  An operation exists only where it can succeed: `rename` on a written directive and on set variables and
+  parameters, `set` on statements with values and on set variables; an include line is an `ExtensionLine`, with no
+  `rename`. An override is a value the program
   passes in, as villanelle text, that wins over every `set` of its name (`overrides={"host": quote(host)}`;
   change it later with `graph.set_override(name, text)`). Named edits change the text and keep comments and
   layout. They take villanelle text only, and anything else raises `TypeError`: write a program string with
@@ -44,27 +48,34 @@ own style: `Processor` for `villanelle()`, `as_int()` for `integer()`, `walk()` 
   assert graph.root.text == 'host "10.0.60.31";\nport 8080;\n'
   ```
 
-  `set(text)`, `replace_with_text(text)`, `insert_statements(index, text)`, `add_statements(text)` and
-  `rename(name)` are the edits; `graph.read()` reads files an edit added, through the graph's own source;
-  `graph.save(writer)` hands the changed files to a writer in one batch. Reference:
+  `set(text)`, `replace_with_text(text)`, `insert_before(text)`, `insert_after(text)`,
+  `insert_statements(index, text)`, `add_statements(text)` and `rename(name)` are the edits; a values text with a
+  line break outside a list is refused, since it would end the statement. `graph.read()` reads files an edit
+  added, through the graph's own source; `graph.save(writer)` hands the changed files to a writer in one batch
+  (`memory_writer(files)` writes into the same map a `memory_source(files)` reads; `file_writer()` to disk), and
+  `graph.expand()` gives every copy as read, which the rendered layer builds on. Reference:
   [docs/low-level-api.md](../docs/low-level-api.md) (it still shows the old names until the docs pass).
 - **The rendered tree.** `render(graph)` builds on the low level: it expands variables, snippets and included
-  files into directives (`block`, `rendered.walk()`), each value an `Argument` with its readers (`as_word()`,
-  `as_str()`, `as_number()`, `as_int()`, `as_bool()`, `as_list()`, `as_slice()`, `plain()`), its origin, and
-  `written` (the value on the same line), `definition` (where it is written) and `chain` (each `$name` it went
-  through) leading back to the low level. `rendered.addresses(key=...)` names each directive under a key rule,
+  files into directives (`block`, `rendered.walk()`), each value an argument of its kind (`WordArgument`,
+  `StringArgument`, `ListArgument` with its `items`, `SliceArgument`, `IndexArgument`; the union `Argument`) with
+  its readers (`word()`, `string()`, `number()`, `integer()`, `boolean()`, `list()`, `slice()`, `plain()`), its
+  origin, and `written` (the value on the same line), `definition` (where it is written) and `chain` (each `$name`
+  it went through) leading back to the low level. `rendered.addresses(key=...)` names each directive under a key rule,
   and `before.diff(after, key=...)` lists what changed, as `Added`, `Removed`, `Changed` and `Unknown`.
   Reference: [docs/rendered-tree.md](../docs/rendered-tree.md) (old names, as above).
 
 There is no fetch source and no fetch writer in Python. Every example in the reference pages is copied from a test
 that runs; the language is [docs/language.md](../docs/language.md).
 
-Diagnostic codes are the same as in TypeScript. Offsets and columns count UTF-16 code units, as in
-TypeScript, so an offset is not a Python `str` index once a character outside the Basic
-Multilingual Plane comes before it. For every case in `conformance/`, the two packages produce
-byte-identical tokens, trees and diagnostics; for every case in `conformance/load/` the same
+Diagnostic codes are the same as in TypeScript. Offsets and columns count code points, Python's own string unit
+([spec/contract.md](../spec/contract.md) 1), so `text[span.start.offset:span.end.offset]` is a span's text
+(TypeScript counts UTF-16 code units; the two differ after a character outside the Basic Multilingual Plane). A
+place prints as `main.conf:4:5` (`str(place)`, counting from 1), as do diagnostics and steps. Every error class the
+package defines is under `VillanelleError`. The conformance corpus stays in UTF-16 units and the test runners
+convert. For every case in `conformance/`, the two packages produce byte-identical tokens, trees and diagnostics; for every case in `conformance/load/` the same
 directives, addresses, origins, diagnostics and change lists; and for every case in `conformance/written/` the
-same documents, variables, resolutions, edit results and saved texts.
+same documents, variables, resolutions, edit results and saved texts; `conformance/contract/` checks the number
+readers, positions, people forms and `format_diagnostic`.
 
 ## Build and test
 

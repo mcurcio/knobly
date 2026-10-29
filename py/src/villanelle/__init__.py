@@ -1,14 +1,36 @@
 """villanelle: a configuration language defined by one grammar (grammar/Villanelle.g4), with a lossless syntax tree
-(``parse``), the config as written (the low level: ``Processor.load`` returns a ``DocumentGraph`` of editable
-documents, read further with ``graph.read()`` and saved back with ``graph.save(writer)``), and the rendered tree
-(``render(graph)``: variables, snippets and included files expanded into directives a program reads). The core does
-no I/O: ``villanelle.files`` gives a filesystem source and writer."""
+(``parse``), the config as written (the low level, ``villanelle.written``: ``Processor.load`` returns a
+``DocumentGraph`` of editable documents, read further with ``graph.read()`` and saved back with ``graph.save(writer)``),
+and the rendered tree (``villanelle.rendered``, ``render(graph)``: variables, snippets and included files expanded into
+directives a program reads). The core does no I/O: ``villanelle.files`` gives a filesystem source and writer.
 
-from villanelle._api.kinds import UnreadableReason
+Every name is exported here but the written values ``Word``, ``String``, ``List``, ``Slice``, ``Index`` and
+``Reference``, which ``villanelle.written`` exports (so ``from villanelle import *`` never replaces ``typing.List``)."""
+
+from villanelle._api.kinds import (
+    ChangeKind,
+    NodeKind,
+    PlaceKind,
+    StatementKind,
+    StepKind,
+    TokenKind,
+    UnreadableReason,
+    ValueKind,
+    VariableKind,
+)
 from villanelle._text import quote
-from villanelle.diagnostics import Diagnostic, DiagnosticCode, DiagnosticError
+from villanelle.diagnostics import Diagnostic, DiagnosticCode
+from villanelle.errors import (
+    BadTextError,
+    DetachedError,
+    DiagnosticError,
+    EditError,
+    ReadError,
+    SaveError,
+    VillanelleError,
+)
 from villanelle.extension import Extension, ExtensionUse
-from villanelle.origin import DirectiveOrigin, Origin, Override, Place, Step, StepKind
+from villanelle.origin import DirectiveOrigin, Origin, Override, Place, Step
 from villanelle.rendered import (
     Added,
     Address,
@@ -17,46 +39,57 @@ from villanelle.rendered import (
     Change,
     Changed,
     Directive,
+    IndexArgument,
     KeyRule,
+    ListArgument,
     Removed,
     Rendered,
+    SliceArgument,
+    StringArgument,
     Unknown,
     Unreadable,
+    WordArgument,
     render,
 )
 from villanelle.report import Collecting, Diagnostics, Locatable, LocatedDiagnostic
-from villanelle.source import DocumentSource, DocumentWriter, FileWrite, LoadContext, memory_source
+from villanelle.source import DocumentSource, DocumentWriter, FileWrite, LoadContext, memory_source, memory_writer
 from villanelle.span import SourcePosition, SourceSpan
-from villanelle.syntax.cst import Node, NodeKind, Syntax, TokenRange, ValueRef, span_of, text_of
+from villanelle.syntax.cst import Node, Syntax, TokenRange, ValueRef, span_of, text_of
 from villanelle.syntax.parse import parse
-from villanelle.syntax.tokens import Token, TokenKind
-from villanelle.value import ExpandedValue, IndexValue, PlainValue, SliceValue, ValueKind
+from villanelle.syntax.tokens import Token
+from villanelle.value import (
+    ExpandedIndex,
+    ExpandedList,
+    ExpandedSlice,
+    ExpandedString,
+    ExpandedValue,
+    ExpandedWord,
+    IndexValue,
+    PlainValue,
+    SliceValue,
+)
 from villanelle.written import (
-    BadTextError,
     Copy,
-    DetachedError,
+    DirectiveExpansion,
     Document,
     DocumentEdge,
     DocumentGraph,
-    EditError,
-    Index,
-    List,
-    NoSetLineError,
+    Expansion,
+    ExtensionLine,
+    OverrideVariable,
+    Parameter,
     Processor,
-    ReadError,
-    Reference,
     ReferenceResolution,
     Resolution,
-    SaveError,
     SetLine,
-    Slice,
+    SetVariable,
     SnippetLine,
     Statement,
-    String,
+    UnreadableExpansion,
     UnreadableLine,
     UseLine,
+    ValueExpansion,
     Variable,
-    Word,
     WrittenBlock,
     WrittenDirective,
     WrittenValue,
@@ -70,6 +103,7 @@ __all__ = [
     "Argument",
     "BadTextError",
     "Change",
+    "ChangeKind",
     "Changed",
     "Collecting",
     "Copy",
@@ -79,6 +113,7 @@ __all__ = [
     "DiagnosticError",
     "Diagnostics",
     "Directive",
+    "DirectiveExpansion",
     "DirectiveOrigin",
     "Document",
     "DocumentEdge",
@@ -86,60 +121,75 @@ __all__ = [
     "DocumentSource",
     "DocumentWriter",
     "EditError",
+    "ExpandedIndex",
+    "ExpandedList",
+    "ExpandedSlice",
+    "ExpandedString",
     "ExpandedValue",
+    "ExpandedWord",
+    "Expansion",
     "Extension",
+    "ExtensionLine",
     "ExtensionUse",
     "FileWrite",
-    "Index",
+    "IndexArgument",
     "IndexValue",
     "KeyRule",
-    "List",
+    "ListArgument",
     "LoadContext",
     "Locatable",
     "LocatedDiagnostic",
-    "NoSetLineError",
     "Node",
     "NodeKind",
     "Origin",
     "Override",
+    "OverrideVariable",
+    "Parameter",
     "Place",
+    "PlaceKind",
     "PlainValue",
     "Processor",
     "ReadError",
-    "Reference",
     "ReferenceResolution",
     "Removed",
     "Rendered",
     "Resolution",
     "SaveError",
     "SetLine",
-    "Slice",
+    "SetVariable",
+    "SliceArgument",
     "SliceValue",
     "SnippetLine",
     "SourcePosition",
     "SourceSpan",
     "Statement",
+    "StatementKind",
     "Step",
     "StepKind",
-    "String",
+    "StringArgument",
     "Syntax",
     "Token",
     "TokenKind",
     "TokenRange",
     "Unknown",
     "Unreadable",
+    "UnreadableExpansion",
     "UnreadableLine",
     "UnreadableReason",
     "UseLine",
+    "ValueExpansion",
     "ValueKind",
     "ValueRef",
     "Variable",
-    "Word",
+    "VariableKind",
+    "VillanelleError",
+    "WordArgument",
     "WrittenBlock",
     "WrittenDirective",
     "WrittenValue",
     "format_diagnostic",
     "memory_source",
+    "memory_writer",
     "parse",
     "quote",
     "render",

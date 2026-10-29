@@ -9,7 +9,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 import pytest
-from conftest import REPO
+from conftest import REPO, utf16_column
 
 import villanelle as vl
 from villanelle.include import include
@@ -30,29 +30,36 @@ def rasl_key(d: vl.Directive) -> str | None:
     return None
 
 
-def place(where: vl.Place) -> str:
-    return f"{where.resolved_path}:{where.span.start.line}:{where.span.start.column}"
+def place(where: vl.Place, graph: vl.DocumentGraph) -> str:
+    """``path:line:col``, 0-based, the column converted to UTF-16 units with the file's current text."""
+    start = where.span.start
+    document = graph.documents.get(where.resolved_path)
+    column = start.column if document is None else utf16_column(document.text, start.offset, start.column)
+    return f"{where.resolved_path}:{start.line}:{column}"
 
 
-def origin(where: vl.Place | vl.Override, via: Sequence[vl.Step]) -> str:
-    head = f"override {where.variable}" if isinstance(where, vl.Override) else place(where)
-    return head + "".join(f" < {step.kind} {step.name} {place(step.place)}" for step in via)
+def origin(where: vl.Place | vl.Override, via: Sequence[vl.Step], graph: vl.DocumentGraph) -> str:
+    head = f"override {where.variable}" if isinstance(where, vl.Override) else place(where, graph)
+    return head + "".join(f" < {step.kind} {step.name} {place(step.place, graph)}" for step in via)
 
 
 def fmt(rendered: vl.Rendered, key: vl.KeyRule | None, changes: list[list[str]] | None) -> bytes:
+    graph = rendered.graph
     directives: list[Any] = []
-    unreadable: list[Any] = [["", u.reason.value, origin(u.origin.place, u.origin.via)] for u in rendered.unreadable]
+    unreadable: list[Any] = [
+        ["", u.reason.value, origin(u.origin.place, u.origin.via, graph)] for u in rendered.unreadable
+    ]
     addresses = rendered.addresses(key=key)
     for d in rendered.walk():
         address = str(addresses[d])
-        args = [[a.text, origin(a.origin.place, a.origin.via)] for a in d.values]
-        directives.append([address, d.block is not None, origin(d.origin.place, d.origin.via), args])
-        unreadable.extend([address, u.reason.value, origin(u.origin.place, u.origin.via)] for u in d.unreadable)
+        args = [[a.text, origin(a.origin.place, a.origin.via, graph)] for a in d.values]
+        directives.append([address, d.block is not None, origin(d.origin.place, d.origin.via, graph), args])
+        unreadable.extend([address, u.reason.value, origin(u.origin.place, u.origin.via, graph)] for u in d.unreadable)
     value: dict[str, Any] = {
         "files": list(rendered.graph.documents),
         "directives": directives,
         "unreadable": unreadable,
-        "diagnostics": [[str(d.code), origin(d.place, d.via)] for d in rendered.diagnostics],
+        "diagnostics": [[str(d.code), origin(d.place, d.via, graph)] for d in rendered.diagnostics],
     }
     if changes is not None:
         value["changes"] = changes
@@ -89,17 +96,5 @@ def test_load_case_matches_expected_bytes(case: dict[str, Any]) -> None:
     if "after" in case:
         source.files = {**case["files"], **case["after"]}
         second = vl.render(processor.load(case["root"], overrides=overrides))
-        changes = [[change_kind(c), str(c.address)] for c in first.diff(second, key=key)]
+        changes = [[c.kind.value, str(c.address)] for c in first.diff(second, key=key)]
     assert fmt(first, key, changes).decode() == (EXPECTED / f"{case['name']}.json").read_text(encoding="utf-8")
-
-
-def change_kind(change: vl.Change) -> str:
-    match change:
-        case vl.Added():
-            return "added"
-        case vl.Removed():
-            return "removed"
-        case vl.Changed():
-            return "changed"
-        case vl.Unknown():
-            return "unknown"

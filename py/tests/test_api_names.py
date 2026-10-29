@@ -1,8 +1,11 @@
-"""The public-name check (spec/codegen.md, "Milestone 1"): every member spec/schema/api.json lists for a concept
-exists on that concept's class, under this binding's casing (snake_case) or the member's "spell", as a property or
-a method as the schema says. It also checks the concept classes, the free functions and the error classes the schema
-names. It reads the schema directly (no generated copy) and fails the build when a name drifts. The reverse
-direction (a public name the schema lacks) is a later milestone."""
+"""The public-name check (spec/codegen.md, "Milestone 1" and "Milestone 2"): every member spec/schema/api.json lists
+for a concept exists on that concept's class, under this binding's casing (snake_case) or the member's "spell", as a
+property or a method as the schema says. A variant has its union's members, the members of the concept it
+``extends`` (and that concept's union's), and its own; its ``kind`` is typed as the schema's one value of its list; its
+``__match_args__`` are the schema's ``py match args``. A union's classes are exactly its variants' classes. A concept
+with ``py module`` is exported by that module and absent from the package root. The error classes form the schema's
+tree. Nothing is skipped. It reads the schema directly (no generated copy) and fails the build when a name drifts.
+The reverse direction (a public name the schema lacks) is a later milestone."""
 
 from __future__ import annotations
 
@@ -114,22 +117,61 @@ def problems_on(klass: type, member: dict[str, Any]) -> list[str]:
     return out
 
 
+BY_NAME: dict[str, dict[str, Any]] = {c["name"]: c for c in CONCEPTS}
+
+
+def module_for(concept: dict[str, Any]) -> types.ModuleType:
+    return importlib.import_module(concept.get("py module", "villanelle"))
+
+
+def members_of(concept: dict[str, Any]) -> list[dict[str, Any]]:
+    """Its own members, its union's, and those of the concept it extends (transitively)."""
+    out = list(concept.get("members", []))
+    for parent in (concept.get("variant of"), concept.get("extends")):
+        if parent is not None:
+            out += members_of(BY_NAME[parent])
+    return out
+
+
+def kind_value(klass: type) -> str:
+    """The one value a variant's ``kind`` is typed as: the ``Literal`` its property returns."""
+    prop = lookup(klass, "kind")
+    assert isinstance(prop, property) and prop.fget is not None, f"{klass.__name__}: kind is not a property"
+    hint = typing.get_type_hints(prop.fget)["return"]
+    assert typing.get_origin(hint) is typing.Literal, f"{klass.__name__}: kind is typed {hint}, not a Literal"
+    (value,) = typing.get_args(hint)
+    return str(value.value)
+
+
 def concept_problems(concept: dict[str, Any]) -> list[str]:
     name = leading(concept["py"])
-    if not hasattr(villanelle, name):
-        return [f"villanelle exports no {name}"]
-    variants = classes_of(getattr(villanelle, name))
-    out = []
-    for member in concept.get("members", []):
-        if "py" in member.get("later", {}):  # the schema defers this member here to a later milestone
-            continue
-        found = {k: problems_on(k, member) for k in variants}
-        # A member whose value may be absent may be missing from a variant that never has it (Added has no before).
-        if member.get("absent") and len(variants) > 1 and any(not p for p in found.values()):
-            continue
-        for p in found.values():
-            out += p
+    module = module_for(concept)
+    if not hasattr(module, name):
+        return [f"{module.__name__} exports no {name}"]
+    variants = classes_of(getattr(module, name))
+    out = [p for k in variants for member in members_of(concept) for p in problems_on(k, member)]
+    if "py module" in concept and hasattr(villanelle, name):
+        out.append(f"{name} is exported by the package root; the schema says {concept['py module']} only")
+    if "variants" in concept:
+        want = {leading(BY_NAME[v]["py"]) for v in concept["variants"]}
+        if {k.__name__ for k in variants} != want:
+            out.append(f"{name} is {sorted(k.__name__ for k in variants)}; the schema's variants are {sorted(want)}")
+    if "kind" in concept:
+        (klass,) = variants
+        if kind_value(klass) != concept["kind"]:
+            out.append(f"{name}.kind is {kind_value(klass)!r}; the schema says {concept['kind']!r}")
+    if "py match args" in concept:
+        (klass,) = variants
+        want_args = tuple(snake(arg) for arg in concept["py match args"])
+        if getattr(klass, "__match_args__", None) != want_args:
+            out.append(f"{name}.__match_args__ is {getattr(klass, '__match_args__', None)}; the schema: {want_args}")
     return out
+
+
+def test_every_kind_list_with_variants_maps_each_value_to_its_concept() -> None:
+    for list_name, kinds in SCHEMA["kinds"].items():
+        for value, concept in kinds.get("variants", {}).items():
+            assert BY_NAME[concept].get("kind") == value, f"{list_name}: {value} -> {concept}"
 
 
 @pytest.mark.parametrize("concept", CONCEPTS, ids=[c["name"] for c in CONCEPTS])
@@ -154,9 +196,12 @@ def test_free_function(function: dict[str, Any]) -> None:
     assert callable(getattr(module, name, None)), f"{module.__name__} has no {name}"
 
 
-def group_class(group: dict[str, Any]) -> object:
-    name = leading(group["py"])
+def named_class(name: str) -> object:
     return getattr(builtins, name) if hasattr(builtins, name) else getattr(villanelle, name, None)
+
+
+def group_class(group: dict[str, Any]) -> object:
+    return named_class(leading(group["py"]))
 
 
 @pytest.mark.parametrize("group", GROUPS, ids=[g["name"] for g in GROUPS])
@@ -167,3 +212,8 @@ def test_error_group(group: dict[str, Any]) -> None:
     if parent is not None:
         base = group_class(parent)
         assert isinstance(base, type) and issubclass(cls, base), f"{group['py']} does not extend {parent['py']}"
+    # "EditError (subclass of VillanelleError and ValueError)": every class the spelling names is a base.
+    if m := re.search(r"\(subclass of ([^)]*)\)", group["py"]):
+        for base_name in re.split(r"\s+and\s+", m.group(1).split(",")[0]):
+            base = named_class(base_name.strip())
+            assert isinstance(base, type) and issubclass(cls, base), f"{group['py']} is not a {base_name}"

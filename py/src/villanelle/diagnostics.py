@@ -11,13 +11,9 @@ so they never collide with these. Every code is an error.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from villanelle._api.codes import DiagnosticCode
 from villanelle.span import SourceSpan
-
-if TYPE_CHECKING:
-    from villanelle.report import LocatedDiagnostic
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,16 +24,10 @@ class Diagnostic:
     message: str
     span: SourceSpan
 
-
-class DiagnosticError(Exception):
-    """Raised by operations whose contract a user's input breaks (a value reader, a program's own check, a root file
-    the source cannot read), carrying the located diagnostic of the load layer."""
-
-    diagnostic: LocatedDiagnostic
-
-    def __init__(self, diagnostic: LocatedDiagnostic) -> None:
-        super().__init__(diagnostic.message)
-        self.diagnostic = diagnostic
+    def __str__(self) -> str:
+        """Its people form (spec/contract.md 2): ``line:col: code: message``, counting from 1 (the span's start)."""
+        start = self.span.start
+        return f"{start.line + 1}:{start.column + 1}: {self.code}: {self.message}"
 
 
-__all__ = ["Diagnostic", "DiagnosticCode", "DiagnosticError"]
+__all__ = ["Diagnostic", "DiagnosticCode"]

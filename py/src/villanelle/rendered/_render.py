@@ -1,6 +1,7 @@
 """The rendered tree of one graph (spec 7.0-7.2, 7.5): ``render(graph)``, the rendered layer's entry point, and
-``Rendered`` with its addresses and ``diff``. ``render`` walks the graph's binding (``binding.items``) and builds each
-directive with its arguments from ``arguments_at``; it never looks a name up (design rule 3: the binding is the one
+``Rendered`` with its addresses and ``diff``. ``render`` builds on the low level's public objects only (owner,
+2026-10-29): it reads ``graph.expand()`` and ``graph.root.resolved_path``, never a package-internal module or member
+of the low level (checked by tests/test_layers.py). It never looks a name up (design rule 3: the binding is the one
 home of that rule) and reads no file. A port of ts/src/rendered/."""
 
 from __future__ import annotations
@@ -8,16 +9,15 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import TypeAlias, final
+from typing import Literal, TypeAlias, final
 
-from villanelle.diagnostics import DiagnosticError
+from villanelle._api.kinds import ChangeKind
+from villanelle.errors import DiagnosticError
 from villanelle.origin import DirectiveOrigin, Place
-from villanelle.rendered._tree import Address, AddressStep, Argument, Directive, KeyRule, Unreadable, walk_block
+from villanelle.rendered._tree import Address, AddressStep, Directive, KeyRule, Unreadable, unreadable_of, walk_block
 from villanelle.report import LocatedDiagnostic, check_program_code
 from villanelle.span import SourcePosition, SourceSpan
-from villanelle.written import _document, _graph
-from villanelle.written._bind import BoundItem, BoundUnreadable, BoundValue
-from villanelle.written.model import DocumentGraph, WrittenDirective
+from villanelle.written import DocumentGraph
 
 _START = SourcePosition(0, 0, 0)
 
@@ -106,8 +106,8 @@ class Rendered:
         new = after.addresses(key=key)
         gone: list[Change] = []
         came: list[Change] = []
-        _compare_before(self._block, after._block, bool(after._unreadable), old, new, gone)
-        _compare_after(after._block, self._block, new, old, came)
+        _compare_before(self._block, after.block, bool(after.unreadable), old, new, gone)
+        _compare_after(after.block, self._block, new, old, came)
         return gone + came
 
     def error(self, message: str, *, code: str) -> DiagnosticError:
@@ -119,53 +119,12 @@ class Rendered:
 def render(graph: DocumentGraph, /) -> Rendered:
     """The rendered tree of the graph's current texts and overrides: variables substituted, snippets used, included
     files spliced in. Pure: reads no file; an unread include copy renders as nothing (its edge is in
-    ``graph.unread()``). Raises TypeError for anything but a document graph from a processor's load."""
-    if not isinstance(graph, DocumentGraph):
-        raise TypeError("render takes a document graph from a processor's load")
-    binding = _graph.binding(graph)
-    made: list[Directive] = []
-
-    def build(
-        items: list[BoundItem], parent: Directive | None, block: list[Directive], unreadable: list[Unreadable]
-    ) -> None:
-        for item in items:
-            statement = item.copy.statement
-            doc = statement._doc
-            node = statement._node
-            if isinstance(item, BoundUnreadable):
-                place = _document.place(doc, (node.start, node.end))
-                unreadable.append(Unreadable(item.reason, DirectiveOrigin(place, item.copy.via), statement))
-                continue
-            assert isinstance(statement, WrittenDirective)
-            values = tuple(
-                _argument(bound) for value in statement._value_list for bound in binding.arguments_at(value, item.copy)
-            )
-            name = doc._syntax.tokens[node.start]
-            origin = DirectiveOrigin(Place(doc._path, name.span), item.copy.via)
-            directive = Directive(name.text, values, item.children is not None, parent, origin, statement)
-            made.append(directive)
-            block.append(directive)
-            if item.children is not None:
-                build(item.children, directive, *directive._contents())
-
-    block: list[Directive] = []
-    unreadable: list[Unreadable] = []
-    build(binding.items, None, block, unreadable)
-    for directive in made:
-        directive._freeze()
+    ``graph.unread()``). Builds on ``graph.expand()`` only."""
+    expansion = graph.expand()
+    block = tuple(Directive(directive, None) for directive in expansion.block)
+    unreadable = tuple(unreadable_of(u) for u in expansion.unreadable)
     origin = DirectiveOrigin(Place(graph.root.resolved_path, SourceSpan(_START, _START)), ())
-    diagnostics = (*_graph.syntax_diagnostics(graph), *binding.diagnostics)
-    return Rendered(tuple(block), tuple(unreadable), origin, diagnostics, graph)
-
-
-def _argument(bound: BoundValue) -> Argument:
-    """A bound value as a rendered argument (spec 7.3): ``written`` is the ``$name`` on the same line when it came
-    through a variable (a list item shares its list's), else the value itself, its own definition."""
-    value = bound.value
-    held = tuple(_argument(item) for item in value) if isinstance(value, tuple) else value
-    written = bound.chain[0].reference if bound.chain else bound.definition
-    assert written is not None, "a value read where it is written has a definition"
-    return Argument(bound.kind, held, bound.origin, written=written, definition=bound.definition, chain=bound.chain)
+    return Rendered(block, unreadable, origin, expansion.diagnostics, graph)
 
 
 @final
@@ -174,12 +133,20 @@ class Added:
     address: Address
     after: Directive
 
+    @property
+    def kind(self) -> Literal[ChangeKind.ADDED]:
+        return ChangeKind.ADDED
+
 
 @final
 @dataclass(frozen=True, slots=True)
 class Removed:
     address: Address
     before: Directive
+
+    @property
+    def kind(self) -> Literal[ChangeKind.REMOVED]:
+        return ChangeKind.REMOVED
 
 
 @final
@@ -191,6 +158,10 @@ class Changed:
     before: Directive
     after: Directive
 
+    @property
+    def kind(self) -> Literal[ChangeKind.CHANGED]:
+        return ChangeKind.CHANGED
+
 
 @final
 @dataclass(frozen=True, slots=True)
@@ -199,6 +170,10 @@ class Unknown:
 
     address: Address
     before: Directive
+
+    @property
+    def kind(self) -> Literal[ChangeKind.UNKNOWN]:
+        return ChangeKind.UNKNOWN
 
 
 Change: TypeAlias = Added | Removed | Changed | Unknown

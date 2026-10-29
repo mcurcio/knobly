@@ -3,6 +3,7 @@ text of a value (round 11 slices.md §1.3): the one home of each rule. Private; 
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Iterable
 
@@ -24,15 +25,20 @@ def integer_of(word: str) -> int | None:
 
 
 def number_of(word: str) -> int | float | None:
-    """The number a word spells (int without fraction or exponent and within ±(2**53 - 1), else float), or None when
-    not a NumberText."""
+    """The number a word spells (spec/contract.md 3), or None when it is not a NumberText or its value overflows the
+    double range (``1e400``). An int when the word has no fraction or exponent and lies within ±(2**53 - 1), else a
+    float rounded to the nearest double; never ``-0.0`` (any zero reads as zero, ``1e-400`` included)."""
     if not _NUMBER_TEXT.fullmatch(word):
         return None
-    if any(c in word for c in ".eE"):
-        return float(word)
-    value = int(word)
-    # Outside ±(2**53 - 1) an int would be exact here and rounded in TypeScript: read it as the same float (F1-09).
-    return value if abs(value) <= MAX_SAFE_INTEGER else float(word)
+    if not any(c in word for c in ".eE"):
+        value = int(word)
+        if abs(value) <= MAX_SAFE_INTEGER:
+            return value
+    # Outside ±(2**53 - 1) an int would be exact here and rounded in TypeScript: read it as the same double (F1-09).
+    number = float(word)
+    if math.isinf(number):
+        return None
+    return 0.0 if number == 0 else number
 
 
 def boolean_of(word: str) -> bool | None:

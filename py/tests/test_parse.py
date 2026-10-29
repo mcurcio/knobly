@@ -72,12 +72,16 @@ def test_locates_unexpected_end_of_input_at_the_end_of_the_text() -> None:
     assert syntax.diagnostics[0].span == SourceSpan(pos(7, 1, 3), pos(7, 1, 3))
 
 
-def test_counts_positions_in_utf16_code_units_lines_after_each_newline() -> None:
-    syntax = parse("a '\U0001f600'\r\nb")
+def test_counts_positions_in_code_points_lines_after_each_newline() -> None:
+    # spec/contract.md 1: Python's own string unit, so the span cuts the source at the token's text.
+    text = "a '\U0001f600'\r\nb"
+    syntax = parse(text)
     b = syntax.tokens[-1]
     assert b.text == "b"
-    assert b.span.start == pos(8, 1, 0)
-    assert syntax.tokens[2].span == SourceSpan(pos(2, 0, 2), pos(6, 0, 6))
+    assert b.span.start == pos(7, 1, 0)
+    smile = syntax.tokens[2]
+    assert smile.span == SourceSpan(pos(2, 0, 2), pos(5, 0, 5))
+    assert text[smile.span.start.offset : smile.span.end.offset] == smile.text
 
 
 @pytest.mark.parametrize("text", ["", "]", "{", "}}}", "a[", "a[1:2", "[[[", "\ud800", "a;;;b c d", "#"])

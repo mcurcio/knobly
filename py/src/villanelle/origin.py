@@ -7,8 +7,9 @@ one of these.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
-from villanelle._api.kinds import StepKind
+from villanelle._api.kinds import PlaceKind, StepKind
 from villanelle.span import SourceSpan
 
 
@@ -20,6 +21,16 @@ class Place:
     """The file's identity, as the document source gave it."""
     span: SourceSpan
 
+    @property
+    def kind(self) -> Literal[PlaceKind.FILE]:
+        return PlaceKind.FILE
+
+    def __str__(self) -> str:
+        """Its people form (spec/contract.md 2): ``path:line:col``, counting from 1, at the span's start. The one home
+        of this form: every located thing's people form and ``format_diagnostic`` build on it."""
+        start = self.span.start
+        return f"{self.resolved_path}:{start.line + 1}:{start.column + 1}"
+
 
 @dataclass(frozen=True, slots=True)
 class Override:
@@ -28,6 +39,14 @@ class Override:
 
     variable: str
     """The variable's name, without ``$``."""
+
+    @property
+    def kind(self) -> Literal[PlaceKind.OVERRIDE]:
+        return PlaceKind.OVERRIDE
+
+    def __str__(self) -> str:
+        """Its people form: ``override <variable>`` (no ``$``)."""
+        return f"override {self.variable}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,7 +58,11 @@ class Step:
     name: str
     """The variable (without ``$``), snippet or extension directive name."""
     place: Place
-    """Where the reference was written: the ``$pixels`` token, the ``use`` line's name, the ``include`` line's name."""
+    """Where the reference was written: the ``$pixels`` token, the ``use`` keyword, the ``include`` line's name."""
+
+    def __str__(self) -> str:
+        """Its people form: ``<kind> <name> at <place>`` (``variable pixels at main.conf:7:15``)."""
+        return f"{self.kind} {self.name} at {self.place}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,4 +83,4 @@ class DirectiveOrigin:
     via: tuple[Step, ...]
 
 
-__all__ = ["DirectiveOrigin", "Origin", "Override", "Place", "Step", "StepKind"]
+__all__ = ["DirectiveOrigin", "Origin", "Override", "Place", "PlaceKind", "Step", "StepKind"]

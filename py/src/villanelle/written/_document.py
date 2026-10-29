@@ -2,8 +2,8 @@
 edit. An edit computes the new text, checks it (2.3), re-parses the whole document and reconciles the handles (2.1).
 Private; a port of ts/src/written/document.ts (and S2's edits, by the same rules).
 
-Offsets here are ``str`` indices (code points): ``Document._starts`` maps each token to its index. Places and
-diagnostics stay in the cross-language units (UTF-16) of ``villanelle.span``."""
+Offsets here are ``str`` indices (code points): ``Document._starts`` maps each token to its index; places and
+diagnostics count in the same unit (spec/contract.md 1)."""
 
 from __future__ import annotations
 
@@ -13,8 +13,10 @@ from dataclasses import dataclass
 from typing import TypeAlias
 
 from villanelle._anatomy import anatomy_of, items_of
+from villanelle._api.kinds import StatementKind
 from villanelle._api.limits import RESERVED, VARIABLE_NAME
 from villanelle.diagnostics import Diagnostic, DiagnosticCode
+from villanelle.errors import BadTextError
 from villanelle.origin import Place
 from villanelle.span import SourcePosition, SourceSpan
 from villanelle.syntax._recovery import message_of
@@ -22,13 +24,15 @@ from villanelle.syntax.cst import Node, NodeKind, Syntax, ValueRef, span_of
 from villanelle.syntax.parse import parse
 from villanelle.syntax.tokens import TokenKind
 from villanelle.written._shape import Shape, ShapeKind, block_shapes, parameter_tokens, statement_nodes
-from villanelle.written.errors import BadTextError
 from villanelle.written.model import (
     Document,
+    ExtensionLine,
     Index,
     List,
+    Parameter,
     Reference,
     SetLine,
+    SetVariable,
     Slice,
     SnippetLine,
     Statement,
@@ -42,7 +46,7 @@ from villanelle.written.model import (
     WrittenValue,
 )
 
-Handle: TypeAlias = "Statement | WrittenValue | Variable"
+Handle: TypeAlias = "Statement | WrittenValue | Parameter"
 """Anything a reconcile keeps or detaches."""
 
 _TRIVIA = frozenset({TokenKind.SPACE, TokenKind.NEWLINE})
@@ -287,25 +291,29 @@ def _build_block(
 
 def _new_statement(doc: Document, kind: ShapeKind) -> Statement:
     match kind:
-        case "directive" | "extension":
-            return WrittenDirective(doc, kind)
-        case "set":
+        case StatementKind.DIRECTIVE:
+            return WrittenDirective(doc)
+        case StatementKind.EXTENSION:
+            return ExtensionLine(doc)
+        case StatementKind.SET:
             return SetLine(doc)
-        case "snippet":
+        case StatementKind.SNIPPET:
             return SnippetLine(doc)
-        case "use":
+        case StatementKind.USE:
             return UseLine(doc)
-        case "unreadable":
+        case StatementKind.UNREADABLE:
             return UnreadableLine(doc)
 
 
-_STATEMENT_CLASS: dict[ShapeKind, type[WrittenDirective | SetLine | SnippetLine | UseLine | UnreadableLine]] = {
-    "directive": WrittenDirective,
-    "extension": WrittenDirective,
-    "set": SetLine,
-    "snippet": SnippetLine,
-    "use": UseLine,
-    "unreadable": UnreadableLine,
+_STATEMENT_CLASS: dict[
+    ShapeKind, type[WrittenDirective | ExtensionLine | SetLine | SnippetLine | UseLine | UnreadableLine]
+] = {
+    StatementKind.DIRECTIVE: WrittenDirective,
+    StatementKind.EXTENSION: ExtensionLine,
+    StatementKind.SET: SetLine,
+    StatementKind.SNIPPET: SnippetLine,
+    StatementKind.USE: UseLine,
+    StatementKind.UNREADABLE: UnreadableLine,
 }
 
 
@@ -338,7 +346,7 @@ def _build_statement(
             handle._block = WrittenBlock(doc, handle)
         handle._block._items = _build_block(doc, anatomy.block, handle, claimed, reconcile)
 
-    if isinstance(handle, WrittenDirective):
+    if isinstance(handle, WrittenDirective | ExtensionLine):
         handle._value_list = values(args)
         block(())
     elif isinstance(handle, SetLine | UseLine):
@@ -346,13 +354,13 @@ def _build_statement(
         handle._block = None
     elif isinstance(handle, SnippetLine):
         handle._value_list = []
-        parameters: list[Variable] = []
+        parameters: list[Parameter] = []
         for token in parameter_tokens(tokens, node):
             kept_parameter = reconcile.take("p", doc._starts[token])
-            if isinstance(kept_parameter, Variable):
+            if isinstance(kept_parameter, Parameter):
                 parameter = kept_parameter
             else:
-                parameter = Variable("parameter", line=handle)
+                parameter = Parameter(handle)
                 reconcile.created.append(parameter)
             parameter._token = token
             parameter._detached = False
@@ -527,7 +535,7 @@ def replace_statement(statement: Statement, text: str) -> tuple[Statement, ...]:
 
 
 def _top_statements(created: Sequence[Handle], owner: Statement | None) -> tuple[Statement, ...]:
-    statements = (WrittenDirective, SetLine, SnippetLine, UseLine, UnreadableLine)
+    statements = (WrittenDirective, ExtensionLine, SetLine, SnippetLine, UseLine, UnreadableLine)
     return tuple(h for h in created if isinstance(h, statements) and h._parent is owner)
 
 
@@ -723,18 +731,20 @@ def _insert_into_empty_block(
 
 
 def rename_directive(statement: WrittenDirective, name: str) -> None:
-    """``rename`` (D17, D-S1-10): one WORD, never a name that would change its kind, never on an extension line."""
+    """``rename`` (D17, D-S1-10): one WORD, never a name that would change its kind (an extension line has no
+    ``rename``)."""
     doc = statement._doc
     tokens = parse(name).tokens
     one_word = len(tokens) == 1 and tokens[0].kind is TokenKind.WORD
-    if statement._kind != "directive" or not one_word or name in RESERVED or name in doc._graph._extension_names:
+    if not one_word or name in RESERVED or name in doc._graph._extension_names:
         raise BadTextError(f"not a directive name: {name!r}", [at(name, 0, DiagnosticCode.UNEXPECTED_TOKEN)])
     start, end = offsets(doc, (statement._node.start, statement._node.start + 1))
     _splice(doc, start, end, name, [], statement)
 
 
 def rename_variable(line: SetLine | SnippetLine, token: int, name: str) -> None:
-    """``Variable.rename``: its ``$name`` only; ``[A-Za-z0-9_]+``, then E5002 in its block."""
+    """``SetVariable.rename`` and ``Parameter.rename``: its ``$name`` only; ``[A-Za-z0-9_]+``, then E5002 in its
+    block."""
     if not VARIABLE_NAME.match(name):
         raise BadTextError(f"not a variable name: {name!r}", [at(name, 0, DiagnosticCode.UNEXPECTED_TOKEN)])
     doc = line._doc
@@ -746,7 +756,7 @@ def rename_variable(line: SetLine | SnippetLine, token: int, name: str) -> None:
 # --- Declarations by where written (2.6) ---
 
 
-def declaration_of(reference: Reference) -> Variable | None:
+def declaration_of(reference: Reference) -> SetVariable | Parameter | None:
     """The variable a reference binds to by where it is written; None when free. Nearest first, as the binding picks
     (2.5): block by block outward, the ``set`` lines above in that block, then the parameters of the snippet whose
     body it is (D-F1-8)."""
@@ -826,25 +836,11 @@ def variables(doc: Document) -> list[Variable]:
 # --- The checks (2.3) ---
 
 
-def _utf16(text: str) -> int:
-    return len(text.encode("utf-16-le", "surrogatepass")) // 2
-
-
 def position_in(text: str, index: int) -> SourcePosition:
-    """The position of ``str`` index ``index`` in ``text`` (0-based line, UTF-16 offset and column)."""
+    """The position of ``str`` index ``index`` in ``text`` (0-based line; offset and column in code points)."""
     at = max(0, min(index, len(text)))
     before = text[:at]
-    return SourcePosition(_utf16(before), before.count("\n"), _utf16(before[before.rfind("\n") + 1 :]))
-
-
-def _index_of(text: str, utf16_offset: int) -> int:
-    """The ``str`` index of a UTF-16 offset of ``text``."""
-    units = 0
-    for i, char in enumerate(text):
-        if units >= utf16_offset:
-            return i
-        units += 2 if ord(char) > 0xFFFF else 1
-    return len(text)
+    return SourcePosition(at, before.count("\n"), at - before.rfind("\n") - 1)
 
 
 def at(given: str, index: int, code: DiagnosticCode) -> Diagnostic:
@@ -852,10 +848,10 @@ def at(given: str, index: int, code: DiagnosticCode) -> Diagnostic:
     return Diagnostic(code, message_of(code), SourceSpan(position, position))
 
 
-def _shifted(given: str, wrapped: str, shift: int, d: Diagnostic) -> Diagnostic:
+def _shifted(given: str, shift: int, d: Diagnostic) -> Diagnostic:
     """A diagnostic of a wrapped text, moved into the given text (which starts at ``str`` index ``shift``)."""
-    start = position_in(given, _index_of(wrapped, d.span.start.offset) - shift)
-    end = position_in(given, _index_of(wrapped, d.span.end.offset) - shift)
+    start = position_in(given, d.span.start.offset - shift)
+    end = position_in(given, d.span.end.offset - shift)
     return Diagnostic(d.code, d.message, SourceSpan(start, end))
 
 
@@ -867,7 +863,7 @@ def values_text_problems(text: str, *, in_list: bool) -> tuple[Diagnostic, ...]:
     wrapped = f"{prefix}{text}{'];' if in_list else ';'}"
     syntax = parse(wrapped)
     if syntax.diagnostics:
-        return tuple(_shifted(text, wrapped, len(prefix), d) for d in syntax.diagnostics)
+        return tuple(_shifted(text, len(prefix), d) for d in syntax.diagnostics)
     starts = starts_of(syntax)
     depth = 0
     for i, token in enumerate(syntax.tokens):
@@ -974,9 +970,8 @@ def _rule_problems(
 def wrapped_diagnostic(given: str, prefix: str, fault: tuple[DiagnosticCode, SourceSpan]) -> Diagnostic:
     """A problem found in ``<prefix><given>``, located in the given text."""
     code, span = fault
-    wrapped = prefix + given
-    start = position_in(given, _index_of(wrapped, span.start.offset) - len(prefix))
-    end = position_in(given, _index_of(wrapped, span.end.offset) - len(prefix))
+    start = position_in(given, span.start.offset - len(prefix))
+    end = position_in(given, span.end.offset - len(prefix))
     return Diagnostic(code, message_of(code), SourceSpan(start, end))
 
 

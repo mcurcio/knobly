@@ -1,14 +1,16 @@
-"""The low level: the config as written, editable, saved back (round 12 design.md §6; slices.md S3).
+"""The low level: the config as written, editable, saved back (round 12 design.md §6; slices.md S3; spec 6).
 
 One model, TypeScript's (``ts/src/written/model.ts``): a live tree with named edit methods, snake_case and
-synchronous. Fields are read-only properties; a block reads as a ``Sequence``; kinds are classes, so ``match``
-narrows; a handle is the same object each time (``is``) for the graph's life and follows its tokens across other
-edits. A detached handle raises ``DetachedError`` from every member but ``kind``. Copies, edges and resolutions are
-snapshots of one derivation of the current texts (design rule 1), not handles.
+synchronous. Fields are read-only properties; a block reads as a ``Sequence``; every variant is its own class with a
+``kind`` of its generated list and ``__match_args__``, so ``match`` narrows (``case SetLine(variable, values):``), and
+an operation exists only on the variants where it can succeed (spec 6.5, 6.7); a handle is the same object each time
+(``is``) for the graph's life and follows its tokens across other edits. A detached handle raises ``DetachedError``
+from every member but ``kind``. Copies, edges, resolutions and expansions are snapshots of one derivation of the
+current texts (design rule 1), not handles.
 
 The classes hold their state; the algorithms live in the private modules beside this one: ``_document`` (the
-handle tree, splices and edit checks), ``_graph`` (the read ledger, the overrides and the binding cache) and ``_bind``
-(the binding).
+handle tree, splices and edit checks), ``_graph`` (the read ledger, the overrides and the binding cache), ``_bind``
+(the binding) and ``_expand`` (the expansion ``expand()`` returns).
 
 Every edit that takes new values takes villanelle text only, as ``text``: anything but a str raises TypeError before
 anything changes (use ``villanelle.quote`` for a program string, ``str()`` for a number).
@@ -21,16 +23,17 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Generic, Literal, TypeAlias, TypeVar, cast, final, overload
 
-from villanelle._api.kinds import VariableKind
+from villanelle._api.kinds import StatementKind, UnreadableReason, ValueKind, VariableKind
 from villanelle._text import require_text
-from villanelle.origin import Place, Step
+from villanelle.errors import DetachedError
+from villanelle.origin import DirectiveOrigin, Place, Step
 from villanelle.report import LocatedDiagnostic
 from villanelle.syntax.cst import Node, Syntax, ValueRef
-from villanelle.written.errors import DetachedError, NoSetLineError
 
 if TYPE_CHECKING:
     from villanelle.extension import Extension
     from villanelle.source import DocumentSource, DocumentWriter
+    from villanelle.value import ExpandedValue
     from villanelle.written._bind import Binding, BoundValue
 
 
@@ -68,7 +71,7 @@ class DocumentGraph:
     _root: Document | None
     _override_texts: dict[str, str]
     _override_values: dict[str, tuple[BoundValue, ...]]
-    _override_variables: dict[str, Variable]
+    _override_variables: dict[str, OverrideVariable]
     _resolutions: dict[tuple[str, str], tuple[str, ...] | Exception]
     _failed: dict[str, Exception]
     _version: int
@@ -125,23 +128,30 @@ class DocumentGraph:
     def save(self, writer: DocumentWriter, /) -> list[str]:
         """Hand every document whose ``text`` differs from its ``saved_text`` to ``writer`` in one batch, in
         ``documents`` order; with none, the writer is not called. When the writer returns, each written document's
-        ``saved_text`` becomes the text given to it; when it raises, nothing changes and ``SaveError`` is raised from
-        it. Returns the resolved paths given to the writer."""
+        ``saved_text`` becomes the text given to it; when it raises, nothing changes and ``SaveError`` (its ``paths``
+        the batch's resolved paths) is raised from it. Returns the resolved paths given to the writer. Raises
+        TypeError first when ``writer`` is not a document writer (no callable ``write``)."""
+        from villanelle.errors import SaveError
         from villanelle.source import FileWrite
-        from villanelle.written.errors import SaveError
 
+        if not callable(getattr(writer, "write", None)):
+            raise TypeError(
+                "save() argument 'writer' must be a document writer (an object with a write method), "
+                f"not {type(writer).__name__}"
+            )
         batch = [
             FileWrite(doc._path, doc._text, doc._saved) for doc in self._documents.values() if doc._text != doc._saved
         ]
         if not batch:
             return []
+        paths = [file.resolved_path for file in batch]
         try:
             writer.write(tuple(batch))
         except Exception as error:
-            raise SaveError(f"the writer raised: {error}", batch) from error
+            raise SaveError(f"the writer raised: {error}", paths) from error
         for file in batch:
             self._documents[file.resolved_path]._saved = file.text
-        return [file.resolved_path for file in batch]
+        return paths
 
     def edges(self) -> tuple[DocumentEdge, ...]:
         """Every copy of every extension line, in walk order."""
@@ -155,9 +165,17 @@ class DocumentGraph:
         """``set`` lines and parameters in document order, then overrides."""
         from villanelle.written import _document
 
-        found = [v for doc in self._documents.values() for v in _document.variables(doc)]
+        found: list[Variable] = [v for doc in self._documents.values() for v in _document.variables(doc)]
         found.extend(self._override_variables[n] for n in self._override_texts)
         return tuple(v for v in found if name is None or v.name == name)
+
+    def expand(self) -> Expansion:
+        """The current texts and overrides after expansion (spec 6.10): every copy of every directive as read, its
+        values with their links to the written text, and what could not be read. What ``render`` builds the rendered
+        tree from. A snapshot of the graph's one derivation (a new one after any change); pure: reads no file."""
+        from villanelle.written import _expand
+
+        return _expand.expand(self)
 
     def _binding(self) -> Binding:
         from villanelle.written import _graph
@@ -221,7 +239,6 @@ class Document:
         return self._block
 
     def included_by(self) -> tuple[DocumentEdge, ...]:
-
         return tuple(e for e in self._graph._binding().edges if self._path in e.targets)
 
     def replace_with_text(self, text: str, /) -> None:
@@ -256,7 +273,7 @@ class DocumentEdge:
 
 
 class _Statement:
-    """What every statement has."""
+    """What every statement has. Private: the public type is the union ``Statement``."""
 
     __slots__ = ("_block", "_detached", "_doc", "_node", "_parent", "_value_list")
 
@@ -279,14 +296,19 @@ class _Statement:
             raise _detached("statement")
 
     @property
+    def kind(self) -> StatementKind:
+        raise NotImplementedError
+
+    @property
     def document(self) -> Document:
         self._live()
         return self._doc
 
     @property
-    def parent(self) -> Statement | None:
+    def parent(self) -> WrittenDirective | ExtensionLine | SnippetLine | None:
+        """The statement whose block holds it; None at a document's top level."""
         self._live()
-        return self._parent
+        return cast("WrittenDirective | ExtensionLine | SnippetLine | None", self._parent)
 
     @property
     def place(self) -> Place:
@@ -304,7 +326,6 @@ class _Statement:
         return _document.text_of_range(self._doc, _document.owned_range(self._doc, self._node))
 
     def copies(self) -> tuple[Copy, ...]:
-
         self._live()
         return self._doc._graph._binding().copies_of(cast("Statement", self))
 
@@ -323,29 +344,40 @@ class _Statement:
         self._live()
         _document.remove_statement(cast("Statement", self))
 
+    def insert_before(self, text: str, /) -> tuple[Statement, ...]:
+        """Statements inserted just before this one in its block: its block's ``insert_statements`` at this one's
+        index. TypeError for a ``text`` that is not a str; BadTextError for one that is not statements."""
+        return self._insert(text, "insert_before", 0)
+
+    def insert_after(self, text: str, /) -> tuple[Statement, ...]:
+        """Statements inserted just after this one in its block: its block's ``insert_statements`` at this one's
+        index plus one. TypeError for a ``text`` that is not a str; BadTextError for one that is not statements."""
+        return self._insert(text, "insert_after", 1)
+
+    def _insert(self, text: str, member: str, after: int) -> tuple[Statement, ...]:
+        from villanelle.written import _document
+
+        self._live()
+        given = require_text(text, member=member, parameter="text")
+        block = self._doc._block if self._parent is None else self._parent._block
+        assert block is not None, "a statement's parent has a block"
+        index = next(i for i, item in enumerate(block._items) if item is self)
+        return _document.insert_statements(block, index + after, given)
+
     def __repr__(self) -> str:
         if self._detached:
             return f"{type(self).__name__}(detached)"
         return f"{type(self).__name__}({self.text!r})"
 
 
-@final
-class WrittenDirective(_Statement):
-    __slots__ = ("_kind",)
+class _NamedLine(_Statement):
+    """A directive line: a name, values and maybe a block (written directives and extension lines)."""
 
-    _kind: Literal["directive", "extension"]
-
-    def __init__(self, doc: Document, kind: Literal["directive", "extension"]) -> None:
-        super().__init__(doc)
-        self._kind = kind
-
-    @property
-    def kind(self) -> Literal["directive", "extension"]:
-        return self._kind
+    __slots__ = ()
 
     @property
     def name(self) -> str:
-        """Read-only: change it with ``rename``."""
+        """Read-only: a written directive changes it with ``rename``."""
         self._live()
         return self._doc._syntax.tokens[self._node.start].text
 
@@ -359,6 +391,30 @@ class WrittenDirective(_Statement):
         self._live()
         return self._block
 
+    def set(self, text: str, /) -> None:
+        """Replace this statement's values with ``text`` (villanelle values: ``stmt.set(quote(host))``,
+        ``stmt.set(str(port))``); an empty text removes them. Not the language's ``set`` line: this edits any
+        statement's values. TypeError for a ``text`` that is not a str; BadTextError for one that is not values (a
+        line break outside a list included: it would end the statement)."""
+        from villanelle.written import _document
+
+        self._live()
+        given = require_text(text, member="set", parameter="text")
+        _document.replace_values(cast("Statement", self), self._node.start, given)
+
+
+@final
+class WrittenDirective(_NamedLine):
+    """A directive as written (``port 8080;``, ``node { ... }``): not a ``set``, ``snippet`` or ``use`` line, and not
+    an extension line."""
+
+    __match_args__ = ("name", "values", "block")
+    __slots__ = ()
+
+    @property
+    def kind(self) -> Literal[StatementKind.DIRECTIVE]:
+        return StatementKind.DIRECTIVE
+
     def rename(self, name: str, /) -> None:
         """Change its name to one word. TypeError for a ``name`` that is not a str; BadTextError for a reserved or
         extension name, or more than one word."""
@@ -367,32 +423,39 @@ class WrittenDirective(_Statement):
         self._live()
         _document.rename_directive(self, require_text(name, member="rename", parameter="name"))
 
-    def set(self, text: str, /) -> None:
-        """Replace this statement's values with ``text`` (villanelle values: ``stmt.set(quote(host))``,
-        ``stmt.set(str(port))``); an empty text removes them. Not the language's ``set`` line: this edits any
-        statement's values. TypeError for a ``text`` that is not a str; BadTextError for one that is not values."""
-        from villanelle.written import _document
 
-        self._live()
-        _document.replace_values(self, self._node.start, require_text(text, member="set", parameter="text"))
+@final
+class ExtensionLine(_NamedLine):
+    """A line whose name an extension owns (``include "sink.conf";``): its values are the extension's, its block
+    holds ``set`` lines. No ``rename``: a new name would change its kind."""
+
+    __match_args__ = ("name", "values", "block")
+    __slots__ = ()
+
+    @property
+    def kind(self) -> Literal[StatementKind.EXTENSION]:
+        return StatementKind.EXTENSION
 
 
 @final
 class SetLine(_Statement):
+    """``set $name values;``."""
+
+    __match_args__ = ("variable", "values")
     __slots__ = ("_variable",)
 
-    _variable: Variable
+    _variable: SetVariable
 
     def __init__(self, doc: Document) -> None:
         super().__init__(doc)
-        self._variable = Variable("set", line=self)
+        self._variable = SetVariable(self)
 
     @property
-    def kind(self) -> Literal["set"]:
-        return "set"
+    def kind(self) -> Literal[StatementKind.SET]:
+        return StatementKind.SET
 
     @property
-    def variable(self) -> Variable:
+    def variable(self) -> SetVariable:
         self._live()
         return self._variable
 
@@ -413,17 +476,20 @@ class SetLine(_Statement):
 
 @final
 class SnippetLine(_Statement):
+    """``snippet name $param... { body }``."""
+
+    __match_args__ = ("name", "parameters", "block")
     __slots__ = ("_parameters",)
 
-    _parameters: list[Variable]
+    _parameters: list[Parameter]
 
     def __init__(self, doc: Document) -> None:
         super().__init__(doc)
         self._parameters = []
 
     @property
-    def kind(self) -> Literal["snippet"]:
-        return "snippet"
+    def kind(self) -> Literal[StatementKind.SNIPPET]:
+        return StatementKind.SNIPPET
 
     @property
     def name(self) -> str:
@@ -433,7 +499,7 @@ class SnippetLine(_Statement):
         return self._doc._syntax.tokens[_document.first_arg_token(self)].text
 
     @property
-    def parameters(self) -> tuple[Variable, ...]:
+    def parameters(self) -> tuple[Parameter, ...]:
         self._live()
         return tuple(self._parameters)
 
@@ -446,11 +512,14 @@ class SnippetLine(_Statement):
 
 @final
 class UseLine(_Statement):
+    """``use name values;``."""
+
+    __match_args__ = ("snippet_name", "values")
     __slots__ = ()
 
     @property
-    def kind(self) -> Literal["use"]:
-        return "use"
+    def kind(self) -> Literal[StatementKind.USE]:
+        return StatementKind.USE
 
     @property
     def snippet_name(self) -> str:
@@ -470,7 +539,6 @@ class UseLine(_Statement):
 
     def snippets(self) -> tuple[Resolution[SnippetLine], ...]:
         """Per copy."""
-
         self._live()
         return self._doc._graph._binding().snippets_of(self)
 
@@ -490,14 +558,19 @@ class UseLine(_Statement):
 
 @final
 class UnreadableLine(_Statement):
+    """A statement that cannot be read by its text alone: a syntax error, or a malformed ``set``, ``snippet`` or
+    ``use`` line."""
+
+    __match_args__ = ("text",)
     __slots__ = ()
 
     @property
-    def kind(self) -> Literal["unreadable"]:
-        return "unreadable"
+    def kind(self) -> Literal[StatementKind.UNREADABLE]:
+        return StatementKind.UNREADABLE
 
 
-Statement: TypeAlias = WrittenDirective | SetLine | SnippetLine | UseLine | UnreadableLine
+Statement: TypeAlias = WrittenDirective | ExtensionLine | SetLine | SnippetLine | UseLine | UnreadableLine
+"""One statement of a block, by kind. Match it by class: ``case SetLine(variable, values):``."""
 
 
 @final
@@ -540,11 +613,8 @@ class WrittenBlock(Sequence["Statement"]):
         return f"WrittenBlock({list(self._live())!r})"
 
     def directives(self, name: str | None = None) -> tuple[WrittenDirective, ...]:
-        return tuple(
-            s
-            for s in self._live()
-            if isinstance(s, WrittenDirective) and s.kind == "directive" and (name is None or s.name == name)
-        )
+        """The written directives (kind ``directive`` only: extension lines are not listed), by ``name`` if given."""
+        return tuple(s for s in self._live() if isinstance(s, WrittenDirective) and (name is None or s.name == name))
 
     def insert_statements(self, index: int, text: str, /) -> tuple[Statement, ...]:
         """Raises TypeError for a ``text`` that is not a str; BadTextError for one that is not statements; IndexError
@@ -568,7 +638,7 @@ class WrittenBlock(Sequence["Statement"]):
 
 
 class _Value:
-    """What every written value has."""
+    """What every written value has. Private: the public type is the union ``WrittenValue``."""
 
     __slots__ = ("_bound", "_detached", "_doc", "_list", "_ref", "_statement")
 
@@ -593,6 +663,10 @@ class _Value:
     def _inner(self) -> tuple[WrittenValue, ...]:
         """The values inside it: a list's items, a slice's or index's bounds."""
         return ()
+
+    @property
+    def kind(self) -> ValueKind:
+        raise NotImplementedError
 
     @property
     def text(self) -> str:
@@ -621,7 +695,7 @@ class _Value:
 
     def replace_with_text(self, text: str, /) -> tuple[WrittenValue, ...]:
         """Zero or more values in its place. TypeError for a ``text`` that is not a str; BadTextError for one that is
-        not values (a slice bound: one word or ``$name``)."""
+        not values (a slice bound: one word or ``$name``; outside a list, a line break included)."""
         from villanelle.written import _document
 
         self._live()
@@ -642,24 +716,27 @@ class _Value:
 
 @final
 class Word(_Value):
+    __match_args__ = ("text",)
     __slots__ = ()
 
     @property
-    def kind(self) -> Literal["word"]:
-        return "word"
+    def kind(self) -> Literal[ValueKind.WORD]:
+        return ValueKind.WORD
 
 
 @final
 class String(_Value):
+    __match_args__ = ("text",)
     __slots__ = ()
 
     @property
-    def kind(self) -> Literal["string"]:
-        return "string"
+    def kind(self) -> Literal[ValueKind.STRING]:
+        return ValueKind.STRING
 
 
 @final
 class List(_Value):
+    __match_args__ = ("items",)
     __slots__ = ("_items",)
 
     _items: list[WrittenValue]
@@ -672,8 +749,8 @@ class List(_Value):
         return tuple(self._items)
 
     @property
-    def kind(self) -> Literal["list"]:
-        return "list"
+    def kind(self) -> Literal[ValueKind.LIST]:
+        return ValueKind.LIST
 
     @property
     def items(self) -> tuple[WrittenValue, ...]:
@@ -689,6 +766,7 @@ def _slice_name(value: _Value) -> str:
 
 @final
 class Slice(_Value):
+    __match_args__ = ("name", "start", "end")
     __slots__ = ("_end", "_start")
 
     _start: Word | Reference | None
@@ -703,8 +781,8 @@ class Slice(_Value):
         return tuple(v for v in (self._start, self._end) if v is not None)
 
     @property
-    def kind(self) -> Literal["slice"]:
-        return "slice"
+    def kind(self) -> Literal[ValueKind.SLICE]:
+        return ValueKind.SLICE
 
     @property
     def name(self) -> str:
@@ -723,6 +801,7 @@ class Slice(_Value):
 
 @final
 class Index(_Value):
+    __match_args__ = ("name", "index")
     __slots__ = ("_index",)
 
     _index: Word | Reference | None
@@ -735,8 +814,8 @@ class Index(_Value):
         return () if self._index is None else (self._index,)
 
     @property
-    def kind(self) -> Literal["index"]:
-        return "index"
+    def kind(self) -> Literal[ValueKind.INDEX]:
+        return ValueKind.INDEX
 
     @property
     def name(self) -> str:
@@ -753,122 +832,59 @@ class Index(_Value):
 class Reference(_Value):
     """One ``$name`` written as a value."""
 
+    __match_args__ = ("name",)
     __slots__ = ()
 
     @property
-    def kind(self) -> Literal["reference"]:
-        return "reference"
+    def kind(self) -> Literal[ValueKind.REFERENCE]:
+        return ValueKind.REFERENCE
 
     @property
     def name(self) -> str:
         return self.text[1:]
 
     @property
-    def declaration(self) -> Variable | None:
+    def declaration(self) -> SetVariable | Parameter | None:
+        """The variable it binds to by where it is written; None when free (an override, or nothing)."""
         from villanelle.written import _document
 
         self._live()
         return _document.declaration_of(self)
 
     def resolutions(self) -> tuple[ReferenceResolution, ...]:
-
         self._live()
         return self._doc._graph._binding().resolutions_of(self)
 
 
 WrittenValue: TypeAlias = Word | String | List | Slice | Index | Reference
+"""One value as written, by kind. Match it by class: ``case List(items):``."""
 
 
 # --- Variables ---
 
 
-@final
-class Variable:
-    """A ``set`` line's ``$name``, a snippet parameter, or an override."""
+class _Variable:
+    """What every variable has: ``kind``, ``name``, ``references()``, ``wins()``, ``shadowed_at()``. Private: the
+    public type is the union ``Variable``."""
 
-    __slots__ = ("_detached", "_graph", "_kind", "_line", "_override_name", "_token")
-
-    _kind: VariableKind
-    _line: SetLine | SnippetLine | None
-    _token: int
-    """A parameter's VARIABLE token index in the current parse."""
-    _override_name: str
-    _graph: DocumentGraph | None
-    _detached: bool
-
-    def __init__(
-        self,
-        kind: VariableKind,
-        *,
-        line: SetLine | SnippetLine | None = None,
-        name: str = "",
-        graph: DocumentGraph | None = None,
-    ) -> None:
-        """Made by the documents and the graph only."""
-        self._kind = kind
-        self._line = line
-        self._token = 0
-        self._override_name = name
-        self._graph = graph
-        self._detached = False
-
-    def __repr__(self) -> str:
-        if self._kind == "override":
-            return f"Variable('override', {self._override_name!r})"
-        return f"Variable({self._kind!r}, {self.place!r})"
-
-    def _owner(self) -> SetLine | SnippetLine:
-        """Its line, live. Raises DetachedError."""
-        if self._detached:
-            raise _detached("parameter")
-        line = self._line
-        assert line is not None
-        line._live()
-        return line
-
-    def _variable_token(self) -> int:
-        from villanelle.written import _document
-
-        line = self._owner()
-        return _document.first_arg_token(line) if self._kind == "set" else self._token
-
-    def _graph_of(self) -> DocumentGraph:
-        if self._kind == "override":
-            assert self._graph is not None
-            return self._graph
-        return self._owner()._doc._graph
+    __slots__ = ()
 
     @property
     def kind(self) -> VariableKind:
-        return self._kind
+        raise NotImplementedError
 
     @property
     def name(self) -> str:
-        if self._kind == "override":
-            return self._override_name
-        return self._owner()._doc._syntax.tokens[self._variable_token()].text[1:]
+        raise NotImplementedError
 
-    @property
-    def place(self) -> Place | None:
-        from villanelle.written import _document
-
-        if self._kind == "override":
-            return None
-        token = self._variable_token()
-        return _document.place(self._owner()._doc, (token, token + 1))
-
-    @property
-    def line(self) -> SetLine | SnippetLine | None:
-        if self._kind == "override":
-            return None
-        return self._owner()
+    def _graph_of(self) -> DocumentGraph:
+        raise NotImplementedError
 
     def references(self) -> tuple[Reference, ...]:
+        """The ``$name``s written to read it, by where they are written (``Reference.declaration``)."""
         from villanelle.written import _document
 
-        if self._kind == "override":
-            return ()
-        graph = self._owner()._doc._graph
+        graph = self._graph_of()
         return tuple(r for doc in graph._documents.values() for r in _document.references(doc) if r.declaration is self)
 
     def wins(self) -> tuple[ReferenceResolution, ...]:
@@ -879,34 +895,173 @@ class Variable:
         """The resolutions where it is visible but another definition wins."""
         return tuple(r for r in self._graph_of()._binding().resolutions if any(v is self for v in r.shadowed))
 
-    def rename(self, name: str, /) -> None:
-        """Change its ``$name`` (only this one; references keep theirs). TypeError for a ``name`` that is not a str;
-        NoSetLineError for an override; BadTextError for a name that is not letters, digits and ``_``."""
+
+@final
+class SetVariable(_Variable):
+    """A ``set`` line's ``$name``. It detaches with its line."""
+
+    __match_args__ = ("name",)
+    __slots__ = ("_line",)
+
+    _line: SetLine
+
+    def __init__(self, line: SetLine) -> None:
+        """Made by its set line only."""
+        self._line = line
+
+    def __repr__(self) -> str:
+        if self._line._detached:
+            return "SetVariable(detached)"
+        return f"SetVariable({self.name!r})"
+
+    def _token(self) -> int:
         from villanelle.written import _document
 
-        if self._kind != "override":
-            self._owner()
+        self._line._live()
+        return _document.first_arg_token(self._line)
+
+    def _graph_of(self) -> DocumentGraph:
+        self._line._live()
+        return self._line._doc._graph
+
+    @property
+    def kind(self) -> Literal[VariableKind.SET]:
+        return VariableKind.SET
+
+    @property
+    def name(self) -> str:
+        return self._line._doc._syntax.tokens[self._token()].text[1:]
+
+    @property
+    def place(self) -> Place:
+        """Its ``$name``."""
+        from villanelle.written import _document
+
+        token = self._token()
+        return _document.place(self._line._doc, (token, token + 1))
+
+    @property
+    def line(self) -> SetLine:
+        self._line._live()
+        return self._line
+
+    def rename(self, name: str, /) -> None:
+        """Change its ``$name`` (only this one; references keep theirs). TypeError for a ``name`` that is not a str;
+        BadTextError for a name that is not letters, digits and ``_``, or one set twice in its block (E5002)."""
+        from villanelle.written import _document
+
+        token = self._token()
         given = require_text(name, member="rename", parameter="name")
-        if self._kind == "override":
-            raise NoSetLineError(f"${self._override_name} is an override: use set_override")
-        _document.rename_variable(self._owner(), self._variable_token(), given)
+        _document.rename_variable(self._line, token, given)
 
     def set(self, text: str, /) -> None:
-        """Replace its ``set`` line's values with ``text``, as ``SetLine.set`` does. TypeError for a ``text`` that is
-        not a str; NoSetLineError for a parameter (edit the use line's values) or an override (use
-        ``set_override``)."""
-        if self._kind != "override":
-            self._owner()
-        given = require_text(text, member="set", parameter="text")
-        if self._kind == "override":
-            raise NoSetLineError(f"${self._override_name} is an override: use set_override")
+        """Replace its ``set`` line's values with ``text``, as ``SetLine.set`` does."""
+        self._line._live()
+        self._line.set(require_text(text, member="set", parameter="text"))
+
+
+@final
+class Parameter(_Variable):
+    """A snippet line's ``$param``: no ``set`` (edit a use line's values instead)."""
+
+    __match_args__ = ("name",)
+    __slots__ = ("_detached", "_line", "_token")
+
+    _line: SnippetLine
+    _token: int
+    """Its VARIABLE token index in the current parse."""
+    _detached: bool
+
+    def __init__(self, line: SnippetLine) -> None:
+        """Made by its snippet line only."""
+        self._line = line
+        self._token = 0
+        self._detached = False
+
+    def __repr__(self) -> str:
+        if self._detached or self._line._detached:
+            return "Parameter(detached)"
+        return f"Parameter({self.name!r})"
+
+    def _owner(self) -> SnippetLine:
+        """Its line, live. Raises DetachedError."""
+        if self._detached:
+            raise _detached("parameter")
+        self._line._live()
+        return self._line
+
+    def _graph_of(self) -> DocumentGraph:
+        return self._owner()._doc._graph
+
+    @property
+    def kind(self) -> Literal[VariableKind.PARAMETER]:
+        return VariableKind.PARAMETER
+
+    @property
+    def name(self) -> str:
+        return self._owner()._doc._syntax.tokens[self._token].text[1:]
+
+    @property
+    def place(self) -> Place:
+        """Its ``$name`` in the snippet line."""
+        from villanelle.written import _document
+
         line = self._owner()
-        if not isinstance(line, SetLine):
-            raise NoSetLineError(f"${self.name} is a snippet parameter: edit the use line's values")
-        line.set(given)
+        return _document.place(line._doc, (self._token, self._token + 1))
+
+    @property
+    def line(self) -> SnippetLine:
+        return self._owner()
+
+    def rename(self, name: str, /) -> None:
+        """Change its ``$name`` (only this one). TypeError for a ``name`` that is not a str; BadTextError for a name
+        that is not letters, digits and ``_``."""
+        from villanelle.written import _document
+
+        line = self._owner()
+        given = require_text(name, member="rename", parameter="name")
+        _document.rename_variable(line, self._token, given)
 
 
-T = TypeVar("T", Variable, SnippetLine)
+@final
+class OverrideVariable(_Variable):
+    """An override as a variable: no place, no line, no ``rename``, no ``set`` (``DocumentGraph.set_override``
+    changes it). One per name for the graph's life; never detached."""
+
+    __match_args__ = ("name",)
+    __slots__ = ("_graph", "_name")
+
+    _graph: DocumentGraph
+    _name: str
+
+    def __init__(self, name: str, graph: DocumentGraph) -> None:
+        """Made by the graph only."""
+        self._name = name
+        self._graph = graph
+
+    def __repr__(self) -> str:
+        return f"OverrideVariable({self._name!r})"
+
+    def _graph_of(self) -> DocumentGraph:
+        return self._graph
+
+    @property
+    def kind(self) -> Literal[VariableKind.OVERRIDE]:
+        return VariableKind.OVERRIDE
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def references(self) -> tuple[Reference, ...]:
+        """None: an override is declared by no written line (its readers are in ``wins()``)."""
+        return ()
+
+
+Variable: TypeAlias = SetVariable | Parameter | OverrideVariable
+"""A variable, by kind. Match it by class: ``case SetVariable(name):``."""
+
+T = TypeVar("T")
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -927,23 +1082,97 @@ class ReferenceResolution(Resolution[Variable]):
     values: tuple[WrittenValue, ...]
 
 
+# --- The expansion (spec 6.10) ---
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class Expansion:
+    """What ``DocumentGraph.expand()`` returns: the low level's account of every copy as read."""
+
+    block: tuple[DirectiveExpansion, ...]
+    """The top-level readable directive copies, in walk order (includes and uses spliced in place)."""
+    unreadable: tuple[UnreadableExpansion, ...]
+    """The top-level copies that could not be read."""
+    diagnostics: tuple[LocatedDiagnostic, ...]
+    """Syntax diagnostics per document, then everything the expansion found in walk order, render's codes included:
+    what ``rendered.diagnostics`` is."""
+
+
+@final
+@dataclass(frozen=True, slots=True, match_args=False)
+class DirectiveExpansion:
+    """One copy of a written directive, as read."""
+
+    __match_args__ = ("statement", "values", "block")
+
+    statement: WrittenDirective
+    """The line this is a copy of."""
+    origin: DirectiveOrigin
+    """Its name's place and the copy's via."""
+    values: tuple[ValueExpansion, ...]
+    """In order; a ``$name`` gives every value it reaches."""
+    block: tuple[DirectiveExpansion, ...] | None
+    """None when written without a block."""
+    unreadable: tuple[UnreadableExpansion, ...]
+
+
+@final
+@dataclass(frozen=True, slots=True, match_args=False)
+class UnreadableExpansion:
+    """One copy of a statement that could not be read there."""
+
+    __match_args__ = ("statement", "reason")
+
+    statement: Statement
+    reason: UnreadableReason
+    origin: DirectiveOrigin
+    """The statement's own tokens (owned comments left out) and the copy's via."""
+
+
+@final
+@dataclass(frozen=True, slots=True, match_args=False)
+class ValueExpansion:
+    """One value of a directive copy after expansion, with its links to the written text."""
+
+    __match_args__ = ("value", "written", "definition")
+
+    value: ExpandedValue
+    written: WrittenValue
+    """The same line: ``chain[0].reference`` when the value came through a variable, else the value itself."""
+    definition: WrittenValue | None
+    """The end of the chain (the written value it was defined as); None for an override."""
+    chain: tuple[ReferenceResolution, ...]
+    """One per variable step of the value's origin, own line first."""
+    items: tuple[ValueExpansion, ...]
+    """A list's items with their own links; empty for every other kind."""
+
+
 __all__ = [
     "Copy",
+    "DirectiveExpansion",
     "Document",
     "DocumentEdge",
     "DocumentGraph",
+    "Expansion",
+    "ExtensionLine",
     "Index",
     "List",
+    "OverrideVariable",
+    "Parameter",
     "Reference",
     "ReferenceResolution",
     "Resolution",
     "SetLine",
+    "SetVariable",
     "Slice",
     "SnippetLine",
     "Statement",
     "String",
+    "UnreadableExpansion",
     "UnreadableLine",
     "UseLine",
+    "ValueExpansion",
     "Variable",
     "Word",
     "WrittenBlock",

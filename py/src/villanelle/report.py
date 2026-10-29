@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from types import TracebackType
 from typing import Protocol
 
-from villanelle.diagnostics import DiagnosticCode, DiagnosticError
+from villanelle.diagnostics import DiagnosticCode
+from villanelle.errors import DiagnosticError
 from villanelle.origin import Place, Step
 
 
@@ -36,6 +37,11 @@ class LocatedDiagnostic:
             object.__setattr__(self, "code", DiagnosticCode(self.code))
             return
         check_program_code(self.code)
+
+    def __str__(self) -> str:
+        """Its people form (spec/contract.md 2): ``<place>: <code>: <message>``, the first line of
+        ``format_diagnostic``."""
+        return f"{self.place}: {self.code}: {self.message}"
 
 
 class Locatable(Protocol):

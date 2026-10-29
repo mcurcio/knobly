@@ -42,7 +42,7 @@ def test_collecting_records_a_diagnostic_error_and_ends_the_block() -> None:
     problems = vl.Diagnostics()
     reached = []
     with problems.collecting():
-        load.block[0].values[0].as_int()
+        load.block[0].values[0].integer()
         reached.append(True)
     assert reached == []
     assert [str(d.code) for d in problems] == ["E4005"]
@@ -105,10 +105,10 @@ def test_format_diagnostic_prints_place_code_message_source_caret_and_via() -> N
     ("text", "caret"),
     [
         ("\ta\t$y;\n", "\t \t^^"),
-        ('a "\U0001f600" $y;\n', "       ^^"),
+        ('a "\U0001f600" $y;\n', "      ^^"),
     ],
 )
-def test_format_diagnostic_keeps_tabs_and_counts_columns_as_typescript_does(text: str, caret: str) -> None:
+def test_format_diagnostic_keeps_tabs_and_counts_columns_in_code_points(text: str, caret: str) -> None:
     load = loaded(text)
     [d] = load.diagnostics
     assert vl.format_diagnostic(d, load.graph).split("\n")[1:] == [text.removesuffix("\n"), caret]

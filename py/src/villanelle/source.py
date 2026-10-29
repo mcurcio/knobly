@@ -1,12 +1,13 @@
 """The I/O ports (spec/schema/api.json, layer io): where files come from, the one port the load reads through for the
 root file and for every file an extension names (round 11 review finding 3), and where a save writes them
 (``DocumentWriter``, given ``FileWrite``s by ``DocumentGraph.save``). The core does no I/O (R16):
-``villanelle.files`` gives a filesystem source and writer; ``memory_source`` serves texts the program already holds
-(tests, editors)."""
+``villanelle.files`` gives a filesystem source and writer (``file_source``, ``file_writer``); ``memory_source`` and
+``memory_writer`` serve and keep texts the program holds in one map (tests, editors). Each adapter is named after its
+medium and the port it fills (spec/contract.md 5)."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -31,7 +32,8 @@ class DocumentSource(Protocol):
         ...
 
     def read(self, resolved_path: str, /) -> str:
-        """The text of one resolved file. An exception becomes E3004 (for the root file, ``load`` raises)."""
+        """The text of one resolved file. An exception becomes E3004 at the extension line (for the root file,
+        ``load`` raises ReadError)."""
         ...
 
 
@@ -60,14 +62,16 @@ class DocumentWriter(Protocol):
 def memory_source(files: Mapping[str, str], /) -> DocumentSource:
     """A source over texts held in memory, keyed by path, with the same resolve rules as TypeScript's ``memorySource``
     (POSIX join to the parent's directory, ``.`` and ``..`` removed, a leading ``/`` taken as is, a glob in the last
-    segment). ``read`` of a path that is not a key raises KeyError. Pure: no I/O."""
-    return _MemorySource(dict(files))
+    segment). It reads ``files`` itself at every call, never a copy: what a ``memory_writer`` (or the program) puts in
+    that map, a later ``load`` or ``read`` sees. ``read`` of a path that is not a key raises KeyError. Pure: no
+    I/O."""
+    return _MemorySource(files)
 
 
 class _MemorySource:
     __slots__ = ("_texts",)
 
-    def __init__(self, texts: dict[str, str]) -> None:
+    def __init__(self, texts: Mapping[str, str]) -> None:
         self._texts = texts
 
     def resolve(self, spec: str, context: LoadContext, /) -> Sequence[str]:
@@ -86,6 +90,28 @@ class _MemorySource:
         if resolved_path not in self._texts:
             raise KeyError(f"no such file: {resolved_path}")
         return self._texts[resolved_path]
+
+
+def memory_writer(files: MutableMapping[str, str], /) -> DocumentWriter:
+    """A writer into texts held in memory, keyed by resolved path: the map a ``memory_source`` reads, so a save is
+    seen by the next load. Each batch first checks every file's text in the map ("" when the key is absent) against
+    its ``saved_text``, raising (writing nothing) and naming the paths when any differs (a lost update, as the file
+    writer refuses one); then it sets every file's text. All or nothing. Pure: no I/O."""
+    return _MemoryWriter(files)
+
+
+class _MemoryWriter:
+    __slots__ = ("_texts",)
+
+    def __init__(self, texts: MutableMapping[str, str]) -> None:
+        self._texts = texts
+
+    def write(self, files: Sequence[FileWrite], /) -> None:
+        lost = [file.resolved_path for file in files if self._texts.get(file.resolved_path, "") != file.saved_text]
+        if lost:
+            raise RuntimeError(f"changed since it was read (a lost update): {', '.join(lost)}")
+        for file in files:
+            self._texts[file.resolved_path] = file.text
 
 
 def _directory_of(path: str) -> str:

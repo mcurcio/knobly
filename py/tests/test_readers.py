@@ -36,14 +36,14 @@ def raises(read: object, code: str) -> vl.LocatedDiagnostic:
 # --- readers -----------------------------------------------------------------------------------------------------
 
 
-def test_as_word_and_as_str() -> None:
-    assert arg("listen").as_word() == "listen"
-    assert arg("/*.conf").as_word() == "/*.conf"
-    assert arg("listen").as_str() == "listen"
-    assert arg('"a\\tb"').as_str() == "a\tb"
-    raises(arg('"q"').as_word, "E4002")
-    raises(arg("[1]").as_str, "E4002")
-    raises(arg("c[1:2]").as_str, "E4002")
+def test_word_and_string() -> None:
+    assert arg("listen").word() == "listen"
+    assert arg("/*.conf").word() == "/*.conf"
+    assert arg("listen").string() == "listen"
+    assert arg('"a\\tb"').string() == "a\tb"
+    raises(arg('"q"').word, "E4002")
+    raises(arg("[1]").string, "E4002")
+    raises(arg("c[1:2]").string, "E4002")
 
 
 @pytest.mark.parametrize(
@@ -60,47 +60,47 @@ def test_as_word_and_as_str() -> None:
         ("-9007199254740993", -9007199254740992.0),
     ],
 )
-def test_as_number_reads_a_number_text(text: str, value: float) -> None:
-    number = arg(text).as_number()
+def test_number_reads_a_number_text(text: str, value: float) -> None:
+    number = arg(text).number()
     assert number == value
     assert type(number) is type(value)
 
 
 @pytest.mark.parametrize(("text", "code"), [("20hz", "E4004"), ("01", "E4004"), (".5", "E4004"), ('"1"', "E4002")])
-def test_as_number_refuses_anything_else(text: str, code: str) -> None:
-    raises(arg(text).as_number, code)
+def test_number_refuses_anything_else(text: str, code: str) -> None:
+    raises(arg(text).number, code)
 
 
-def test_as_int_needs_an_integer_text_in_the_safe_range() -> None:
-    assert arg("-12").as_int() == -12
-    assert arg(str(2**53 - 1)).as_int() == 2**53 - 1
-    raises(arg("1.0").as_int, "E4005")
-    raises(arg(str(2**53)).as_int, "E4005")
-    raises(arg("[1]").as_int, "E4002")
+def test_int_needs_an_integer_text_in_the_safe_range() -> None:
+    assert arg("-12").integer() == -12
+    assert arg(str(2**53 - 1)).integer() == 2**53 - 1
+    raises(arg("1.0").integer, "E4005")
+    raises(arg(str(2**53)).integer, "E4005")
+    raises(arg("[1]").integer, "E4002")
 
 
-def test_as_bool_reads_only_true_and_false() -> None:
-    assert arg("true").as_bool() is True
-    assert arg("false").as_bool() is False
-    raises(arg("yes").as_bool, "E4006")
-    raises(arg('"true"').as_bool, "E4002")
+def test_bool_reads_only_true_and_false() -> None:
+    assert arg("true").boolean() is True
+    assert arg("false").boolean() is False
+    raises(arg("yes").boolean, "E4006")
+    raises(arg('"true"').boolean, "E4002")
 
 
-def test_as_list_gives_items_each_with_its_own_origin() -> None:
-    items = arg("[a, [1, 2], 'z']").as_list()
+def test_list_gives_items_each_with_its_own_origin() -> None:
+    items = arg("[a, [1, 2], 'z']").list()
     assert [i.text for i in items] == ["a", "[1, 2]", '"z"']
     assert [i.origin.place.span.start.column for i in items if isinstance(i.origin.place, vl.Place)] == [3, 6, 14]
-    raises(arg("a").as_list, "E4002")
+    raises(arg("a").list, "E4002")
 
 
-def test_as_slice_gives_slices_with_an_absent_side_none_and_indexes() -> None:
-    assert arg("hyperhdr_color[144:152]").as_slice() == vl.SliceValue("hyperhdr_color", 144, 152)
-    assert arg("c[144:]").as_slice() == vl.SliceValue("c", 144, None)
-    assert arg("c[:-2]").as_slice() == vl.SliceValue("c", None, -2)
-    assert arg("foo[1]").as_slice() == vl.IndexValue("foo", 1)
+def test_slice_gives_slices_with_an_absent_side_none_and_indexes() -> None:
+    assert arg("hyperhdr_color[144:152]").slice() == vl.SliceValue("hyperhdr_color", 144, 152)
+    assert arg("c[144:]").slice() == vl.SliceValue("c", 144, None)
+    assert arg("c[:-2]").slice() == vl.SliceValue("c", None, -2)
+    assert arg("foo[1]").slice() == vl.IndexValue("foo", 1)
     big = 2**53 - 1
-    assert arg(f"c[-{big}:{big}]").as_slice() == vl.SliceValue("c", -big, big)
-    raises(arg("c").as_slice, "E4002")
+    assert arg(f"c[-{big}:{big}]").slice() == vl.SliceValue("c", -big, big)
+    raises(arg("c").slice, "E4002")
 
 
 def test_plain_reads_by_the_one_rule_quoting_means_text() -> None:
@@ -120,7 +120,7 @@ def test_plain_reads_by_the_one_rule_quoting_means_text() -> None:
 
 def test_a_reader_error_is_placed_on_the_value_with_its_steps() -> None:
     loaded = _render(vl.Processor(source=vl.memory_source({"main.conf": "set $v x;\na 1 $v;\n"})))
-    d = raises(loaded.block[0].values[1].as_int, "E4005")
+    d = raises(loaded.block[0].values[1].integer, "E4005")
     assert (d.place.span.start.line, d.place.span.start.column) == (0, 7)
     assert [(s.kind, s.name, s.place.span.start.column) for s in d.via] == [("variable", "v", 4)]
 
@@ -133,7 +133,7 @@ def test_a_reader_error_is_placed_on_the_value_with_its_steps() -> None:
     [('"a\\"b"', 'a"b'), ("'it\\'s'", "it's"), ('"\\\\"', "\\"), ('"\\n\\t\\r"', "\n\t\r"), ('"a😀b"', "a😀b")],
 )
 def test_strings_decode_the_six_escapes(literal: str, decoded: str) -> None:
-    assert arg(literal).as_str() == decoded
+    assert arg(literal).string() == decoded
 
 
 @pytest.mark.parametrize(("text", "column"), [("c[x:2]", 4), ("c[1:x]", 6), ("c[007]", 4), (f"c[{2**53}]", 4)])

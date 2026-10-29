@@ -36,21 +36,17 @@ def _kind_by_type() -> dict[int, TokenKind]:
 _KIND_BY_TYPE = _kind_by_type()
 
 
-def _utf16_length(text: str) -> int:
-    return len(text.encode("utf-16-le", "surrogatepass")) // 2
-
-
 def _advance(position: SourcePosition, text: str) -> SourcePosition:
-    """The position after ``text``, starting at ``position`` (UTF-16 units; a line ends after each "\\n")."""
-    offset = position.offset + _utf16_length(text)
+    """The position after ``text``, starting at ``position`` (code points; a line ends after each "\\n")."""
+    offset = position.offset + len(text)
     last_newline = text.rfind("\n")
     if last_newline < 0:
-        return SourcePosition(offset, position.line, position.column + _utf16_length(text))
-    return SourcePosition(offset, position.line + text.count("\n"), _utf16_length(text[last_newline + 1 :]))
+        return SourcePosition(offset, position.line, position.column + len(text))
+    return SourcePosition(offset, position.line + text.count("\n"), len(text) - last_newline - 1)
 
 
 def _to_tokens(antlr_tokens: list[Any]) -> tuple[Token, ...]:
-    """Our tokens, with positions computed from the token texts (ANTLR's columns count code points, not UTF-16)."""
+    """Our tokens, with positions computed from the token texts, in code points (spec/contract.md 1)."""
     tokens: list[Token] = []
     at = _ORIGIN
     for antlr_token in antlr_tokens:

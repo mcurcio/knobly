@@ -11,10 +11,10 @@ from typing import TYPE_CHECKING
 
 from villanelle._api.limits import VARIABLE_NAME
 from villanelle._text import require_text
+from villanelle.errors import BadTextError
 from villanelle.report import LocatedDiagnostic
 from villanelle.written import _bind, _document
-from villanelle.written.errors import BadTextError
-from villanelle.written.model import Document, DocumentGraph, Variable
+from villanelle.written.model import Document, DocumentGraph, OverrideVariable
 
 if TYPE_CHECKING:
     from villanelle.extension import Extension
@@ -43,7 +43,7 @@ def init(
         values = check_override(name, text, member="load", parameter=f'overrides["{name}"]')
         graph._override_values[name] = values
         graph._override_texts[name] = text
-        graph._override_variables[name] = Variable("override", name=name, graph=graph)
+        graph._override_variables[name] = OverrideVariable(name, graph)
 
 
 def check_override(name: object, text: object, *, member: str, parameter: str) -> tuple[_bind.BoundValue, ...]:
@@ -139,7 +139,8 @@ def record_read(graph: DocumentGraph, resolved_path: str, text: str | Exception)
 
 
 def set_override(graph: DocumentGraph, name: str, text: str | None) -> None:
-    """Add, change or remove one override (D28: one Variable per name for the graph's life), after the one check."""
+    """Add, change or remove one override (D28: one OverrideVariable per name for the graph's life), after the one
+    check."""
     if text is None:
         override_name(name, member="set_override")
         if name in graph._override_texts:
@@ -151,5 +152,5 @@ def set_override(graph: DocumentGraph, name: str, text: str | None) -> None:
     graph._override_texts[name] = text
     graph._override_values[name] = values
     if name not in graph._override_variables:
-        graph._override_variables[name] = Variable("override", name=name, graph=graph)
+        graph._override_variables[name] = OverrideVariable(name, graph)
     changed(graph)

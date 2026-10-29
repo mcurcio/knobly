@@ -6,11 +6,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from villanelle.diagnostics import DiagnosticCode, DiagnosticError
+from villanelle.diagnostics import DiagnosticCode
+from villanelle.errors import DiagnosticError
 from villanelle.extension import Extension, ExtensionUse
 from villanelle.report import LocatedDiagnostic
 from villanelle.syntax._recovery import message_of
-from villanelle.value import ValueKind, value_error
+from villanelle.value import ExpandedString, value_error
 
 
 def include() -> Extension:
@@ -33,7 +34,7 @@ class _Include:
         if not use.values:
             raise DiagnosticError(LocatedDiagnostic(code, message_of(code), use.origin.place, use.origin.via))
         first = use.values[0]
-        bad = first if first.kind is not ValueKind.STRING else (use.values[1] if len(use.values) > 1 else None)
+        bad = first if not isinstance(first, ExpandedString) else (use.values[1] if len(use.values) > 1 else None)
         if bad is not None:
             raise value_error(bad, code, f"{message_of(code)}: {bad.text}")
-        return [use.values[0].as_str()]
+        return [first.string()]

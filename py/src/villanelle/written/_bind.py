@@ -1,9 +1,10 @@
 """The binding (design rule 3; slices.md 2.5): one derivation of the graph's current texts, overrides and read
 ledger. It walks the copies (the root, then each include and ``use`` spliced in place), decides per copy what each
 ``$name`` and ``use`` reads, and expands written values for the extension lines (an include's path) and for the
-rendered layer. It is the one home of the name-lookup rule: the rendered layer walks ``items`` and calls
-``arguments_at``, and never looks a name up. It names no rendered type: it expands values into ``BoundValue``s, which
-the rendered layer turns into its own arguments. Private; pure (no I/O); a port of ts/src/written/bind.ts.
+rendered layer. It is the one home of the name-lookup rule: ``_expand`` turns its ``items`` into the public expansion
+(``DocumentGraph.expand()``), which the rendered layer builds on, so nothing above it looks a name up. It names no
+rendered type: it expands values into ``BoundValue``s, each holding the shared expanded value. Private; pure (no
+I/O); a port of ts/src/written/bind.ts.
 
 The walk is PR 3's expander (cb08803) moved here, unchanged in what it decides and reports, with the read ledger in
 place of reading files during the walk."""
@@ -18,7 +19,8 @@ from villanelle import _values
 from villanelle._anatomy import Anatomy, anatomy_of, items_of
 from villanelle._api.kinds import UnreadableReason
 from villanelle._api.limits import MAX_DEPTH, MAX_DIRECTIVES
-from villanelle.diagnostics import DiagnosticCode, DiagnosticError
+from villanelle.diagnostics import DiagnosticCode
+from villanelle.errors import DiagnosticError
 from villanelle.extension import ExtensionUse
 from villanelle.origin import DirectiveOrigin, Origin, Override, Place, Step, StepKind
 from villanelle.report import LocatedDiagnostic
@@ -27,7 +29,17 @@ from villanelle.syntax._recovery import message_of
 from villanelle.syntax.cst import Node, NodeKind, Syntax, ValueRef, span_of
 from villanelle.syntax.parse import parse
 from villanelle.syntax.tokens import Token, TokenKind
-from villanelle.value import ExpandedValue, IndexValue, SliceValue, ValueKind
+from villanelle.value import (
+    ExpandedIndex,
+    ExpandedList,
+    ExpandedSlice,
+    ExpandedString,
+    ExpandedValue,
+    ExpandedWord,
+    IndexValue,
+    SliceValue,
+    ValueKind,
+)
 from villanelle.written._shape import shape_of_anatomy
 from villanelle.written.model import (
     Copy,
@@ -76,8 +88,7 @@ class BoundValue:
         self.origin = origin
         self.definition = definition
         self.chain = chain
-        held = tuple(item.expanded for item in value) if isinstance(value, tuple) else value
-        self.expanded = ExpandedValue(kind, held, origin)
+        self.expanded = _expanded(kind, value, origin)
 
     def rebase(self, drop: int, append: tuple[Step, ...], resolution: ReferenceResolution | None = None) -> BoundValue:
         """The same value having travelled further: the last ``drop`` steps of its origin (and of each list item's)
@@ -91,6 +102,19 @@ class BoundValue:
             value = tuple(item.rebase(drop, append, resolution) for item in value)
         chain = self.chain if resolution is None else (resolution, *self.chain)
         return BoundValue(self.kind, value, origin, self.definition, chain)
+
+
+def _expanded(
+    kind: ValueKind, value: str | tuple[BoundValue, ...] | SliceValue | IndexValue, origin: Origin
+) -> ExpandedValue:
+    """The shared expanded value of one bound value; a list's items are its items' own expanded values."""
+    if isinstance(value, tuple):
+        return ExpandedList(tuple(item.expanded for item in value), origin)
+    if isinstance(value, SliceValue):
+        return ExpandedSlice(value.name, value.start, value.end, origin)
+    if isinstance(value, IndexValue):
+        return ExpandedIndex(value.name, value.index, origin)
+    return ExpandedString(value, origin) if kind is ValueKind.STRING else ExpandedWord(value, origin)
 
 
 @dataclass(frozen=True, slots=True, eq=False)

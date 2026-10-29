@@ -40,7 +40,7 @@ class Shape:
 def shape_of(tokens: tuple[Token, ...], node: Node, extensions: frozenset[str] | set[str]) -> Shape:
     """The shape of one node of a block, ignoring the one-per-block rules (E5002, E5005)."""
     if node.kind is not NodeKind.DIRECTIVE:
-        return Shape("unreadable")
+        return Shape(StatementKind.UNREADABLE)
     return shape_of_anatomy(tokens, anatomy_of(tokens, node), extensions)
 
 
@@ -52,10 +52,10 @@ def shape_of_anatomy(tokens: tuple[Token, ...], anatomy: Anatomy, extensions: fr
     rest = args[1:]
     if name.text == "set":
         if first is None or first.kind is not TokenKind.VARIABLE or not rest or anatomy.block is not None:
-            return Shape("unreadable", Fault(DiagnosticCode.BAD_SET, anatomy.name))
-        return Shape("set", None, first.text[1:])
+            return Shape(StatementKind.UNREADABLE, Fault(DiagnosticCode.BAD_SET, anatomy.name))
+        return Shape(StatementKind.SET, None, first.text[1:])
     if name.text == "snippet":
-        bad = Shape("unreadable", Fault(DiagnosticCode.BAD_SNIPPET, anatomy.name))
+        bad = Shape(StatementKind.UNREADABLE, Fault(DiagnosticCode.BAD_SNIPPET, anatomy.name))
         params: list[str] = []
         for ref in rest:
             token = tokens[ref] if isinstance(ref, int) else None
@@ -64,12 +64,12 @@ def shape_of_anatomy(tokens: tuple[Token, ...], anatomy: Anatomy, extensions: fr
             params.append(token.text[1:])
         if first is None or first.kind is not TokenKind.WORD or anatomy.block is None:
             return bad
-        return Shape("snippet", None, first.text)
+        return Shape(StatementKind.SNIPPET, None, first.text)
     if name.text == "use":
         if first is None or first.kind is not TokenKind.WORD or anatomy.block is not None:
-            return Shape("unreadable", Fault(DiagnosticCode.BAD_USE, anatomy.name))
-        return Shape("use")
-    return Shape("extension" if name.text in extensions else "directive")
+            return Shape(StatementKind.UNREADABLE, Fault(DiagnosticCode.BAD_USE, anatomy.name))
+        return Shape(StatementKind.USE)
+    return Shape(StatementKind.EXTENSION if name.text in extensions else StatementKind.DIRECTIVE)
 
 
 def parameter_tokens(tokens: tuple[Token, ...], node: Node) -> tuple[int, ...]:
@@ -93,14 +93,14 @@ def block_shapes(
             if claims in sets:
                 at = anatomy_of(tokens, node).args[0]
                 assert isinstance(at, int)
-                shape = Shape("unreadable", Fault(DiagnosticCode.VARIABLE_SET_TWICE, at, tokens[at].text))
+                shape = Shape(StatementKind.UNREADABLE, Fault(DiagnosticCode.VARIABLE_SET_TWICE, at, tokens[at].text))
             else:
                 sets.add(claims)
         elif shape.kind == "snippet" and claims is not None:
             if claims in snippets:
                 at = anatomy_of(tokens, node).args[0]
                 assert isinstance(at, int)
-                shape = Shape("unreadable", Fault(DiagnosticCode.SNIPPET_DEFINED_TWICE, at, claims))
+                shape = Shape(StatementKind.UNREADABLE, Fault(DiagnosticCode.SNIPPET_DEFINED_TWICE, at, claims))
             else:
                 snippets.add(claims)
         out.append(shape)

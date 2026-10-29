@@ -1,9 +1,8 @@
-"""Source positions and spans, shared by tokens, values and diagnostics.
+"""Source positions and spans, shared by tokens, values and diagnostics (spec/contract.md 1).
 
-Units (the cross-language contract, also used by the conformance corpus):
-
-- ``offset`` and ``column`` count UTF-16 code units, as in the TypeScript package. Python ``str`` indexes count code
-  points, so an offset is not a ``str`` index once an astral character precedes it.
+- ``offset`` and ``column`` count code points, Python's own string unit: ``text[start.offset:end.offset]`` is the
+  text of the span. (TypeScript counts UTF-16 code units; the conformance corpus stays in UTF-16 and the runners
+  convert.)
 - ``line`` and ``column`` are 0-based. A line ends after each "\\n" (so "\\r\\n" ends one line); a lone "\\r" does not.
 """
 
@@ -14,7 +13,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class SourcePosition:
-    """A point between two UTF-16 code units of the source text."""
+    """A point between two code points of the source text."""
 
     offset: int
     line: int

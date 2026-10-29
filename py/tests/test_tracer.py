@@ -63,7 +63,7 @@ def test_lists_files_variables_and_overrides_then_changes_pixels_itself_and_save
         (
             v.name,
             v.kind,
-            "override" if v.place is None else line_of(v.place),
+            "override" if isinstance(v, vl.OverrideVariable) else line_of(v.place),
             [line_of(r.reference.place) for r in v.wins()],
             [(line_of(r.reference.place), None if r.winner is None else r.winner.kind) for r in v.shadowed_at()],
         )
@@ -83,7 +83,7 @@ def test_lists_files_variables_and_overrides_then_changes_pixels_itself_and_save
     leds = node_named(rendered, "leds")
     max_count = next(d for d in leds.block or () if d.name == "max_count").values[0]
     read = max_count.chain[0]
-    assert read.winner is not None and read.winner.kind == "set"
+    assert isinstance(read.winner, vl.SetVariable)
     read.winner.set("2400")  # (2)
     writer = Recorder()
     assert graph.save(writer) == ["main.conf"]

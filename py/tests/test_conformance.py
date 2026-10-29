@@ -5,7 +5,7 @@ import re
 from typing import Any
 
 import pytest
-from conftest import REPO
+from conftest import REPO, utf16_column
 
 from villanelle import Node, Syntax, parse, text_of
 
@@ -24,12 +24,15 @@ def cst_json(node: Node) -> list[Any]:
     return [node.kind.value, node.start, node.end, [cst_json(child) for child in node.children]]
 
 
-def fmt(syntax: Syntax) -> bytes:
-    """conformance/format.md, format v0."""
+def fmt(syntax: Syntax, src: str) -> bytes:
+    """conformance/format.md, format v0: columns converted from code points to UTF-16 units (spec/contract.md 1)."""
     value = {
         "tokens": [[t.kind.value, t.text] for t in syntax.tokens],
         "cst": cst_json(syntax.root),
-        "diagnostics": [[d.code.value, d.span.start.line, d.span.start.column] for d in syntax.diagnostics],
+        "diagnostics": [
+            [d.code.value, d.span.start.line, utf16_column(src, d.span.start.offset, d.span.start.column)]
+            for d in syntax.diagnostics
+        ],
     }
     # Not ensure_ascii=True: it also escapes U+007F, which the format (and TypeScript) writes raw. Escape each
     # UTF-16 code unit above U+007F instead, as format.md says.
@@ -40,10 +43,6 @@ def fmt(syntax: Syntax) -> bytes:
 def _escape(match: re.Match[str]) -> str:
     units = match.group().encode("utf-16-le", "surrogatepass")
     return "".join(f"\\u{int.from_bytes(units[i : i + 2], 'little'):04x}" for i in range(0, len(units), 2))
-
-
-def utf16_length(text: str) -> int:
-    return len(text.encode("utf-16-le", "surrogatepass")) // 2
 
 
 def check_coverage(node: Node) -> None:
@@ -75,8 +74,9 @@ def test_lossless_cst(case: dict[str, str]) -> None:
         assert token.text != ""
         assert token.span.start.offset == offset
         offset = token.span.end.offset
-        assert offset - token.span.start.offset == utf16_length(token.text)
-    assert offset == utf16_length(src)
+        # Code points, Python's own unit (spec/contract.md 1): each token's span cuts the source at its own text.
+        assert src[token.span.start.offset : offset] == token.text
+    assert offset == len(src)
     check_coverage(syntax.root)
 
 
@@ -84,4 +84,4 @@ def test_lossless_cst(case: dict[str, str]) -> None:
 def test_expected_output_is_byte_identical(case: dict[str, str]) -> None:
     expected = EXPECTED / f"{case['name']}.json"
     assert expected.is_file(), f"missing {expected}"
-    assert fmt(parse(case["src"])) == expected.read_bytes()
+    assert fmt(parse(case["src"]), case["src"]) == expected.read_bytes()

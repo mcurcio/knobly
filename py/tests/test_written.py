@@ -11,6 +11,7 @@ import pytest
 from conftest import REPO
 
 import villanelle as vl
+from villanelle import written
 from villanelle.include import include
 
 
@@ -114,15 +115,52 @@ def test_changes_nothing_when_an_edit_is_refused() -> None:
     assert graph.root.text == "set $a 1;\nx [1];\n"
 
 
-def test_an_override_and_a_parameter_have_no_set_line() -> None:
+ABSENT: dict[type, tuple[str, ...]] = {
+    vl.WrittenDirective: ("variable", "parameters", "snippet_name", "snippet", "snippets"),
+    vl.ExtensionLine: ("rename", "variable", "parameters", "snippet_name", "snippet", "snippets"),
+    vl.SetLine: ("name", "block", "rename", "parameters", "snippet_name", "snippet", "snippets"),
+    vl.SnippetLine: ("values", "rename", "set", "variable", "snippet_name", "snippet", "snippets"),
+    vl.UseLine: ("name", "block", "rename", "variable", "parameters"),
+    vl.UnreadableLine: ("name", "values", "block", "rename", "set", "variable", "parameters", "snippet_name"),
+    vl.SetVariable: (),
+    vl.Parameter: ("set",),
+    vl.OverrideVariable: ("place", "line", "rename", "set"),
+    written.Word: ("items", "name", "start", "end", "index", "declaration", "resolutions"),
+    written.String: ("items", "name", "start", "end", "index", "declaration", "resolutions"),
+    written.List: ("name", "start", "end", "index", "declaration", "resolutions"),
+    written.Slice: ("items", "index", "declaration", "resolutions"),
+    written.Index: ("items", "start", "end", "declaration", "resolutions"),
+    written.Reference: ("items", "start", "end", "index"),
+}
+"""frozen-m2.md section 2: the members each variant does not have (a call is an AttributeError, like any missing
+attribute; nothing raises a villanelle error for it)."""
+
+
+@pytest.mark.parametrize("cls", list(ABSENT), ids=lambda cls: cls.__name__)
+def test_an_operation_exists_only_on_the_variants_where_it_can_succeed(cls: type) -> None:
+    assert [name for name in ABSENT[cls] if hasattr(cls, name)] == []
+
+
+def test_set_and_rename_on_a_parameter_or_an_override_are_attribute_errors() -> None:
     graph = load({"main.conf": "snippet s $p { x $p; }\nuse s 1;\n"}, {"h": "1"})
     parameter, override = graph.variables()
-    assert (parameter.kind, override.kind) == ("parameter", "override")
-    for variable in (parameter, override):
-        with pytest.raises(vl.NoSetLineError):
-            variable.set("2")
-    with pytest.raises(vl.NoSetLineError):
-        override.rename("g")
+    assert isinstance(parameter, vl.Parameter) and isinstance(override, vl.OverrideVariable)
+    assert (parameter.kind, override.kind) == (vl.VariableKind.PARAMETER, vl.VariableKind.OVERRIDE)
+    with pytest.raises(AttributeError):
+        parameter.set("2")  # type: ignore[attr-defined]
+    with pytest.raises(AttributeError):
+        override.rename("g")  # type: ignore[attr-defined]
+    assert graph.root.text == "snippet s $p { x $p; }\nuse s 1;\n"
+
+
+def test_an_include_line_is_an_extension_line_without_rename() -> None:
+    graph = load({"main.conf": 'include "p.conf";\nx 1;\n', "p.conf": ""})
+    line, x = graph.root.block
+    assert isinstance(line, vl.ExtensionLine) and not isinstance(line, vl.WrittenDirective)
+    assert (line.kind, line.name, [v.text for v in line.values]) == ("extension", "include", ['"p.conf"'])
+    assert graph.root.block.directives() == (x,)
+    line.set('"q.conf"')
+    assert graph.root.text == 'include "q.conf";\nx 1;\n'
 
 
 # --- Python idioms (C4) ---
@@ -130,32 +168,34 @@ def test_an_override_and_a_parameter_have_no_set_line() -> None:
 
 def describe(statement: vl.Statement) -> str:
     match statement:
-        case vl.WrittenDirective():
-            return f"{statement.kind} {statement.name}"
-        case vl.SetLine():
-            return f"set ${statement.variable.name}"
-        case vl.SnippetLine():
-            return f"snippet {statement.name}"
-        case vl.UseLine():
-            return f"use {statement.snippet_name}"
-        case vl.UnreadableLine():
-            return "unreadable"
+        case vl.WrittenDirective(name, values, block):
+            return f"directive {name} {len(values)} {block is not None}"
+        case vl.ExtensionLine(name, values, _):
+            return f"extension {name} {values[0].text}"
+        case vl.SetLine(variable, values):
+            return f"set ${variable.name} {len(values)}"
+        case vl.SnippetLine(name, parameters, block):
+            return f"snippet {name} {len(parameters)} {len(block)}"
+        case vl.UseLine(snippet_name, values):
+            return f"use {snippet_name} {len(values)}"
+        case vl.UnreadableLine(text):
+            return f"unreadable {text}"
         case _:
             assert_never(statement)
 
 
 def value_kind(value: vl.WrittenValue) -> str:
     match value:
-        case vl.Word() | vl.String():
-            return value.kind
-        case vl.List():
-            return f"list of {len(value.items)}"
-        case vl.Slice():
-            return f"slice {value.name}"
-        case vl.Index():
-            return f"index {value.name}[{value.index.text}]"
-        case vl.Reference():
-            return f"reference {value.name}"
+        case written.Word(text) | written.String(text):
+            return f"{value.kind} {text}"
+        case written.List(items):
+            return f"list of {len(items)}"
+        case written.Slice(name, start, end):
+            return f"slice {name} {start is not None} {end is not None}"
+        case written.Index(name, index):
+            return f"index {name}[{index.text}]"
+        case written.Reference(name):
+            return f"reference {name}"
         case _:
             assert_never(value)
 
@@ -165,22 +205,24 @@ def test_match_narrows_every_kind_and_a_block_is_a_sequence_of_the_same_handles(
     graph = load({"main.conf": text, "p.conf": ""})
     body = graph.root.block
     assert [describe(s) for s in body] == [
-        "extension include",
-        "set $a",
-        "snippet s",
-        "use s",
-        "directive x",
-        "unreadable",
+        'extension include "p.conf"',
+        "set $a 1",
+        "snippet s 0 1",
+        "use s 0",
+        "directive x 6 False",
+        'unreadable z x"y";',
     ]
     x = directive(body[4])
     assert [value_kind(v) for v in x.values] == [
-        "word",
-        "string",
+        "word w",
+        'string "s"',
         "list of 2",
-        "slice c",
+        "slice c True True",
         "index c[0]",
         "reference a",
     ]
+    assert isinstance(body[0], vl.Statement) and isinstance(x.values[0], vl.WrittenValue)
+    assert all(isinstance(v, vl.Variable) for v in graph.variables())
     assert body[0] is body[0]
     assert len(body) == 6
     assert x in body
@@ -254,7 +296,7 @@ def test_save_raises_save_error_from_the_writers_error_and_changes_no_saved_text
 
     with pytest.raises(vl.SaveError) as raised:
         graph.save(Failing())
-    assert [f.resolved_path for f in raised.value.files] == ["main.conf"]
+    assert raised.value.paths == ("main.conf",)
     assert raised.value.__cause__ is cause
     assert graph.root.saved_text == "x 1;\n"
     assert graph.root.text != graph.root.saved_text
@@ -324,11 +366,12 @@ def test_an_unreadable_names_the_statement_that_could_not_be_read() -> None:
     assert unreadable.written is graph.root.block[0]
 
 
-def test_load_of_an_unreadable_root_raises_read_error_a_diagnostic_error() -> None:
+def test_load_of_an_unreadable_root_raises_read_error_with_its_path_and_no_diagnostic() -> None:
     with pytest.raises(vl.ReadError) as raised:
         vl.Processor(source=vl.memory_source({})).load("missing.conf")
-    assert isinstance(raised.value, vl.DiagnosticError)
-    assert raised.value.diagnostic.code == "E3004"
+    assert not isinstance(raised.value, vl.DiagnosticError)
+    assert raised.value.paths == ("missing.conf",)
+    assert not hasattr(raised.value, "diagnostic")
 
 
 def test_format_diagnostic_prints_the_documents_current_text() -> None:
@@ -345,7 +388,7 @@ def test_an_argument_links_its_line_its_definition_and_its_chain() -> None:
     reference = directive(graph.root.block[1]).values[0]
     assert listed.written is reference and listed.chain[0].reference is reference
     assert listed.definition is graph.root.block[0].values[0]  # type: ignore[union-attr]
-    assert [item.written for item in listed.as_list()] == [reference, reference]  # items share their list's $name
+    assert [item.written for item in listed.list()] == [reference, reference]  # items share their list's $name
     assert three.written is three.definition is directive(graph.root.block[1]).values[1] and three.chain == ()
     [four] = y.values
     assert four.definition is None and four.written is directive(graph.root.block[2]).values[0]
@@ -451,3 +494,163 @@ def test_set_refuses_a_line_break_that_would_split_the_statement() -> None:
     [problem] = raised.value.diagnostics
     assert (problem.code, problem.span.start.line, problem.span.start.column) == ("E2001", 1, 0)
     assert graph.root.text == "port 80;\n"
+
+
+# --- the error classes (spec/contract.md 4) ---
+
+
+@pytest.mark.parametrize(
+    ("cls", "bases"),
+    [
+        (vl.DiagnosticError, (vl.VillanelleError,)),
+        (vl.ReadError, (vl.VillanelleError,)),
+        (vl.SaveError, (vl.VillanelleError,)),
+        (vl.EditError, (vl.VillanelleError, ValueError)),
+        (vl.BadTextError, (vl.EditError,)),
+        (vl.DetachedError, (vl.VillanelleError, ReferenceError)),
+        (vl.VillanelleError, (Exception,)),
+    ],
+)
+def test_every_package_error_is_under_villanelle_error_as_the_contract_draws_the_tree(
+    cls: type, bases: tuple[type, ...]
+) -> None:
+    assert cls.__bases__ == bases
+
+
+def test_a_detached_error_is_not_an_edit_error_and_reading_a_property_raises_it() -> None:
+    graph = load({"main.conf": "x 1;\n"})
+    x = directive(graph.root.block[0])
+    x.remove()
+    with pytest.raises(vl.DetachedError) as raised:
+        _ = x.name
+    assert isinstance(raised.value, ReferenceError)
+    assert not isinstance(raised.value, vl.EditError | ValueError)
+    assert x.kind is vl.StatementKind.DIRECTIVE
+
+
+@pytest.mark.parametrize("writer", [lambda files: None, object(), None])
+def test_save_raises_type_error_for_anything_but_a_document_writer_before_anything(writer: object) -> None:
+    graph = load({"main.conf": "x 1;\n"})
+    directive(graph.root.block[0]).set("2")
+    got = type(writer).__name__
+    message = f"save() argument 'writer' must be a document writer (an object with a write method), not {got}"
+    with pytest.raises(TypeError) as raised:
+        graph.save(writer)  # type: ignore[arg-type]
+    assert str(raised.value) == message
+    assert graph.root.saved_text == "x 1;\n"
+
+
+# --- the memory adapters (spec/contract.md 5) ---
+
+
+def test_a_memory_writer_saves_into_the_map_a_memory_source_reads() -> None:
+    files = {"main.conf": "x 1;\n"}
+    processor = vl.Processor(source=vl.memory_source(files))
+    graph = processor.load("main.conf")
+    directive(graph.root.block[0]).set("2")
+    assert graph.save(vl.memory_writer(files)) == ["main.conf"]
+    assert files == {"main.conf": "x 2;\n"}
+    assert graph.root.saved_text == "x 2;\n"
+    assert processor.load("main.conf").root.text == "x 2;\n"
+
+
+def test_a_memory_writer_refuses_a_lost_update_and_writes_nothing() -> None:
+    files = {"main.conf": 'include "a.conf";\n', "a.conf": "y 1;\n"}
+    graph = load(files)
+    graph.root.replace_with_text('include "a.conf";\nz;\n')
+    directive(graph.documents["a.conf"].block[0]).set("2")
+    files["a.conf"] = "y 9;\n"  # changed by someone else since the load
+    with pytest.raises(vl.SaveError) as raised:
+        graph.save(vl.memory_writer(files))
+    assert raised.value.paths == ("main.conf", "a.conf")
+    assert "a.conf" in str(raised.value.__cause__)
+    assert files == {"main.conf": 'include "a.conf";\n', "a.conf": "y 9;\n"}
+
+
+def test_a_memory_source_reads_its_map_at_every_call() -> None:
+    files = {"main.conf": "x 1;\n"}
+    processor = vl.Processor(source=vl.memory_source(files))
+    files["main.conf"] = "x 2;\n"
+    assert processor.load("main.conf").root.text == "x 2;\n"
+
+
+# --- insert before and after ---
+
+
+def test_insert_before_and_after_go_into_the_statements_own_block() -> None:
+    graph = load({"main.conf": "a 1;\nblk {\n    b 2;\n}\n"})
+    a, blk = graph.root.block
+    inner = directive(blk).block
+    assert inner is not None
+    [b] = inner
+    assert [s.text for s in b.insert_after("c 3;")] == ["c 3;"]
+    assert [s.text for s in a.insert_before("z;")] == ["z;"]
+    assert graph.root.text == "z;\na 1;\nblk {\n    b 2;\n    c 3;\n}\n"
+    with pytest.raises(TypeError, match=r"^insert_before\(\) argument 'text' must be str, not int"):
+        a.insert_before(1)  # type: ignore[arg-type]
+
+
+# --- the expansion the rendered layer builds on (spec 6.10) ---
+
+
+def test_expand_gives_every_copy_with_its_values_links_and_what_could_not_be_read() -> None:
+    graph = load({"main.conf": "set $l [1, 2];\nx $l { y 3; $bad; }\nz $nope;\n"})
+    expansion = graph.expand()
+    [x] = expansion.block
+    match x:
+        case vl.DirectiveExpansion(statement, [value], block):
+            assert statement is graph.root.block[1]
+            assert value.value.text == "[1, 2]" and isinstance(value.value, vl.ExpandedList)
+            assert [i.value.text for i in value.items] == ["1", "2"]
+            assert value.value.items == tuple(i.value for i in value.items)
+            assert value.written.text == "$l" and value.definition is not None and value.definition.text == "[1, 2]"
+            assert [r.reference.text for r in value.chain] == ["$l"]
+            assert block is not None and [d.statement.name for d in block] == ["y"]
+        case _:
+            pytest.fail("no match")
+    assert [(u.reason, u.statement.text) for u in x.unreadable] == [("syntax", "$bad;")]
+    assert [(u.reason, u.statement.text) for u in expansion.unreadable] == [("expansion", "z $nope;")]
+    assert [str(d.code) for d in expansion.diagnostics] == [str(d.code) for d in vl.render(graph).diagnostics]
+    assert "E5001" in [str(d.code) for d in expansion.diagnostics]
+
+
+def test_list_items_have_one_shape_in_both_layers() -> None:
+    graph = load({"main.conf": "x [1, [2]];\n"})
+    written_list = directive(graph.root.block[0]).values[0]
+    argument = vl.render(graph).block[0].values[0]
+    assert isinstance(written_list, written.List) and isinstance(argument, vl.ListArgument)
+    assert isinstance(written_list.items, tuple) and isinstance(argument.items, tuple)
+    assert [i.text for i in written_list.items] == [i.text for i in argument.items] == ["1", "[2]"]
+    assert argument.list() == argument.items
+    assert all(isinstance(i, vl.WordArgument | vl.ListArgument) for i in argument.items)
+
+
+# --- kinds, match and the union aliases (frozen-m2.md 1, 13) ---
+
+
+def test_match_works_on_every_variable_variant_and_each_union_alias_is_an_isinstance_check() -> None:
+    graph = load({"main.conf": "set $a 1;\nsnippet s $p { x $p; }\nuse s $a;\n"}, {"h": "2"})
+    names = []
+    for variable in graph.variables():
+        match variable:
+            case vl.SetVariable(name) | vl.Parameter(name) | vl.OverrideVariable(name):
+                names.append((variable.kind.value, name))
+    assert names == [("set", "a"), ("parameter", "p"), ("override", "h")]
+    rendered = vl.render(graph)
+    argument = rendered.block[0].values[0]
+    assert isinstance(argument, vl.Argument) and isinstance(argument, vl.ExpandedValue)
+    assert isinstance(argument.origin.place, vl.Place) and argument.origin.place.kind is vl.PlaceKind.FILE
+    assert vl.Override("h").kind is vl.PlaceKind.OVERRIDE
+    after = vl.render(load({"main.conf": "set $a 1;\nsnippet s $p { x $p; y; }\nuse s $a;\n"}))
+    [change] = rendered.diff(after)
+    assert isinstance(change, vl.Change) and change.kind is vl.ChangeKind.ADDED
+    match change:
+        case vl.Added(address, directive_after):
+            assert (str(address), directive_after.name) == ("y", "y")
+        case _:
+            pytest.fail("no match")
+
+
+def test_a_diagnostic_prints_its_people_form() -> None:
+    [d] = vl.parse("x ]\n").diagnostics
+    assert str(d) == f"1:3: E2004: {d.message}"

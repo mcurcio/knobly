@@ -8,10 +8,11 @@ import re
 from typing import Any
 
 import pytest
-from conftest import REPO
+from conftest import REPO, utf16_column
 from test_load_conformance import _escape, origin, place
 
 import villanelle as vl
+from villanelle import written
 from villanelle.include import include
 
 WRITTEN = REPO / "conformance" / "written"
@@ -44,6 +45,8 @@ _OPS = {
     "insertStatements": "insert_statements",
     "addStatements": "add_statements",
     "setOverride": "set_override",
+    "insertBefore": "insert_before",
+    "insertAfter": "insert_after",
 }
 
 
@@ -59,21 +62,21 @@ def to_bytes(value: Any) -> str:
     return re.sub(r"[\u0080-\U0010ffff]", _escape, json.dumps(value, ensure_ascii=False, separators=(",", ":"))) + "\n"
 
 
-def copy_text(place: vl.Place, via: tuple[vl.Step, ...]) -> str:
-    return origin(place, via)
-
-
-def variable_text(variable: vl.Variable | None) -> str | None:
-    if variable is None:
-        return None
-    return f"override {variable.name}" if variable.place is None else place(variable.place)
+def variable_text(variable: vl.Variable | None, graph: vl.DocumentGraph) -> str | None:
+    match variable:
+        case None:
+            return None
+        case vl.OverrideVariable(name):
+            return f"override {name}"
+        case vl.SetVariable() | vl.Parameter():
+            return place(variable.place, graph)
 
 
 def statements_of(block: vl.WrittenBlock) -> list[vl.Statement]:
     out: list[vl.Statement] = []
     for s in block:
         out.append(s)
-        inner = s.block if isinstance(s, vl.WrittenDirective | vl.SnippetLine) else None
+        inner = s.block if isinstance(s, vl.WrittenDirective | vl.ExtensionLine | vl.SnippetLine) else None
         if inner is not None:
             out.extend(statements_of(inner))
     return out
@@ -85,19 +88,19 @@ def values_of(statement: vl.Statement) -> list[vl.WrittenValue]:
     def add(v: vl.WrittenValue) -> None:
         out.append(v)
         match v:
-            case vl.List():
+            case written.List():
                 for item in v.items:
                     add(item)
-            case vl.Slice():
+            case written.Slice():
                 for bound in (v.start, v.end):
                     if bound is not None:
                         add(bound)
-            case vl.Index():
+            case written.Index():
                 add(v.index)
             case _:
                 pass
 
-    if isinstance(statement, vl.WrittenDirective | vl.SetLine | vl.UseLine):
+    if isinstance(statement, vl.WrittenDirective | vl.ExtensionLine | vl.SetLine | vl.UseLine):
         for v in statement.values:
             add(v)
     return out
@@ -142,7 +145,7 @@ class Runner:
             if len(rest) == 1:
                 return self.doc(rest[0]).block
             found = self.statement(*rest)
-            assert isinstance(found, vl.WrittenDirective | vl.SnippetLine)
+            assert isinstance(found, vl.WrittenDirective | vl.ExtensionLine | vl.SnippetLine)
             return found.block
         if kind == "value":
             doc = self.doc(rest[0])
@@ -152,7 +155,9 @@ class Runner:
             return next(
                 v
                 for v in self.graph.variables()
-                if v.place is not None and v.place.resolved_path == rest[0] and starts_at(v.place, rest[1], rest[2])
+                if isinstance(v, vl.SetVariable | vl.Parameter)
+                and v.place.resolved_path == rest[0]
+                and starts_at(v.place, rest[1], rest[2])
             )
         if kind == "override":
             return next(v for v in self.graph.variables() if v.kind == "override" and v.name == rest[0])
@@ -176,9 +181,14 @@ class Runner:
         self.previous = handle
         try:
             result = getattr(handle, _OPS[op])(*args)
-        except vl.EditError as error:
+        except (vl.EditError, vl.DetachedError) as error:
+            # A bad text error is located in the text the edit was given: its columns are converted with that text.
+            given = next((a for a in reversed(args) if isinstance(a, str)), "")
             diagnostics = (
-                [[d.code, d.span.start.line, d.span.start.column] for d in error.diagnostics]
+                [
+                    [d.code, d.span.start.line, utf16_column(given, d.span.start.offset, d.span.start.column)]
+                    for d in error.diagnostics
+                ]
                 if isinstance(error, vl.BadTextError)
                 else []
             )
@@ -192,62 +202,68 @@ class Runner:
         g = self.graph
         return {
             "files": [
-                [d.resolved_path, [copy_text(e.copy.statement.place, e.copy.via) for e in d.included_by()]]
+                [d.resolved_path, [origin(e.copy.statement.place, e.copy.via, g) for e in d.included_by()]]
                 for d in g.documents.values()
             ],
             "edges": [
-                [copy_text(e.copy.statement.place, e.copy.via), list(e.specs), list(e.targets)] for e in g.edges()
+                [origin(e.copy.statement.place, e.copy.via, g), list(e.specs), list(e.targets)] for e in g.edges()
             ],
             "variables": [
                 [
                     v.name,
                     v.kind,
-                    "override" if v.place is None else place(v.place),
-                    [copy_text(r.reference.place, r.copy.via) for r in v.wins()],
-                    [[copy_text(r.reference.place, r.copy.via), variable_text(r.winner)] for r in v.shadowed_at()],
+                    "override" if isinstance(v, vl.OverrideVariable) else place(v.place, g),
+                    [origin(r.reference.place, r.copy.via, g) for r in v.wins()],
+                    [[origin(r.reference.place, r.copy.via, g), variable_text(r.winner, g)] for r in v.shadowed_at()],
                 ]
                 for v in g.variables()
             ],
-            "diagnostics": [[str(d.code), origin(d.place, d.via)] for d in g.diagnostics],
+            "diagnostics": [[str(d.code), origin(d.place, d.via, g)] for d in g.diagnostics],
         }
 
     def references(self) -> Any:
+        g = self.graph
         return [
             [
-                place(r.place),
-                variable_text(r.declaration),
+                place(r.place, g),
+                variable_text(r.declaration, g),
                 [
-                    [copy_text(r.place, x.copy.via), variable_text(x.winner), [variable_text(o) for o in x.shadowed]]
+                    [
+                        origin(r.place, x.copy.via, g),
+                        variable_text(x.winner, g),
+                        [variable_text(o, g) for o in x.shadowed],
+                    ]
                     for x in r.resolutions()
                 ],
             ]
             for doc in self.graph.documents.values()
             for s in statements_of(doc.block)
             for r in values_of(s)
-            if isinstance(r, vl.Reference)
+            if isinstance(r, written.Reference)
         ]
 
     def render(self) -> Any:
-        rendered = vl.render(self.graph)
+        g = self.graph
+        rendered = vl.render(g)
         addresses = rendered.addresses()
         directives: list[Any] = []
         unreadable: list[Any] = [
-            ["", u.reason.value, origin(u.origin.place, u.origin.via)] for u in rendered.unreadable
+            ["", u.reason.value, origin(u.origin.place, u.origin.via, g)] for u in rendered.unreadable
         ]
         for d in rendered.walk():
             address = str(addresses[d])
             args = [
                 [
                     a.text,
-                    origin(a.origin.place, a.origin.via),
-                    None if a.definition is None else place(a.definition.place),
-                    [[copy_text(r.reference.place, r.copy.via), variable_text(r.winner)] for r in a.chain],
+                    origin(a.origin.place, a.origin.via, g),
+                    None if a.definition is None else place(a.definition.place, g),
+                    [[origin(r.reference.place, r.copy.via, g), variable_text(r.winner, g)] for r in a.chain],
                 ]
                 for a in d.values
             ]
-            directives.append([address, d.block is not None, origin(d.origin.place, d.origin.via), args])
-            unreadable.extend([address, u.reason.value, origin(u.origin.place, u.origin.via)] for u in d.unreadable)
-        diagnostics = [[str(d.code), origin(d.place, d.via)] for d in rendered.diagnostics]
+            directives.append([address, d.block is not None, origin(d.origin.place, d.origin.via, g), args])
+            unreadable.extend([address, u.reason.value, origin(u.origin.place, u.origin.via, g)] for u in d.unreadable)
+        diagnostics = [[str(d.code), origin(d.place, d.via, g)] for d in rendered.diagnostics]
         return {"directives": directives, "unreadable": unreadable, "diagnostics": diagnostics}
 
     def step(self, step: list[Any]) -> Any:

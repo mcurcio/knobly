@@ -8,41 +8,32 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
-from villanelle.diagnostics import DiagnosticCode
-from villanelle.origin import Place
-from villanelle.report import LocatedDiagnostic
+from villanelle.errors import ReadError
 from villanelle.source import DocumentSource, LoadContext
-from villanelle.span import SourcePosition, SourceSpan
-from villanelle.syntax._recovery import message_of
 from villanelle.written import _bind, _graph
-from villanelle.written.errors import ReadError
 from villanelle.written.model import DocumentGraph
 
 if TYPE_CHECKING:
     from villanelle.extension import Extension
-
-_START = SourcePosition(0, 0, 0)
 
 
 def load_graph(
     source: DocumentSource, extensions: Mapping[str, Extension], path: str, overrides: Mapping[str, str]
 ) -> DocumentGraph:
     """Read the root file at ``path`` (resolved through the source, as an included file's spec is, F1-04) and every
-    file its include lines name. Checks the overrides first (``_graph.check_override``); raises ReadError E3004 at
-    the root path when the source fails, finds no file, or finds more than one."""
+    file its include lines name. Checks the overrides first (``_graph.check_override``); raises ReadError (``paths``:
+    the root path) when the source fails, finds no file, or finds more than one."""
     graph = DocumentGraph(source, extensions, overrides)
-    code = DiagnosticCode.INCLUDE_RESOLVER_FAILED
 
     def fail(reason: object) -> ReadError:
-        message = f"{message_of(code)}: {path}: {reason}"
-        return ReadError(LocatedDiagnostic(code, message, Place(path, SourceSpan(_START, _START)), ()))
+        return ReadError(f"cannot read the root file {path}: {reason}", [path])
 
     try:
         paths = source.resolve(path, LoadContext(""))
     except Exception as error:
         raise fail(error) from error
     if len(paths) != 1:
-        raise fail("no such file" if not paths else f"names {len(paths)} files")
+        raise fail("no such file" if not paths else f"it names {len(paths)} files")
     try:
         text = source.read(paths[0])
     except Exception as error:

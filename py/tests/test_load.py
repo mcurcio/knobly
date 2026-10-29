@@ -104,7 +104,7 @@ def test_directive_matches_by_name_values_and_block() -> None:
         case _:
             pytest.fail("no match")
     match graph.block[0].values[0]:
-        case vl.Argument("word", "DdpSink"):
+        case vl.WordArgument("DdpSink"):
             pass
         case _:
             pytest.fail("no match")
@@ -157,20 +157,29 @@ def test_the_root_is_resolved_through_the_source_so_it_has_one_path_and_is_read_
     assert names(loaded) == ["y"]
 
 
-def test_a_root_the_source_cannot_resolve_to_one_file_raises_e3004_at_the_path_as_written() -> None:
+def test_a_root_the_source_cannot_resolve_to_one_file_raises_read_error_with_the_path_as_written() -> None:
     glob = processor({"a.conf": "", "b.conf": ""})
     for path in ["*.conf", "missing.conf"]:
-        with pytest.raises(vl.DiagnosticError) as raised:
+        with pytest.raises(vl.ReadError) as raised:
             glob.load(path)
-        d = raised.value.diagnostic
-        assert (d.code, d.place.resolved_path, at(d), d.via) == ("E3004", path, (0, 0), ())
+        # No diagnostic and no code (spec/contract.md 4.1): a missing root is not an extension line's E3004.
+        assert raised.value.paths == (path,)
+        assert raised.value.__cause__ is None
+        assert not isinstance(raised.value, vl.DiagnosticError)
 
 
-def test_a_root_the_source_cannot_read_raises_e3004_at_the_root() -> None:
+def test_a_root_the_source_cannot_read_raises_read_error_from_the_sources_failure() -> None:
+    class Failing:
+        def resolve(self, spec: str, context: vl.LoadContext, /) -> Sequence[str]:
+            return [spec]
+
+        def read(self, resolved_path: str, /) -> str:
+            raise PermissionError(resolved_path)
+
     with pytest.raises(vl.ReadError) as raised:
-        processor({}).load("missing.conf")
-    d = raised.value.diagnostic
-    assert (d.code, d.place.resolved_path, at(d), d.via) == ("E3004", "missing.conf", (0, 0), ())
+        vl.Processor(source=Failing()).load("main.conf")
+    assert raised.value.paths == ("main.conf",)
+    assert isinstance(raised.value.__cause__, PermissionError)
 
 
 # --- rule 1: reserved names --------------------------------------------------------------------------------------
@@ -253,7 +262,7 @@ def test_a_variable_becomes_all_its_values_in_a_directive_and_in_a_list() -> Non
     loaded = load("set $ports 8080 443;\nport $ports dev;\nallow [$ports, 1];\n")
     port, allow = loaded.block
     assert texts(port) == ["8080", "443", "dev"]
-    assert [a.text for a in allow.values[0].as_list()] == ["8080", "443", "1"]
+    assert [a.text for a in allow.values[0].list()] == ["8080", "443", "1"]
 
 
 def test_an_override_slice_bound_that_is_not_an_integer_is_e4001_at_the_name_that_used_it() -> None:
@@ -645,7 +654,17 @@ def test_diff_accepts_loads_with_diagnostics() -> None:
     assert changes("a $x;\nb;\n", "a $x;\nb 1;\n") == [("changed", "b")]
 
 
-def test_render_raises_type_error_for_anything_but_a_document_graph() -> None:
-    # spec 2.8 misuse: the same TypeError and message as TypeScript's render({}), not an AttributeError from inside.
-    with pytest.raises(TypeError, match=r"^render takes a document graph from a processor's load$"):
-        vl.render(object())  # type: ignore[arg-type]
+def test_render_builds_on_the_graphs_public_members_only() -> None:
+    # vil-9fy (spec 7.0): render reads graph.expand() and graph.root.resolved_path, nothing private, so any object
+    # with those members renders the same tree.
+    graph = processor({"main.conf": "set $a 1;\nx $a { y; }\n"}).load("main.conf")
+
+    class StandIn:
+        root = graph.root
+
+        def expand(self) -> vl.Expansion:
+            return graph.expand()
+
+    rendered = vl.render(StandIn())  # type: ignore[arg-type]
+    assert [(d.name, [a.text for a in d.values]) for d in rendered.walk()] == [("x", ["1"]), ("y", [])]
+    assert rendered.origin.place.resolved_path == "main.conf"
