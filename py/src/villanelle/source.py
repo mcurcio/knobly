@@ -1,6 +1,8 @@
-"""Where files come from: the one port the load reads through, for the root file and for every file an extension
-names (round 11 review finding 3). The core does no I/O (R16): ``villanelle.files`` gives a filesystem source;
-``memory_source`` serves texts the program already holds (tests, editors)."""
+"""The I/O ports (spec/schema/api.json, layer io): where files come from, the one port the load reads through for the
+root file and for every file an extension names (round 11 review finding 3), and where a save writes them
+(``DocumentWriter``, given ``FileWrite``s by ``DocumentGraph.save``). The core does no I/O (R16):
+``villanelle.files`` gives a filesystem source and writer; ``memory_source`` serves texts the program already holds
+(tests, editors)."""
 
 from __future__ import annotations
 
@@ -30,6 +32,28 @@ class DocumentSource(Protocol):
 
     def read(self, resolved_path: str, /) -> str:
         """The text of one resolved file. An exception becomes E3004 (for the root file, ``load`` raises)."""
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class FileWrite:
+    """One file a save hands to the writer."""
+
+    resolved_path: str
+    text: str
+    """What to write."""
+    saved_text: str
+    """The document's ``saved_text``: compare it with the disk to find a lost update."""
+
+
+class DocumentWriter(Protocol):
+    """The program's writer."""
+
+    def write(self, files: Sequence[FileWrite], /) -> None:
+        """One batch: stage every file, then commit them together. Raising while staging means nothing was committed;
+        a writer that can fail part way through committing (the fs writer's renames) leaves the files it committed
+        changed on disk while their ``saved_text`` stays the old text, so the next save refuses them as lost updates
+        until the program reloads (stated cost, D-F1-10)."""
         ...
 
 

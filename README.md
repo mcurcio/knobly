@@ -27,23 +27,25 @@ villanelle has three layers, each built on the one below; a program can work at 
 
 - **The syntax tree.** `parse(text)` reads one text into tokens and a tree, with every character in exactly one
   token. It never fails: problems are diagnostics.
-- **The low level: the files as written.** `processor.load(path)` reads a root file and every file it includes, and
-  shows which files were read, what variables exist and where each one is overridden. A program can change any of
-  it (values, lines, variables, handed-in values) and `save` writes the changed files back, comments and layout
-  kept. Reference: [docs/low-level-api.md](docs/low-level-api.md).
-- **The rendered tree.** `processor.render(graph)` works out variables, snippets and included files into the
-  directives a program reads, each value with the place it was written. It also gives every directive an address
-  under the program's key rule, and `processor.diff(before, after, { key })` lists what changed between two
-  renders. Reference: [docs/rendered-tree.md](docs/rendered-tree.md).
+- **The low level: the files as written.** `processor.load(path)` reads a root file and every file it includes into
+  a document graph, and shows which files were read, what variables exist and which `set` line wins where. A
+  program can change any of it (`set(text)` on a line or a variable, `setOverride` / `set_override` for an
+  override) and `graph.save(writer)` writes the changed files back, comments and layout kept; `graph.read()` reads
+  files an edit newly includes. The low level knows nothing of the rendered tree. Reference:
+  [docs/low-level-api.md](docs/low-level-api.md).
+- **The rendered tree.** `render(graph)` works out variables, snippets and included files into the directives a
+  program reads, each value with the place it was written. It also gives every directive an address under the
+  program's key rule, and `before.diff(after, { key })` (Python: `before.diff(after, key=...)`) lists what changed
+  between two renders. Reference: [docs/rendered-tree.md](docs/rendered-tree.md).
 
 ```ts
   const config = villanelle({ source: memorySource(FILES), extensions: [include()] });
-  const graph = await config.load("main.conf", { variables: { leds_host: '"10.0.70.1"' } });
+  const graph = await config.load("main.conf", { overrides: { leds_host: '"10.0.70.1"' } });
 ```
 
 ```python
     config = vl.Processor(source=vl.memory_source(FILES), extensions=[include()])
-    return config, config.load("main.conf", variables={"leds_host": '"10.0.70.1"'})
+    return config.load("main.conf", overrides={"leds_host": '"10.0.70.1"'})
 ```
 
 (Excerpts of `ts/src/written/tracer.test.ts` and `py/tests/test_tracer.py`, which go on to list the variables of
@@ -52,7 +54,8 @@ copied from a test that runs.
 
 | Entry point | TypeScript | Python |
 |---|---|---|
-| the core (no input or output) | `villanelle`: `parse`, `villanelle`, `save`, `quote`, `memorySource`, `Diagnostics`, `formatDiagnostic`, ... | `villanelle`: `parse`, `Processor`, `save`, `quote`, `memory_source`, `Diagnostics`, `format_diagnostic`, `walk`, ... |
+| the core (no input or output) | `villanelle`: `parse`, `villanelle`, `render`, `quote`, `memorySource`, `Diagnostics`, `formatDiagnostic`, ... | `villanelle`: `parse`, `Processor`, `render`, `quote`, `memory_source`, `Diagnostics`, `format_diagnostic`, ... |
+| one layer only | `villanelle` re-exports every layer | `villanelle.written` (the low level), `villanelle.rendered` (the rendered tree) |
 | the include extension | `villanelle/include`: `include()` | `villanelle.include`: `include()` |
 | files on disk | `villanelle/node`: `createFileSource()`, `createFsWriter()` | `villanelle.files`: `file_source()`, `fs_writer()` |
 | files over `fetch` | `villanelle/browser`: `createFetchSource(fetch)`, `createFetchWriter(fetch, options?)` | none |

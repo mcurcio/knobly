@@ -121,6 +121,8 @@ def concept_problems(concept: dict[str, Any]) -> list[str]:
     variants = classes_of(getattr(villanelle, name))
     out = []
     for member in concept.get("members", []):
+        if "py" in member.get("later", {}):  # the schema defers this member here to a later milestone
+            continue
         found = {k: problems_on(k, member) for k in variants}
         # A member whose value may be absent may be missing from a variant that never has it (Added has no before).
         if member.get("absent") and len(variants) > 1 and any(not p for p in found.values()):

@@ -643,3 +643,9 @@ def test_diff_names_directives_by_the_key_rule_it_is_given() -> None:
 
 def test_diff_accepts_loads_with_diagnostics() -> None:
     assert changes("a $x;\nb;\n", "a $x;\nb 1;\n") == [("changed", "b")]
+
+
+def test_render_raises_type_error_for_anything_but_a_document_graph() -> None:
+    # spec 2.8 misuse: the same TypeError and message as TypeScript's render({}), not an AttributeError from inside.
+    with pytest.raises(TypeError, match=r"^render takes a document graph from a processor's load$"):
+        vl.render(object())  # type: ignore[arg-type]

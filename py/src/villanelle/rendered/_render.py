@@ -119,7 +119,9 @@ class Rendered:
 def render(graph: DocumentGraph, /) -> Rendered:
     """The rendered tree of the graph's current texts and overrides: variables substituted, snippets used, included
     files spliced in. Pure: reads no file; an unread include copy renders as nothing (its edge is in
-    ``graph.unread()``)."""
+    ``graph.unread()``). Raises TypeError for anything but a document graph from a processor's load."""
+    if not isinstance(graph, DocumentGraph):
+        raise TypeError("render takes a document graph from a processor's load")
     binding = _graph.binding(graph)
     made: list[Directive] = []
 

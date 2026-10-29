@@ -39,7 +39,7 @@ in lowercase words; the TypeScript and Python spellings follow from the casing r
 
 | Word | Means | Replaces (before milestone 1) |
 |---|---|---|
-| `block` | the statements inside `{ }`, and a file's top level, in every layer | `body` (document, rendered directive, rendered tree) |
+| `block` | the statements inside `{ }`, and a file's top level, in every layer. The word is shared; the shape is not: the low level's `written block` is an object (`statements`, `directives (name)`, `insert statements`, `add statements`), while a rendered `block` is a plain read-only sequence of directives (filter it by `name`, or `walk`) | `body` (document, rendered directive, rendered tree) |
 | `values` | a line's values, in every layer | `args` (rendered directive, extension use) |
 | `written` | the low-level handle behind a rendered thing, on **the same line**: a rendered directive's line, an unreadable statement, a rendered value's same-line value (the `$name` it came through, or the value itself) | a rendered value's `written`, which used to be the end of its chain |
 | `definition` | the written value at the end of a variable chain (the value in the `set` line) | the old rendered value `written` |
@@ -85,7 +85,7 @@ that rename is not part of milestone 1. "Union" means a TypeScript union type or
 |---|---|---|
 | `source position` | `ISourcePosition` | `SourcePosition` |
 | `source span` | `ISourceSpan` | `SourceSpan` |
-| `place` (kind `file`) | `IPlace` | `Place` (no `kind` field yet: root cause 3) |
+| `place` (kind `file`) | `IPlace` | `Place` (no `kind` field yet: root cause 3; the schema marks it `later`) |
 | `override` (kind `override`, as an origin's place) | `IOverride` | `Override` |
 | `step` | `IStep` | `Step` |
 | `origin` | `IOrigin` | `Origin` |
@@ -99,6 +99,7 @@ that rename is not part of milestone 1. "Union" means a TypeScript union type or
 | `expanded value` | `IExpandedValue` | `ExpandedValue` |
 | `slice value`, `index value` | `ISliceValue`, `IIndexValue` | `SliceValue`, `IndexValue` |
 | `plain value` | `PlainValue` | `PlainValue` |
+| `quote` (free function: a plain string as villanelle text) | `quote`, in `ts/src/text.ts` | `quote`, in `villanelle/_text.py`, exported from `villanelle` |
 | errors | `DiagnosticError`, `ReadError`, `EditError`, `BadTextError`, `DetachedError`, `NoSetLineError`, `SaveError` | the same class names |
 
 ### Syntax layer
@@ -117,8 +118,8 @@ that rename is not part of milestone 1. "Union" means a TypeScript union type or
 |---|---|---|
 | `document source` | `IDocumentSource` | `DocumentSource` (`Protocol`) |
 | `load context` | `ILoadContext` | `LoadContext` |
-| `document writer` | `IDocumentWriter` | `DocumentWriter` (`Protocol`) |
-| `file write` | `IFileWrite` | `FileWrite` |
+| `document writer` | `IDocumentWriter` (in `ts/src/source.ts`) | `DocumentWriter` (`Protocol`, in `villanelle/source.py`) |
+| `file write` | `IFileWrite` (in `ts/src/source.ts`) | `FileWrite` (in `villanelle/source.py`) |
 | `extension` | `IExtension` | `Extension` (`Protocol`) |
 | `extension use` | `IExtensionUse` | `ExtensionUse` |
 
@@ -141,6 +142,7 @@ that rename is not part of milestone 1. "Union" means a TypeScript union type or
 | `variable` | `IVariable` | `Variable` |
 | `resolution` | `IResolution<T>` | `Resolution[T]` |
 | `reference resolution` | `IReferenceResolution` | `ReferenceResolution` |
+| `format diagnostic` (free function; reads the source line from a graph) | `formatDiagnostic`, in `ts/src/written/format.ts` | `format_diagnostic`, in `villanelle/written/format.py` |
 
 ### Rendered tree
 

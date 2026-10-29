@@ -3,6 +3,7 @@
 writes the edits back. It never imports the rendered layer (spec 5, "Layer direction")."""
 
 from villanelle.written.errors import BadTextError, DetachedError, EditError, NoSetLineError, ReadError, SaveError
+from villanelle.written.format import format_diagnostic
 from villanelle.written.model import (
     Copy,
     Document,
@@ -27,7 +28,6 @@ from villanelle.written.model import (
     WrittenValue,
 )
 from villanelle.written.processor import Processor
-from villanelle.written.save import DocumentWriter, FileWrite, quote
 
 __all__ = [
     "BadTextError",
@@ -36,9 +36,7 @@ __all__ = [
     "Document",
     "DocumentEdge",
     "DocumentGraph",
-    "DocumentWriter",
     "EditError",
-    "FileWrite",
     "Index",
     "List",
     "NoSetLineError",
@@ -60,5 +58,5 @@ __all__ = [
     "WrittenBlock",
     "WrittenDirective",
     "WrittenValue",
-    "quote",
+    "format_diagnostic",
 ]

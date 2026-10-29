@@ -6,6 +6,7 @@
 
 import { DiagnosticCode, type IDiagnostic, messageOf } from "../diagnostics.js";
 import { VARIABLE_NAME } from "../gen/api/limits.js";
+import { NodeKind } from "../syntax/cst.js";
 import { parse } from "../syntax/parse.js";
 import { TokenKind } from "../syntax/tokens.js";
 import { requireText } from "../text.js";
@@ -44,6 +45,11 @@ export function checkOverride(name: unknown, text: unknown, caller: IOverrideCal
   };
   const given = text.trim() === "" ? [] : valuesTextProblems(text, false);
   if (given.length > 0) throw refuse(given);
+  // A line break ends a statement: values after one would be a second statement, not this override's values.
+  const wrapped = parse(`x ${text}`);
+  const later = wrapped.root.children.filter((n) => n.kind === NodeKind.Directive || n.kind === NodeKind.Error)[1];
+  const laterAt = later === undefined ? undefined : wrapped.tokens[later.start]?.span.start.offset;
+  if (laterAt !== undefined) throw fault(laterAt - 2, DiagnosticCode.UnexpectedToken);
   const tokens = parse(`x ${text};`).tokens.filter((t) => t.span.start.offset >= 2 && t.span.start.offset < 2 + text.length);
   const first = tokens.find((t) => t.kind !== TokenKind.Space && t.kind !== TokenKind.Newline && t.kind !== TokenKind.Comment);
   if (first === undefined) throw fault(0, DiagnosticCode.UnexpectedToken);

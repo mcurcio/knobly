@@ -6,10 +6,7 @@ directives a program reads, with variables, snippets and included files already 
 identity across reloads) and the list of what changed between two renders.
 
 > The language-neutral rules every binding follows are in [`spec/`](../spec/README.md), which wins
-> where this page differs. This page still shows the names the bindings have today; milestone 1
-> renames several of them (`overrides` for handed-in values, `graph.read()`, `graph.save(writer)`,
-> `render(graph)` from the rendered layer, `set(text)` for `setValues`, and the words in
-> [`spec/glossary.md`](../spec/glossary.md)), and this page is rewritten when the bindings change.
+> where this page differs; the words are in [`spec/glossary.md`](../spec/glossary.md).
 
 villanelle has three layers. Each one is built on the one below, and a program can work at any of them:
 
@@ -25,7 +22,7 @@ The two packages have the same parts under each language's own names. Each secti
 Python.
 
 **About the examples.** Every example is copied from a test that passes, named under it. The tests import from the
-package's source files (`./processor.js`, `../include.js`); the examples write the imports a program would write
+package's source files (`./render.js`, `../include.js`); the examples write the imports a program would write
 (`villanelle`, `villanelle/include`, `villanelle/node`). "Excerpt" means lines were left out; nothing else was
 changed.
 
@@ -40,45 +37,45 @@ TypeScript:
 ```ts
 import { fileURLToPath } from "node:url";
 
-import { type IDirective, type IProcessor, type IRendered, type KeyRule, villanelle } from "villanelle";
+import { type IDirective, type IProcessor, type IRendered, type KeyRule, render, villanelle } from "villanelle";
 import { include } from "villanelle/include";
 import { createFileSource } from "villanelle/node";
 
 /** The "rasl" key rule of conformance/load/format.md. */
 const RASL_KEY: KeyRule = (d) => {
-  if (d.name === "node" && d.parent?.name === "graph") return d.args[1]?.text;
-  if (d.name === "connect") return d.args.map((a) => a.text).join(" ");
-  if (d.name === "fill") return d.args[0]?.text;
+  if (d.name === "node" && d.parent?.name === "graph") return d.values[1]?.text;
+  if (d.name === "connect") return d.values.map((a) => a.text).join(" ");
+  if (d.name === "fill") return d.values[0]?.text;
   return undefined;
 };
 
 function nodeIds(loaded: IRendered): string[] {
   const ids: string[] = [];
   loaded.walk((d: IDirective) => {
-    if (d.name === "node" && d.parent?.name === "graph") ids.push(d.args[1]?.text ?? "");
+    if (d.name === "node" && d.parent?.name === "graph") ids.push(d.values[1]?.text ?? "");
   });
   return ids;
 }
 
-const HANDED = { leds_host: '"10.0.70.1"' };
+const OVERRIDES = { leds_host: '"10.0.70.1"' };
 
-export async function rendered(processor: IProcessor, path: string, options?: { readonly variables?: Readonly<Record<string, string>> }): Promise<IRendered> {
-  return processor.render(await processor.load(path, options));
+export async function rendered(processor: IProcessor, path: string, options?: { readonly overrides?: Readonly<Record<string, string>> }): Promise<IRendered> {
+  return render(await processor.load(path, options));
 }
 
     const processor = villanelle({ source: files, extensions: [include()] });
     const path = fileURLToPath(new URL(name, FIXTURES));
-    const options = { variables: HANDED };
+    const options = { overrides: OVERRIDES };
     const first = await rendered(processor, path, options);
     expect(first.diagnostics).toEqual(expected.diagnostics);
     expect(nodeIds(first)).toEqual(expected.nodes);
     edit();
     const second = await rendered(processor, path, options);
-    expect(processor.diff(first, second, { key: RASL_KEY }).map((c) => [c.kind, c.address.toString()])).toEqual(expected.changes);
+    expect(first.diff(second, { key: RASL_KEY }).map((c) => [c.kind, c.address.toString()])).toEqual(expected.changes);
 ```
 
-Excerpt of `ts/src/load/rasl.test.ts`, test "%s loads with the expected nodes and reload changes" (run once per
-fixture), and of `rendered` in `ts/src/load/testing.ts`. `files` is the file source from `createFileSource()`,
+Excerpt of `ts/src/rendered/rasl.test.ts`, test "%s loads with the expected nodes and reload changes" (run once
+per fixture), and of `rendered` in `ts/src/rendered/testing.ts`. `files` is the file source from `createFileSource()`,
 wrapped so that `edit()` makes the next read say `set $pixels 2400;` instead of `2284`.
 
 Python:
@@ -92,22 +89,22 @@ from villanelle.include import include
 def rasl_key(d: vl.Directive) -> str | None:
     """The "rasl" key rule of conformance/load/format.md."""
     if d.name == "node" and d.parent is not None and d.parent.name == "graph":
-        return d.args[1].text if len(d.args) > 1 else None
+        return d.values[1].text if len(d.values) > 1 else None
     if d.name == "connect":
-        return " ".join(a.text for a in d.args)
+        return " ".join(a.text for a in d.values)
     if d.name == "fill":
-        return d.args[0].text if d.args else None
+        return d.values[0].text if d.values else None
     return None
 
 
 def node_ids(loaded: vl.Rendered) -> list[str]:
-    graph = next(d for d in loaded.body if d.name == "graph")
-    return [d.args[1].text for d in graph.body or () if d.name == "node"]
+    graph = next(d for d in loaded.block if d.name == "graph")
+    return [d.values[1].text for d in graph.block or () if d.name == "node"]
 
 
     processor = vl.Processor(source=file_source(), extensions=[include()])
-    variables = {"leds_host": '"10.0.0.9"'} if handed else None
-    first = processor.render(processor.load(str(root), variables=variables))
+    overrides = {"leds_host": '"10.0.0.9"'} if override else None
+    first = vl.render(processor.load(str(root), overrides=overrides))
     expected = EXPECTED[name]
     assert expected["diagnostics"] == []
     assert first.diagnostics == ()
@@ -115,8 +112,8 @@ def node_ids(loaded: vl.Rendered) -> list[str]:
     text = root.read_text(encoding="utf-8")
     assert text.count("set $pixels 2284;") == 1
     root.write_text(text.replace("set $pixels 2284;", "set $pixels 2400;"), encoding="utf-8")
-    second = processor.render(processor.load(str(root), variables=variables))
-    changes = processor.diff(first, second, key=rasl_key)
+    second = vl.render(processor.load(str(root), overrides=overrides))
+    changes = first.diff(second, key=rasl_key)
     assert [[type(c).__name__.lower(), str(c.address)] for c in changes] == expected["changes"]
 ```
 
@@ -135,19 +132,20 @@ The rest of this page goes through each part used above.
 ## Making a processor, loading and rendering
 
 A **processor** is made once, with two things: the **document source** (where files come from) and the
-**extensions** (such as include). Every load, render and comparison goes through it, so two loads are always read
-the same way.
+**extensions** (such as include). Loading is its only operation, so two loads are always read the same way.
+Everything after a load is a method on what it gave back, or the rendered layer's `render`:
 
 | | TypeScript | Python |
 |---|---|---|
 | make | `villanelle({ source, extensions? })` | `Processor(source=..., extensions=())` |
-| load the files as written | `await processor.load(path, { variables? })` | `processor.load(path, variables=None)` |
-| read files an edit added | `await processor.read(graph)` | `processor.read(graph)` |
-| render | `processor.render(graph)` | `processor.render(graph)` |
-| compare | `processor.diff(before, after, { key? })` | `processor.diff(before, after, key=None)` |
+| load the files as written | `await processor.load(path, { overrides? })` | `processor.load(path, overrides=None)` |
+| read files an edit added | `await graph.read()` | `graph.read()` |
+| render | `render(graph)` | `render(graph)` (`villanelle.render`, from `villanelle.rendered`) |
+| compare | `before.diff(after, { key? })` | `before.diff(after, key=None)` |
 
 `load` gives back the **document graph**: the files as written, described on the [low-level page](low-level-api.md).
-`render(graph)` builds the rendered tree from the graph's current texts and handed-in values. It reads no file, so
+The low level knows nothing of the rendered tree; `render(graph)`, in the rendered layer, builds the rendered tree
+from the graph's current texts and overrides. It reads no file, so
 it can be called again after an edit, and two calls never disagree about the same texts. A rendered tree is a
 snapshot: an edit made after `render` does not change it; render again to see the edit.
 
@@ -160,50 +158,53 @@ every problem becomes a diagnostic and the rest is read. It fails only when:
   code E3004, placed at `path` as written, at line 0, column 0 (test "rejects with ReadError, a DiagnosticError E3004
   at the root path (B10)", `ts/src/written/edits.test.ts`; `test_a_root_the_source_cannot_read_raises_e3004_at_the_root`,
   `py/tests/test_load.py`);
-- a handed-in variable has a bad name or a text that is not one run of values (TypeError in TypeScript, ValueError in
-  Python).
+- an override has a bad name (TypeError in TypeScript, ValueError in Python), is not a string (TypeError), or has
+  text the check of an override refuses (`BadTextError`, located in the text: see
+  [low-level-api.md](low-level-api.md#overrides)).
 
-`render`, `read` and `diff` refuse a graph or a render that another processor made (TypeError in TypeScript,
-ValueError in Python).
+`render` takes any graph a processor loaded (TypeError for anything else, in both languages), and a render's
+`diff` takes any other render.
 
-**Handed-in variables** are texts read as values: `{ ports: '8080 443 "x" [1, 2]' }` gives `$ports` four values.
-They win over every `set` of the same name. The low level can change them later without a reload
-(`graph.setHanded`, [low-level-api.md](low-level-api.md#handed-in-values)).
+**Overrides** are texts read as values: `{ ports: '8080 443 "x" [1, 2]' }` gives `$ports` four values. They win
+over every `set` of the same name. The low level can change them later without a reload (`graph.setOverride`,
+[low-level-api.md](low-level-api.md#overrides)).
 
 What a render gives back (`IRendered` / `Rendered`):
 
 | Field | What it is |
 |---|---|
-| `body` | the top-level directives, expanded |
+| `block` | the top-level directives, expanded (a read-only sequence) |
 | `unreadable` | top-level statements that could not be read, in place |
 | `diagnostics` | every problem: each file's syntax problems, then the render's, in order |
 | `graph` | the document graph it was rendered from |
 | `origin` | the root file at 0:0, where a problem of the whole file is placed |
 | `walk(...)`, `error(...)` | see "Walking" and "Problems" |
 | `addresses({ key })` | every directive's address under a key rule (see "Addresses and the key rule") |
+| `diff(after, { key })` | what changed between this render and a later one (see "What changed: diff") |
 
 ## Walking the directives
 
-A directive (`IDirective` / `Directive`) has `name`, `args` (its values), `body` (the directives of its block, or
-undefined/None when written without a block), `unreadable`, `parent`, `origin` and `written`. `set`, `snippet`,
+A directive (`IDirective` / `Directive`) has `name`, `values`, `block` (the directives of its block, a read-only
+sequence, or undefined/None when written without a block), `unreadable`, `parent`, `origin` and `written`. `set`, `snippet`,
 `use` and include lines never appear: what they produce does, in their place.
 
 `written` is the directive as written, on the low level: the line to edit. A line read at two places (a file
-included twice, a snippet used twice) renders as two directives with the same `written` object:
+included twice, a snippet used twice) renders as two directives with the same `written` object, so an edit to it
+shows in both:
 
 ```ts
     const files = { "main.conf": 'g {\n  include "s.conf";\n}\nh {\n  include "s.conf";\n}\n', "s.conf": "x 1;\ny $nope;\n" };
     const processor = villanelle({ source: memorySource(files), extensions: [include()] });
     const graph = await processor.load("main.conf");
-    const rendered = processor.render(graph);
-    const [g, h] = rendered.body;
-    const x = graph.documents.get("s.conf")?.body.statements[0];
-    const y = graph.documents.get("s.conf")?.body.statements[1];
-    expect(g?.body?.[0]?.written).toBe(x);
-    expect(h?.body?.[0]?.written).toBe(x);
+    const rendered = render(graph);
+    const [g, h] = rendered.block;
+    const x = graph.documents.get("s.conf")?.block.statements[0];
+    const y = graph.documents.get("s.conf")?.block.statements[1];
+    expect(g?.block?.[0]?.written).toBe(x);
+    expect(h?.block?.[0]?.written).toBe(x);
     expect(g?.unreadable[0]?.written).toBe(y);
     expect(h?.unreadable[0]?.written).toBe(y);
-    expect(g?.written).toBe(graph.root.body.statements[0]);
+    expect(g?.written).toBe(graph.root.block.statements[0]);
 ```
 
 `ts/src/written/edits.test.ts`, test "gives both copies of a line read twice the same statement, and an unreadable
@@ -211,11 +212,10 @@ copy its statement".
 
 ```python
     files = {"main.conf": 'a { include "p.conf"; }\nb { include "p.conf"; }\n', "p.conf": "x 1;\n"}
-    processor = vl.Processor(source=vl.memory_source(files), extensions=[include()])
-    graph = processor.load("main.conf")
-    rendered = processor.render(graph)
-    x1, x2 = (d for d in vl.walk(rendered) if d.name == "x")
-    assert x1.written is x2.written is graph.documents["p.conf"].body[0]
+    graph = vl.Processor(source=vl.memory_source(files), extensions=[include()]).load("main.conf")
+    rendered = vl.render(graph)
+    x1, x2 = (d for d in rendered.walk() if d.name == "x")
+    assert x1.written is x2.written is graph.documents["p.conf"].block[0]
     assert len(x1.written.copies()) == 2
 ```
 
@@ -226,17 +226,18 @@ TypeScript walks with a callback. Return `"skip"` to pass over a directive's blo
 ```ts
   const ids: string[] = [];
   loaded.walk((d: IDirective) => {
-    if (d.name === "node" && d.parent?.name === "graph") ids.push(d.args[1]?.text ?? "");
+    if (d.name === "node" && d.parent?.name === "graph") ids.push(d.values[1]?.text ?? "");
   });
   return ids;
 ```
 
-Excerpt of `nodeIds` in `ts/src/load/rasl.test.ts`.
+Excerpt of `nodeIds` in `ts/src/rendered/rasl.test.ts`.
 
-Python walks with a generator. `descend` returning False passes over a block; `break` ends the walk:
+Python walks with a generator, a method on the render and on each directive. `descend` returning False passes
+over a block; `break` ends the walk:
 
 ```python
-    skipped = [d.name for d in vl.walk(loaded, descend=lambda d: d.name != "server")]
+    skipped = [d.name for d in loaded.walk(descend=lambda d: d.name != "server")]
     assert skipped == ["http", "server", "server", "events"]
 ```
 
@@ -244,22 +245,26 @@ Excerpt of `test_walk_is_depth_first_in_written_order_and_descend_false_passes_o
 `py/tests/test_load.py`.
 
 Both walk depth-first in written order, from the render or from one directive. `closest(predicate)` gives this
-directive or the nearest enclosing one that matches. Python directives and values also take part in `match`:
+directive or the nearest enclosing one that matches. Python directives and values also take part in `match`
+(`Directive` matches as `name`, `values`, `block`):
 
 ```python
-    match graph.body[0]:
-        case vl.Directive("node", [kind, node_id, *rest], body):
+    match graph.block[0]:
+        case vl.Directive("node", [kind, node_id, *rest], block):
             assert (kind.text, node_id.text, [r.text for r in rest]) == ("DdpSink", "leds", ["1"])
 ```
 
-Excerpt of `test_directive_matches_by_name_args_and_body`, `py/tests/test_load.py`.
+Excerpt of `test_directive_matches_by_name_values_and_block`, `py/tests/test_load.py`.
+
+A rendered `block` is a plain sequence of directives, not the low level's `written block`: it has no
+`directives(name)` lookup; filter it by `name` or `walk` it.
 
 ### Unreadable statements
 
-A statement that could not be read stays in its block's `unreadable` list, with its `kind`, its `origin` and
+A statement that could not be read stays in its block's `unreadable` list, with its `reason`, its `origin` and
 `written` (the statement as written). It has no name and no address: what it would have been is unknown.
 
-| Kind | Why |
+| Reason | Why |
 |---|---|
 | `syntax` | the parser could not read it |
 | `expansion` | a variable, `set`, `snippet` or `use` failed (unknown name, wrong count, loop, limits) |
@@ -272,21 +277,22 @@ A statement that could not be read stays in its block's `unreadable` list, with 
       ["E2001", "main.conf:2:2"],
       ["E5001", "main.conf:3:4"],
     ]);
-    const a = only(loaded.body);
-    expect(a.unreadable.map((u) => [u.kind, originText(u.origin)])).toEqual([
+    const a = only(loaded.block);
+    expect(a.unreadable.map((u) => [u.reason, originText(u.origin)])).toEqual([
       ["syntax", "main.conf:2:2"],
       ["expansion", "main.conf:3:2"],
     ]);
     expect(addresses(loaded)).toEqual(["a", "a > b", "a > e"]);
 ```
 
-`ts/src/load/rules.test.ts`, test "keeps a bad line in its place without its block expanded, siblings kept"
+`ts/src/rendered/rules.test.ts`, test "keeps a bad line in its place without its block expanded, siblings kept"
 (`loadText` loads one text and renders it). The `$nope2` inside the broken line's block is not reported.
 
 ## Reading values
 
-Each value (`IArgument` / `Argument`) has a `kind` (word, string, list, slice, index), a canonical `text`, an
-`origin`, `written` and `resolutions` (below), and readers. A reader that meets the wrong value throws a
+Each value (`IArgument` / `Argument`) is an **expanded value** (`IExpandedValue` / `ExpandedValue`, the shared type
+an extension use holds too) with three links to the low level: a `kind` (word, string, list, slice, index; never
+reference), a canonical `text`, an `origin`, readers, and `written`, `definition` and `chain` (below). A reader that meets the wrong value throws a
 `DiagnosticError` placed on that value.
 
 | Reads | TypeScript | Python | Error |
@@ -318,7 +324,7 @@ word as its text, a list item by item, a slice or index as itself:
     ]);
 ```
 
-`ts/src/load/readers.test.ts`, test "plain: one rule for every value; quoting means text".
+`ts/src/rendered/readers.test.ts`, test "plain: one rule for every value; quoting means text".
 
 ```python
     assert arg("hyperhdr_color[144:152]").as_slice() == vl.SliceValue("hyperhdr_color", 144, 152)
@@ -345,58 +351,65 @@ TypeScript an absent side is left out of the object (`{ kind: "slice", name: "c"
     expect(arg.text).toBe('[1, "two", [3, 4]]');
 ```
 
-`ts/src/load/readers.test.ts`, test "drops comments, line breaks and a trailing comma from a list".
+`ts/src/rendered/readers.test.ts`, test "drops comments, line breaks and a trailing comma from a list".
 
 ### From a rendered value to what is written
 
-Two members lead from a rendered value back to the low level, where it can be edited:
+Three members lead from a rendered value back to the low level, where it can be edited:
 
-- `written`: the written value at the end of its chain (for `max_count $pixels;`, the `2284` of `set $pixels 2284;`);
-  undefined (None) for a value handed in by the program.
-- `resolutions`: one per `$name` the value came through, starting with the `$name` written on the directive's own
-  line. Each says which variable won at this place, and which it won over. Empty for a value written where it is
-  read.
+- `written`: the written value on the same line, the line of the statement the value is read in: for
+  `max_count $pixels;`, the `$pixels` there; for a value written where it is read, the value itself. Never absent.
+  Editing it edits that one line, which every copy of the line shares: in a file included twice, the edit shows in
+  both copies.
+- `definition`: the written value at the end of its chain (for `max_count $pixels;`, the `2284` of
+  `set $pixels 2284;`); undefined (None) for an override. Editing it changes every use.
+- `chain`: one reference resolution per `$name` the value came through, starting with the `$name` written on the
+  directive's own line. Each says which variable won at this place, and which it shadowed. Empty for a value
+  written where it is read.
 
-So `resolutions[0].winner` is the variable to change for every place that reads it, and
-`resolutions[0].reference` is the `$name` on this line, to replace with a value of its own. The
+So `chain[0].winner` is the variable to change for every place that reads it, and `chain[0].reference` (the same
+handle as `written`) is the `$name` on this line, to replace with a value of its own. To change one copy of an
+included file only, edit what that copy is given (its include block's `set` line, at the include step of
+`chain`). The
 [low-level page](low-level-api.md#user-code-first) shows both edits.
 
 ## Origins: where each value was written
 
-Every directive, value, unreadable statement and diagnostic carries an **origin**: `written`, the place the text was
-written (a file and a span, or a handed-in variable), and `via`, the steps that brought it to where it is read,
+Every directive, value, unreadable statement and diagnostic carries an **origin**: `place`, where the text was
+written (a file and a span, or an override), and `via`, the steps that brought it to where it is read,
 innermost first. A step is a `variable`, a `use` or an `extension` (an include line), with its name and the place of
 the reference.
 
 So a value from a variable says both where it was set and where the `$name` was used:
 
 ```python
-    value = next(d for d in vl.walk(loaded) if d.name == "max_count").args[0]
+    value = next(d for d in loaded.walk() if d.name == "max_count").values[0]
     assert value.text == "2284"
-    assert isinstance(value.origin.written, vl.Place)
-    assert value.origin.written.span.start == vl.SourcePosition(12, 0, 12)
+    assert isinstance(value.origin.place, vl.Place)
+    assert value.origin.place.span.start == vl.SourcePosition(12, 0, 12)
     [step] = value.origin.via
-    assert (step.kind, step.name, step.at.span.start.line, step.at.span.start.column) == ("variable", "pixels", 2, 32)
+    start = step.place.span.start
+    assert (step.kind, step.name, start.line, start.column) == ("variable", "pixels", 2, 32)
 ```
 
 Excerpt of `test_a_variable_value_has_its_set_place_and_the_variable_step`, `py/tests/test_load.py`
 (`set $pixels 2284;` on line 0, `max_count $pixels;` on line 2).
 
-A handed-in value has `written` = the handed-in variable, and its steps say how it got there. In the split rasl
+A value from an override has `origin.place` = the override, and its steps say how it got there. In the split rasl
 fixture, the `leds` sink's `target` comes from `--set leds_host`, through `$host` in the include block, through the
 include line:
 
 ```python
-    leds_target = next(d for d in vl.walk(handed) if d.name == "target")
-    assert leds_target.args[0].origin.written == vl.Handed("leds_host")
-    assert [(s.kind, s.name) for s in leds_target.args[0].origin.via] == [
+    leds_target = next(d for d in overridden_host.walk() if d.name == "target")
+    assert leds_target.values[0].origin.place == vl.Override("leds_host")
+    assert [(s.kind, s.name) for s in leds_target.values[0].origin.via] == [
         ("variable", "leds_host"),
         ("variable", "host"),
         ("extension", "include"),
     ]
 ```
 
-Excerpt of `test_the_split_fixtures_sinks_take_their_include_blocks_values_and_the_handed_host_wins`,
+Excerpt of `test_the_split_fixtures_sinks_take_their_include_blocks_values_and_the_override_host_wins`,
 `py/tests/test_rasl.py`.
 
 Lines and columns are 0-based and columns count UTF-16 code units, in both languages. `formatDiagnostic` prints them
@@ -404,7 +417,7 @@ Lines and columns are 0-based and columns count UTF-16 code units, in both langu
 
 ## Addresses and the key rule
 
-An **address** is a directive's identity across renders of one processor: from the top level down, each step is the
+An **address** is a directive's identity across renders: from the top level down, each step is the
 directive's name, its key (what the key rule returned, or none), and its occurrence among earlier siblings with the
 same name and key (counting from 0). It is unique within one render. A file included at two places, or a snippet
 used twice, lands at two addresses.
@@ -417,14 +430,14 @@ used twice, lands at two addresses.
 | enclosing | `address.parent` | `address.parent` |
 
 The **key rule** is the program's, and it is given where addresses are asked for: to `addresses({ key })` and to
-`diff(before, after, { key })`. It is called once per readable directive, parents first, with the rendered
+`before.diff(after, { key })`. It is called once per readable directive, parents first, with the rendered
 directive, and returns a key or nothing. What it throws comes out of `addresses` or `diff` unchanged (a bug in the
 program, not in the config):
 
 ```ts
     const named = loaded.addresses({ key: RASL_KEY });
     loaded.walk((d) => {
-      if (d.name === "target") targets.push([named.get(d)?.toString() ?? "", d.args[0]?.text ?? ""]);
+      if (d.name === "target") targets.push([named.get(d)?.toString() ?? "", d.values[0]?.text ?? ""]);
     });
     expect(targets).toEqual([
       ['graph > node "leds" > target', '"10.0.70.1"'],
@@ -432,8 +445,8 @@ program, not in the config):
     ]);
 ```
 
-Excerpt of `ts/src/load/rasl.test.ts`, test "splits one sink file over two places, each with its own include-block
-values and the handed-in host".
+Excerpt of `ts/src/rendered/rasl.test.ts`, test "splits one sink file over two places, each with its own
+include-block values and the override host".
 
 Without a key rule, a directive is named by its position among same-name siblings, so moving a line changes
 addresses:
@@ -459,15 +472,15 @@ def test_without_a_key_rule_a_directive_is_named_by_its_position_among_same_name
     ]);
 ```
 
-`ts/src/load/diff.test.ts`, test "follows a keyed node that moved: no change". `RASL_KEY` there is
-`(d) => (d.name === "node" && d.parent?.name === "graph" ? d.args[1]?.text : undefined)`.
+`ts/src/rendered/diff.test.ts`, test "follows a keyed node that moved: no change". `RASL_KEY` there is
+`(d) => (d.name === "node" && d.parent?.name === "graph" ? d.values[1]?.text : undefined)`.
 
 A key rule that reads values from variables makes identity follow config edits; that is the program's choice.
 
 ## What changed: diff
 
-`processor.diff(before, after, { key })` compares two renders of the same processor by address, under the key rule
-given. Each change carries its address and its directives (`before`, `after`, or both):
+`before.diff(after, { key })` (Python: `before.diff(after, key=...)`) compares two renders by address, under the
+key rule given. Each change carries its address and its directives (`before`, `after`, or both):
 
 | Change | When |
 |---|---|
@@ -478,11 +491,11 @@ given. Each change carries its address and its directives (`before`, `after`, or
 
 An added, removed or unknown directive is listed alone, never with the directives inside it. A changed or unchanged
 directive's block is compared at its own addresses. Order: removed and unknown in `before`'s walk order, then added
-and changed in `after`'s. Renders with diagnostics can be compared. Renders of another processor are refused
-(TypeError in TypeScript, ValueError in Python).
+and changed in `after`'s. Renders with diagnostics can be compared.
 
 In TypeScript a change has `kind` (`"added"`, `"removed"`, `"changed"`, `"unknown"`). In Python each kind is its own
-class (`Added`, `Removed`, `Changed`, `Unknown`); test with `isinstance` or `match`.
+class (`Added`, `Removed`, `Changed`, `Unknown`); test with `isinstance` or `match` (Python's `kind` field comes
+with a later milestone).
 
 ```python
 def test_a_directive_missing_beside_an_unreadable_statement_is_unknown_not_removed() -> None:
@@ -497,14 +510,14 @@ def test_a_directive_missing_beside_an_unreadable_statement_is_unknown_not_remov
 
 A comment or a quote style is no change; a number's spelling is (`0.5` to `0.50`), because values compare by text
 (test "compares canonical texts: a comment or a quote style is no change, a number's spelling is",
-`ts/src/load/diff.test.ts`). To group changes by its own unit (a rasl node), a program uses `directive.closest(...)` or
+`ts/src/rendered/diff.test.ts`). To group changes by its own unit (a rasl node), a program uses `directive.closest(...)` or
 `address.parent`.
 
 ## Problems: diagnostics, program errors and the sink
 
 A **located diagnostic** (`ILocatedDiagnostic` / `LocatedDiagnostic`) has a `code`, a `message` (for people; not
-part of the contract between the languages), `at` (a place in a file) and `via` (the steps). A problem with a
-handed-in value is placed on the `$name` that used it.
+part of the contract between the languages), `place` (a place in a file) and `via` (the steps). A problem with an
+override's value is placed on the `$name` that used it.
 
 A program places its own problems on what it read. Every directive, value and the render itself has
 `error(message, code)` (Python: `error(message, code=...)`), which returns a `DiagnosticError` to throw or record. A
@@ -517,19 +530,19 @@ and run reads through it so a reader's error is recorded instead of ending the p
 ```ts
     const loaded = await loadText("port eighty;\n");
     const sink = new Diagnostics();
-    const port = only(only(loaded.body).args);
+    const port = only(only(loaded.block).values);
     expect(sink.collect(() => port.integer())).toBeUndefined();
     expect(sink.collect(() => port.word())).toBe("eighty");
     expect(problems(sink)).toEqual([["E4005", "main.conf:0:5"]]);
 ```
 
-Excerpt of `ts/src/load/report.test.ts`, test "collect records a DiagnosticError and returns undefined; passes
+Excerpt of `ts/src/rendered/report.test.ts`, test "collect records a DiagnosticError and returns undefined; passes
 anything else through". Any other exception passes through.
 
 ```python
     load = loaded("a $x;\nb 1;\n")
     problems = vl.Diagnostics(load.diagnostics)
-    b = load.body[0]
+    b = load.block[0]
     problems.report(b, "b is not wanted", code="rasl/unwanted")
     problems.add(load.error("no graph", code="rasl/no-graph").diagnostic)
     assert len(problems) == 3
@@ -541,7 +554,8 @@ Excerpt of `test_report_and_add_record_in_order_after_the_initial_ones`, `py/tes
 
 **Printing** (`formatDiagnostic(d, graph?)` / `format_diagnostic(d, graph=None)`): the place 1-based, the code and
 message, the source line (from the document's current text), a caret line under the span, and one line per step.
-Without the graph, only the first line.
+Without the graph, only the first line. It reads a graph, so it belongs to the low level (`villanelle.written` in
+Python; both packages also export it from `villanelle`).
 
 ```ts
     const files = { "main.conf": 'include "x.conf";\n', "x.conf": "a 1;\nport c[0:$n];\n" };
@@ -551,7 +565,7 @@ Without the graph, only the first line.
     );
 ```
 
-`ts/src/load/report.test.ts`, test "prints path:line:col: code: message 1-based, the source line, a caret and one via
+`ts/src/rendered/report.test.ts`, test "prints path:line:col: code: message 1-based, the source line, a caret and one via
 line per step".
 
 ## Document sources: where files come from
@@ -602,7 +616,8 @@ An **extension** owns one directive name and turns each use of it into specs of 
 `include()` is the one villanelle ships. The extension only names files: villanelle resolves and reads them through
 the source, reads each file once, applies the line's block of `set` lines, and checks loops and limits.
 
-An extension has `directive` (its name) and `specs(use)`, where `use` has the line's expanded `args` and its `origin`.
+An extension has `directive` (its name) and `specs(use)`, where `use` has the line's `values` (expanded values, the
+shared type a rendered argument builds on; the low level never hands an extension a rendered type) and its `origin`.
 To refuse a use at a place, throw a `DiagnosticError` from a value's or the use's `error(...)`; anything else thrown
 becomes E3006 at the line:
 
@@ -610,8 +625,8 @@ becomes E3006 at the line:
     const throwing: IExtension = {
       directive: "pull",
       specs: (use) => {
-        if (use.args.length === 0) throw new Error("boom");
-        throw use.args[0]?.error("bad pull", "test/bad-pull") ?? new Error("no value");
+        if (use.values.length === 0) throw new Error("boom");
+        throw use.values[0]?.error("bad pull", "test/bad-pull") ?? new Error("no value");
       },
     };
     const loaded = await loadText("pull;\npull x;\n", { extensions: [throwing] });
@@ -621,7 +636,7 @@ becomes E3006 at the line:
     ]);
 ```
 
-Excerpt of `ts/src/load/rules.test.ts`, test "gives E3006 when an extension throws anything but a DiagnosticError,
+Excerpt of `ts/src/rendered/rules.test.ts`, test "gives E3006 when an extension throws anything but a DiagnosticError,
 and records a DiagnosticError as thrown". In Python an extension is any object with a `directive` attribute and a
 `specs(use)` method (`test_an_extension_that_raises_something_else_is_e3006`, `py/tests/test_load.py`).
 
@@ -663,7 +678,7 @@ was given ([low-level-api.md](low-level-api.md#edits-and-their-errors)).
 | E4004 | `NotANumber` | `NOT_A_NUMBER` | `number()` met a word that is not a number | the value |
 | E4005 | `NotAnInteger` | `NOT_AN_INTEGER` | `integer()` met a word that is not a whole number | the value |
 | E4006 | `NotABoolean` | `NOT_A_BOOLEAN` | `boolean()` met a word other than `true`, `false` | the value |
-| E5001 | `UnknownVariable` | `UNKNOWN_VARIABLE` | `$name` with no `set` and nothing handed in | the `$name` |
+| E5001 | `UnknownVariable` | `UNKNOWN_VARIABLE` | `$name` with no `set`, parameter or override | the `$name` |
 | E5002 | `VariableSetTwice` | `VARIABLE_SET_TWICE` | two `set` of one name in one block | the second `$name` |
 | E5003 | `UnknownSnippet` | `UNKNOWN_SNIPPET` | `use` of a snippet not seen there | the name |
 | E5004 | `SnippetArity` | `SNIPPET_ARITY` | wrong number of values for the snippet | `use` |
@@ -684,10 +699,11 @@ high-level API, which is not built yet; none is defined.
 
 By design (each language's own way):
 
-- TypeScript's `load`, `read` and document sources are async (promises); Python's are plain calls. `render` and
-  `diff` are plain calls in both.
-- Readers are `word()`, `integer()`... in TypeScript and `as_word()`, `as_int()`... in Python; `walk` is a callback in
-  TypeScript and a generator in Python; change kinds are a `kind` field in TypeScript and classes in Python.
+- TypeScript's `load`, `graph.read()`, `graph.save(writer)` and document sources are async (promises); Python's are
+  plain calls. `render` and `diff` are plain calls in both.
+- Readers are `word()`, `integer()`... in TypeScript and `as_word()`, `as_int()`... in Python (a list's items are
+  `items()` and `as_list()`); `walk` is a method in both, taking a callback in TypeScript and returning a generator
+  in Python; change kinds are a `kind` field in TypeScript and classes in Python.
 - The key rule is an options object in TypeScript (`{ key }`) and a keyword argument in Python (`key=`).
 - Misuse by a program is TypeError in TypeScript and ValueError in Python.
 - Python has no fetch source or fetch writer.

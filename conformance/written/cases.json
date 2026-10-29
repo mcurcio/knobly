@@ -34,5 +34,6 @@
 {"name": "insert-empty-block-nested", "needs": ["blocks"], "files": {"main.conf": "x {\n  a {\n\n  }\n}\n"}, "root": "main.conf", "steps": [["edit", ["block", "main.conf", 1, 2], "addStatements", "b;"], ["texts"]]},
 {"name": "insert-indent-differs", "needs": ["blocks"], "files": {"main.conf": "x {\n  a;\n      b;\n}\n"}, "root": "main.conf", "steps": [["edit", ["block", "main.conf", 0, 0], "insertStatements", 1, "c;"], ["texts"]]},
 {"name": "declaration-nested-set", "needs": ["snippet"], "files": {"main.conf": "snippet s $a {\n    x {\n        set $a 1;\n        y $a;\n    }\n}\nuse s 2;\n"}, "root": "main.conf", "steps": [["references"]]},
-{"name": "set-override-bad-bound", "needs": ["override"], "files": {"main.conf": "a $h;\n"}, "root": "main.conf", "overrides": {"h": "1"}, "steps": [["edit", ["graph"], "setOverride", "h", "1 foo[x]"], ["edit", ["graph"], "setOverride", "h", "1 \"\\q\""], ["render"]]}
+{"name": "set-override-bad-bound", "needs": ["override"], "files": {"main.conf": "a $h;\n"}, "root": "main.conf", "overrides": {"h": "1"}, "steps": [["edit", ["graph"], "setOverride", "h", "1 foo[x]"], ["edit", ["graph"], "setOverride", "h", "1 \"\\q\""], ["render"]]},
+{"name": "set-override-line-break", "needs": ["override"], "files": {"main.conf": "x $a;\n"}, "root": "main.conf", "overrides": {"a": "1"}, "steps": [["edit", ["graph"], "setOverride", "a", "1\n2"], ["render"]]}
 ]

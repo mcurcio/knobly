@@ -1,5 +1,5 @@
 {
-  "$comment": "The one home of villanelle's API concepts, members, kind lists, error groups, limits and reserved names (spec/spec.md is canonical for behaviour; this file is canonical for the lists). Names are spec names: lowercase words; a binding changes only the casing (spec/binding-guide.md rule 1) except where a member's 'spell' records an allowed difference. 'ts' and 'py' give each binding's spelling after milestone 1 (bead vil-fy4). Extracted from ts/ and py/ on feat/low-level-layer (PR 4) on 2026-10-28; 'disagreements' lists where they differed and what the spec picks.",
+  "$comment": "The one home of villanelle's API concepts, members, kind lists, error groups, limits and reserved names (spec/spec.md is canonical for behaviour; this file is canonical for the lists). Names are spec names: lowercase words; a binding changes only the casing (spec/binding-guide.md rule 1) except where a member's 'spell' records an allowed difference. 'ts' and 'py' give each binding's spelling after milestone 1 (bead vil-fy4). Extracted from ts/ and py/ on feat/low-level-layer (PR 4) on 2026-10-28; 'disagreements' lists where they differed and what the spec picks. A member with 'later' is not yet present in the bindings it names ({binding: the milestone that adds it}); both public-name checks skip it there and nowhere else.",
   "version": 1,
   "naming": {
     "rule": "The spec names each concept once in plain lowercase words; each binding only changes the casing.",
@@ -595,7 +595,10 @@
           "name": "kind",
           "member": "property",
           "type": "place kind",
-          "note": "'file'; Python Place has no kind field yet (root cause 3)"
+          "note": "'file'",
+          "later": {
+            "py": "root cause 3"
+          }
         },
         {
           "name": "resolved path",
@@ -620,7 +623,10 @@
           "name": "kind",
           "member": "property",
           "type": "place kind",
-          "note": "'override'"
+          "note": "'override'",
+          "later": {
+            "py": "root cause 3"
+          }
         },
         {
           "name": "variable",
@@ -3060,7 +3066,9 @@
           "name": "kind",
           "member": "property",
           "type": "change kind",
-          "note": "Python classes carry no kind yet (root cause 3)"
+          "later": {
+            "py": "root cause 3"
+          }
         },
         {
           "name": "address",

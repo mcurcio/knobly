@@ -48,3 +48,30 @@
   the build-tooling lane): frozen-m1.md section 1 and the schema's own `disagreements` defer those to root cause 3,
   so the Python lane did not add them. Section 9.3 ("the public-name check passes") cannot hold for Python until
   the schema can mark a member as deferred per binding, or the owner moves those three into milestone 1.
+
+## 2026-10-28, milestone 1 fix pass (PR 5 review findings), fix agent
+
+- Python's missing `kind` on `Place`, `Override` and the change classes (the two entries above): the schema now
+  marks those three members `"later": {"py": "root cause 3"}`, and both public-name checks skip a member only in
+  the binding its marker names (spec/codegen.md says so). This is a design choice made to turn the gate green
+  without guessing the owner's answer; if he wants `kind` in Python now, add it and delete the three markers.
+- The check of an override now treats a line break as the end of the values in both bindings (`"1\n2"`: E2001 at
+  the `2`, 1:0); spec 6.9's table says so and the written case `set-override-line-break` holds both bindings to it.
+  The same gap in the statement edits (`stmt.set("1\n2")` on `port 80;` writes `port 1\n2;`, two statements) is
+  still open and needs its own bead; this lane may not create beads.
+- Review finding "render does not build on the low level's public objects" (TS `render` checks
+  `instanceof DocumentGraph`, calls `graph.binding()` and casts handles; Python's render imports `_graph`, `_bind`,
+  `_document`; `Bound`, `UnreadableReason` decisions and the E4xxx/E5xxx render checks live in the low level, and
+  `graph.diagnostics` filters render-owned codes). frozen-m1.md section 4 explicitly allows "a package-internal
+  accessor" to the graph's binding results, so the binding lanes followed the frozen page. Whether the owner's
+  "they should have different domain objects. The middle layer of objects can build on the lower layer domains"
+  also requires the rendered layer to build only on the low level's public API (its own expansion step from
+  `copies()`, `resolutions()`, values and edges, with `Bound`, the unreadable reasons and the render checks moved
+  into `src/rendered/`) is an owner question. Not done here: it is a redesign of both bindings' binder, and the
+  include extension still needs expanded values from the low level during `load`.
+- The schema's layer table ("shared may import nothing", "io may import shared") is enforced only for the rendered
+  layer (test_layers.py, the ESLint block). Python's `value.py` imported `villanelle.syntax._recovery` (fixed: it
+  reads the generated `MESSAGES`), but the shared helper `_anatomy.py` (frozen-m1.md section 4 lists it as shared)
+  imports `villanelle.syntax`, and `include.py` imports `villanelle.syntax._recovery`. Either the table is relaxed
+  (shared helpers that read syntax trees sit in the syntax or written layer) or both checks enforce the whole
+  table; a later milestone should pick.

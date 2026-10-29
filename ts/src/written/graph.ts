@@ -13,7 +13,8 @@ import { bind, type IBindingWithNeeds, type IOverrideInput, type IReadLedger } f
 import { Document, type IDocumentHost } from "./document.js";
 import { SaveError } from "./errors.js";
 import type { Bound } from "./expanded.js";
-import type { IDocumentEdge, IDocumentGraph, IDocumentWriter, IFileWrite, IVariable } from "./model.js";
+import type { IDocumentWriter, IFileWrite } from "../source.js";
+import type { IDocumentEdge, IDocumentGraph, IVariable } from "./model.js";
 import { checkOverride, checkOverrideName } from "./override.js";
 import { readUnread } from "./read.js";
 import { OverrideVariable } from "./statements.js";

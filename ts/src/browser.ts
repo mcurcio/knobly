@@ -4,7 +4,7 @@
 
 import { hasGlob } from "./graph/glob.js";
 import type { IDocumentSource } from "./source.js";
-import type { IDocumentWriter } from "./written/model.js";
+import type { IDocumentWriter } from "./source.js";
 
 /**
  * A document source over fetch. `resolve` resolves a spec as a URL against `context.parentPath` and returns it

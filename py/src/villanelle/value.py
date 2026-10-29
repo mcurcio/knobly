@@ -8,11 +8,11 @@ from dataclasses import dataclass
 from typing import ClassVar, TypeAlias
 
 from villanelle import _values
+from villanelle._api.codes import MESSAGES
 from villanelle._api.kinds import ValueKind
 from villanelle.diagnostics import DiagnosticCode, DiagnosticError
 from villanelle.origin import Origin, Place
 from villanelle.report import LocatedDiagnostic, check_program_code
-from villanelle.syntax._recovery import message_of
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,7 +147,7 @@ class ExpandedValue:
         raise self._problem(DiagnosticCode.WRONG_VALUE_KIND, f"expected {wanted}, not a {self._kind}")
 
     def _problem(self, code: DiagnosticCode, detail: str) -> DiagnosticError:
-        return value_error(self, code, f"{message_of(code)}: {detail}")
+        return value_error(self, code, f"{MESSAGES[code]}: {detail}")
 
 
 def value_error(value: ExpandedValue, code: DiagnosticCode | str, message: str) -> DiagnosticError:

@@ -18,7 +18,7 @@ export { type IExpandedValue, type IIndexValue, type ISliceValue, type PlainValu
 
 export { type IDirectiveOrigin, type IOrigin, type IOverride, type IPlace, type IStep, StepKind } from "./origin.js";
 export { Diagnostics, type ILocatable, type ILocatedDiagnostic, type ProgramCode } from "./report.js";
-export { type IDocumentSource, type ILoadContext, memorySource } from "./source.js";
+export { type IDocumentSource, type IDocumentWriter, type IFileWrite, type ILoadContext, memorySource } from "./source.js";
 export type { IExtension, IExtensionUse } from "./extension.js";
 export { quote } from "./text.js";
 
@@ -29,8 +29,6 @@ export type {
   IDocument,
   IDocumentEdge,
   IDocumentGraph,
-  IDocumentWriter,
-  IFileWrite,
   IIndex,
   IList,
   IReference,

@@ -5,6 +5,7 @@ documents, read further with ``graph.read()`` and saved back with ``graph.save(w
 no I/O: ``villanelle.files`` gives a filesystem source and writer."""
 
 from villanelle._api.kinds import UnreadableReason
+from villanelle._text import quote
 from villanelle.diagnostics import Diagnostic, DiagnosticCode, DiagnosticError
 from villanelle.extension import Extension, ExtensionUse
 from villanelle.origin import DirectiveOrigin, Origin, Override, Place, Step, StepKind
@@ -23,8 +24,8 @@ from villanelle.rendered import (
     Unreadable,
     render,
 )
-from villanelle.report import Collecting, Diagnostics, Locatable, LocatedDiagnostic, format_diagnostic
-from villanelle.source import DocumentSource, LoadContext, memory_source
+from villanelle.report import Collecting, Diagnostics, Locatable, LocatedDiagnostic
+from villanelle.source import DocumentSource, DocumentWriter, FileWrite, LoadContext, memory_source
 from villanelle.span import SourcePosition, SourceSpan
 from villanelle.syntax.cst import Node, NodeKind, Syntax, TokenRange, ValueRef, span_of, text_of
 from villanelle.syntax.parse import parse
@@ -37,9 +38,7 @@ from villanelle.written import (
     Document,
     DocumentEdge,
     DocumentGraph,
-    DocumentWriter,
     EditError,
-    FileWrite,
     Index,
     List,
     NoSetLineError,
@@ -61,7 +60,7 @@ from villanelle.written import (
     WrittenBlock,
     WrittenDirective,
     WrittenValue,
-    quote,
+    format_diagnostic,
 )
 
 __all__ = [

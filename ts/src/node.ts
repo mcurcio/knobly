@@ -8,7 +8,7 @@ import { basename, dirname, join, resolve } from "node:path";
 
 import { globToRegExp, hasGlob } from "./graph/glob.js";
 import type { IDocumentSource } from "./source.js";
-import type { IDocumentWriter } from "./written/model.js";
+import type { IDocumentWriter } from "./source.js";
 
 /**
  * A document source over the filesystem. `read` reads a path as given, as UTF-8; `resolve` joins a spec to the

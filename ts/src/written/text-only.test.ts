@@ -127,7 +127,12 @@ describe("the check of an override (spec 6.3): one check for load and setOverrid
     expect(await fromSetOverride("1;")).toEqual([["E2001", 0, 1]]);
   });
 
-  it.each(["1", "8080 443", '"x" [1, 2]', "", "   ", "$x", "a { b; }", '"\\q"', "c[x]", '"open', "1;", "a; b"])("agrees on %j", async (text) => {
+  it('refuses "1\\n2" from load as from setOverride: a line break ends the values, E2001 at the 2 (1:0)', async () => {
+    expect(await fromLoad("1\n2")).toEqual([["E2001", 1, 0]]);
+    expect(await fromSetOverride("1\n2")).toEqual([["E2001", 1, 0]]);
+  });
+
+  it.each(["1", "8080 443", '"x" [1, 2]', "", "   ", "$x", "a { b; }", '"\\q"', "c[x]", '"open', "1;", "a; b", "1\n2", "1 // c\n"])("agrees on %j", async (text) => {
     expect(await fromLoad(text)).toEqual(await fromSetOverride(text));
   });
 

@@ -16,6 +16,7 @@
 
 import type { IPlace, IStep } from "../origin.js";
 import type { ILocatedDiagnostic } from "../report.js";
+import type { IDocumentWriter } from "../source.js";
 import type { VariableKind } from "../gen/api/kinds.js";
 import type { ISyntax } from "../syntax/cst.js";
 
@@ -303,26 +304,4 @@ export interface IReferenceResolution extends IResolution<IVariable> {
   readonly reference: IReference;
   /** The winning `set` line's values, or for a parameter the `use` line's values bound to it; empty for an override or unbound. */
   readonly values: readonly WrittenValue[];
-}
-
-// --- Saving ---
-
-/** One file a save hands to the writer. */
-export interface IFileWrite {
-  readonly resolvedPath: string;
-  /** What to write. */
-  readonly text: string;
-  /** The document's `savedText`: compare it with the disk to find a lost update. */
-  readonly savedText: string;
-}
-
-/** The program's writer. The core does no I/O. */
-export interface IDocumentWriter {
-  /**
-   * One batch: stage every file, then commit them together. Rejecting while staging means nothing was committed; a
-   * writer that can fail part way through committing (the fs writer's renames, the fetch writer's requests) leaves
-   * the files it committed changed on disk while their `savedText` stays the old text, so the next save refuses them as
-   * lost updates until the program reloads (stated cost, D-F1-10).
-   */
-  write(files: readonly IFileWrite[]): Promise<void>;
 }

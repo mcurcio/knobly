@@ -68,7 +68,9 @@ generated code, just the source"). Build and test regenerate them.
   generation): for each concept with a binding type, every member the schema lists exists on a real
   object of that type under the binding's casing (or its `spell`), as a property or a method as the
   schema says. TypeScript checks objects made from a loaded graph and a render (interfaces do not
-  exist at run time); Python checks the classes. It fails the build (a design choice: the
+  exist at run time); Python checks the classes. A member marked `"later": {"<binding>":
+  "<milestone>"}` is not yet in that binding (Python's `kind` on place, override and change waits
+  for root cause 3); both checks skip it in the binding named and check it everywhere else. It fails the build (a design choice: the
   glossary's one-word rule is only a guarantee when a drifting name fails; the owner has not ruled
   on it, question 3 below). The other direction, a public name the schema does not list, is a later
   milestone.

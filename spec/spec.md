@@ -256,7 +256,7 @@ the document. Which codes each edit checks, and where it places them:
 | `set` on a `set line` with empty text; `remove` of a `set` line's last value | E5009 | 0:0 (of an empty text) |
 | `rename` (a directive) | E2001 when the name is not one word, is `set`, `snippet`, `use` or a registered extension's name, or the line is an extension line | 0:0 |
 | `rename` (a variable) | E2001 when the name is not letters, digits and `_`; E5002 when it would make a second `set` of a name in its block | 0:0 |
-| `set override`, and each override `load` takes (the check of an override, 6.3) | the text's syntax diagnostics; E2001 at the first token that is more than values (so `"1;"` is refused at its `;`), at a `$name`, or at 0:0 for no value; then E4003 or E4001 at the value the override reader refuses | as stated |
+| `set override`, and each override `load` takes (the check of an override, 6.3) | the text's syntax diagnostics; E2001 at the first token that is more than values (so `"1;"` is refused at its `;`, and `"1\n2"` at its `2`: a line break ends the values, as it ends a statement), at a `$name`, or at 0:0 for no value; then E4003 or E4001 at the value the override reader refuses | as stated |
 
 A `diagnostic error`, `read error` and `save error` have the fields of 2.6 and 6.8.
 
@@ -640,6 +640,15 @@ Per kind:
 makes a `set` line. A program that wants a variable to take a value without editing a file uses
 `set override` (6.3), which keeps its own name.
 
+Cost of the name (a design consequence of the owner's pick, not his words): one object graph now
+uses the word three ways: the statement kind `set` (a `set line`), the variable kind `set` (a
+variable a `set` line declares) and the edit `set (text)`. On a `set line`, `set (text)` edits the
+values of a `set` statement; on an override variable, `set (text)` refuses (`no set line error`,
+its message points to `set override`), since an override has no line to edit. Docs keep saying
+"not the language's `set` line" where the edit is taught. Renaming the variable kind (for example
+to `declared`) would separate the kind from the edit; it is not done here, since it changes a
+kind value programs and the conformance cases print.
+
 A `written block` (a document's top level, or a statement's block):
 
 | Member | Contract |
@@ -854,8 +863,11 @@ it adds three links to the low level, `written`, `definition` and `chain`:
   in. For a value that came through a variable it is the `$name` there (`chain[0].reference`: for
   `max_count $pixels;`, the `$pixels` on `max_count`'s line); a list item that came through a
   variable shares its list's `$name`; otherwise it is the value itself, which is also its
-  `definition`. Never absent. Editing it changes only this line (`replace with text` on that
-  `$pixels` unbinds it from the variable).
+  `definition`. Never absent. Editing it edits that one written line and no other (`replace with
+  text` on that `$pixels` unbinds it from the variable), but every copy of the line shares it: a
+  file included twice has one line read in both copies (`statement`'s `copies ()`, 6.5), so the
+  edit shows in both renders of it. To change one copy only, edit what that copy is given (its
+  include block's `set` line, at the include step of `chain`).
 - `definition` is the written value at the **end of the chain** (for `$pixels`, the `2284` in its
   `set` line); absent for an override. Editing it changes every use.
 - `chain` has one `reference resolution` per variable step of `origin.via`, from the value's own

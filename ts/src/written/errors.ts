@@ -5,7 +5,7 @@
 
 import { DiagnosticError, type IDiagnostic } from "../diagnostics.js";
 import type { ILocatedDiagnostic } from "../report.js";
-import type { IFileWrite } from "./model.js";
+import type { IFileWrite } from "../source.js";
 
 /** Base of the errors an edit throws. Nothing changed when one is thrown. */
 export class EditError extends Error {

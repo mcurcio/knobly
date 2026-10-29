@@ -13,7 +13,8 @@ import { memorySource } from "../source.js";
 import { render } from "../rendered/render.js";
 import { countingSource } from "../rendered/testing.js";
 import { BadTextError, DetachedError, NoSetLineError, ReadError } from "./errors.js";
-import type { IFileWrite, ISetLine, ISnippetLine, IWrittenDirective } from "./model.js";
+import type { IFileWrite } from "../source.js";
+import type { ISetLine, ISnippetLine, IWrittenDirective } from "./model.js";
 
 const MAIN = "a;\n";
 

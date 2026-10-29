@@ -23,7 +23,9 @@ export interface IArgument extends IExpandedValue {
    * The written value on the same line: the line of the statement this value is read in. For a value that came
    * through a variable it is the `$name` there (`chain[0].reference`); a list item that came through a variable
    * shares its list's `$name`; otherwise the value itself, which is also its `definition`. Never undefined. Editing
-   * it changes only this line.
+   * it edits that one written line, which every copy of the line shares: a file included twice has one line read in
+   * both copies (`written.statement.copies()`), so the edit shows in both. To change one copy only, edit what that
+   * copy is given instead (its include block's `set`, at the include step of `chain`).
    */
   readonly written: WrittenValue;
   /**

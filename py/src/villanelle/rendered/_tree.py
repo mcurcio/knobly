@@ -49,7 +49,10 @@ class Argument(ExpandedValue):
     def written(self) -> WrittenValue:
         """The written value on the same line: for a value that came through a variable, the ``$name`` there
         (``chain[0].reference``; a list item shares its list's); otherwise the value itself. Never None. Editing it
-        changes only this line. A live handle: the argument itself is a snapshot of one render."""
+        edits that one written line, which every copy of the line shares: a file included twice has one line read in
+        both copies (``written.statement.copies()``), so the edit shows in both. To change one copy only, edit what
+        that copy is given instead (its include block's ``set``, at the include step of ``chain``). A live handle: the
+        argument itself is a snapshot of one render."""
         return self._written
 
     @property

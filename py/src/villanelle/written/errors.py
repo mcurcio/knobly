@@ -10,7 +10,7 @@ from villanelle.diagnostics import Diagnostic, DiagnosticError
 
 if TYPE_CHECKING:
     from villanelle.report import LocatedDiagnostic
-    from villanelle.written.save import FileWrite
+    from villanelle.source import FileWrite
 
 
 class EditError(ValueError):

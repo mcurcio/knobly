@@ -11,15 +11,13 @@ import { include } from "./include.js";
 import type { IOrigin, IPlace, IStep } from "./origin.js";
 import { render } from "./rendered/render.js";
 import { originText, placeText } from "./rendered/testing.js";
-import { memorySource } from "./source.js";
+import { type IDocumentWriter, type IFileWrite, memorySource } from "./source.js";
 import { TokenKind } from "./syntax/tokens.js";
 import { quote } from "./text.js";
 import { BadTextError, EditError } from "./written/errors.js";
 import type {
   IDocument,
   IDocumentGraph,
-  IDocumentWriter,
-  IFileWrite,
   IVariable,
   IWrittenBlock,
   Statement,

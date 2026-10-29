@@ -10,7 +10,8 @@ import { include } from "../include.js";
 import { villanelle } from "./processor.js";
 import { memorySource } from "../source.js";
 import { BadTextError, DetachedError, SaveError } from "./errors.js";
-import type { IDocumentGraph, IDocumentWriter, IFileWrite, ISetLine, IWrittenDirective } from "./model.js";
+import type { IDocumentWriter, IFileWrite } from "../source.js";
+import type { IDocumentGraph, ISetLine, IWrittenDirective } from "./model.js";
 import { quote } from "../text.js";
 
 async function load(files: Record<string, string>, overrides?: Record<string, string>): Promise<IDocumentGraph> {

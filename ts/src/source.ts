@@ -1,7 +1,9 @@
 /**
- * Where files come from: the one port the load reads through, for the root file and for every file an extension
- * names (round 11 review finding 3). The core does no I/O (R16): "villanelle/node" and "villanelle/browser" give
- * file and fetch sources; `memorySource` serves texts the program already holds (tests, editors).
+ * The I/O ports (spec/schema/api.json, layer io): where files come from, the one port the load reads through for the
+ * root file and for every file an extension names (round 11 review finding 3), and where a save writes them
+ * (`IDocumentWriter`, given `IFileWrite`s by `IDocumentGraph.save`). The core does no I/O (R16): "villanelle/node" and
+ * "villanelle/browser" give file and fetch sources and writers; `memorySource` serves texts the program already holds
+ * (tests, editors).
  */
 
 import { globToRegExp, hasGlob } from "./graph/glob.js";
@@ -24,6 +26,26 @@ export interface IDocumentSource {
   resolve(spec: string, context: ILoadContext): Promise<readonly string[]>;
   /** The text of one resolved file. A rejection becomes E3004 (or, for the root file, rejects the load). */
   read(resolvedPath: string): Promise<string>;
+}
+
+/** One file a save hands to the writer. */
+export interface IFileWrite {
+  readonly resolvedPath: string;
+  /** What to write. */
+  readonly text: string;
+  /** The document's `savedText`: compare it with the disk to find a lost update. */
+  readonly savedText: string;
+}
+
+/** The program's writer. The core does no I/O. */
+export interface IDocumentWriter {
+  /**
+   * One batch: stage every file, then commit them together. Rejecting while staging means nothing was committed; a
+   * writer that can fail part way through committing (the fs writer's renames, the fetch writer's requests) leaves
+   * the files it committed changed on disk while their `savedText` stays the old text, so the next save refuses them as
+   * lost updates until the program reloads (stated cost, D-F1-10).
+   */
+  write(files: readonly IFileWrite[]): Promise<void>;
 }
 
 /**

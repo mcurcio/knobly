@@ -25,7 +25,7 @@ graph {
 ```
 
 Excerpt of [`fixtures/rasl/family_room.conf`](../fixtures/rasl/family_room.conf), loaded by both languages' rasl
-tests (`ts/src/load/rasl.test.ts`, `py/tests/test_rasl.py`).
+tests (`ts/src/rendered/rasl.test.ts`, `py/tests/test_rasl.py`).
 
 ## Values
 
@@ -47,7 +47,7 @@ E4001, found when the file is loaded. A string escape other than the six is E400
 
 A number or a boolean is a word that a program asks to read as one: `8080` and `true` are words until a reader
 reads them. Quoting means text: `"8080"` is a string, never a number. The test "plain: one rule for every value;
-quoting means text" (`ts/src/load/readers.test.ts`) and `test_plain_reads_by_the_one_rule_quoting_means_text`
+quoting means text" (`ts/src/rendered/readers.test.ts`) and `test_plain_reads_by_the_one_rule_quoting_means_text`
 (`py/tests/test_readers.py`) show this rule for every kind.
 
 ## Variables: `set` and `$name`
@@ -78,18 +78,18 @@ The rules:
   inside that block its own value is used.
 - **A variable is always a whole value.** `port $ports dev;` with `set $ports 8080 443;` reaches the program as
   three values: `8080 443 dev`. In a list, `[$ports, 1]` becomes `[8080, 443, 1]`. (Test: "rule 4: $name as a
-  value", "becomes all its values in a directive and in a list", `ts/src/load/rules.test.ts`.) A variable is never
+  value", "becomes all its values in a directive and in a list", `ts/src/rendered/rules.test.ts`.) A variable is never
   joined to other text: `fps$x` and `$x"y"` are two values touching (E2009; syntax conformance cases
   `var-touch-word` and `var-touch-string` in `conformance/variables.json`).
 - **As a slice bound** a variable must hold one whole number: `a[0:$n]` with `set $n 3;` is `a[0:3]`. Anything else is
   E4001. A variable is never the word in front of `[`: `$x[0:3]` is a syntax error (case `var-slice-base`).
 - **Values keep their kind.** `set $b $a;` copies `$a`'s values (strings stay strings, lists stay lists).
-- **An unknown name** (no `set` above it, nothing handed in) is E5001 at the `$name`, and its directive is kept as
+- **An unknown name** (no `set` above it, no override) is E5001 at the `$name`, and its directive is kept as
   unreadable (see below). It never quietly becomes nothing.
-- **Values handed in by the program win.** A program can pass variables when it loads a file (rasl's
-  `--set host=...`). A handed-in value wins over every `set` of that name, so a `set` acts as the default. It does
+- **Overrides from the program win.** A program can give variables values when it loads a file (its `overrides`;
+  rasl's `--set host=...`). An override wins over every `set` of that name, so a `set` acts as the default. It does
   not win over a snippet parameter: the value written on the `use` line is used (load case
-  `load-snippet-param-beats-handed` in `conformance/load/`).
+  `load-snippet-param-beats-override` in `conformance/load/`).
 - `$` inside a string is plain text; a `$` on its own is E1004; `$x 1;` is a syntax error, because a directive's
   name is a word (cases `var-in-string`, `var-lone-dollar`, `var-as-name`).
 - Any other form of `set` (no `$name`, no value, a block) is E5009 at `set`.
@@ -99,10 +99,10 @@ set $pixels 2284;
 set $leds_host "10.0.60.30";
 ```
 
-Excerpt of [`fixtures/rasl/split/main.conf`](../fixtures/rasl/split/main.conf). Loaded with `leds_host` handed in as
+Excerpt of [`fixtures/rasl/split/main.conf`](../fixtures/rasl/split/main.conf). Loaded with the override `leds_host` =
 `"10.0.70.1"`, the `leds` sink's `target` reads `"10.0.70.1"`; loaded without it, `"10.0.60.30"` (test "splits one
-sink file over two places, each with its own include-block values and the handed-in host",
-`ts/src/load/rasl.test.ts`).
+sink file over two places, each with its own include-block values and the override host",
+`ts/src/rendered/rasl.test.ts`).
 
 ## Snippets: `snippet` and `use`
 
@@ -143,14 +143,14 @@ The rules:
 - **The body sees the variables where the snippet is written**, plus its parameters; never the variables of the
   block where it is used. It sees a `set` written after the snippet but before the `use`.
 - **A body exports nothing.** A `set` or `snippet` inside a body is seen only inside it.
-- A parameter is the body's own variable: `set` of a parameter's name in the body is E5002. A value handed in by the
-  program or set in an include line's block never replaces a parameter (load cases `load-snippet-param-beats-handed`
+- A parameter is the body's own variable: `set` of a parameter's name in the body is E5002. An override from the
+  program or a `set` in an include line's block never replaces a parameter (load cases `load-snippet-param-beats-override`
   and `load-include-block-param`).
 - An unknown snippet name is E5003, at the name. Any other form of `snippet` (no name, no block, a parameter written
   twice) is E5010 at `snippet`; a `use` with a block or a name that is not a word is E5011 at `use`.
 - A problem inside a body is reported at each `use` of it, and its place says which `use` brought it there.
 
-Tests: "rules 5 and 6: snippet and use" in `ts/src/load/rules.test.ts`; the snippet tests in `py/tests/test_load.py`.
+Tests: "rules 5 and 6: snippet and use" in `ts/src/rendered/rules.test.ts`; the snippet tests in `py/tests/test_load.py`.
 
 ## Including files: an extension
 
@@ -206,14 +206,14 @@ The rules:
   matches no file is E3001, and a source that fails to read is E3004, both at `include`.
 - A program can write its own extensions. One that fails with anything but a located error gives E3006.
 
-Tests: "rules 7 and 8: extension directives and their blocks" in `ts/src/load/rules.test.ts`; the include tests in
+Tests: "rules 7 and 8: extension directives and their blocks" in `ts/src/rendered/rules.test.ts`; the include tests in
 `py/tests/test_load.py`.
 
 ## Reserved names
 
 At the start of a statement, in every block, `set`, `snippet` and `use` are always reserved, and so is the name of
 every extension the program has turned on (`include` with the include extension). They never reach the program as
-directives; what they produce does. (Test: "rule 1: reserved names", `ts/src/load/rules.test.ts`.)
+directives; what they produce does. (Test: "rule 1: reserved names", `ts/src/rendered/rules.test.ts`.)
 
 ## Limits
 

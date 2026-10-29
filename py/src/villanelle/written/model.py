@@ -30,9 +30,8 @@ from villanelle.written.errors import DetachedError, NoSetLineError
 
 if TYPE_CHECKING:
     from villanelle.extension import Extension
-    from villanelle.source import DocumentSource
+    from villanelle.source import DocumentSource, DocumentWriter
     from villanelle.written._bind import Binding, BoundValue
-    from villanelle.written.save import DocumentWriter
 
 
 def _detached(what: str) -> DetachedError:
@@ -128,8 +127,8 @@ class DocumentGraph:
         ``documents`` order; with none, the writer is not called. When the writer returns, each written document's
         ``saved_text`` becomes the text given to it; when it raises, nothing changes and ``SaveError`` is raised from
         it. Returns the resolved paths given to the writer."""
+        from villanelle.source import FileWrite
         from villanelle.written.errors import SaveError
-        from villanelle.written.save import FileWrite
 
         batch = [
             FileWrite(doc._path, doc._text, doc._saved) for doc in self._documents.values() if doc._text != doc._saved

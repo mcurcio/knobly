@@ -29,6 +29,8 @@ interface IMember {
   readonly params?: readonly IParam[];
   readonly io?: boolean;
   readonly spell?: ISpell;
+  /** Bindings that add this member in a later milestone (binding: milestone); the check skips it there. */
+  readonly later?: Readonly<Partial<Record<keyof ISpell, string>>>;
 }
 interface IConcept {
   readonly name: string;
@@ -379,6 +381,7 @@ function missing(concept: IConcept): string[] {
   }
   const out: string[] = [];
   for (const m of concept.members ?? []) {
+    if (m.later?.ts !== undefined) continue; // the schema defers this member here to a later milestone
     const key = keyOf(m);
     const present = objects.filter((o) => key in o).map((o) => get(o, key));
     // Object.prototype's own members (toString) do not count: the concept must define the member.
