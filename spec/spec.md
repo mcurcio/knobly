@@ -29,7 +29,7 @@ error groups, limits, reserved names, diagnostic codes) and every public signatu
 rules into a binding in a given language (names, idiom, what may differ) is in
 [binding-guide.md](binding-guide.md). The syntax is [grammar/Villanelle.g4](../grammar/Villanelle.g4); which
 definition a `$name` or a `use` reaches, and which one wins, is [expansion.md](expansion.md) (normative); the
-language for people writing configs is [docs/language.md](../docs/language.md), which teaches both and is not a
+language for people writing configs is the user guide's [language page](../docs/site/pages/language.md), which teaches both and is not a
 source of rules.
 
 ## 1. How to read this page

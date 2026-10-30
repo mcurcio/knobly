@@ -8,6 +8,9 @@ version as the generator).
 It is not on npm. Releases attach the `npm pack` tarball to the GitHub Release (see the
 [root README](../README.md#releases)).
 
+The user guide, with every sample in TypeScript, Python and C++: [https://mcurcio.github.io/villanelle/](https://mcurcio.github.io/villanelle/) (source:
+[`docs/site/pages/`](../docs/site/pages/)).
+
 ## Entry points
 
 | Import | What it has |
@@ -86,7 +89,7 @@ the package's classes implement the generated interfaces. The core has three lay
   is an unreadable expansion with reason `unread` (E3007). `graph.diagnostics` is the one list of every problem.
   Which definition a `$name` reaches is [spec/expansion.md](../spec/expansion.md). A variable's `references()` are lexical: the `$name`s in its own file that it declares. A use in an
   included file is resolved per copy, so it is only in `wins()` and `shadowedAt()`. The low level never imports the
-  rendered tree (`pnpm lint` checks it). Reference: [docs/low-level-api.md](../docs/low-level-api.md).
+  rendered tree (`pnpm lint` checks it). Guide: [Editing and saving](https://mcurcio.github.io/villanelle/editing/).
 - **The rendered tree.** `render(graph)` builds on the low level's public objects only (`graph.expand()`; `pnpm
   lint` refuses a rendered module importing anything under `written/` but `written/index.js`): it gives the
   directives (`block`, `values`; `rendered.block.walk` visits them all), each value its expansion's own `ExpandedValue`, narrowed by `kind` (a list has `items`, a slice
@@ -105,10 +108,10 @@ the package's classes implement the generated interfaces. The core has three lay
   });
   ```
 
-  Reference: [docs/rendered-tree.md](../docs/rendered-tree.md).
+  Guide: [Getting started](https://mcurcio.github.io/villanelle/getting-started/).
 
-Every example in those pages is copied from a test that runs. The language is
-[docs/language.md](../docs/language.md).
+Every sample in the guide is a file that `pnpm test` runs (`examples/`). The language is
+[the language reference](https://mcurcio.github.io/villanelle/language/).
 
 Problems are diagnostics with stable codes (`DiagnosticCode`: 1xxx lexical, 2xxx syntax, 3xxx
 files and extensions, 4xxx values, 5xxx expansion); a program's own codes are

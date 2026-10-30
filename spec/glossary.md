@@ -311,7 +311,7 @@ The low level's public entry is one module in each binding: `ts/src/written/inde
 | `entry rule` | a grammar rule a binding parses a given text with (`valuesText`, `itemsText`, `boundText`, `nameText`) | the rules that depend only on the text live in the grammar (vil-umh.3) | the check of a values text (its probe and scanner) |
 | `misuse error` (`MisuseError` in TypeScript) | the program-bug group for a bad value, every bad name included | one group for every bad name, told apart from an argument type error (vil-umh.7) | TypeScript's `TypeError` for misuse |
 | `unread` (an `unreadable reason`), E3007 `unread copy` | an extension copy not read yet | a render and a diff must show it (vil-umh.4) | none: it rendered as nothing |
-| definition, environment, walk, candidate | the words of [expansion.md](expansion.md) | the scoping and precedence rules have one home (vil-umh.2) | the prose of `docs/language.md` |
+| definition, environment, walk, candidate | the words of [expansion.md](expansion.md) | the scoping and precedence rules have one home (vil-umh.2) | the prose of `docs/site/pages/language.md` |
 | `INTEGER`, `DIGIT_WORD`, `BAD_ESCAPE` (token kinds) | an integer word, every other word starting with a digit or `-`, a string with a bad escape | directive names cannot start with a digit or `-` (owner Q1); bounds and escapes are checked by the grammar (vil-umh.3) | `WORD` (split in three); E4003 found at render |
 
 Removed in milestone 4: `value expansion`, `argument` and its five variants, the rendered `unreadable`, `edit

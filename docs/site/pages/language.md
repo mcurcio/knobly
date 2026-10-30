@@ -1,8 +1,8 @@
 # The villanelle language
 
 This page describes what a villanelle file may say, and what a program reads after loading it. It teaches; it is
-not where the rules live. The grammar file [`grammar/Villanelle.g4`](../grammar/Villanelle.g4) is the specification
-of the syntax, and [`spec/expansion.md`](../spec/expansion.md) is the specification of what a `$name`, a `@use` and
+not where the rules live. The grammar file [`grammar/Villanelle.g4`](https://github.com/mcurcio/villanelle/blob/main/grammar/Villanelle.g4) is the specification
+of the syntax, and [`spec/expansion.md`](https://github.com/mcurcio/villanelle/blob/main/spec/expansion.md) is the specification of what a `$name`, a `@use` and
 an included file reach and which definition wins. Where this page and those two differ, they win.
 
 Every example below is taken from a file or a test that passes. The line under each example names it. "Excerpt"
@@ -43,7 +43,7 @@ graph {
     }
 ```
 
-Excerpt of [`fixtures/rasl/family_room.conf`](../fixtures/rasl/family_room.conf), loaded by both languages' rasl
+Excerpt of [`fixtures/rasl/family_room.conf`](https://github.com/mcurcio/villanelle/blob/main/fixtures/rasl/family_room.conf), loaded by the TypeScript and Python rasl
 tests (`ts/src/rendered/rasl.test.ts`, `py/tests/test_rasl.py`).
 
 ## Values
@@ -95,11 +95,11 @@ reads them, and nothing reads them on its own (there is no reader that guesses a
         max_count $pixels;
 ```
 
-Excerpts of [`fixtures/rasl/family_room.conf`](../fixtures/rasl/family_room.conf). rasl reads `max_count 2284`.
+Excerpts of [`fixtures/rasl/family_room.conf`](https://github.com/mcurcio/villanelle/blob/main/fixtures/rasl/family_room.conf). rasl reads `max_count 2284`.
 The rasl tests also change the `@set` line to `2400` and check that the change list names exactly the two directives
 that use `$pixels`.
 
-The rules (the exact ones, with the one precedence table, are [`spec/expansion.md`](../spec/expansion.md)):
+The rules (the exact ones, with the one precedence table, are [`spec/expansion.md`](https://github.com/mcurcio/villanelle/blob/main/spec/expansion.md)):
 
 - **Where a `@set` is seen.** From its line to the end of the block it is written in, including nested blocks and
   everything spliced in below it. A `$name` before its `@set` is unknown.
@@ -119,10 +119,10 @@ The rules (the exact ones, with the one precedence table, are [`spec/expansion.m
 - **An unknown name** (no `@set` above it, no override) is E5001 at the `$name`, and its directive is kept as
   unreadable (see below). It never quietly becomes nothing.
 - **Overrides from the program win.** A program can give variables values when it loads a file (its `overrides`;
-  rasl's `--set host=...`). An override wins over every `@set` of that name, at any depth and in every included
+  rasl's `--set host=...`; [Getting started](getting-started.md#overrides-from-the-program)). An override wins over every `@set` of that name, at any depth and in every included
   file, so a `@set` acts as the default. It does not win over a snippet parameter that is the nearest definition: the
   value written on the `@use` line is used (load case `load-snippet-param-beats-override` in `conformance/load/`;
-  [`spec/expansion.md`](../spec/expansion.md) 6 has the whole table).
+  [`spec/expansion.md`](https://github.com/mcurcio/villanelle/blob/main/spec/expansion.md) 6 has the whole table).
 - `$` inside a string is plain text; a `$` on its own is E1004; `$x 1;` is a syntax error, because a directive's
   name is a word (cases `var-in-string`, `var-lone-dollar`, `var-as-name`).
 - Any other form of `@set` (no `$name`, no value, a block) is E5009 at `@set`.
@@ -132,7 +132,7 @@ The rules (the exact ones, with the one precedence table, are [`spec/expansion.m
 @set $leds_host "10.0.60.30";
 ```
 
-Excerpt of [`fixtures/rasl/split/main.conf`](../fixtures/rasl/split/main.conf). Loaded with the override `leds_host` =
+Excerpt of [`fixtures/rasl/split/main.conf`](https://github.com/mcurcio/villanelle/blob/main/fixtures/rasl/split/main.conf). Loaded with the override `leds_host` =
 `"10.0.70.1"`, the `leds` sink's `target` reads `"10.0.70.1"`; loaded without it, `"10.0.60.30"` (test "splits one
 sink file over two places, each with its own include-block values and the override host",
 `ts/src/rendered/rasl.test.ts`).
@@ -162,10 +162,10 @@ A snippet is a named block of directives with parameters. `@use` puts a copy of 
     node TwinkleEffect white_twinkle { @use twinkle white_150; }
 ```
 
-Excerpts of [`fixtures/rasl/family_room.conf`](../fixtures/rasl/family_room.conf). Each node reads the seven
+Excerpts of [`fixtures/rasl/family_room.conf`](https://github.com/mcurcio/villanelle/blob/main/fixtures/rasl/family_room.conf). Each node reads the seven
 directives of the body, with `connect rgb_150;` and `connect white_150;`.
 
-The rules ([`spec/expansion.md`](../spec/expansion.md) has the exact ones):
+The rules ([`spec/expansion.md`](https://github.com/mcurcio/villanelle/blob/main/spec/expansion.md) has the exact ones):
 
 - **Values bind parameters by position**, and the count must match exactly (E5004 at `@use`). A variable holding two
   values counts as two.
@@ -188,7 +188,8 @@ Tests: "rules 5 and 6: snippet and use" in `ts/src/rendered/rules.test.ts`; the 
 ## Including files: an extension
 
 Including is not built into the language. It is an **extension** that a program turns on when it makes its
-processor (`include()` from `villanelle/include` in TypeScript, `villanelle.include` in Python). An extension's
+processor (`include()` from `villanelle/include` in TypeScript, `villanelle.include` in Python,
+`villanelle::extensions` in C++; [Getting started](getting-started.md#a-processor-loading-and-rendering)). An extension's
 statement is written with `@`: with the include extension, `@include "path";` puts the top-level directives of the named file where the line is. The path is relative to
 the including file. A `*` or `?` in the last part of the path matches several files, which are spliced in code-point
 order of their paths. Without the extension, `@include` is E3008 (no extension for this `@name`, load case
@@ -207,7 +208,7 @@ order of their paths. Without the extension, `@include` is E3008 (no extension f
     }
 ```
 
-Excerpt of [`fixtures/rasl/split/main.conf`](../fixtures/rasl/split/main.conf). It includes one file at two places.
+Excerpt of [`fixtures/rasl/split/main.conf`](https://github.com/mcurcio/villanelle/blob/main/fixtures/rasl/split/main.conf). It includes one file at two places.
 
 ```conf
 node DdpSink $name {
@@ -220,10 +221,10 @@ node DdpSink $name {
 }
 ```
 
-Excerpt of [`fixtures/rasl/split/sink.conf`](../fixtures/rasl/split/sink.conf). The program reads two nodes,
+Excerpt of [`fixtures/rasl/split/sink.conf`](https://github.com/mcurcio/villanelle/blob/main/fixtures/rasl/split/sink.conf). The program reads two nodes,
 `leds` and `porch`, each with its own `target`.
 
-The rules ([`spec/expansion.md`](../spec/expansion.md) 3, 4 and 7 say exactly what an included file sees):
+The rules ([`spec/expansion.md`](https://github.com/mcurcio/villanelle/blob/main/spec/expansion.md) 3, 4 and 7 say exactly what an included file sees):
 
 - **A file is read once per load**, however many places include it, and its syntax errors are reported once. Each
   place gets its own copy of the directives, with its own variables.
@@ -236,7 +237,8 @@ The rules ([`spec/expansion.md`](../spec/expansion.md) 3, 4 and 7 say exactly wh
   count for that block's one-per-name checks: a file that sets a name cannot be included twice in one block (E5002,
   load case `load-include-twice-same-block`). The file sees the including block's `set` lines written before the
   include line, not after (`load-include-sees-includer`).
-- **A file added by an edit is not read until the program asks** (`read()`): until then the include line renders as
+- **A file added by an edit is not read until the program asks** (`read()`, [Variables, snippets and
+  includes](variables.md#an-include-an-edit-added)): until then the include line renders as
   an unreadable statement with reason `unread` and E3007, so a change list calls what it held `unknown`, not
   removed.
 - `@include` takes exactly one quoted path (E3005, on the first value when it is not quoted, else on the second
@@ -283,4 +285,4 @@ the load's problems in the order the load met them.
 
 ## Error codes
 
-Every code, with where it is placed, is listed in the [rendered-tree reference](rendered-tree.md#error-codes).
+Every code, with where it is placed, is listed in the [error code table](diagnostics.md#error-codes).

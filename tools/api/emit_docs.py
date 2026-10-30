@@ -1,8 +1,8 @@
 """The docs emitter: the Markdown tables read on GitHub, rewritten between markers from the same model.
 
 Each table sits between `<!-- generated: NAME (tools/gen-api.py docs) -->` and `<!-- end generated -->`. These are the
-one generated output that is committed: nothing builds the docs, so the text GitHub shows must be in the repository
-(spec/codegen.md section 6). `tools/gen-api.py --check` (run by tools/check.sh) fails when a committed table differs
+one generated output that is committed: the spec and READMEs are read on GitHub as they are, and the user guide's
+pages (docs/site/pages/) are built as written, so the tables must be in the repository (spec/codegen.md section 6). `tools/gen-api.py --check` (run by tools/check.sh) fails when a committed table differs
 from what the schema gives, so a table cannot drift from its source.
 
 Nothing here knows a target language: each binding is a column, in the order of the model's languages, and every cell
@@ -468,7 +468,7 @@ def tables(model: Model) -> Dict[str, Tuple[Path, Callable[[Model], str]]]:
     per entry in docs/tables.json."""
     return {
         "diagnostic codes": (REPO / "spec" / "spec.md", spec_codes),
-        "error codes": (REPO / "docs" / "rendered-tree.md", guide_codes),
+        "error codes": (REPO / "docs" / "site" / "pages" / "diagnostics.md", guide_codes),
         "adapter requests": (REPO / "spec" / "conformance.md", protocol_requests),
         "adapter dumps": (REPO / "spec" / "conformance.md", protocol_dumps),
         "error groups": (REPO / "spec" / "spec.md", error_groups),
