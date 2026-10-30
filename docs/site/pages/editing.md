@@ -117,7 +117,7 @@ writes only that file:
     --8<-- "cpp/examples/edit_save.cpp:main"
     ```
 
-It prints:
+It prints (TypeScript prints each path absolute, starting with the folder it ran in: see [Paths](differences.md#paths)):
 
 ```text
 --8<-- "examples/expected/edit_save.txt"
@@ -179,7 +179,7 @@ The sample changes `app.conf` behind the graph's back, then saves an edit:
     --8<-- "cpp/examples/lost_update.cpp:main"
     ```
 
-It prints:
+It prints (TypeScript prints each path absolute, starting with the folder it ran in: see [Paths](differences.md#paths)):
 
 ```text
 --8<-- "examples/expected/lost_update.txt"

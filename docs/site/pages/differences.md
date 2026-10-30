@@ -46,8 +46,9 @@ an offset count differs:
 ## Paths
 
 TypeScript's file source makes paths absolute; Python's and C++'s stay as written, joined lexically with the
-including file's directory (a relative root stays relative). The samples on this site print the relative form: the
-TypeScript runner cuts the run folder from what it prints.
+including file's directory (a relative root stays relative). The "It prints" blocks on this site show the relative
+form: run as it is, a TypeScript sample prints `/home/me/proj/main.conf` where the block shows `main.conf` (its test
+cuts the run folder from what it prints before comparing).
 
 ## Errors
 

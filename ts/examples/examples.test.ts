@@ -2,7 +2,10 @@
 // in a fresh copy of its fixture folder, and what it prints with console.log must be examples/expected/<id>.txt byte
 // for byte. The same table drives py/tests/test_examples.py and cpp/examples/CMakeLists.txt, so the three bindings'
 // samples print the same text. TypeScript's file source makes paths absolute (Python's and C++'s stay relative), so
-// the run folder is cut from the output before comparing.
+// the run folder is cut from the output before comparing. A reader runs a sample with plain `node <file>.ts`, whose
+// type stripping refuses TypeScript-only syntax (parameter properties, enums, namespaces) that vitest would compile,
+// so each sample must also strip as Node strips it.
+import { stripTypeScriptTypes } from "node:module";
 import { cpSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
@@ -37,6 +40,10 @@ async function run(file: string, folder: string): Promise<string> {
 describe("the user guide's samples", () => {
   it.each(FILES)("%s is in examples/samples.json", (file) => {
     expect(Object.keys(TABLE.samples)).toContain(basename(file, ".ts"));
+  });
+
+  it.each(FILES)("%s runs under plain node (erasable TypeScript only)", (file) => {
+    expect(() => stripTypeScriptTypes(readFileSync(join(import.meta.dirname, file), "utf8"))).not.toThrow();
   });
 
   it.each(FILES.filter((f) => basename(f, ".ts") in TABLE.samples))("%s prints its expected output", async (file) => {

@@ -10,8 +10,11 @@ import { include } from "villanelle/include";
 // --8<-- [start:source]
 class RecordingSource implements DocumentSource {
   readonly reads: string[] = [];
+  private readonly inner: DocumentSource;
 
-  constructor(private readonly inner: DocumentSource) {}
+  constructor(inner: DocumentSource) {
+    this.inner = inner;
+  }
 
   resolve(spec: string, context: LoadContext): Promise<readonly string[]> {
     return this.inner.resolve(spec, context);

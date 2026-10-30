@@ -48,7 +48,7 @@ with the place it was written:
     --8<-- "cpp/examples/load_render.cpp:main"
     ```
 
-It prints:
+It prints (TypeScript prints each path absolute, starting with the folder it ran in: see [Paths](differences.md#paths)):
 
 ```text
 --8<-- "examples/expected/load_render.txt"
@@ -160,13 +160,13 @@ that brought it there (an include line, a snippet's use, a variable). The rest o
 stays in place as unreadable, so it never hides its neighbours. Diagnostics come in order: each file's syntax
 problems, files in the order they were first read, then the load's problems in the order the load met them.
 
-`main.conf` has a missing `;`, an unknown variable, and includes a file with another:
+`main.conf` has a missing `;`, an unknown variable, and includes `part.conf`, which has another:
 
-```conf
+```conf title="main.conf"
 --8<-- "examples/fixtures/broken/main.conf"
 ```
 
-```conf
+```conf title="part.conf"
 --8<-- "examples/fixtures/broken/part.conf"
 ```
 
@@ -191,7 +191,7 @@ a caret line under the span, and one line per step:
     --8<-- "cpp/examples/diagnostics.cpp:main"
     ```
 
-It prints:
+It prints (TypeScript prints each path absolute, starting with the folder it ran in: see [Paths](differences.md#paths)):
 
 ```text
 --8<-- "examples/expected/diagnostics.txt"
@@ -237,7 +237,7 @@ two sorts ([`spec/spec.md`](https://github.com/mcurcio/villanelle/blob/main/spec
     --8<-- "cpp/examples/errors.cpp:main"
     ```
 
-It prints:
+It prints (TypeScript prints each path absolute, starting with the folder it ran in: see [Paths](differences.md#paths)):
 
 ```text
 --8<-- "examples/expected/errors.txt"

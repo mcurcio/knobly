@@ -21,6 +21,9 @@ villanelle depends on nothing but each language's standard library (and, in Type
 runtime their generated parsers use). Nothing is installed system-wide: each release on
 [GitHub](https://github.com/mcurcio/villanelle/releases) carries one file per language that goes into your project.
 
+No release has been made yet, so each tab also says how to build the same file from a git checkout
+(`git clone https://github.com/mcurcio/villanelle`; commands from its root).
+
 === "TypeScript"
 
     The `npm pack` tarball of each release, for Node 24 or later (it is not on npm):
@@ -29,8 +32,18 @@ runtime their generated parsers use). Nothing is installed system-wide: each rel
     npm install https://github.com/mcurcio/villanelle/releases/download/v<version>/villanelle-<version>.tgz
     ```
 
-    Each layer is its own import path: `villanelle`, `villanelle/syntax`, `villanelle/written`,
-    `villanelle/rendered`, `villanelle/include`, and `villanelle/node` for files on disk.
+    From a checkout (Node 24, pnpm through corepack, Java 11+ and `curl` for the generated parser), build and pack
+    it, then install the tarball in your project:
+
+    ```bash
+    corepack pnpm -C ts install && corepack pnpm -C ts build && npm pack ./ts
+    npm install <checkout>/villanelle-0.0.0-development.tgz   # from your project's folder
+    ```
+
+    The package is ES modules only, and the samples use top-level `await`: set `"type": "module"` in your
+    project's `package.json` (`npm pkg set type=module`). Node 24 runs a sample's `.ts` file as it is
+    (`node hello.ts`), stripping the types. Each layer is its own import path: `villanelle`, `villanelle/syntax`,
+    `villanelle/written`, `villanelle/rendered`, `villanelle/include`, and `villanelle/node` for files on disk.
 
 === "Python"
 
@@ -40,14 +53,22 @@ runtime their generated parsers use). Nothing is installed system-wide: each rel
     pip install https://github.com/mcurcio/villanelle/releases/download/v<version>/villanelle-<version>-py3-none-any.whl
     ```
 
+    From a checkout, write the generated parser and API modules first (Java 11+ and `curl`; they are not
+    committed), then install the folder:
+
+    ```bash
+    bash tools/gen.sh py
+    pip install <checkout>/py
+    ```
+
     Each layer is its own module: `villanelle`, `villanelle.syntax`, `villanelle.written`, `villanelle.rendered`,
     `villanelle.include`, and `villanelle.files` for files on disk.
 
 === "C++"
 
     A C++20 compiler and nothing else. Either copy the single header `villanelle.hpp` from the release into your
-    project and `#include "villanelle.hpp"`, or let CMake 3.24 or later fetch the release's source archive
-    (`villanelle-cpp-<version>.tar.gz`, which carries the generated headers) into your build folder:
+    project, or let CMake 3.24 or later fetch the release's source archive (`villanelle-cpp-<version>.tar.gz`,
+    which carries the generated headers) into your build folder:
 
     ```cmake
     --8<-- "cpp/tests/consumer/CMakeLists.txt:fetchcontent"
@@ -55,12 +76,20 @@ runtime their generated parsers use). Nothing is installed system-wide: each rel
 
     `VILLANELLE_RELEASE_URL` and `VILLANELLE_RELEASE_SHA256` are the archive's URL and SHA-256 from the release
     (write them in, or set them). `add_subdirectory` of the extracted archive, or of a copy in your repository,
-    works the same way. No Python and no install step is needed by any route; compiled mode and versions are in
+    works the same way. Neither route needs Python or an install step; compiled mode and versions are in
     [`cpp/README.md`](https://github.com/mcurcio/villanelle/blob/main/cpp/README.md#using-it).
 
-!!! note
-    No release has been made yet. Until then, build the packages from a checkout as the
-    [README](https://github.com/mcurcio/villanelle/blob/main/README.md#build-and-test) says.
+    The samples include each layer's header (`#include <villanelle/files.hpp>`). With the single header, write
+    `#include "villanelle.hpp"` in their place: it holds every layer.
+
+    From a checkout, either `add_subdirectory(<checkout>/cpp)` (its configure step writes the generated headers,
+    which needs Python 3.9 or later and `uv`), or build the two release files and use them as above:
+
+    ```bash
+    bash .github/release-cpp.sh 0.1.0 <out-dir>   # writes villanelle-cpp-0.1.0.tar.gz and villanelle.hpp
+    ```
+
+    It needs Python 3.9 or later and `uv` too, and writes the generated headers into the checkout's `cpp/`.
 
 ## Hello
 

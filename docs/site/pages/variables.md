@@ -29,7 +29,7 @@ The split config again ([Getting started](getting-started.md) shows its files): 
     --8<-- "cpp/examples/variables.cpp:main"
     ```
 
-It prints:
+It prints (TypeScript prints each path absolute, starting with the folder it ran in: see [Paths](differences.md#paths)):
 
 ```text
 --8<-- "examples/expected/variables.txt"
