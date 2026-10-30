@@ -1,0 +1,155 @@
+{
+  "processor": {
+    "file": "docs/rendered-tree.md",
+    "first": [""],
+    "rows": [
+      {"what": "make", "ref": "make processor"},
+      {"what": "load the files as written", "ref": "processor.load", "receiver": "processor"},
+      {"what": "read files an edit added", "ref": "document graph.read", "receiver": "graph"},
+      {"what": "render", "ref": "render"},
+      {"what": "compare", "ref": "rendered.diff", "receiver": "before"}
+    ]
+  },
+  "readers": {
+    "file": "docs/rendered-tree.md",
+    "first": ["Reads"],
+    "last": ["Error"],
+    "rows": [
+      {"what": "a bare word", "ref": "expanded value.word", "last": ["E4002"]},
+      {"what": "a word or a string, decoded", "ref": "expanded value.string", "last": ["E4002"]},
+      {"what": "a number (JSON's number syntax: `8080`, `0.5`, `-2E-2`; not `20hz`, `01`, `.5`)", "ref": "expanded value.number", "last": ["E4004, E4002"]},
+      {"what": "a whole number within ±(2^53-1) (`1.0` is not one)", "ref": "expanded value.integer", "last": ["E4005, E4002"]},
+      {"what": "`true` or `false` only (`on`, `yes` are not)", "ref": "expanded value.boolean", "last": ["E4006, E4002"]},
+      {"what": "a list's items, each with its own origin", "ref": "expanded value.list", "last": ["E4002"]},
+      {"what": "a slice or an index", "ref": "expanded value.slice", "last": ["E4002"]}
+    ]
+  },
+  "addresses": {
+    "file": "docs/rendered-tree.md",
+    "first": [""],
+    "rows": [
+      {"what": "every directive's address, a map from directive to address", "ref": "rendered.addresses", "receiver": "rendered"},
+      {"what": "for people: `graph > node \"leds\" > max_count`", "ref": "address.people form", "cells": {"ts": "`address.toString()`", "py": "`str(address)`", "cpp": "`to_string(address)`"}},
+      {"what": "as a map key (JSON, the same bytes in every language)", "ref": "address.text", "receiver": "address", "cells": {"py": "`address.text`, or the `Address` itself (hashable)"}},
+      {"what": "enclosing", "ref": "address.parent", "receiver": "address"}
+    ]
+  },
+  "sources": {
+    "file": "docs/rendered-tree.md",
+    "first": ["Source"],
+    "rows": [
+      {"what": "texts held in memory (tests, editors)", "ref": "memory source"},
+      {"what": "the filesystem", "ref": "file source"},
+      {"what": "`fetch` (paths are URLs)", "ref": "fetch source"}
+    ]
+  },
+  "graph members": {
+    "file": "docs/low-level-api.md",
+    "first": ["Member"],
+    "last": ["What it is"],
+    "rows": [
+      {"what": "the root file", "ref": "document graph.root", "last": ["the file `load` was given"]},
+      {"what": "every file read", "ref": "document graph.documents", "last": ["by path: the root, then in first-read order; never shrinks"]},
+      {"what": "overrides", "ref": "document graph.overrides", "last": ["by name, each as config text; never saved"]},
+      {"what": "change an override", "ref": "document graph.set override", "last": ["see \"Overrides\""]},
+      {"what": "every place an include line is read", "ref": "document graph.edges", "last": ["the line, the specs it gave, the files it matched"]},
+      {"what": "what is not read yet", "ref": "document graph.unread", "last": ["the edges naming a file not read yet (see \"Reading files an edit added\")"]},
+      {"what": "variables", "ref": "document graph.variables", "last": ["every `set` line's and snippet parameter's `$name`, then the overrides"]},
+      {"what": "problems", "ref": "document graph.diagnostics", "last": ["a property: each file's syntax problems, then the include, `set` and `snippet` problems found"]},
+      {"what": "read what is unread", "ref": "document graph.read", "last": ["see \"Reading files an edit added\""]},
+      {"what": "write the changes back", "ref": "document graph.save", "last": ["see \"Saving\""]}
+    ]
+  },
+  "document members": {
+    "file": "docs/low-level-api.md",
+    "first": ["Member"],
+    "rows": [
+      {"what": "its path", "ref": "document.resolved path"},
+      {"what": "the text as read, or as last saved", "ref": "document.saved text"},
+      {"what": "the text now", "ref": "document.text"},
+      {"what": "its syntax tree", "ref": "document.syntax"},
+      {"what": "its top-level statements", "ref": "document.block"},
+      {"what": "the include copies that splice it in", "ref": "document.included by"},
+      {"what": "replace the whole text", "ref": "document.replace with text"}
+    ]
+  },
+  "variable members": {
+    "file": "docs/low-level-api.md",
+    "first": ["Member"],
+    "last": ["On", "What it is"],
+    "rows": [
+      {"what": "", "ref": ["variable.kind", "variable.name"], "last": ["every kind", "the name without `$`"]},
+      {"what": "where its `$name` is written", "ref": "set variable.place", "last": ["`set`, `parameter`", "an override has none"]},
+      {"what": "its line", "ref": "set variable.line", "last": ["`set`, `parameter`", "the `set` or `snippet` line"]},
+      {"what": "the `$name`s declared by it", "ref": "variable.references", "last": ["every kind", "lexical only: the `$name`s in its own file whose `declaration` it is, reached or not; empty for an override. A use in an included file has no declaration, so it is only in `wins()` and `shadowedAt()`"]},
+      {"what": "where it wins", "ref": "variable.wins", "last": ["every kind", "one resolution per place it wins: every use, per copy"]},
+      {"what": "where another one wins", "ref": "variable.shadowed at", "last": ["every kind", "one resolution per place it is shadowed"]},
+      {"what": "rename its `$name`", "ref": "set variable.rename", "last": ["`set`, `parameter`", "only the `$name` on its line; the references are not changed"]},
+      {"what": "change its value", "ref": "set variable.set", "last": ["`set`", "its `set` line's values. A parameter's value is on the `use` line; an override's changes with `setOverride`"]}
+    ]
+  },
+  "errors": {
+    "file": "docs/low-level-api.md",
+    "first": ["Error"],
+    "last": ["When"],
+    "rows": [
+      {"what": "the text is not what the edit takes", "ref": "bad text error", "last": ["above"]},
+      {"what": "a file changed since it was read (`paths`: the conflicting files)", "ref": "lost update error", "last": ["see \"Saving\""]},
+      {"what": "the writer failed", "ref": "save error", "last": ["see \"Saving\""]},
+      {"what": "the root file cannot be read", "ref": "read error", "last": ["`load`"]},
+      {"what": "the handle's tokens are gone (a bug)", "ref": "detached error", "last": ["see \"Handles\""]},
+      {"what": "villanelle text was not given (a bug)", "ref": "argument type error", "last": ["a number, `null` / `None` or anything else where text is taken"]},
+      {"what": "a bad name (a bug)", "ref": "misuse error", "last": ["`rename`, `setOverride`, an override `load` takes"]},
+      {"what": "an index outside the block (a bug)", "ref": "index out of range", "last": ["`insertStatements`"]}
+    ]
+  },
+  "writers": {
+    "file": "docs/low-level-api.md",
+    "first": ["Writer"],
+    "rows": [
+      {"what": "memory", "ref": "memory writer"},
+      {"what": "the filesystem", "ref": "file writer"},
+      {"what": "`fetch`", "ref": "fetch writer"}
+    ]
+  },
+  "entry points": {
+    "file": "README.md",
+    "first": ["Entry point"],
+    "rows": [
+      {"what": "what every layer shares, and the ports", "ref": "layer: shared", "names": ["quote", "text", "config text", "memory source", "memory writer", "diagnostics", "villanelle error", "document source", "place"]},
+      {"what": "the syntax tree", "ref": "layer: syntax", "names": ["parse", "span of", "text of", "syntax", "token", "node", "token kind"]},
+      {"what": "the low level", "ref": "layer: written", "names": ["make processor", "format diagnostic", "document graph", "statement", "statement kind"]},
+      {"what": "the rendered tree", "ref": "layer: rendered", "names": ["render", "rendered", "directive", "key rule"]},
+      {"what": "the include extension", "ref": "module: include", "names": ["include"]},
+      {"what": "files on disk", "ref": "module: files", "names": ["file source", "file writer"]},
+      {"what": "files over `fetch`", "ref": "module: fetch", "names": ["fetch source", "fetch writer"]}
+    ]
+  },
+  "traits": {
+    "file": "spec/codegen.md",
+    "first": ["Trait or field"],
+    "last": ["Means"],
+    "rows": [
+      {"what": "`trait: people form`", "ref": "trait: people form", "last": ["the text a person reads (contract 2)"]},
+      {"what": "`trait: iterate`", "ref": "trait: iterate", "last": ["the items in order"]},
+      {"what": "`trait: count`", "ref": "trait: count", "last": ["how many"]},
+      {"what": "`trait: index`", "ref": "trait: index", "last": ["the item at an index"]},
+      {"what": "`trait: walk`", "ref": "trait: walk", "last": ["depth-first visit (spec 7.5)"]},
+      {"what": "`trait: collect`", "ref": "trait: collect", "last": ["run reads, record a diagnostic error"]},
+      {"what": "`io: true`", "ref": "trait: io", "last": ["goes through a port"]},
+      {"what": "`passed: keyword`", "ref": "trait: passed: keyword", "last": ["an argument named at the call"]},
+      {"what": "`passed: option` (with the member's `options` record)", "ref": "trait: passed: option", "last": ["an optional setting"]},
+      {"what": "`factory` (`{\"of\": concept}`; the form is the emitter's `factory_forms`, default `constructor`)", "ref": "trait: factory", "last": ["how a concept is made"]},
+      {"what": "`nature: named type`, `brand`", "ref": "trait: brand", "last": ["a string with its own type (spec 6.9)"]},
+      {"what": "`nature: named type`, `template`", "ref": "trait: template", "last": ["text of a stated form (`{text}/{text}`; the `pattern` checks it at run time)"]},
+      {"what": "`nature: named type`, `is: native`", "ref": "trait: native", "last": ["the platform's own type: the emitter's `LANGUAGE.native`; the loader refuses a kept native type without one, and a binding that keeps no native type leaves out the module that holds them"]},
+      {"what": "list `[]`", "ref": "trait: list", "last": ["in order"]},
+      {"what": "`map`", "ref": "trait: map", "last": ["keyed, ordered"]},
+      {"what": "`module` (`files`, `fetch`, `include`; the path is the emitter's `modules`)", "ref": "trait: module", "last": ["an adapter module, named for what it holds; a module the emitter leaves out does not exist there, nor its functions and concepts"]},
+      {"what": "what a binding leaves out (the emitter's `omit`, and any module it does not map)", "ref": "trait: omit", "last": ["exists in some bindings only (a left-out module takes its functions and concepts with it)"]},
+      {"what": "a trait's own public names (the emitter's `trait_names`)", "ref": "trait: names", "last": ["a class or type a trait's idiom adds, public beside the concept with the trait"]},
+      {"what": "a root error group's class (the emitter's `error_roots`)", "ref": "trait: error roots", "last": ["the root's base, or the language's own class (spec 2.8's and contract 4.2's generated tables)"]},
+      {"what": "the argument type error's message (the emitter's `argument_type_message`; the schema keeps its rule and placeholders)", "ref": "trait: argument type message", "last": ["a whole sentence, because it names the language's own conversion and type words (spec 6.9's generated table)"]}
+    ]
+  }
+}

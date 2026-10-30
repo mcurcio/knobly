@@ -73,6 +73,14 @@ def _member_spelling(cls: str, member: str) -> str:
     return snake(member) + "_" if snake(member) == snake(cls) else snake(member)
 
 
+def _call_params(params: List[Tuple[str, str, bool]]) -> str:
+    """A call's parameters in the docs tables: an optional one (an overload without it) in brackets, the options as the
+    options aggregate's designated initializers."""
+    plain = [f"[{n}]" if optional else n for n, passed, optional in params if passed != "option"]
+    options = [f".{n}" for n, passed, _ in params if passed == "option"]
+    return ", ".join(plain + ([f"{{{', '.join(options)}}}"] if options else []))
+
+
 # C++'s own facts (the schema names no language; spec/codegen.md section 10).
 LANGUAGE = Language(
     key="cpp",
@@ -108,6 +116,23 @@ LANGUAGE = Language(
     pattern_form=lambda constant: f"is_{snake(constant)}",
     member_spelling=_member_spelling,
     kinds_in_package=True,  # one kinds.hpp, which the generated parser includes (::villanelle::token_kind)
+    trait_forms={
+        "people form": "`to_string(x)`, a free function (`<villanelle/format.hpp>` adds `std::format` and `<<`)",
+        "iterate": "`begin()` and `end()`: a range",
+        "count": "`size()`",
+        "index": "`at(i)`, `index_out_of_range` out of range",
+        "walk": "`walk(descend)`, a `walk_view` range; `descend(item)` says whether to enter its block",
+        "collect": "`collect(read)`, returning `std::optional`",
+        "io": "a plain call",
+        "passed: keyword": "positional",
+        "passed: option": "an options aggregate (`load(path, {.overrides = ...})`)",
+        "brand": "a class of its own holding the text (`config_text`)",
+        "template": "a class checked when made (a `program_code` literal is checked at compile time)",
+        "list": "`villanelle::sequence<T>`, an immutable shared list",
+        "map": "`villanelle::ordered_map<K, V>` (`writable`: held by `std::shared_ptr`, shared with the caller)",
+    },
+    property_form=lambda name: f"{name}()",  # every property is read through an accessor
+    call_params=_call_params,
 )
 
 KEY = LANGUAGE.key

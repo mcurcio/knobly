@@ -82,6 +82,14 @@ def _omitted_as(name: str, nature: str) -> str:
 
 
 # Python's own facts (the schema names no language; spec/codegen.md section 10).
+def _call_params(params: List[Tuple[str, str, bool]]) -> str:
+    """A call's parameters in the docs tables: an optional one ``=None``, one passed by keyword ``=...`` when required."""
+    out = []
+    for n, passed, optional in params:
+        out.append(f"{n}=None" if optional else f"{n}=..." if passed != "position" else n)
+    return ", ".join(out)
+
+
 LANGUAGE = Language(
     key="py",
     name="Python",
@@ -110,6 +118,22 @@ LANGUAGE = Language(
     trait_names=_trait_names,
     # ruff's documented order: sort the imports (a lint fix), then format.
     formatter=Formatter(".py", ((*RUFF, "check", "--select", "I", "--fix", *RUFF_CONFIG), (*RUFF, "format", *RUFF_CONFIG))),
+    trait_forms={
+        "people form": "`__str__`",
+        "iterate": "`__iter__`",
+        "count": "`__len__`",
+        "index": "`__getitem__`, `IndexError` out of range",
+        "walk": "`walk(*, descend=None)`, a generator",
+        "collect": "`collecting()`, a context manager",
+        "io": "a plain call",
+        "passed: keyword": "keyword-only",
+        "passed: option": "keyword-only (`load(path, *, overrides=None)`)",
+        "brand": "a `NewType` of `str`",
+        "template": "`str`",
+        "list": "`tuple[T, ...]` as a result, `Sequence[T]` as a parameter",
+        "map": "`Mapping` (`writable`: `MutableMapping`)",
+    },
+    call_params=_call_params,
 )
 
 

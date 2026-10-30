@@ -58,17 +58,20 @@ villanelle has three layers, each built on the one below; a program can work at 
 copied from a test that runs.
 
 Each layer is its own import path, and every name has exactly one (milestone 6; [spec/binding-guide.md](spec/binding-guide.md)
-rule 9). Type names carry no prefix (`DocumentGraph`, `Rendered`), the same in both languages.
+rule 9). Type names carry no prefix (`DocumentGraph`, `Rendered`), the same in TypeScript and Python; C++ spells them
+in snake_case, as its standard library does (`document_graph`), and its import paths are namespaces.
 
-| Entry point | TypeScript | Python |
-|---|---|---|
-| what every layer shares, and the ports | `villanelle`: `quote`, `text`, `ConfigText`, `memorySource`, `memoryWriter`, `Diagnostics`, the error classes, `DocumentSource`, `Place`, ... | `villanelle`: `quote`, `text`, `ConfigText`, `memory_source`, `memory_writer`, `Diagnostics`, the error classes, `DocumentSource`, `Place`, ... |
-| the syntax tree | `villanelle/syntax`: `parse`, `spanOf`, `textOf`, `Syntax`, `Token`, `Node`, `TokenKind`, ... | `villanelle.syntax`: `parse`, `span_of`, `text_of`, `Syntax`, `Token`, `Node`, `TokenKind`, ... |
-| the low level | `villanelle/written`: `villanelle`, `formatDiagnostic`, `DocumentGraph`, `Statement`, `StatementKind`, ... | `villanelle.written`: `Processor`, `format_diagnostic`, `DocumentGraph`, `Statement`, `StatementKind`, ... |
-| the rendered tree | `villanelle/rendered`: `render`, `Rendered`, `Directive`, `KeyRule`, ... | `villanelle.rendered`: `render`, `Rendered`, `Directive`, `KeyRule`, ... |
-| the include extension | `villanelle/include`: `include()` | `villanelle.include`: `include()` |
-| files on disk | `villanelle/node`: `fileSource()`, `fileWriter()` | `villanelle.files`: `file_source()`, `file_writer()` |
-| files over `fetch` | `villanelle/browser`: `fetchSource(fetch)`, `fetchWriter(fetch, options?)` | none |
+<!-- generated: members: entry points (tools/gen-api.py docs) -->
+| Entry point | TypeScript | Python | C++ |
+|---|---|---|---|
+| what every layer shares, and the ports | `villanelle`: `quote`, `text`, `ConfigText`, `memorySource`, `memoryWriter`, `Diagnostics`, `VillanelleError`, `DocumentSource`, `Place`, ... | `villanelle`: `quote`, `text`, `ConfigText`, `memory_source`, `memory_writer`, `Diagnostics`, `VillanelleError`, `DocumentSource`, `Place`, ... | `villanelle`: `quote`, `text`, `config_text`, `memory_source`, `memory_writer`, `diagnostics`, `villanelle_error`, `document_source`, `place`, ... |
+| the syntax tree | `villanelle/syntax`: `parse`, `spanOf`, `textOf`, `Syntax`, `Token`, `Node`, `TokenKind`, ... | `villanelle.syntax`: `parse`, `span_of`, `text_of`, `Syntax`, `Token`, `Node`, `TokenKind`, ... | `villanelle::syntax`: `parse`, `span_of`, `text_of`, `syntax`, `token`, `node`, `token_kind`, ... |
+| the low level | `villanelle/written`: `villanelle`, `formatDiagnostic`, `DocumentGraph`, `Statement`, `StatementKind`, ... | `villanelle.written`: `Processor`, `format_diagnostic`, `DocumentGraph`, `Statement`, `StatementKind`, ... | `villanelle::written`: `processor`, `format_diagnostic`, `document_graph`, `statement`, `statement_kind`, ... |
+| the rendered tree | `villanelle/rendered`: `render`, `Rendered`, `Directive`, `KeyRule`, ... | `villanelle.rendered`: `render`, `Rendered`, `Directive`, `KeyRule`, ... | `villanelle::rendered`: `render`, `rendered`, `directive`, `key_rule`, ... |
+| the include extension | `villanelle/include`: `include`, ... | `villanelle.include`: `include`, ... | `villanelle::extensions`: `include`, ... |
+| files on disk | `villanelle/node`: `fileSource`, `fileWriter`, ... | `villanelle.files`: `file_source`, `file_writer`, ... | `villanelle::files`: `file_source`, `file_writer`, ... |
+| files over `fetch` | `villanelle/browser`: `fetchSource`, `fetchWriter`, ... | none | none |
+<!-- end generated -->
 
 **C++** (milestone 2): a header-only library, the CMake target `villanelle::villanelle`, with the syntax tree
 (`<villanelle/syntax.hpp>`), the low level (`<villanelle/written.hpp>`), the rendered tree

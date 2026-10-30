@@ -238,18 +238,20 @@ the rendered layer's `render(graph)`. Each override goes through the check of an
 sources, extensions, and the one way `load` fails (`ReadError`, E3004 at the root path) are the same as for the
 rendered tree: see [rendered-tree.md](rendered-tree.md#making-a-processor-loading-and-rendering).
 
-| Member | TypeScript | Python | What it is |
-|---|---|---|---|
-| the root file | `root` | `root` | the file `load` was given |
-| every file read | `documents` | `documents` | by path: the root, then in first-read order; never shrinks |
-| overrides | `overrides` | `overrides` | by name, each as config text; never saved |
-| change an override | `setOverride(name, text)` | `set_override(name, text)` | see "Overrides" |
-| every place an include line is read | `edges()` | `edges()` | the line, the specs it gave, the files it matched |
-| what is not read yet | `unread()` | `unread()` | the edges naming a file not read yet (see "Reading files an edit added") |
-| variables | `variables(name?)` | `variables(name=None)` | every `set` line's and snippet parameter's `$name`, then the overrides |
-| problems | `diagnostics` | `diagnostics` | a property: each file's syntax problems, then the include, `set` and `snippet` problems found |
-| read what is unread | `read()` | `read()` | see "Reading files an edit added" |
-| write the changes back | `save(writer)` | `save(writer)` | see "Saving" |
+<!-- generated: members: graph members (tools/gen-api.py docs) -->
+| Member | TypeScript | Python | C++ | What it is |
+|---|---|---|---|---|
+| the root file | `root` | `root` | `root()` | the file `load` was given |
+| every file read | `documents` | `documents` | `documents()` | by path: the root, then in first-read order; never shrinks |
+| overrides | `overrides` | `overrides` | `overrides()` | by name, each as config text; never saved |
+| change an override | `setOverride(name, text)` | `set_override(name, text)` | `set_override(name, text)` | see "Overrides" |
+| every place an include line is read | `edges()` | `edges()` | `edges()` | the line, the specs it gave, the files it matched |
+| what is not read yet | `unread()` | `unread()` | `unread()` | the edges naming a file not read yet (see "Reading files an edit added") |
+| variables | `variables(name?)` | `variables(name=None)` | `variables([name])` | every `set` line's and snippet parameter's `$name`, then the overrides |
+| problems | `diagnostics` | `diagnostics` | `diagnostics()` | a property: each file's syntax problems, then the include, `set` and `snippet` problems found |
+| read what is unread | `read()` | `read()` | `read()` | see "Reading files an edit added" |
+| write the changes back | `save(writer)` | `save(writer)` | `save(writer)` | see "Saving" |
+<!-- end generated -->
 
 `graph.diagnostics` leaves out the problems only rendering finds (bad values E4xxx, an unknown variable E5001, an
 unknown snippet E5003, a wrong count E5004, too many directives E5008); `render(graph).diagnostics` has every one.
@@ -258,15 +260,17 @@ unknown snippet E5003, a wrong count E5004, too many directives E5008); `render(
 
 A **document** is one file as written:
 
-| Member | TypeScript | Python |
-|---|---|---|
-| its path | `resolvedPath` | `resolved_path` |
-| the text as read, or as last saved | `savedText` | `saved_text` |
-| the text now | `text` | `text` |
-| its syntax tree | `syntax` | `syntax` |
-| its top-level statements | `block` | `block` |
-| the include copies that splice it in | `includedBy()` | `included_by()` |
-| replace the whole text | `replaceWithText(text)` | `replace_with_text(text)` |
+<!-- generated: members: document members (tools/gen-api.py docs) -->
+| Member | TypeScript | Python | C++ |
+|---|---|---|---|
+| its path | `resolvedPath` | `resolved_path` | `resolved_path()` |
+| the text as read, or as last saved | `savedText` | `saved_text` | `saved_text()` |
+| the text now | `text` | `text` | `text()` |
+| its syntax tree | `syntax` | `syntax` | `syntax()` |
+| its top-level statements | `block` | `block` | `block()` |
+| the include copies that splice it in | `includedBy()` | `included_by()` | `included_by()` |
+| replace the whole text | `replaceWithText(text)` | `replace_with_text(text)` | `replace_with_text(text)` |
+<!-- end generated -->
 
 `text` differs from `savedText` exactly when the document has unsaved changes. `replaceWithText` takes any text,
 broken or not (an undo, a formatter's output), leaves `savedText` alone, and detaches every handle into the document
@@ -376,16 +380,18 @@ A **variable** is a `set` line's `$name`, a snippet's parameter, or an override 
 members that can succeed on it. Narrow by `kind` (TypeScript) or with `match` / `isinstance` (Python) before using
 them:
 
-| Member | TypeScript | Python | On | What it is |
-|---|---|---|---|---|
-| | `kind`, `name` | `kind`, `name` | every kind | the name without `$` |
-| where its `$name` is written | `place` | `place` | `set`, `parameter` | an override has none |
-| its line | `line` | `line` | `set`, `parameter` | the `set` or `snippet` line |
-| the `$name`s declared by it | `references()` | `references()` | every kind | lexical only: the `$name`s in its own file whose `declaration` it is, reached or not; empty for an override. A use in an included file has no declaration, so it is only in `wins()` and `shadowedAt()` |
-| where it wins | `wins()` | `wins()` | every kind | one resolution per place it wins: every use, per copy |
-| where another one wins | `shadowedAt()` | `shadowed_at()` | every kind | one resolution per place it is shadowed |
-| rename its `$name` | `rename(name)` | `rename(name)` | `set`, `parameter` | only the `$name` on its line; the references are not changed |
-| change its value | `set(text)` | `set(text)` | `set` | its `set` line's values. A parameter's value is on the `use` line; an override's changes with `setOverride` |
+<!-- generated: members: variable members (tools/gen-api.py docs) -->
+| Member | TypeScript | Python | C++ | On | What it is |
+|---|---|---|---|---|---|
+|  | `kind`, `name` | `kind`, `name` | `kind()`, `name()` | every kind | the name without `$` |
+| where its `$name` is written | `place` | `place` | `place()` | `set`, `parameter` | an override has none |
+| its line | `line` | `line` | `line()` | `set`, `parameter` | the `set` or `snippet` line |
+| the `$name`s declared by it | `references()` | `references()` | `references()` | every kind | lexical only: the `$name`s in its own file whose `declaration` it is, reached or not; empty for an override. A use in an included file has no declaration, so it is only in `wins()` and `shadowedAt()` |
+| where it wins | `wins()` | `wins()` | `wins()` | every kind | one resolution per place it wins: every use, per copy |
+| where another one wins | `shadowedAt()` | `shadowed_at()` | `shadowed_at()` | every kind | one resolution per place it is shadowed |
+| rename its `$name` | `rename(name)` | `rename(name)` | `rename(name)` | `set`, `parameter` | only the `$name` on its line; the references are not changed |
+| change its value | `set(text)` | `set(text)` | `set(text)` | `set` | its `set` line's values. A parameter's value is on the `use` line; an override's changes with `setOverride` |
+<!-- end generated -->
 
 A **reference** is one `$name` written as a value. It has two answers to "which variable is this?":
 
@@ -519,16 +525,18 @@ and column, as `parse` places them), with the same codes a load gives:
 
 `ts/src/written/written.test.ts`, test "changes nothing when an edit's text is refused".
 
-| Error | TypeScript | Python | When |
-|---|---|---|---|
-| the text is not what the edit takes | `BadTextError` (`diagnostics`) | `BadTextError` (`diagnostics`) | above |
-| a file changed since it was read | `LostUpdateError` (`paths`: the conflicting files) | `LostUpdateError` (`paths`) | see "Saving" |
-| the writer failed | `SaveError` (`paths`, `cause`) | `SaveError` (`paths`, `__cause__`) | see "Saving" |
-| the root file cannot be read | `ReadError` (`paths`, `cause`) | `ReadError` (`paths`, `__cause__`) | `load` |
-| the handle's tokens are gone (a bug) | `DetachedError` | `DetachedError` | see "Handles" |
-| villanelle text was not given (a bug) | `TypeError` | `TypeError` | a number, `null` / `None` or anything else where text is taken |
-| a bad name (a bug) | `MisuseError` | `ValueError` | `rename`, `setOverride`, an override `load` takes |
-| an index outside the block (a bug) | `RangeError` | `IndexError` | `insertStatements` |
+<!-- generated: members: errors (tools/gen-api.py docs) -->
+| Error | TypeScript | Python | C++ | When |
+|---|---|---|---|---|
+| the text is not what the edit takes | `BadTextError` (`diagnostics`) | `BadTextError` (`diagnostics`) | `bad_text_error` (`diagnostics()`) | above |
+| a file changed since it was read (`paths`: the conflicting files) | `LostUpdateError` (`paths`) | `LostUpdateError` (`paths`) | `lost_update_error` (`paths()`) | see "Saving" |
+| the writer failed | `SaveError` (`paths`, `cause`) | `SaveError` (`paths`, `__cause__`) | `save_error` (`paths()`, `std::nested_exception (std::rethrow_if_nested)`) | see "Saving" |
+| the root file cannot be read | `ReadError` (`paths`, `cause`) | `ReadError` (`paths`, `__cause__`) | `read_error` (`paths()`, `std::nested_exception (std::rethrow_if_nested)`) | `load` |
+| the handle's tokens are gone (a bug) | `DetachedError` | `DetachedError` | `detached_error` | see "Handles" |
+| villanelle text was not given (a bug) | `TypeError` | `TypeError` | `argument_type_error` | a number, `null` / `None` or anything else where text is taken |
+| a bad name (a bug) | `MisuseError` | `ValueError` | `misuse_error` | `rename`, `setOverride`, an override `load` takes |
+| an index outside the block (a bug) | `RangeError` | `IndexError` | `index_out_of_range` | `insertStatements` |
+<!-- end generated -->
 
 Expected outcomes (the first four rows) extend `VillanelleError`; `LostUpdateError` is a `SaveError`. The program
 bugs do not: `catch (e) { if (e instanceof VillanelleError) ... }` never hides a bug. `DetachedError` is a
@@ -716,16 +724,18 @@ edit made while the writer ran stays unsaved.
 nothing changed: no call". `recorder()` is the test's writer that keeps each batch.
 
 The core does no input or output: the **writer** is the program's. It has one method, `write(files)` (a promise in
-TypeScript, a plain call in Python), given the batch. Each file in it has `resolvedPath`, `text` (what to write)
+TypeScript, a plain call in Python and C++), given the batch. Each file in it has `resolvedPath`, `text` (what to write)
 and `savedText` (what was read or last saved, to compare with the disk). If the writer fails, `save` throws
 `SaveError` with the `paths` and the writer's error as its cause, and no `savedText` changes. The writer and the
-file write are I/O ports, beside the document source (`villanelle` exports them in both languages).
+file write are I/O ports, beside the document source (`villanelle` exports them in every binding).
 
-| Writer | TypeScript | Python |
-|---|---|---|
-| memory | `memoryWriter(files)` from `villanelle` | `memory_writer(files)` from `villanelle` |
-| the filesystem | `fileWriter()` from `villanelle/node` | `file_writer()` from `villanelle.files` |
-| `fetch` | `fetchWriter(fetch, options?)` from `villanelle/browser` | none |
+<!-- generated: members: writers (tools/gen-api.py docs) -->
+| Writer | TypeScript | Python | C++ |
+|---|---|---|---|
+| memory | `memoryWriter(files)` from `villanelle` | `memory_writer(files)` from `villanelle` | `memory_writer(files)` from `villanelle` |
+| the filesystem | `fileWriter()` from `villanelle/node` | `file_writer()` from `villanelle.files` | `file_writer()` from `villanelle::files` |
+| `fetch` | `fetchWriter(fetch, options?)` from `villanelle/browser` | none | none |
+<!-- end generated -->
 
 Every writer first runs the one lost-update check, `checkLostUpdates(files, current)` (Python
 `check_lost_updates`), with each file's text in its medium now: if a file no longer holds its `savedText` (someone

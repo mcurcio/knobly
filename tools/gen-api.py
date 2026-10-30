@@ -6,7 +6,8 @@
                                          formatted by py's pinned ruff (through uv)
     python3 tools/gen-api.py cpp      -> cpp/include/villanelle/*.hpp, cpp/conformance/shapes.hpp and
                                          cpp/tests/generated/*.cpp, formatted by the pinned clang-format (through uv)
-    python3 tools/gen-api.py docs     -> rewrites the generated tables in spec/ (committed: they are read on GitHub)
+    python3 tools/gen-api.py docs     -> rewrites the generated tables in spec/, docs/ and README.md (committed: they are
+                                         read on GitHub; the members tables' rows are docs/tables.json)
     python3 tools/gen-api.py --check  -> checks the schema and every emitter's Language (and that each check bites),
                                          renders every binding into a temp dir, renders a schema copy with one more
                                          layer to prove every layer gets a module, renders a third binding's stub
@@ -72,6 +73,10 @@ def check_stub(schema: tuple) -> int:
             raise SchemaError(f"the third-binding stub rendered nothing for the {layer.name} layer")
     if stub.LANGUAGE.name not in files["docs/error groups.md"]:
         raise SchemaError("the docs tables have no column for the third-binding stub")
+    members = [name for name in files if name.startswith("docs/members: ")]
+    lacking = [name for name in members if stub.LANGUAGE.name not in files[name].split("\n", 1)[0]]
+    if not members or lacking:
+        raise SchemaError(f"the docs/tables.json tables have no column for the third-binding stub: {lacking or 'none rendered'}")
     return names.count("\n")
 
 

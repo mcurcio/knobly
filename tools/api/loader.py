@@ -454,6 +454,9 @@ SORTS = closed("errorGroup", "properties", "sort")
 MODULES = closed("moduleName")
 FACTORY_FORMS = closed("factoryForm")  # how a binding makes a concept a factory function makes
 ROOT_FORMS = closed("rootForm")  # a root error group's class extends the language's class, or is it
+# The typed fields spec/codegen.md section 3's trait table documents beside the traits: each Language.trait_forms
+# gives every one (and every trait the schema uses).
+IDIOM_FIELDS = ("io", *(f"passed: {p}" for p in PASSED if p != "position"), "brand", "template", "list", "map")
 
 # What an emitted doc may not carry (spec/codegen.md section 3, "Docs and rationale"): it goes in 'rationale'.
 BEAD_ID = re.compile(r"\bvil-[a-z0-9]{3}(\.[0-9]+)*\b")  # this repository's beads prefix
@@ -538,6 +541,16 @@ class Language:
     # Every kind list in the package's own namespace, whatever its layer (C++: one kinds header the generated parser
     # includes); False: each kind list in its layer's namespace.
     kinds_in_package: bool = False
+    # The docs tables' facts (tools/api/emit_docs.py, docs/tables.json). ``trait_forms``: the documentation text of each
+    # trait the schema uses and of each typed field in IDIOM_FIELDS, keyed as spec/codegen.md section 3's trait table
+    # names them ("walk", "io", "passed: option"): what this binding does for it. The loader refuses a language missing
+    # one, so a new trait cannot leave a binding's column blank.
+    trait_forms: Dict[str, str] = field(default_factory=dict)
+    # How a table writes a property read, given its identifier (C++ reads every property through an accessor: name()).
+    property_form: Callable[[str], str] = lambda name: name
+    # How a table writes a call's parameters, given each as (identifier, passed, optional): the text between the
+    # parentheses (spec/codegen.md section 3's ``passed`` forms: an options object, keyword arguments, an aggregate).
+    call_params: Callable[[List[Tuple[str, str, bool]]], str] = lambda params: ", ".join(n for n, _, _ in params)
 
 
 @dataclass
@@ -1004,6 +1017,13 @@ class Model:
             for of, form in lang.factory_forms.items():
                 if of not in made or form not in FACTORY_FORMS:
                     raise SchemaError(f"{key} emitter: factory form {of!r}: {form!r} (a concept a factory makes, one of {FACTORY_FORMS})")
+            used = {m.trait for c in self.concepts for m in c.members if m.trait is not None}
+            missing = sorted((used | set(IDIOM_FIELDS)) - set(lang.trait_forms))
+            if missing:
+                raise SchemaError(f"{key} emitter: no documentation form for {', '.join(missing)} (Language.trait_forms)")
+            unknown = sorted(set(lang.trait_forms) - set(TRAITS) - set(IDIOM_FIELDS))
+            if unknown:
+                raise SchemaError(f"{key} emitter: trait_forms names {', '.join(unknown)}, no trait or typed field")
             for c in self.concepts:
                 if c.is_ == "native" and key in c.languages and c.name not in lang.native:
                     raise SchemaError(f"{key} emitter: native type {c.name!r} has no platform type (Language.native)")
@@ -1404,6 +1424,7 @@ def planted(api: dict, diagnostics: dict, protocol: dict, languages: Sequence[La
         "a language leaves out a used concept": "still uses",
         "an unknown module": "is not one of",
         "a member spells its class": "spells its class's name",
+        "a trait without a documentation form": "no documentation form for walk",
     }
     caught = []
     for name, plant in plants.items():
@@ -1425,6 +1446,7 @@ def planted(api: dict, diagnostics: dict, protocol: dict, languages: Sequence[La
         "an unknown module": replace(first, modules={**first.modules, "network": "net"}),
         # written::list's inherited member 'list' spelled as its class (C++ would read it as the constructor's name).
         "a member spells its class": replace(first, type_case=snake, member_spelling=lambda cls, member: snake(member)),
+        "a trait without a documentation form": replace(first, trait_forms={k: v for k, v in first.trait_forms.items() if k != "walk"}),
     }
     # A Language that keeps a native type gives its platform type: plant on the first that has one.
     keeps_native = next((lang for lang in languages if lang.native), None)

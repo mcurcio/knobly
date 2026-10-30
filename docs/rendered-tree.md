@@ -138,13 +138,15 @@ A **processor** is made once, with two things: the **document source** (where fi
 **extensions** (such as include). Loading is its only operation, so two loads are always read the same way.
 Everything after a load is a method on what it gave back, or the rendered layer's `render`:
 
-| | TypeScript | Python |
-|---|---|---|
-| make | `villanelle({ source, extensions? })` | `Processor(source=..., extensions=())` |
-| load the files as written | `await processor.load(path, { overrides? })` | `processor.load(path, overrides=None)` |
-| read files an edit added | `await graph.read()` | `graph.read()` |
-| render | `render(graph)` | `render(graph)` (`villanelle.render`, from `villanelle.rendered`) |
-| compare | `before.diff(after, { key? })` | `before.diff(after, key=None)` |
+<!-- generated: members: processor (tools/gen-api.py docs) -->
+|  | TypeScript | Python | C++ |
+|---|---|---|---|
+| make | `villanelle({ source, extensions? })` from `villanelle/written` | `Processor(source=..., extensions=None)` from `villanelle.written` | `processor({.source, .extensions})` from `villanelle::written` |
+| load the files as written | `processor.load(path, { overrides? })` | `processor.load(path, overrides=None)` | `processor.load(path, {.overrides})` |
+| read files an edit added | `graph.read()` | `graph.read()` | `graph.read()` |
+| render | `render(graph)` from `villanelle/rendered` | `render(graph)` from `villanelle.rendered` | `render(graph)` from `villanelle::rendered` |
+| compare | `before.diff(after, { key? })` | `before.diff(after, key=None)` | `before.diff(after, {.key})` |
+<!-- end generated -->
 
 `load` gives back the **document graph**: the files as written, described on the [low-level page](low-level-api.md).
 The low level knows nothing of the rendered tree; `render(graph)`, in the rendered layer, builds the rendered tree
@@ -306,15 +308,17 @@ never reference), a canonical `text`, an `origin`, readers, and three links to t
 it.) In Python two expanded values are `==` when their texts are equal. A reader that meets the wrong value throws a
 `DiagnosticError` placed on that value.
 
-| Reads | TypeScript | Python | Error |
-|---|---|---|---|
-| a bare word | `word()` | `word()` | E4002 |
-| a word or a string, decoded | `string()` | `string()` | E4002 |
-| a number (JSON's number syntax: `8080`, `0.5`, `-2E-2`; not `20hz`, `01`, `.5`) | `number()` | `number()` | E4004, E4002 |
-| a whole number within ±(2^53-1) (`1.0` is not one) | `integer()` | `integer()` | E4005, E4002 |
-| `true` or `false` only (`on`, `yes` are not) | `boolean()` | `boolean()` | E4006, E4002 |
-| a list's items, each with its own origin | `list()` | `list()` | E4002 |
-| a slice or an index | `slice()` | `slice()` | E4002 |
+<!-- generated: members: readers (tools/gen-api.py docs) -->
+| Reads | TypeScript | Python | C++ | Error |
+|---|---|---|---|---|
+| a bare word | `word()` | `word()` | `word()` | E4002 |
+| a word or a string, decoded | `string()` | `string()` | `string()` | E4002 |
+| a number (JSON's number syntax: `8080`, `0.5`, `-2E-2`; not `20hz`, `01`, `.5`) | `number()` | `number()` | `number()` | E4004, E4002 |
+| a whole number within ±(2^53-1) (`1.0` is not one) | `integer()` | `integer()` | `integer()` | E4005, E4002 |
+| `true` or `false` only (`on`, `yes` are not) | `boolean()` | `boolean()` | `boolean()` | E4006, E4002 |
+| a list's items, each with its own origin | `list()` | `list()` | `list()` | E4002 |
+| a slice or an index | `slice()` | `slice()` | `slice()` | E4002 |
+<!-- end generated -->
 There is no reader that guesses a value's kind (milestone 5 deleted `plain()`): a word stays a word until the
 program asks for a number, an integer or a boolean, and quoting means text (`"8080"` is a string; `number()` on it is
 E4002). A schema-aware layer above the rendered tree is where a value's kind is decided once.
@@ -434,12 +438,14 @@ directive's name, its key (what the key rule returned, or none), and its occurre
 same name and key (counting from 0). It is unique within one render. A file included at two places, or a snippet
 used twice, lands at two addresses.
 
-| | TypeScript | Python |
-|---|---|---|
-| every directive's address | `rendered.addresses({ key })`, a map from directive to address | `rendered.addresses(key=...)` |
-| for people | `address.toString()`: `graph > node "leds" > max_count` | `str(address)` |
-| as a map key | `address.text` (JSON, the same bytes in both languages) | `address.text`, or the `Address` itself (hashable) |
-| enclosing | `address.parent` | `address.parent` |
+<!-- generated: members: addresses (tools/gen-api.py docs) -->
+|  | TypeScript | Python | C++ |
+|---|---|---|---|
+| every directive's address, a map from directive to address | `rendered.addresses({ key? })` | `rendered.addresses(key=None)` | `rendered.addresses({.key})` |
+| for people: `graph > node "leds" > max_count` | `address.toString()` | `str(address)` | `to_string(address)` |
+| as a map key (JSON, the same bytes in every language) | `address.text` | `address.text`, or the `Address` itself (hashable) | `address.text()` |
+| enclosing | `address.parent` | `address.parent` | `address.parent()` |
+<!-- end generated -->
 
 The **key rule** is the program's, and it is given where addresses are asked for: to `addresses({ key })` and to
 `before.diff(after, { key })`. It is called once per readable directive, parents first, with the rendered
@@ -585,13 +591,15 @@ line per step".
 The core does no input or output. A **document source** does it, with two methods: `resolve(spec, context)` gives the
 paths a spec names (a path, or a glob with `*` and `?` in its last part; none means not found, E3001), and
 `read(path)` gives a file's text. If either throws, the render reports E3004 at the include line (or, for the root
-file, `load` fails as above). In TypeScript both return promises; in Python both are plain calls.
+file, `load` fails as above). In TypeScript both return promises; in Python and C++ both are plain calls.
 
-| Source | TypeScript | Python |
-|---|---|---|
-| texts held in memory (tests, editors) | `memorySource({ path: text })` | `memory_source({path: text})` |
-| the filesystem | `fileSource()` from `villanelle/node` | `file_source()` from `villanelle.files` |
-| `fetch` (paths are URLs) | `fetchSource(fetch)` from `villanelle/browser` | none |
+<!-- generated: members: sources (tools/gen-api.py docs) -->
+| Source | TypeScript | Python | C++ |
+|---|---|---|---|
+| texts held in memory (tests, editors) | `memorySource(files)` from `villanelle` | `memory_source(files)` from `villanelle` | `memory_source(files)` from `villanelle` |
+| the filesystem | `fileSource()` from `villanelle/node` | `file_source()` from `villanelle.files` | `file_source()` from `villanelle::files` |
+| `fetch` (paths are URLs) | `fetchSource(fetch)` from `villanelle/browser` | none | none |
+<!-- end generated -->
 
 A program can write its own, for example to count reads:
 
