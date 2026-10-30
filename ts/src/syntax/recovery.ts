@@ -6,8 +6,9 @@
  * statement is skipped (it becomes one error node), and parsing resumes at the next statement, so later siblings
  * are kept. No token is ever conjured.
  *
- * `classifyError` and `nestingOverflow` are pure functions over token kinds, so the Python port copies them line
- * for line.
+ * `classifyError` is a pure function over token kinds, so the Python port copies it line for line. The nesting guard
+ * (`installNestingGuard`) sits on the parser's own rule entry, so it counts exactly the blocks and lists the parser
+ * opens, recovery's included.
  */
 
 import * as antlr4 from "antlr4";
@@ -25,24 +26,6 @@ export interface RawDiagnostic {
   /** The offending token's range, or the empty range at tokens.length for the end of input. */
   readonly range: TokenRange;
   readonly message: string;
-}
-
-/**
- * The index of the `{` or `[` that opens nesting level MAX_NESTING + 1, or undefined when the tokens never nest
- * that deep. One pass: `{` and `[` open a level, `}` and `]` close one (never below 0).
- */
-export function nestingOverflow(kinds: readonly TokenKind[]): number | undefined {
-  let depth = 0;
-  for (let i = 0; i < kinds.length; i++) {
-    const kind = kinds[i];
-    if (kind === TokenKind.LBRACE || kind === TokenKind.LBRACK) {
-      depth++;
-      if (depth > MAX_NESTING) return i;
-    } else if ((kind === TokenKind.RBRACE || kind === TokenKind.RBRACK) && depth > 0) {
-      depth--;
-    }
-  }
-  return undefined;
 }
 
 /** The tokens a slice's `[` follows (the grammar's `sliceName`). */
@@ -124,6 +107,7 @@ interface Parser {
   consume(): void;
   match(type: number): void;
   statements(): { readonly exception: unknown };
+  addParseListener(listener: ParseListener): void;
 }
 
 /** The parts of ANTLR's DefaultErrorStrategy the strategy overrides or calls. */
@@ -291,4 +275,46 @@ export function installRecovery(parser: KnoblyParser, report: (diagnostic: RawDi
   p._errHandler = new Recovery(report);
   // Report a failed prediction where it fails, not after ANTLR's guess at an alternative that ends the rule.
   p._interp.getSynValidOrSemInvalidAltThatFinishedDecisionEntryRule = () => 0;
+}
+
+/**
+ * The parser opened a block or list at nesting level MAX_NESTING + 1 (E2010). Not a RecognitionException, so no
+ * recovery catches it: it ends the parse. `at` is the index of that level's `{` or `[`.
+ */
+export class NestingTooDeep extends Error {
+  constructor(readonly at: number) {
+    super(`nesting deeper than ${MAX_NESTING} at token ${at}`);
+    this.name = "NestingTooDeep";
+  }
+}
+
+/** The part of ANTLR's ParseTreeListener the guard overrides: the parser calls it as it enters each rule. */
+interface ParseListener {
+  enterEveryRule(ctx: Context): void;
+}
+
+/** antlr4 4.13.2 exports ParseTreeListener at runtime (with no-op members), but its typings do not re-export it. */
+const { ParseTreeListener } = antlr4 as unknown as { readonly ParseTreeListener: new () => ParseListener };
+
+/** The rules that nest (spec 2.5: blocks and lists): the only recursion in the grammar. */
+const NESTING_RULES: ReadonlySet<number> = new Set([P.RULE_block, P.RULE_list]);
+
+/**
+ * Counts, at every entry to a block or list rule, the blocks and lists open around it (the context chain, so no
+ * count can drift), and throws NestingTooDeep past MAX_NESTING, before the parser recurses any deeper.
+ */
+class NestingGuard extends ParseTreeListener {
+  override enterEveryRule(ctx: Context): void {
+    if (!NESTING_RULES.has(ctx.ruleIndex)) return;
+    let depth = 0;
+    for (let c: Context | null = ctx; c !== null; c = c.parentCtx) {
+      if (NESTING_RULES.has(c.ruleIndex)) depth++;
+    }
+    if (depth > MAX_NESTING) throw new NestingTooDeep(ctx.start.tokenIndex);
+  }
+}
+
+/** Make `parser` throw NestingTooDeep when it opens a block or list past MAX_NESTING (spec 2.5, E2010). */
+export function installNestingGuard(parser: KnoblyParser): void {
+  (parser as unknown as Parser).addParseListener(new NestingGuard());
 }

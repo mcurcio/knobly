@@ -9,6 +9,7 @@ import pytest
 
 from knobly import DiagnosticCode
 from knobly.syntax import MAX_NESTING, Node, NodeKind, parse, text_of
+from knobly.syntax._parse import parse_entry
 
 
 def shape(text: str) -> dict[str, Any]:
@@ -174,6 +175,11 @@ def test_parses_wrong_format_files_and_bad_runs_at_full_nesting_depth_without_ra
     assert [d.code for d in parse(deep).diagnostics] == [DiagnosticCode.EXPECTED_CLOSING_BRACKET] * 200
 
 
+def recovered(n: int) -> str:
+    """``n`` blocks nested through recovery: each holds a stray ``]`` and then the next block."""
+    return "a { ] ; " * n
+
+
 def blocks(n: int) -> str:
     return "a {" * n + "}" * n
 
@@ -185,7 +191,7 @@ def lists(n: int) -> str:
 def test_parses_max_nesting_levels_of_blocks_and_lists_clean_without_touching_the_recursion_limit() -> None:
     assert MAX_NESTING == 100
     limit = sys.getrecursionlimit()
-    for text in (blocks(MAX_NESTING), lists(MAX_NESTING), "a {" + "x [" * (MAX_NESTING - 1)):
+    for text in (blocks(MAX_NESTING), lists(MAX_NESTING), "a {x " + "[" * (MAX_NESTING - 1), recovered(MAX_NESTING)):
         syntax = parse(text)
         assert [d for d in syntax.diagnostics if d.code is DiagnosticCode.NESTING_TOO_DEEP] == []
     assert parse(blocks(MAX_NESTING)).diagnostics == ()
@@ -197,7 +203,9 @@ def test_rejects_one_level_more_with_one_e2010_at_its_opener_and_one_error_node_
     for text, column in (
         (blocks(MAX_NESTING + 1), 3 * MAX_NESTING + 2),
         (lists(MAX_NESTING + 1), 2 + MAX_NESTING),
-        ("a {" + "x [" * MAX_NESTING, 3 + 3 * (MAX_NESTING - 1) + 2),
+        ("a {x " + "[" * MAX_NESTING, 5 + MAX_NESTING - 1),
+        (recovered(MAX_NESTING + 1), 8 * MAX_NESTING + 2),
+        (recovered(100_000), 8 * MAX_NESTING + 2),
     ):
         syntax = parse(text)
         assert [(d.code, d.span.start.column) for d in syntax.diagnostics] == [
@@ -210,8 +218,19 @@ def test_rejects_one_level_more_with_one_e2010_at_its_opener_and_one_error_node_
         assert text_of(syntax, syntax.root) == text
 
 
-def test_counts_closers_so_sequential_nesting_never_adds_up_and_never_raises() -> None:
+def test_an_entry_rule_rejects_nesting_past_the_limit_with_its_one_diagnostic() -> None:
+    assert [d.code for d in parse_entry("[" * MAX_NESTING + "]" * MAX_NESTING, "valuesText").diagnostics] == []
+    deep = parse_entry("[" * (MAX_NESTING + 1), "valuesText")
+    assert [(d.code, d.span.start.column) for d in deep.diagnostics] == [(DiagnosticCode.NESTING_TOO_DEEP, MAX_NESTING)]
+    assert deep.root == Node(kind=NodeKind.DOCUMENT, start=0, end=len(deep.tokens), children=())
+
+
+def test_counts_only_the_blocks_and_lists_the_parser_opens_and_never_raises() -> None:
     assert parse(f"{blocks(MAX_NESTING)}\n{blocks(MAX_NESTING)}").diagnostics == ()
     parse("}" * 500 + blocks(MAX_NESTING))
-    assert [d.code for d in parse("]" * 500 + "[" * (MAX_NESTING + 1)).diagnostics] == [DiagnosticCode.NESTING_TOO_DEEP]
-    parse("{" * 100_000)
+    # Brackets and braces a bad statement's recovery skips open nothing: the statement's first error is its diagnostic.
+    assert [d.code for d in parse("]" * 500 + "[" * (MAX_NESTING + 1)).diagnostics] == [
+        DiagnosticCode.EXPECTED_CLOSING_BRACKET
+    ]
+    assert [d.code for d in parse("a {" + "x [" * MAX_NESTING).diagnostics] == [DiagnosticCode.UNEXPECTED_TOKEN]
+    assert [d.code for d in parse("{" * 100_000).diagnostics] == [DiagnosticCode.UNEXPECTED_TOKEN]

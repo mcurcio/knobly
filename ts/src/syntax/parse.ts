@@ -9,7 +9,7 @@ import { makeDiagnostic } from "../diagnostics.js";
 import KnoblyLexer from "../gen/KnoblyLexer.js";
 import KnoblyParser from "../gen/KnoblyParser.js";
 import { spanOf } from "./cst.js";
-import { type RawDiagnostic, installRecovery, nestingOverflow } from "./recovery.js";
+import { NestingTooDeep, type RawDiagnostic, installNestingGuard, installRecovery } from "./recovery.js";
 import { type AntlrToken, type AntlrTree, toCst, toEntryCst } from "./walk.js";
 import type { Diagnostic, SourcePosition } from "../gen/api/shared.js";
 import type { Node, Syntax, Token } from "../gen/api/syntax.js";
@@ -71,7 +71,7 @@ function toTokens(antlrTokens: readonly AntlrToken[]): Token[] {
   return tokens;
 }
 
-/** The tokens of one text, and a parser over them with per-statement recovery reporting into `raw`. */
+/** The tokens of one text, and a parser over them with per-statement recovery reporting into `raw` and the nesting guard. */
 function prepare(text: string): { tokens: Token[]; parser: AntlrParser; raw: RawDiagnostic[] } {
   // antlr4's typings do not line up with the generated classes' parameter types: cast at the call.
   const input = CharStreams.fromString(text) as unknown as ConstructorParameters<typeof KnoblyLexer>[0];
@@ -88,26 +88,31 @@ function prepare(text: string): { tokens: Token[]; parser: AntlrParser; raw: Raw
   // With recovery installed the parser reports nothing to listeners; drop the default console listener anyway.
   (parser as unknown as AntlrRecognizer).removeErrorListeners();
   installRecovery(parser, (diagnostic) => raw.push(diagnostic));
+  installNestingGuard(parser);
   return { tokens, parser: parser as unknown as AntlrParser, raw };
 }
 
-/** The diagnostic of nesting deeper than MAX_NESTING, or undefined (run first: it would overflow the stack). */
-function tooDeep(tokens: readonly Token[]): RawDiagnostic | undefined {
-  const at = nestingOverflow(tokens.map((t) => t.kind));
-  if (at === undefined) return undefined;
+/** The E2010 diagnostic when `error` is the nesting guard's (spec 2.5), or undefined. */
+function tooDeep(error: unknown): RawDiagnostic | undefined {
+  if (!(error instanceof NestingTooDeep)) return undefined;
   const code = DiagnosticCode.NestingTooDeep;
-  return { code, range: { start: at, end: at + 1 }, message: describe(code).message };
+  return { code, range: { start: error.at, end: error.at + 1 }, message: describe(code).message };
 }
 
 export function parse(text: string): Syntax {
   const { tokens, parser, raw } = prepare(text);
   const n = tokens.length;
-  const deep = tooDeep(tokens);
-  if (deep !== undefined) {
-    const root: Node = { kind: "document", start: 0, end: n, children: [{ kind: "error", start: 0, end: n, children: [] }] };
+  let root: Node;
+  try {
+    root = toCst(parser.document());
+  } catch (error) {
+    const deep = tooDeep(error);
+    if (deep === undefined) throw error;
+    // Nesting past the limit makes the whole text one error node with one diagnostic, E2010.
+    root = { kind: "document", start: 0, end: n, children: [{ kind: "error", start: 0, end: n, children: [] }] };
     return located(tokens, root, [deep]);
   }
-  return located(tokens, toCst(parser.document()), raw);
+  return located(tokens, root, raw);
 }
 
 /**
@@ -119,12 +124,12 @@ export function parse(text: string): Syntax {
 export function parseEntry(text: string, rule: EntryRule): Syntax {
   const { tokens, parser, raw } = prepare(text);
   const n = tokens.length;
-  const deep = tooDeep(tokens);
-  if (deep !== undefined) return located(tokens, { kind: "document", start: 0, end: n, children: [] }, [deep]);
   let tree: AntlrTree;
   try {
     tree = parser[rule]();
   } catch (error) {
+    const deep = tooDeep(error);
+    if (deep !== undefined) return located(tokens, { kind: "document", start: 0, end: n, children: [] }, [deep]);
     // Recovery unwinds an entry rule to here after reporting its first error (recovery.ts): nothing more to read.
     if (raw.length === 0) throw error;
     return located(tokens, { kind: "document", start: 0, end: n, children: [] }, raw.slice(0, 1));

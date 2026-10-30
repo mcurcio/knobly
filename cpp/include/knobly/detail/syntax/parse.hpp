@@ -127,23 +127,6 @@ inline ::knobly::diagnostic_code classify(const std::vector<raw_token>& tokens, 
     return code::unexpected_token;
 }
 
-/// The nesting guard (E2010), run before parsing so the recursive parser never nests deeper than the limit: the
-/// index of the first '{' or '[' past the limit, or npos.
-inline std::size_t nesting_overflow(const std::vector<raw_token>& tokens) noexcept {
-    std::size_t depth = 0;
-    for (std::size_t i = 0; i < tokens.size(); ++i) {
-        const tk kind = tokens[i].kind;
-        if (kind == tk::LBRACE || kind == tk::LBRACK) {
-            if (++depth > static_cast<std::size_t>(::knobly::syntax::max_nesting)) {
-                return i;
-            }
-        } else if ((kind == tk::RBRACE || kind == tk::RBRACK) && depth > 0) {
-            --depth;
-        }
-    }
-    return npos;
-}
-
 /// A token's text as a diagnostic's detail shows it: in double quotes, with JSON's escapes.
 inline std::string quoted(std::string_view text) {
     std::string out = "\"";
@@ -189,11 +172,17 @@ public:
     /// The tree and the diagnostics, after r_document().
     raw_node take_root() { return std::move(root_); }
     std::vector<raw_diagnostic> take_diagnostics() { return std::move(diagnostics_); }
+    /// The index of the '{' or '[' that opened nesting level max_nesting + 1 (E2010; spec 2.5), or npos. Once it is
+    /// set the parse is over: the tree and the diagnostics are void, and the caller reports E2010 alone.
+    std::size_t too_deep() const noexcept { return too_deep_; }
 
     // ---- the hooks the generated parser calls (frozen-m1.md section 3.2)
 
-    /// The kind i tokens ahead; tk::end_of_text past the end.
-    tk la(std::size_t i) const noexcept { return pos_ + i < tokens_.size() ? tokens_[pos_ + i].kind : tk::end_of_text; }
+    /// The kind i tokens ahead; tk::end_of_text past the end, and everywhere once the nesting guard has ended the
+    /// parse, so every rule and recovery loop unwinds at once.
+    tk la(std::size_t i) const noexcept {
+        return too_deep_ == npos && pos_ + i < tokens_.size() ? tokens_[pos_ + i].kind : tk::end_of_text;
+    }
     /// The current token index.
     std::size_t pos() const noexcept { return pos_; }
     /// Consume a token of `kind` (end_of_text is matched, not consumed), or report at pos() and return false.
@@ -213,12 +202,17 @@ public:
         return false;
     }
     /// A rule annotated "cst: <kind>" starts.
+    /// The nesting guard sits here, on the parser's own recursion: every block and list the parser opens, recovery's
+    /// included, counts, and the one past max_nesting ends the parse.
     void open_node(::knobly::node_kind kind) {
         open_.push_back({kind, pos_, pos_, {}});
         if (kind == ::knobly::node_kind::directive) {
             levels_.back().open_directive = pos_;
         } else if (kind == ::knobly::node_kind::block) {
             levels_.push_back({});
+        }
+        if (nests(kind) && ++depth_ > static_cast<std::size_t>(::knobly::syntax::max_nesting) && too_deep_ == npos) {
+            too_deep_ = pos_;
         }
     }
     /// That rule succeeded.
@@ -230,6 +224,9 @@ public:
             levels_.back().open_directive = npos;
         } else if (done.kind == ::knobly::node_kind::block) {
             levels_.pop_back();
+        }
+        if (nests(done.kind)) {
+            --depth_;
         }
         attach(std::move(done));
     }
@@ -292,6 +289,11 @@ public:
     }
 
 private:
+    /// The node kinds that nest (spec 2.5: blocks and lists).
+    static bool nests(::knobly::node_kind kind) noexcept {
+        return kind == ::knobly::node_kind::block || kind == ::knobly::node_kind::list;
+    }
+
     void attach(raw_node done) {
         if (open_.empty()) {
             root_ = std::move(done);
@@ -302,7 +304,7 @@ private:
 
     /// A statement's first error only: later ones are silent until a token is matched or recovery ends it.
     void report(std::size_t at) {
-        if (in_error_) {
+        if (in_error_ || too_deep_ != npos) {
             return;
         }
         in_error_ = true;
@@ -374,7 +376,9 @@ private:
     std::string_view text_;
     const std::vector<raw_token>& tokens_;
     std::size_t pos_ = 0;
-    bool in_error_ = false;  // the current statement's error is reported
+    bool in_error_ = false;        // the current statement's error is reported
+    std::size_t depth_ = 0;        // the blocks and lists open
+    std::size_t too_deep_ = npos;  // the opener past max_nesting, once the guard has ended the parse
     std::vector<raw_node> open_;
     std::vector<level> levels_{level{}};
     std::vector<raw_diagnostic> diagnostics_;

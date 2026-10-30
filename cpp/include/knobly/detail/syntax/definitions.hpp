@@ -82,14 +82,14 @@ KNOBLY_API ::knobly::syntax::syntax parse(std::string_view text) {
 
     detail::raw_node root;
     std::vector<detail::raw_diagnostic> raw_diagnostics;
-    if (const std::size_t too_deep = detail::nesting_overflow(raw_tokens); too_deep != detail::npos) {
-        // The depth guard runs first: the recursive parser never sees text nested past the limit.
+    detail::parser parser(text, raw_tokens);
+    parser.r_document();
+    if (const std::size_t too_deep = parser.too_deep(); too_deep != detail::npos) {
+        // Nesting past the limit makes the whole text one error node with one diagnostic, E2010 (spec 2.5).
         root = {::knobly::node_kind::document, 0, count, {{::knobly::node_kind::error, 0, count, {}}}};
         const auto code = ::knobly::diagnostic_code::nesting_too_deep;
         raw_diagnostics.push_back({code, too_deep, ::knobly::describe(code).message});
     } else {
-        detail::parser parser(text, raw_tokens);
-        parser.r_document();
         root = parser.take_root();
         raw_diagnostics = parser.take_diagnostics();
     }
