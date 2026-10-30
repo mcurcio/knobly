@@ -371,6 +371,13 @@ def test_a_rendered_directive_is_a_copy_of_one_written_directive_handle() -> Non
     assert len(x1.written.copies()) == 2
 
 
+def test_an_unread_copys_message_names_its_extension() -> None:
+    files = {"main.conf": "a 1;\n", "part.conf": "p 1;\n"}
+    graph = written.Processor(source=vl.memory_source(files), extensions=[include()]).load("main.conf")
+    graph.root.block.add_statements(vl.text('@include "part.conf";'))
+    assert [str(d) for d in graph.diagnostics] == ["main.conf:2:1: E3007: extension copy not read yet: include"]
+
+
 def test_an_unreadable_names_the_statement_that_could_not_be_read() -> None:
     graph = written.Processor(source=vl.memory_source({"main.conf": "a $nope;\n"})).load("main.conf")
     [unreadable] = rendered.render(graph).unreadable
