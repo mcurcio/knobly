@@ -787,3 +787,25 @@
   kills the adapter, fails the case with "timed out after N s waiting for <op>" and restarts it for the next case, as
   for any fault. Section 3's fault list ("If it exits early, or writes a line that is not a response") should name the
   timeout too; spec/ is not slice F's to change, so this is a follow-up.
+
+## 2026-10-30, C++ binding milestone 2, Slice W (the written layer)
+
+- **W1. frozen-m2.md 3.3 rules 6 and 7 disagree**: rule 6 has `load` and `save` catch the ports' `std::exception`s,
+  rule 7 allows a `try` only in `detail/raise.hpp` and `collect`. The catching lives in `detail/raise.hpp`:
+  `catch_exception(f)`, `when_caught<E>(error, read)`, `message_of`, `rethrow` and `raise_nested` (the
+  `std::throw_with_nested` behind `read_error` and `save_error`), each with its `-fno-exceptions` branch.
+  `tests/compile/no_exceptions.cpp` now compiles the written layer too.
+- **W2. The syntax layer has no entry mode** (spec 2.8: an entry rule's statement is the whole text,
+  `ts/src/syntax/recovery.ts` `statementStart`): its `report` hook classifies an error from the token where it
+  happens when no directive is open, so `set("[1 # note")` gave E2001 where spec 2.4's rules give E2004 (the L1 case
+  `set-comment-after-syntax-error`). `detail/written/entry.hpp` (`parse_entry`, built on the generated parser and its
+  public hooks, since `detail/syntax/` is not slice W's) re-classifies the first error of a non-statements entry rule
+  from token 0. Follow-up for the syntax layer's owner: `parse_entry` with an entry mode there.
+- **W3. `block<Item, Directive>` needs a constructor from a view** (frozen-m2.md 3.1 lists none): `expansion_block` is
+  the class template itself, so `access::make<expansion_block>(view)` needs `block(detail::view)`; it is protected,
+  beside a protected default constructor that `written_block`'s generated constructor uses.
+- **W4. `detail::view`'s members are defined inline in `support/view.hpp`** (frozen-m2.md 3.1 allows it), and
+  `detail/shared/view.hpp` is gone: once `block` and `walk_view` hold views, `tests/compile/support.cpp` (support
+  headers only) odr-uses the destructor through `std::optional<view>`, and `-Wundefined-inline` fails it.
+- **W5. Floating-point `std::from_chars` is deleted for macOS 13.3** (the AppleClang leg's deployment target):
+  `number_of` reads with `std::strtod`, handing the text's `.` over as the current C locale's decimal point.
