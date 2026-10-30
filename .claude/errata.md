@@ -882,3 +882,15 @@
   `mkstemp` (mode 0600) and renames, TypeScript writes in place (0666 less the umask). C++ now replaces a symbolic
   link's target (the link stays) and gives the staged file the old file's permissions. The rule belongs in spec 4.2
   for all three bindings (follow-up).
+
+## 2026-10-30, user guide samples, slice py-samples (PR 8, overnight)
+
+- **G1. Python's E3007 message leaves out the extension's name, so `include_read` cannot print
+  `examples/expected/include_read.txt` in Python.** TypeScript (`ts/src/written/bind.ts`, `unread`) and C++
+  (`detail/written/bind.hpp`, `fail(unread_copy, directive)`) pass the extension directive as the message detail:
+  `main.conf:2:1: E3007: extension copy not read yet: include`. Python (`py/src/villanelle/written/_bind.py`,
+  `_unread`) calls `_problem(DiagnosticCode.UNREAD_COPY, text, name.span, via)` without it and prints
+  `main.conf:2:1: E3007: extension copy not read yet`. The message is for people (spec: it may differ), so the
+  sample table is not wrong; the fix that matches the other two is passing the extension's directive as `detail`
+  in Python's `_unread` (not in py-samples' owned paths). `py/examples/include_read.py` is written and kept on
+  branch `wip/py-samples` until then; the other sixteen Python samples print their expected files.
