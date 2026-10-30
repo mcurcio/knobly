@@ -177,9 +177,9 @@ TEST_CASE("file_writer replaces a symbolic link's target and keeps the file's pe
     fs::create_symlink("../real/s.conf", dir.path("w/link.conf"));
     fs::permissions(dir.path("real/s.conf"), fs::perms::owner_read | fs::perms::owner_write, fs::perm_options::replace);
     vl::files::file_writer()->write({vl::file_write(dir.path("w/link.conf"), "secret 2;\n", "secret 1;\n")});
-    CHECK(fs::is_symlink(dir.path("w/link.conf")));      // still a link
-    CHECK(dir.read("real/s.conf") == "secret 2;\n");      // the edit reached the real file
+    CHECK(fs::is_symlink(dir.path("w/link.conf")));   // still a link
+    CHECK(dir.read("real/s.conf") == "secret 2;\n");  // the edit reached the real file
     CHECK(fs::status(dir.path("real/s.conf")).permissions() == (fs::perms::owner_read | fs::perms::owner_write));
-    CHECK(dir.names("real") == strings{"s.conf"});        // no temporary left beside it
+    CHECK(dir.names("real") == strings{"s.conf"});  // no temporary left beside it
     CHECK(dir.names("w") == strings{"link.conf"});
 }

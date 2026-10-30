@@ -16,12 +16,15 @@ where ranges are sorted, merged (lo, hi) code-point pairs. Parser elements, refe
 from __future__ import annotations
 
 import re
+import sys
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-MAXCP = 0x10FFFF
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # tools/: the shared automaton module
+from automaton import complement, normal  # noqa: E402
+
 EOF = "EOF"  # ANTLR's end of input: the generated parser's tk::end_of_text
 
 Element = tuple
@@ -100,27 +103,6 @@ def _esc(src: str, i: int) -> Tuple[int, int]:
     return ord(c), i + 2
 
 
-def norm_ranges(rs) -> Tuple[Tuple[int, int], ...]:
-    out: List[Tuple[int, int]] = []
-    for lo, hi in sorted(rs):
-        if out and lo <= out[-1][1] + 1:
-            out[-1] = (out[-1][0], max(out[-1][1], hi))
-        else:
-            out.append((lo, hi))
-    return tuple(out)
-
-
-def complement(rs) -> Tuple[Tuple[int, int], ...]:
-    out, at = [], 0
-    for lo, hi in norm_ranges(rs):
-        if lo > at:
-            out.append((at, lo - 1))
-        at = hi + 1
-    if at <= MAXCP:
-        out.append((at, MAXCP))
-    return tuple(out)
-
-
 def _tokenize(src: str, source: str) -> Tuple[List[_Tok], List[Tuple[int, str, int]]]:
     """-> (tokens, annotations); an annotation is (line, node kind, how many 'cst:' its comment holds)."""
     toks: List[_Tok] = []
@@ -183,7 +165,7 @@ def _tokenize(src: str, source: str) -> Tuple[List[_Tok], List[Tuple[int, str, i
                 rs.append((lo, hi))
             if j >= n:
                 raise GrammarError(f"{source}:{line}: unterminated character set")
-            toks.append(_Tok("set", norm_ranges(rs), line))
+            toks.append(_Tok("set", normal(rs), line))
             i = j + 1
         elif c.isalpha() or c == "_":
             m = _IDENT.match(src, i)

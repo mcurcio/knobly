@@ -148,8 +148,8 @@ TEST_CASE("a directive keeps its render and graph alive after every other handle
 TEST_CASE("a moved-from graph is still the graph: a handle is never null", "[rendered][lifetime]") {
     vw::document_graph graph = fixture::load("a 1;\n");
     const vw::document_graph moved = std::move(graph);
-    CHECK(graph == moved);                              // NOLINT(bugprone-use-after-move)
-    CHECK(vr::render(graph).block().size() == 1);       // NOLINT(bugprone-use-after-move)
+    CHECK(graph == moved);                         // NOLINT(bugprone-use-after-move)
+    CHECK(vr::render(graph).block().size() == 1);  // NOLINT(bugprone-use-after-move)
     CHECK(vr::render(moved).block().size() == 1);
 }
 

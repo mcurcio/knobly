@@ -271,8 +271,8 @@ VILLANELLE_API std::size_t block_traits<::villanelle::rendered::directive>::size
     return static_cast<const ::villanelle::rendered::detail::block_node*>(block.get())->items.size();
 }
 
-VILLANELLE_API ::villanelle::rendered::directive block_traits<::villanelle::rendered::directive>::at(const view& block,
-                                                                                                     std::size_t index) {
+VILLANELLE_API ::villanelle::rendered::directive block_traits<::villanelle::rendered::directive>::at(
+    const view& block, std::size_t index) {
     return make_handle<::villanelle::rendered::directive>(
         static_cast<const ::villanelle::rendered::detail::block_node*>(block.get())->items[index]);
 }

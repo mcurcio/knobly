@@ -76,9 +76,9 @@ TEST_CASE("a moved-from handle still shows its node", "[handles]") {
     vw::statement s = fixture::top(graph, 0);
     const vw::statement moved = std::move(s);
     CHECK(s.kind() == vl::statement_kind::directive);  // NOLINT(bugprone-use-after-move)
-    CHECK(s == moved);                                  // NOLINT(bugprone-use-after-move)
+    CHECK(s == moved);                                 // NOLINT(bugprone-use-after-move)
     vw::statement assigned = fixture::top(graph, 0);
-    assigned = std::move(s);                            // NOLINT(bugprone-use-after-move)
+    assigned = std::move(s);                                 // NOLINT(bugprone-use-after-move)
     CHECK(s.as<vw::written_directive>()->name() == "port");  // NOLINT(bugprone-use-after-move)
 }
 

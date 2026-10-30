@@ -38,6 +38,8 @@ import textwrap
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
+from automaton import Nfa, complement, determinize, minimize, normal  # tools/, on the path of every caller
+
 from .loader import (
     CODE_LAYERS,
     HEADER,
@@ -901,30 +903,6 @@ def function_lines(model: Model, f: Function, out: Out, ns: str) -> List[str]:
 
 # --- pattern matchers: an I-Regexp compiled to an automaton over code points -----------------------------------------
 
-MAX_CP = 0x10FFFF
-
-
-def normal(ranges: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
-    out: List[Tuple[int, int]] = []
-    for lo, hi in sorted(ranges):
-        if out and lo <= out[-1][1] + 1:
-            out[-1] = (out[-1][0], max(out[-1][1], hi))
-        else:
-            out.append((lo, hi))
-    return out
-
-
-def complement(ranges: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
-    out, at = [], 0
-    for lo, hi in normal(ranges):
-        if lo > at:
-            out.append((at, lo - 1))
-        at = hi + 1
-    if at <= MAX_CP:
-        out.append((at, MAX_CP))
-    return out
-
-
 class _Regex:
     """A checked I-Regexp body (the loader checks its grammar) parsed to a tree of code point sets: ("set", ranges),
     ("cat", items), ("alt", arms), ("rep", item, min, max or None). ``\\p{..}`` is refused: a matcher here carries no
@@ -981,7 +959,7 @@ class _Regex:
             return ("set", self.klass())
         if c == ".":
             self.pos += 1
-            return ("set", complement([(10, 10), (13, 13)]))
+            return ("set", list(complement([(10, 10), (13, 13)])))
         if c == "\\":
             cp = self.escape()
             return ("set", [(cp, cp)])
@@ -1003,7 +981,7 @@ class _Regex:
             ranges.append((lo, hi))
             first = False
         self.pos += 1
-        return complement(ranges) if negate else normal(ranges)
+        return list(complement(ranges) if negate else normal(ranges))
 
     def class_char(self) -> int:
         if self.peek() == "\\":
@@ -1013,125 +991,29 @@ class _Regex:
 
 
 def dfa(regex: str) -> Tuple[List[List[Tuple[int, int, int]]], Set[int]]:
-    """The pattern (anchored, ``^...$``) as a deterministic automaton: per state, its (lo, hi, target) moves, and the
-    accepting states. Thompson's construction, then the subset construction over the code point intervals the
-    pattern's sets cut."""
-    tree = _Regex(regex[1:-1]).parse()
-    eps: List[List[int]] = []
-    moves: List[List[Tuple[List[Tuple[int, int]], int]]] = []
-
-    def new() -> int:
-        eps.append([])
-        moves.append([])
-        return len(eps) - 1
+    """The pattern (anchored, ``^...$``) as a minimal deterministic automaton: per state, its (lo, hi, target) moves,
+    and the accepting states. Built by tools/automaton.py, the machinery the parser generator's lexer shares."""
+    nfa = Nfa()
 
     def build(node: tuple) -> Tuple[int, int]:
         if node[0] == "set":
-            a, b = new(), new()
-            moves[a].append((node[1], b))
-            return a, b
+            return nfa.ranges(tuple(node[1]))
         if node[0] == "cat":
-            a = b = new()
-            for item in node[1]:
-                s, e = build(item)
-                eps[b].append(s)
-                b = e
-            return a, b
+            return nfa.chain([build(item) for item in node[1]])
         if node[0] == "alt":
-            a, b = new(), new()
-            for arm in node[1]:
-                s, e = build(arm)
-                eps[a].append(s)
-                eps[e].append(b)
-            return a, b
+            return nfa.choice([build(arm) for arm in node[1]])
         _, inner, lo, hi = node
-        a = b = new()
-        for _ in range(lo):
-            s, e = build(inner)
-            eps[b].append(s)
-            b = e
-        end = new()
-        eps[b].append(end)
+        parts = [build(inner) for _ in range(lo)]
         if hi is None:
-            s, e = build(inner)
-            eps[b].append(s)
-            eps[e] += [s, end]
-            return a, end
-        for _ in range(hi - lo):
-            s, e = build(inner)
-            eps[b].append(s)
-            eps[e].append(end)
-            b = e
-        return a, end
-
-    start, final = build(tree)
-
-    def closure(states: Set[int]) -> frozenset:
-        stack, seen = list(states), set(states)
-        while stack:
-            for n in eps[stack.pop()]:
-                if n not in seen:
-                    seen.add(n)
-                    stack.append(n)
-        return frozenset(seen)
-
-    cuts = {0, MAX_CP + 1}
-    for ms in moves:
-        for ranges, _ in ms:
-            for lo, hi in ranges:
-                cuts |= {lo, hi + 1}
-    points = sorted(cuts)
-    intervals = list(zip(points, [p - 1 for p in points[1:]]))
-    first = closure({start})
-    index = {first: 0}
-    table: List[List[Tuple[int, int, int]]] = []
-    queue = [first]
-    while queue:
-        state = queue.pop(0)
-        row: List[Tuple[int, int, int]] = []
-        for lo, hi in intervals:
-            nxt = {t for n in state for ranges, t in moves[n] if any(a <= lo and hi <= b for a, b in ranges)}
-            if not nxt:
-                continue
-            target = closure(nxt)
-            if target not in index:
-                index[target] = len(index)
-                queue.append(target)
-            if row and row[-1][2] == index[target] and row[-1][1] + 1 == lo:
-                row[-1] = (row[-1][0], hi, index[target])
-            else:
-                row.append((lo, hi, index[target]))
-        table.append(row)
-    return minimal(table, {i for s, i in index.items() if final in s})
-
-
-def minimal(table: List[List[Tuple[int, int, int]]], accepting: Set[int]) -> Tuple[List[List[Tuple[int, int, int]]], Set[int]]:
-    """The automaton with equivalent states merged (Moore's partition refinement), the start state kept as 0."""
-    block = [int(s in accepting) for s in range(len(table))]
-    while True:
-        signature = [(block[s], tuple(merged(table[s], block))) for s in range(len(table))]
-        ids: Dict[tuple, int] = {}
-        for s in range(len(table)):  # numbered in first-seen order, so the start state's block is 0
-            ids.setdefault(signature[s], len(ids))
-        refined = [ids[signature[s]] for s in range(len(table))]
-        if len(set(refined)) == len(set(block)):
-            break
-        block = refined
-    out: List[List[Tuple[int, int, int]]] = [[] for _ in range(len(set(refined)))]
-    for s in range(len(table)):
-        out[refined[s]] = merged(table[s], refined)
-    return out, {refined[s] for s in accepting}
-
-
-def merged(row: List[Tuple[int, int, int]], block: List[int]) -> List[Tuple[int, int, int]]:
-    """A state's moves with targets renamed to their blocks, adjacent ranges to one block joined."""
-    out: List[Tuple[int, int, int]] = []
-    for lo, hi, t in row:
-        if out and out[-1][2] == block[t] and out[-1][1] + 1 == lo:
-            out[-1] = (out[-1][0], hi, block[t])
+            parts.append(nfa.repeat(build(inner), True, True))
         else:
-            out.append((lo, hi, block[t]))
-    return out
+            parts += [nfa.repeat(build(inner), True, False) for _ in range(hi - lo)]
+        return nfa.chain(parts)
+
+    start, final = build(_Regex(regex[1:-1]).parse())
+    nfa.accept[final] = 0
+    table, accept = minimize(*determinize(nfa, start))
+    return table, {s for s, label in enumerate(accept) if label >= 0}
 
 
 def matcher(model: Model, c: Constant) -> List[str]:
