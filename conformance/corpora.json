@@ -18,7 +18,7 @@
     {
       "name": "written",
       "format": "conformance/written/format.md",
-      "cases": ["conformance/written/cases.json"],
+      "cases": ["conformance/written/cases.json", "conformance/written/diagnostics.json"],
       "expected": "conformance/written/expected",
       "level": 1
     },

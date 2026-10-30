@@ -927,3 +927,16 @@
   corpus cannot pin the message: `conformance/format.md` says the message is not part of the contract, so the three
   bindings agree on it by their own tests and the guide's sample, not by a conformance case. W2 (RECORD.md's links)
   stays a follow-up.
+
+## 2026-10-30, corpus cases for codes no shared case gave (kno-bzv.4)
+
+- **C1. E3004 and E3006 cannot be reached through the shared corpus; the bead's acceptance asks for both.** The
+  protocol's `load` (spec/schema/protocol.json, spec/conformance.md 4.1) offers only a `memory source` over `files`
+  and `extensions` of `[]` or `["include"]`. A memory source never fails a `resolve` (it returns the keys it holds,
+  spec 4.3) and `read` is only called on a path `resolve` returned, so E3004 has no input; the include extension
+  throws only a `diagnostic error` (E3005), so E3006 has none either. Both need new protocol surface: for example a
+  `load` option naming paths whose `resolve` or `read` the adapter's source fails (or returns a non-list), and a test
+  extension (`["include", "throwing"]`) whose `specs` throws a plain error or returns a bare text. That changes the
+  protocol schema, the generated message types and all three adapters, so it is a design choice, not made here.
+  The other codes (E5003 E5005 E5007 E5008 E5010 E5011) and the empty glob's E3001 are in
+  `conformance/written/diagnostics.json`, and all three bindings pass them.

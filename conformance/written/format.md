@@ -15,7 +15,9 @@ the spec name; each adapter spells it in its binding's casing.
 
 ## Inputs
 
-`conformance/written/cases.json`: a JSON array of cases, each
+`conformance/written/cases.json` and `conformance/written/diagnostics.json` (one case per code no other case
+gives: expansion codes, the limits and an empty glob, each read from the graph's `diagnostics` by a `["list"]` step):
+JSON arrays of cases, each
 
 ```
 {"name", "needs", "files"? | "fixture"?, "root", "overrides"?, "extensions"?, "steps"}
