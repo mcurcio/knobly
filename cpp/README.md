@@ -44,6 +44,12 @@ The design's three programs are in `tests/programs/` as a user writes them, buil
 sink of a config with includes and `name=value` overrides), `editor.cpp` (edit and save with lost-update protection)
 and `lint.cpp` (a third-party tool checking its own schema and reporting diagnostics with places).
 
+**Namespaces: alias them, never a using-directive.** Types and their accessors share names (`place place()`,
+`origin origin()`), and the written layer has a `string` and a `list`. So `using namespace villanelle::written;`
+beside `using namespace std;` makes `string` and `list` ambiguous, and a class
+member `vl::place place;` that then names the type hits GCC's "declaration changes meaning". Write
+`namespace vw = villanelle::written;` and qualify, as every example here does.
+
 **Formatting.** `<villanelle/format.hpp>` is opt-in (no other header includes it): it gives every type with a people
 form (`place`, `located_diagnostic`, `rendered::address`, each kind list, `diagnostic_code`, ...) an `operator<<` and
 a `std::formatter`, both writing exactly its `to_string`. The formatter takes a string's format spec, so width, fill
@@ -81,21 +87,61 @@ message.
 
 ## Using it
 
+Four ways in, all with CMake 3.24 or later and a C++20 compiler; none needs Python or network but a git checkout:
+
+- **An install.** Build the release source archive (`villanelle-cpp-<version>.tar.gz`, on each GitHub release; it
+  holds the generated headers), or a git checkout, and install it:
+
+  ```bash
+  cmake -S villanelle-cpp-<version> -B build && cmake --install build --prefix /opt/villanelle
+  ```
+
+  ```cmake
+  find_package(villanelle 1 REQUIRED)   # -DCMAKE_PREFIX_PATH=/opt/villanelle; accepts the same major version
+  target_link_libraries(my_program PRIVATE villanelle::villanelle)
+  ```
+
+  The install is the headers under `include/villanelle/` and an architecture-independent package config with its
+  version file under `share/cmake/villanelle/`. There is nothing to link.
+- **`add_subdirectory` or `FetchContent`** of the archive (or of `cpp/` in a checkout), then the same
+  `target_link_libraries`. As a subproject it builds no tests and installs nothing unless asked
+  (`VILLANELLE_BUILD_TESTS`, `VILLANELLE_INSTALL`).
+- **Copy `include/`** from the archive into a project and put it on the include path.
+- **The single header** `villanelle.hpp` (on each GitHub release): every header in one file, for `#include
+  "villanelle.hpp"` with nothing else. It is header-only mode only, and every file including it compiles every
+  layer.
+
+In a git checkout the public headers are generated at configure time ("Generated code" below), which needs Python
+3.9 or later and `uv`; the archive and the single header carry them already.
+
+**Header-only** is the default: every definition is inline in the headers.
+
+**Compiled mode** keeps the definitions out of every file but one, for programs where compile time matters. Define
+`VILLANELLE_HEADER_ONLY=0` for every file of the program that includes villanelle, and include
+`<villanelle/implementation.hpp>` in exactly one of them:
+
 ```cmake
-add_subdirectory(villanelle/cpp)   # or FetchContent
-target_link_libraries(my_program PRIVATE villanelle::villanelle)
+target_compile_definitions(my_program PRIVATE VILLANELLE_HEADER_ONLY=0)
+target_sources(my_program PRIVATE villanelle_implementation.cpp)  # #include <villanelle/implementation.hpp>
 ```
 
-- **Header-only** (the default): every definition is inline in the headers.
-- **Compiled mode** (`-DVILLANELLE_COMPILED=ON`, or `VILLANELLE_HEADER_ONLY=0` for the whole program): the headers
-  hold declarations only, and exactly one file of the program includes `<villanelle/implementation.hpp>`.
-- **Compiled mode** instantiates every template the headers spell once, in `implementation.hpp` (each header
-  declares it `extern`), so programs do not compile them again.
-- The syntax and written layers build with `-fno-exceptions -fno-rtti`; without exceptions, a thrown error is
-  written to standard error and `std::abort()` is called instead.
-- **Invalid UTF-8** (provisional, pending the owner's ruling): a byte that does not decode is one `BAD_CHAR`
-  token with E1003; a surrogate's three-byte form (WTF-8) decodes. The rule lives in one function,
-  `detail/text_in.hpp`.
+As a subproject, `-DVILLANELLE_COMPILED=ON` defines it for every user of the target; an install never carries it,
+so the program chooses. Compiled mode also instantiates every template the headers spell once, in
+`implementation.hpp` (each header declares it `extern`), so other files do not compile them again.
+
+**Versions.** Every name sits in a versioned inline namespace, `villanelle::v<major>_<minor>_<patch>` (a program
+writes `villanelle::written::processor`), so two villanelle versions in one program (a library and the app each
+bundling its own) get different symbols instead of breaking the one-definition rule. The version's one home is
+`VILLANELLE_VERSION_MAJOR`, `_MINOR` and `_PATCH` in `include/villanelle/support/config.hpp`: 0.0.0 in the
+repository, stamped by the release flow into the archive and the single header.
+
+**Exceptions.** Expected errors throw (see "Errors" above). The syntax and written layers also build with
+`-fno-exceptions -fno-rtti`; without exceptions, a thrown error is written to standard error and `std::abort()` is
+called instead. Exception classes carry default visibility, so a `catch` in one shared library sees a `throw` from
+another.
+
+**Invalid UTF-8** (provisional, pending the owner's ruling): a byte that does not decode is one `BAD_CHAR` token with
+E1003; a surrogate's three-byte form (WTF-8) decodes. The rule lives in one function, `detail/text_in.hpp`.
 
 ## Generated code
 

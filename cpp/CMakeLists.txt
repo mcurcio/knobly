@@ -1,14 +1,33 @@
 # The C++ binding: one header-only INTERFACE target, villanelle::villanelle (design.md 2.5; frozen-m1.md section 5).
 #
 #   VILLANELLE_REGENERATE   run tools/gen.sh cpp at configure time (Python 3.9+ and uv, for the pinned clang-format);
-#                           ON by default when the generated headers are absent, as in a git checkout
-#   VILLANELLE_COMPILED     compiled mode: VILLANELLE_HEADER_ONLY=0 for every user of the target; the program compiles
-#                           <villanelle/implementation.hpp> in exactly one file
-#   VILLANELLE_BUILD_TESTS  the conformance adapter and the binding's own tests (ON when this is the top-level project)
+#                           ON by default when the generated headers are absent, as in a git checkout (the release
+#                           source archive carries them, so it builds with no Python and no network)
+#   VILLANELLE_COMPILED     compiled mode: VILLANELLE_HEADER_ONLY=0 for every user of the target in this build; the
+#                           program compiles <villanelle/implementation.hpp> in exactly one file. Never installed: a
+#                           program using an installed villanelle defines VILLANELLE_HEADER_ONLY=0 itself (README.md)
+#   VILLANELLE_INSTALL      cmake --install puts the headers and the package config, with its version file, in place,
+#                           so find_package(villanelle) works (ON when this is the top-level project)
+#   VILLANELLE_BUILD_TESTS  the conformance adapter and the binding's own tests (ON when this is the top-level project
+#                           and tests/ is present: the release source archive leaves it out)
 #   VILLANELLE_SANITIZE     build the tests with AddressSanitizer and UndefinedBehaviorSanitizer (GCC, Clang)
 cmake_minimum_required(VERSION 3.24)
-project(villanelle LANGUAGES CXX)
 
+# The version's one home is include/villanelle/support/config.hpp (0.0.0 in the repository, stamped at release).
+file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/include/villanelle/support/config.hpp" _villanelle_version_lines
+     REGEX "^#define VILLANELLE_VERSION_(MAJOR|MINOR|PATCH) [0-9]+$")
+set(_villanelle_version "")
+foreach(_villanelle_part IN ITEMS MAJOR MINOR PATCH)
+  string(REGEX MATCH "VILLANELLE_VERSION_${_villanelle_part} ([0-9]+)" _villanelle_match "${_villanelle_version_lines}")
+  if(NOT _villanelle_match)
+    message(FATAL_ERROR "include/villanelle/support/config.hpp: no VILLANELLE_VERSION_${_villanelle_part}")
+  endif()
+  list(APPEND _villanelle_version "${CMAKE_MATCH_1}")
+endforeach()
+list(JOIN _villanelle_version "." _villanelle_version)
+project(villanelle VERSION ${_villanelle_version} LANGUAGES CXX)
+
+include(GNUInstallDirs)
 get_filename_component(VILLANELLE_REPO "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 set(VILLANELLE_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
@@ -17,10 +36,16 @@ if(EXISTS "${VILLANELLE_INCLUDE}/villanelle/villanelle.hpp")
 else()
   set(_villanelle_regenerate_default ON)
 endif()
+if(PROJECT_IS_TOP_LEVEL AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+  set(_villanelle_tests_default ON)
+else()
+  set(_villanelle_tests_default OFF)
+endif()
 option(VILLANELLE_REGENERATE "Generate the headers from spec/schema/ and grammar/ (tools/gen.sh cpp)"
        ${_villanelle_regenerate_default})
 option(VILLANELLE_COMPILED "Compiled mode: define VILLANELLE_HEADER_ONLY=0" OFF)
-option(VILLANELLE_BUILD_TESTS "Build the conformance adapter and the binding's tests" ${PROJECT_IS_TOP_LEVEL})
+option(VILLANELLE_INSTALL "Install the headers and the package config" ${PROJECT_IS_TOP_LEVEL})
+option(VILLANELLE_BUILD_TESTS "Build the conformance adapter and the binding's tests" ${_villanelle_tests_default})
 option(VILLANELLE_SANITIZE "Build the tests with -fsanitize=address,undefined" OFF)
 
 if(VILLANELLE_REGENERATE)
@@ -40,10 +65,26 @@ endif()
 
 add_library(villanelle INTERFACE)
 add_library(villanelle::villanelle ALIAS villanelle)
-target_include_directories(villanelle INTERFACE $<BUILD_INTERFACE:${VILLANELLE_INCLUDE}> $<INSTALL_INTERFACE:include>)
+target_include_directories(villanelle INTERFACE $<BUILD_INTERFACE:${VILLANELLE_INCLUDE}>
+                                                $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_features(villanelle INTERFACE cxx_std_20)
 if(VILLANELLE_COMPILED)
-  target_compile_definitions(villanelle INTERFACE VILLANELLE_HEADER_ONLY=0)
+  target_compile_definitions(villanelle INTERFACE $<BUILD_INTERFACE:VILLANELLE_HEADER_ONLY=0>)
+endif()
+
+# The install: the headers (the generated ones included, made at configure time) and the exported target as the
+# package config, with a version file accepting the same major version. Header-only, so the package is
+# architecture-independent and goes under the data directory (share/cmake/villanelle).
+if(VILLANELLE_INSTALL)
+  include(CMakePackageConfigHelpers)
+  set(_villanelle_package "${CMAKE_INSTALL_DATADIR}/cmake/villanelle")
+  install(TARGETS villanelle EXPORT villanelle)
+  install(DIRECTORY "${VILLANELLE_INCLUDE}/villanelle" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+          FILES_MATCHING PATTERN "*.hpp" PATTERN ".*" EXCLUDE)
+  install(EXPORT villanelle NAMESPACE villanelle:: FILE villanelle-config.cmake DESTINATION "${_villanelle_package}")
+  write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/villanelle-config-version.cmake"
+                                   COMPATIBILITY SameMajorVersion ARCH_INDEPENDENT)
+  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/villanelle-config-version.cmake" DESTINATION "${_villanelle_package}")
 endif()
 
 if(VILLANELLE_BUILD_TESTS)

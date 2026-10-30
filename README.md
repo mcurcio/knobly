@@ -77,7 +77,9 @@ in snake_case, as its standard library does (`document_graph`), and its import p
 (`<villanelle/syntax.hpp>`), the low level (`<villanelle/written.hpp>`), the rendered tree
 (`<villanelle/rendered.hpp>`), files on disk (`<villanelle/files.hpp>`) and the include extension
 (`<villanelle/extensions.hpp>`), with names in snake_case from the same schema ([`cpp/README.md`](cpp/README.md)).
-Its adapter claims level 3 of the conformance cases.
+Its adapter claims level 3 of the conformance cases. `cmake --install` makes `find_package(villanelle)` work; each
+release carries a C++ source archive with the generated headers (no Python or network to build it) and a single
+header, `villanelle.hpp`, made by `tools/amalgamate.py`.
 
 ## The language is defined by one file
 
@@ -160,19 +162,21 @@ cmake -S cpp -B build && cmake --build build && ctest --test-dir build   # C++: 
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs these on every push and pull
 request: the grammar check, the TypeScript checks on Node 24, the Python checks on Python 3.11
-and 3.13, and the C++ tests (GCC, Clang, AppleClang).
+and 3.13, the C++ tests (GCC, Clang and AppleClang, each header-only and compiled), the C++ format check, and
+a C++ package check (a program built from an install of the release archive, and from the single header alone).
 
 ## Releases
 
 A push to `main` that passes CI runs semantic-release. It takes the next version from the
-Conventional Commits since the last release and builds the npm tarball of `ts/` and the Python
-wheel and sdist of `py/` with `.github/release-build.sh`. The version is stamped into the
+Conventional Commits since the last release and builds the npm tarball of `ts/`, the Python
+wheel and sdist of `py/`, and the C++ source archive and single header of `cpp/` with
+`.github/release-build.sh`. The version is stamped into the
 manifests for the build only and never committed. The packages go to GitHub Release assets only;
 nothing is published to npm or PyPI.
 
 Releases are dry-run until the repository variable `RELEASE_ENABLED` is `true` (owner, 2026-10-23:
-"Dry-run until I enable it"). In dry-run the job still computes the version and builds both
-packages, and uploads them as a workflow artifact; it creates no tag and no release. To turn
+"Dry-run until I enable it"). In dry-run the job still computes the version and builds every
+asset, and uploads them as a workflow artifact; it creates no tag and no release. To turn
 releases on:
 
 ```bash
