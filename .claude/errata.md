@@ -918,3 +918,12 @@
   on GitHub) and names them as history at 82-83; `.claude/errata.md`'s own history entries name them too. Followed
   the intent: every other file now points at the guide. Pointing RECORD.md's three links at the guide is a
   follow-up.
+
+## 2026-10-30, guide landing (PR 8, overnight)
+
+- **G1 and W1 resolved.** Python's `_unread` now passes the extension's name as E3007's detail (test
+  `test_an_unread_copys_message_names_its_extension`); `py/examples/include_read.py` and the pages commit are on
+  `feat/cpp-binding`, all 18 Python samples print their expected files and `mkdocs build --strict` passes. The shared
+  corpus cannot pin the message: `conformance/format.md` says the message is not part of the contract, so the three
+  bindings agree on it by their own tests and the guide's sample, not by a conformance case. W2 (RECORD.md's links)
+  stays a follow-up.
