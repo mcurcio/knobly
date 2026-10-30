@@ -809,3 +809,22 @@
   headers only) odr-uses the destructor through `std::optional<view>`, and `-Wundefined-inline` fails it.
 - **W5. Floating-point `std::from_chars` is deleted for macOS 13.3** (the AppleClang leg's deployment target):
   `number_of` reads with `std::strtod`, handing the text's `.` over as the current C locale's decimal point.
+
+## 2026-10-30, C++ binding milestone 2, Slice R (the rendered layer, level 3)
+
+- **R1. The contract corpus had no `"byte"` expectations** for its two astral cases, `position-astral-print` and
+  `format-astral-before`, though `conformance/contract/format.md` names the `"byte"` key and spec/contract.md 1 lets a
+  binding count bytes. A byte binding failed both with "no expectation for the unit byte", so frozen-m2.md's "all 380
+  cases pass" could not hold. Following the spec's intent (contract 2: one column, one space and one caret per unit),
+  slice R added the byte expectations to `conformance/contract/cases.json`, a path outside its list: `main.conf:1:10`,
+  and `main.conf:1:10: E5001: {message}` with nine spaces before the carets (`x "` is 3 bytes, the emoji 4, `" ` 2).
+  TypeScript and Python read their own unit's key, so their results do not change (their contract corpora ran green).
+- **R2. `render` of something that is not a graph cannot be written in C++** (design.md finding F1): `render` takes a
+  `const written::document_graph&`, so the compiler refuses the call. The adapter answers the `render` request for a
+  non-graph id with the `argument type error` itself, standing in for that refusal; `render` raises
+  `argument_type_error` for the one graph a C++ program can pass that has no callable `expand`, a moved-from handle.
+  The spec's "given anything without a callable expand" needs the `needs` token F1 proposes for statically typed
+  bindings.
+- **R3. A key rule's "returns anything but text or absent" (spec 7.4) is a compile-time refusal in C++**: `key_rule` is
+  `std::function<std::optional<std::string>(const directive&)>`, so `addresses` and `diff` never raise that
+  `argument_type_error`. Same follow-up as R2.
