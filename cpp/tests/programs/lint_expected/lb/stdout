@@ -1,0 +1,15 @@
+lb.conf:11:9: E5001: unknown variable: $read_timeout
+timeout $read_timeout;
+        ^^^^^^^^^^^^^
+lb.conf:4:23: lb-upstreams/weight-must-be-positive: weight must be positive, got -1
+    server "10.0.0.3" -1;
+                      ^^
+lb.conf:7:23: lb/weight: weight must be a bare integer, got [1, 2]
+    server "10.0.0.2" [1, 2];
+                      ^^^^^^
+lb.conf:9:1: lb/empty-upstream: upstream has no server
+upstream {}
+^^^^^^^^
+lb.conf:10:1: lb/server-outside: server outside an upstream block
+server "10.0.0.9" 1;
+^^^^^^

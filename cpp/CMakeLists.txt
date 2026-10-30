@@ -117,17 +117,52 @@ if(VILLANELLE_BUILD_TESTS)
              WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
   endforeach()
 
-  # Design program 4.2 as a user writes it (frozen-m2.md 6), with the stricter warnings the design names; the test runs
-  # it in a fresh copy of its files and compares them after.
-  add_executable(villanelle_program_editor tests/programs/editor.cpp)
-  target_link_libraries(villanelle_program_editor PRIVATE ${_villanelle_program_libraries})
-  villanelle_test_target(villanelle_program_editor)
-  target_compile_options(villanelle_program_editor PRIVATE $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wsign-conversion>
-                                                           $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wdangling>)
-  add_test(NAME programs_editor
-           COMMAND ${CMAKE_COMMAND} -DPROGRAM=$<TARGET_FILE:villanelle_program_editor>
-                   "-DSOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/programs" "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/programs/editor"
-                   -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/programs/run_editor.cmake")
+  # The design's programs as a user writes them (design.md 4; frozen-m2.md 6, frozen-m3.md 4): sinks (4.1), editor
+  # (4.2) and lint (4.3), each with the stricter warnings the design names. Test programs_<name> runs it once per run
+  # folder of tests/programs/<name>_expected/, in a fresh copy of tests/programs/<name>/, and compares its output, its
+  # exit status and (for the editor) the files it saved (tests/programs/run_program.cmake).
+  function(villanelle_program name)
+    add_executable(villanelle_program_${name} tests/programs/${name}.cpp)
+    target_link_libraries(villanelle_program_${name} PRIVATE ${_villanelle_program_libraries})
+    villanelle_test_target(villanelle_program_${name})
+    target_compile_options(villanelle_program_${name}
+                           PRIVATE $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wsign-conversion>
+                                   $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wdangling>)
+    set(_programs "${CMAKE_CURRENT_SOURCE_DIR}/tests/programs")
+    add_test(NAME programs_${name}
+             COMMAND ${CMAKE_COMMAND} -DPROGRAM=$<TARGET_FILE:villanelle_program_${name}> "-DFIXTURE=${_programs}/${name}"
+                     "-DEXPECTED=${_programs}/${name}_expected" "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/programs/${name}"
+                     -P "${_programs}/run_program.cmake")
+  endfunction()
+  foreach(_villanelle_program_name IN ITEMS sinks editor lint)
+    villanelle_program(${_villanelle_program_name})
+  endforeach()
+
+  # What C++ refuses at compile time that the dynamically typed bindings refuse at run time (design.md 2.6, finding
+  # F1; frozen-m3.md 4): each tests/compile_fail/<name>.cpp holds the refused line, and under VILLANELLE_CONTROL the
+  # nearest valid one. Both are object libraries left out of the default build; test compile_fail_<name> builds the
+  # first and must fail, compile_fail_<name>_control builds the second and must succeed, so the failure is the
+  # refused line and not a typo.
+  file(GLOB _villanelle_compile_fails CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/compile_fail/*.cpp")
+  foreach(_villanelle_compile_fail IN LISTS _villanelle_compile_fails)
+    get_filename_component(_villanelle_stem "${_villanelle_compile_fail}" NAME_WE)
+    foreach(_villanelle_variant IN ITEMS refused control)
+      set(_villanelle_target villanelle_compile_fail_${_villanelle_stem}_${_villanelle_variant})
+      add_library(${_villanelle_target} OBJECT EXCLUDE_FROM_ALL "${_villanelle_compile_fail}")
+      target_link_libraries(${_villanelle_target} PRIVATE villanelle::villanelle)
+      villanelle_test_target(${_villanelle_target})
+      set(_villanelle_test compile_fail_${_villanelle_stem})
+      if(_villanelle_variant STREQUAL "control")
+        target_compile_definitions(${_villanelle_target} PRIVATE VILLANELLE_CONTROL)
+        string(APPEND _villanelle_test "_control")
+      endif()
+      add_test(NAME ${_villanelle_test} COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --target
+                                                ${_villanelle_target} --config $<CONFIG>)
+      if(_villanelle_variant STREQUAL "refused")
+        set_tests_properties(${_villanelle_test} PROPERTIES WILL_FAIL TRUE)
+      endif()
+    endforeach()
+  endforeach()
 
   add_executable(villanelle_adapter conformance/adapter.cpp)
   target_link_libraries(villanelle_adapter PRIVATE ${_villanelle_program_libraries})
