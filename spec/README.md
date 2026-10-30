@@ -67,9 +67,8 @@ proves the spec wrong; then the spec is corrected and the finding reported.
 - The skill `.claude/skills/villanelle-binding/SKILL.md` is the agent's entry point for adding a
   binding or changing the API. It points here.
 
-The reference pages for programs using villanelle are separate:
-[low-level-api.md](../docs/low-level-api.md), [rendered-tree.md](../docs/rendered-tree.md) and
-[language.md](../docs/language.md).
+The user guide for programs using villanelle is separate: [https://mcurcio.github.io/villanelle/](https://mcurcio.github.io/villanelle/), built from
+[`docs/site/pages/`](../docs/site/pages/) (the language is [language.md](../docs/site/pages/language.md)).
 
 ## Conformance levels
 

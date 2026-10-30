@@ -46,8 +46,22 @@ markdown_extensions:
       check_paths: true
       dedent_subsections: true
 
+# Fails the build unless every sample of examples/samples.json is included from all three languages' files.
+hooks:
+  - hooks/samples.py
+
 nav:
   - Quickstart: index.md
+  - Getting started: getting-started.md
+  - Advanced usage:
+      - Editing and saving: editing.md
+      - Variables, snippets and includes: variables.md
+      - Diagnostics and your own checks: diagnostics.md
+      - Walking, addresses and reloads: walking.md
+      - Sources and extensions: sources.md
+      - The syntax tree: syntax.md
+  - Language reference: language.md
+  - How the bindings differ: differences.md
 
 validation:
   nav:

@@ -352,16 +352,16 @@ make an adapter's dumps checked by its own compiler instead, a missing per-kind 
 
 Generated between `<!-- generated: NAME (tools/gen-api.py docs) -->` and
 `<!-- end generated -->`: the code registry in spec 2.4, the rules list in spec 2.5, the error groups in spec 2.8,
-the class tree in contract 4.2, the glossary's names per layer, the error-code table in docs/rendered-tree.md, and the
-adapter's requests and dumps in spec/conformance.md 4.1 and 4.2. They are committed, unlike the code, because nothing
-builds the docs: GitHub shows the files as they are. `python3 tools/gen-api.py docs` rewrites them and
+the class tree in contract 4.2, the glossary's names per layer, the error-code table in docs/site/pages/diagnostics.md, and the
+adapter's requests and dumps in spec/conformance.md 4.1 and 4.2. They are committed, unlike the code, because GitHub
+shows the spec and READMEs as they are, and the user guide's site is built from its pages as written. `python3 tools/gen-api.py docs` rewrites them and
 `tools/check.sh` fails when one is stale, so no table can drift from its source (round 15 found three copies of the
 code table disagreeing on 8 of 32 meanings and 14 of 32 found-by entries). Prior art: `cog` and the "generated
 section" markers of rustfmt's and Prettier's option docs.
 
 **Members tables.** A hand-written page's table with a column per binding (the processor, readers, addresses and
-sources tables in docs/rendered-tree.md; the graph, document and variable members, errors and writers tables in
-docs/low-level-api.md; README.md's entry points; section 3's trait table) is generated too, between
+sources tables, the graph, document and variable members, errors and writers tables in the user guide's pages under
+docs/site/pages/; README.md's entry points; section 3's trait table) is generated too, between
 `<!-- generated: members: NAME (tools/gen-api.py docs) -->` and `<!-- end generated -->`. Its rows' one home is
 `docs/tables.json`, keyed by NAME: `{"file": page, "first": [the column before the bindings], "last": [the columns
 after], "rows": [...]}`. Each row has `what` (the first column), `ref` (a schema name, or a list of them joined with

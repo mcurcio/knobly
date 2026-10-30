@@ -1,6 +1,6 @@
 {
   "processor": {
-    "file": "docs/rendered-tree.md",
+    "file": "docs/site/pages/sources.md",
     "first": [""],
     "rows": [
       {"what": "make", "ref": "make processor"},
@@ -11,7 +11,7 @@
     ]
   },
   "readers": {
-    "file": "docs/rendered-tree.md",
+    "file": "docs/site/pages/walking.md",
     "first": ["Reads"],
     "last": ["Error"],
     "rows": [
@@ -25,7 +25,7 @@
     ]
   },
   "addresses": {
-    "file": "docs/rendered-tree.md",
+    "file": "docs/site/pages/walking.md",
     "first": [""],
     "rows": [
       {"what": "every directive's address, a map from directive to address", "ref": "rendered.addresses", "receiver": "rendered"},
@@ -35,7 +35,7 @@
     ]
   },
   "sources": {
-    "file": "docs/rendered-tree.md",
+    "file": "docs/site/pages/sources.md",
     "first": ["Source"],
     "rows": [
       {"what": "texts held in memory (tests, editors)", "ref": "memory source"},
@@ -44,24 +44,24 @@
     ]
   },
   "graph members": {
-    "file": "docs/low-level-api.md",
+    "file": "docs/site/pages/editing.md",
     "first": ["Member"],
     "last": ["What it is"],
     "rows": [
       {"what": "the root file", "ref": "document graph.root", "last": ["the file `load` was given"]},
       {"what": "every file read", "ref": "document graph.documents", "last": ["by path: the root, then in first-read order; never shrinks"]},
       {"what": "overrides", "ref": "document graph.overrides", "last": ["by name, each as config text; never saved"]},
-      {"what": "change an override", "ref": "document graph.set override", "last": ["see \"Overrides\""]},
+      {"what": "change an override", "ref": "document graph.set override", "last": ["see [Overrides](variables.md#overrides)"]},
       {"what": "every place an include line is read", "ref": "document graph.edges", "last": ["the line, the specs it gave, the files it matched"]},
-      {"what": "what is not read yet", "ref": "document graph.unread", "last": ["the edges naming a file not read yet (see \"Reading files an edit added\")"]},
+      {"what": "what is not read yet", "ref": "document graph.unread", "last": ["the edges naming a file not read yet ([An include an edit added](variables.md#an-include-an-edit-added))"]},
       {"what": "variables", "ref": "document graph.variables", "last": ["every `set` line's and snippet parameter's `$name`, then the overrides"]},
       {"what": "problems", "ref": "document graph.diagnostics", "last": ["a property: each file's syntax problems, then the include, `set` and `snippet` problems found"]},
-      {"what": "read what is unread", "ref": "document graph.read", "last": ["see \"Reading files an edit added\""]},
-      {"what": "write the changes back", "ref": "document graph.save", "last": ["see \"Saving\""]}
+      {"what": "read what is unread", "ref": "document graph.read", "last": ["see [An include an edit added](variables.md#an-include-an-edit-added)"]},
+      {"what": "write the changes back", "ref": "document graph.save", "last": ["`save` ([Saving](editing.md#saving))"]}
     ]
   },
   "document members": {
-    "file": "docs/low-level-api.md",
+    "file": "docs/site/pages/editing.md",
     "first": ["Member"],
     "rows": [
       {"what": "its path", "ref": "document.resolved path"},
@@ -74,7 +74,7 @@
     ]
   },
   "variable members": {
-    "file": "docs/low-level-api.md",
+    "file": "docs/site/pages/variables.md",
     "first": ["Member"],
     "last": ["On", "What it is"],
     "rows": [
@@ -89,22 +89,22 @@
     ]
   },
   "errors": {
-    "file": "docs/low-level-api.md",
+    "file": "docs/site/pages/getting-started.md",
     "first": ["Error"],
     "last": ["When"],
     "rows": [
-      {"what": "the text is not what the edit takes", "ref": "bad text error", "last": ["above"]},
-      {"what": "a file changed since it was read (`paths`: the conflicting files)", "ref": "lost update error", "last": ["see \"Saving\""]},
-      {"what": "the writer failed", "ref": "save error", "last": ["see \"Saving\""]},
+      {"what": "the text is not what the edit takes", "ref": "bad text error", "last": ["an edit ([Editing and saving](editing.md#named-edits-and-a-refused-edit))"]},
+      {"what": "a file changed since it was read (`paths`: the conflicting files)", "ref": "lost update error", "last": ["`save` ([Saving](editing.md#saving))"]},
+      {"what": "the writer failed", "ref": "save error", "last": ["`save` ([Saving](editing.md#saving))"]},
       {"what": "the root file cannot be read", "ref": "read error", "last": ["`load`"]},
-      {"what": "the handle's tokens are gone (a bug)", "ref": "detached error", "last": ["see \"Handles\""]},
+      {"what": "the handle's tokens are gone (a bug)", "ref": "detached error", "last": ["[Handles](editing.md#handles)"]},
       {"what": "villanelle text was not given (a bug)", "ref": "argument type error", "last": ["a number, `null` / `None` or anything else where text is taken"]},
       {"what": "a bad name (a bug)", "ref": "misuse error", "last": ["`rename`, `setOverride`, an override `load` takes"]},
       {"what": "an index outside the block (a bug)", "ref": "index out of range", "last": ["`insertStatements`"]}
     ]
   },
   "writers": {
-    "file": "docs/low-level-api.md",
+    "file": "docs/site/pages/editing.md",
     "first": ["Writer"],
     "rows": [
       {"what": "memory", "ref": "memory writer"},

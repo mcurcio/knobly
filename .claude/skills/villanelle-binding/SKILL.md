@@ -42,7 +42,7 @@ member or removed member:
 - No compatibility aliases or deprecated names (repo and global rule).
 - Change the schema first (`spec/schema/api.json`; `python3 tools/gen-api.py --check` refuses an unresolved type,
   a layer-direction breach or a name collision), then the spec, both bindings, the reference docs
-  (`docs/low-level-api.md`, `docs/rendered-tree.md`) and any affected conformance format in the same change. A
+  (the user guide, `docs/site/pages/`, with a sample per language for a new capability) and any affected conformance format in the same change. A
   change to one binding alone is a divergence; a signature written by hand instead of generated is a defect.
 
 ## Workflow: a new binding
@@ -235,7 +235,7 @@ its test suite (`corepack pnpm -C ts test`, `cd py && uv run pytest`); lint, for
   render back to a processor. On PR 4 it still refuses another processor's graph at run time.
 - **Generated code is never committed** (the parser, `ts/src/gen/api/`, `py/src/villanelle/_api/`, the adapters'
   `shapes` files, `py/tests/api_contract.py`): `tools/gen.sh` writes it to git-ignored paths. The generated docs tables (spec 2.4,
-  docs/rendered-tree.md, spec/conformance.md 4.1 and 4.2) are the one committed output; edit `diagnostics.json` or
+  docs/site/pages/diagnostics.md, the members tables of docs/tables.json, spec/conformance.md 4.1 and 4.2) are the one committed output; edit `diagnostics.json` or
   `protocol.json`, never the table.
 - **Errors** (contract 4, milestone 4): `VillanelleError` is the base of the expected outcomes only
   (`DiagnosticError`, `ReadError`, `BadTextError`, `SaveError` and its `LostUpdateError`). Program bugs
@@ -253,7 +253,7 @@ its test suite (`corepack pnpm -C ts test`, `cd py && uv run pytest`); lint, for
   codes) is retired: do not keep a list of codes to filter.
 - **An unread include copy is an unreadable with reason `unread`** (E3007), never nothing, so `diff`
   reports what it held as `unknown`.
-- **Scoping and precedence live in `spec/expansion.md`** (one table). `docs/language.md` only teaches.
+- **Scoping and precedence live in `spec/expansion.md`** (one table). `docs/site/pages/language.md` only teaches.
 - **The low level never imports the rendered layer,** not even a type (owner, 2026-10-29: "The low
   level shouldn't "depend on" the middle layer"). `render(graph)` is the rendered layer's function;
   the low level owns expansion, the extension port and the expanded values (milestone 4), and a

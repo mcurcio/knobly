@@ -2,7 +2,9 @@
 
 A header-only C++20 library: one include directory and one CMake target, `villanelle::villanelle`, with no
 dependency beyond the standard library (owner, 2026-10-25: "I don't want villanelle dependent on third party
-libraries"). It has the three layers TypeScript and Python have, with the same names in snake_case:
+libraries"). It has the three layers TypeScript and Python have, with the same names in snake_case. The user guide,
+with every sample in TypeScript, Python and C++, is [https://mcurcio.github.io/villanelle/](https://mcurcio.github.io/villanelle/) (source:
+[`docs/site/pages/`](../docs/site/pages/)); every C++ sample is a program `ctest` builds and runs (`examples/`).
 
 | Header | Namespace | What it holds |
 |---|---|---|
