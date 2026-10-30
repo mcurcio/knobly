@@ -15,11 +15,6 @@ import type { Node, Syntax, TokenRange } from "../gen/api/syntax.js";
  */
 export type ValueRef = number | Node;
 
-/**
- * The span of a token range. An empty range at index i is a zero-width span at the start of token i, or at the
- * end of the text when i === tokens.length.
- * @throws RangeError when the range is outside [0, tokens.length] or start > end.
- */
 export function spanOf(syntax: Syntax, range: TokenRange): SourceSpan {
   const { tokens } = syntax;
   checkRange(tokens.length, range);
@@ -30,10 +25,6 @@ export function spanOf(syntax: Syntax, range: TokenRange): SourceSpan {
   return { start, end: tokens[range.end - 1]?.span.end ?? start };
 }
 
-/**
- * The exact source text of a token range. `textOf(syntax, syntax.root)` is the whole input (the round trip).
- * @throws RangeError when the range is outside [0, tokens.length] or start > end.
- */
 export function textOf(syntax: Syntax, range: TokenRange): string {
   checkRange(syntax.tokens.length, range);
   let text = "";

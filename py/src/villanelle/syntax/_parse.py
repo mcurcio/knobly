@@ -76,8 +76,6 @@ def _lex(text: str) -> tuple[CommonTokenStream, tuple[Token, ...]]:
 
 
 def parse(text: str) -> Syntax:
-    """Parse one text. Pure and total: it never raises for any input string, and never reads files.
-    Errors are reported in ``diagnostics``; the tree still covers every token."""
     stream, tokens = _lex(text)
     n = len(tokens)
 

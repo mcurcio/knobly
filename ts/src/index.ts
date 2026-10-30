@@ -38,6 +38,17 @@ export type {
   SourceSpan,
   Step,
 } from "./gen/api/shared.js";
-export { Diagnostics } from "./report.js";
-export { checkLostUpdates, memorySource, memoryWriter } from "./source.js";
-export { quote, text } from "./text.js";
+import type { IoFunctions } from "./gen/api/io.js";
+import type * as shared from "./gen/api/shared.js";
+import { Diagnostics as DiagnosticsClass } from "./report.js";
+import * as source from "./source.js";
+import * as texts from "./text.js";
+
+// Each public function and constructor is typed by its generated signature, which carries the schema's doc.
+export const Diagnostics: shared.DiagnosticsConstructor = DiagnosticsClass;
+export type Diagnostics = shared.Diagnostics;
+export const checkLostUpdates: IoFunctions["checkLostUpdates"] = source.checkLostUpdates;
+export const memorySource: IoFunctions["memorySource"] = source.memorySource;
+export const memoryWriter: IoFunctions["memoryWriter"] = source.memoryWriter;
+export const quote: shared.SharedFunctions["quote"] = texts.quote;
+export const text: shared.SharedFunctions["text"] = texts.text;

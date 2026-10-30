@@ -25,27 +25,20 @@ from villanelle.written import DirectiveExpansion, ExpandedValue, UnreadableExpa
 @final
 @dataclass(frozen=True, slots=True)
 class Address(api.Address):
-    """Where a directive lands in the expanded tree: its identity across loads. Hashable; unique within one load. A file
-    included at two places, or a snippet used twice, lands at two addresses (R21: "Allowed, per place")."""
-
     steps: tuple[AddressStep, ...] = field()
     """From the top level down to this directive."""
 
     @property
     def text(self) -> str:
-        """The canonical string, the same bytes as TypeScript: ``json.dumps([[s.name, s.key, s.occurrence] for s in
-        steps], ensure_ascii=False, separators=(",", ":"))``."""
         return json.dumps(
             [[s.name, s.key, s.occurrence] for s in self.steps], ensure_ascii=False, separators=(",", ":")
         )
 
     @property
     def parent(self) -> Address | None:
-        """The enclosing directive's address; None at the top level."""
         return Address(self.steps[:-1]) if len(self.steps) > 1 else None
 
     def __str__(self) -> str:
-        """For people: ``graph > node "leds" > max_count`` (slices.md "Address")."""
         return " > ".join(
             s.name
             + ("" if s.key is None else " " + json.dumps(s.key, ensure_ascii=False))
@@ -56,10 +49,6 @@ class Address(api.Address):
 
 @final
 class Directive(api.Directive):
-    """One directive after expansion. ``@set``, ``@snippet``, ``@use`` and extension lines never appear: their results
-    do, in their place. Match it: ``case vl.Directive("node", [kind, node_id, *rest], block):``. Its address is
-    ``rendered.addresses(key=...)[directive]`` (D4)."""
-
     __match_args__ = ("name", "values", "block")
     __slots__ = ("_block", "_name", "_origin", "_parent", "_unreadable", "_values", "_written")
 
@@ -87,28 +76,22 @@ class Directive(api.Directive):
 
     @property
     def values(self) -> tuple[ExpandedValue, ...]:
-        """Its values, expanded, with their links: its directive expansion's own objects."""
         return self._values
 
     @property
     def block(self) -> RenderedBlock | None:
-        """The block's readable directives; None when written without a block."""
         return self._block
 
     @property
     def unreadable(self) -> tuple[UnreadableExpansion, ...]:
-        """The block's statements that could not be read (its directive expansion's own objects); empty when there
-        is no block or all were read."""
         return self._unreadable
 
     @property
     def parent(self) -> Directive | None:
-        """The enclosing directive; None at the top level."""
         return self._parent
 
     @property
     def origin(self) -> DirectiveOrigin:
-        """Where its name was written, and the uses and includes that brought it here."""
         return self._origin
 
     @property
@@ -117,23 +100,18 @@ class Directive(api.Directive):
         return self._written
 
     def closest(self, predicate: Callable[[Directive], bool], /) -> Directive | None:
-        """This directive or its nearest enclosing one that matches, as the DOM's ``Element.closest``."""
         directive: Directive | None = self
         while directive is not None and not predicate(directive):
             directive = directive.parent
         return directive
 
     def error(self, message: str, *, code: str) -> DiagnosticError:
-        """A located error placed on this directive's name. Raises ValueError when ``code`` has no "/"."""
         check_program_code(code)
         return DiagnosticError(LocatedDiagnostic(code, message, self._origin.place, self._origin.via))
 
 
 @final
 class RenderedBlock(BlockBase[Directive, Directive], api.RenderedBlock):
-    """The directives of one block after expansion, in written order (spec 7.1): the render's top level
-    (``rendered.block``) or a directive's block. ``walk`` visits every directive under it, at any depth."""
-
     __slots__ = ("_items",)
 
     def __init__(self, items: tuple[Directive, ...]) -> None:

@@ -18,10 +18,6 @@ from villanelle._glob import glob_pattern, has_glob
 
 
 def check_lost_updates(files: Sequence[FileWrite], current: Sequence[str | None], /) -> None:
-    """The one lost-update check (spec 4.2) every writer calls before it writes anything, a program's own writer
-    included: ``current[i]`` is ``files[i]``'s text in the medium now, None when there is none (read as ""). Raises
-    ``LostUpdateError`` naming every file whose current text differs from its ``saved_text``, in batch order. Prior
-    art: HTTP conditional requests (RFC 9110 13.1.1, ``If-Match``), optimistic concurrency. Pure."""
     if len(current) != len(files):
         raise ValueError(f"check_lost_updates: {len(files)} files but {len(current)} current texts")
     lost = [file.resolved_path for file, now in zip(files, current, strict=True) if (now or "") != file.saved_text]
@@ -30,11 +26,6 @@ def check_lost_updates(files: Sequence[FileWrite], current: Sequence[str | None]
 
 
 def memory_source(files: Mapping[str, str], /) -> DocumentSource:
-    """A source over texts held in memory, keyed by path, with the same resolve rules as TypeScript's ``memorySource``
-    (POSIX join to the parent's directory, ``.`` and ``..`` removed, a leading ``/`` taken as is, a glob in the last
-    segment). It reads ``files`` itself at every call, never a copy: what a ``memory_writer`` (or the program) puts in
-    that map, a later ``load`` or ``read`` sees. ``read`` of a path that is not a key raises KeyError. Pure: no
-    I/O."""
     return _MemorySource(files)
 
 
@@ -63,10 +54,6 @@ class _MemorySource:
 
 
 def memory_writer(files: MutableMapping[str, str], /) -> DocumentWriter:
-    """A writer into texts held in memory, keyed by resolved path: the map a ``memory_source`` reads, so a save is
-    seen by the next load. Each batch first runs ``check_lost_updates`` with every file's text in the map (absent when
-    the key is), so a lost update raises ``LostUpdateError`` and writes nothing; then it sets every file's text. All
-    or nothing. Pure: no I/O."""
     return _MemoryWriter(files)
 
 

@@ -7,12 +7,6 @@ import { locatedForm, stepForm } from "../people.js";
 import type { LocatedDiagnostic } from "../gen/api/shared.js";
 import type { DocumentGraph } from "../gen/api/written.js";
 
-/**
- * The located diagnostic's people form, `path:line:col: code: message` (spec/contract.md 2), then the source line and
- * a caret under the span when `graph` holds the file (its current text), then one `  via <step>` line per step,
- * innermost first. A line ends only at `"\n"` (`"\r\n"` included); a lone `"\r"` stays in the line. Columns and
- * carets count UTF-16 code units. Reads text only from `graph`; never does I/O.
- */
 export function formatDiagnostic(diagnostic: LocatedDiagnostic, graph?: DocumentGraph): string {
   const { place, via } = diagnostic;
   const lines = [locatedForm(diagnostic)];

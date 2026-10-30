@@ -646,3 +646,30 @@
   layer` and `adapter layer`; the key rule's type is `function of directive to (text or absent)`; schema patterns
   are I-Regexps (the program code pattern holds its characters as JSON escapes); `tests/test_api_names.py` no longer
   lists the `<Module>Functions` / `<Class>Constructor` assignments (the generated contract holds them).
+
+## 2026-10-30, schema docs (vil-umh.19)
+
+- **spec/schema/api.json's `errors` lists missed two misuse errors the spec states.** `check lost updates` raises a
+  misuse error when `current` is not as long as `files` (spec 4.2; both bindings do), and a written value's `remove`
+  refuses a slice's or index's name or only bound with one (spec 6.6). Both lists now name `misuse error`; `errors`
+  feeds only the generated `@throws` / `Raises:` docs, so no behaviour changes.
+- **The brief called spec/codegen.md section 11 a "deferred list"**: it is "Costs". The deferred item (most schema
+  entries undocumented, hand docstrings repeating schema docs) was one of its bullets; it is replaced by the costs of
+  the new rule (section 3, "The schema's doc is the one home of each public doc").
+- **frozen-m7.md differs from spec/ after this change** (spec wins): Python's `<Module>Functions` and
+  `<Class>Constructor` Protocols moved from `py/tests/api_contract.py` into the layer modules of `villanelle._api`
+  (as TypeScript's are in `gen/api/`), and `_api/docs.py` is new; TypeScript's public functions and `Diagnostics`
+  are constants typed by their generated signatures.
+- **spec/spec.md 2.8's misuse error row (generated from the schema's `raised when`) left out two cases the spec
+  states elsewhere**: a `current` list in check lost updates not as long as its files (4.2), and removing a slice's or
+  index's name or only bound (6.6). The group's text now lists both. The two renames (`set variable`, `parameter`)
+  promised a misuse error and `save` a lost update error their `errors` lists left out; the lists now name them, and
+  the loader refuses a member doc naming an error group its `errors` neither list nor return.
+- **Error groups' `raised when` texts and the schema's other user docs cited spec sections** ("(spec 2.8)"), which a
+  binding's user cannot follow from a doc comment; the docs drop the citations, so the generated tables in spec/spec.md
+  (2.5 reserved names, 2.8 error groups) lose them too.
+- **spec/conformance.md 6 calls the driver "standard library only (as `tools/gen-api.py`)"** (vil-umh.20): the
+  driver still is, and so is `tools/gen-api.py`'s own Python, but generating a binding now also runs its pinned
+  formatter (Prettier from `ts/node_modules`, ruff through `uv`), the one exception spec/codegen.md sections 4 and 11
+  record. The comparison in spec/conformance.md is left as written (not an owned path); it reads true of imports
+  only.

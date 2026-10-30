@@ -24,9 +24,6 @@ _START = SourcePosition(0, 0, 0)
 
 @final
 class Rendered(api.Rendered):
-    """The rendered tree of one graph. Problems are diagnostics; the root file owns the top level, as a directive its
-    block."""
-
     __slots__ = ("_block", "_diagnostics", "_graph", "_origin", "_unreadable")
 
     def __init__(
@@ -46,36 +43,25 @@ class Rendered(api.Rendered):
 
     @property
     def block(self) -> RenderedBlock:
-        """The top-level readable directives, expanded; ``block.walk()`` visits every directive."""
         return self._block
 
     @property
     def unreadable(self) -> tuple[UnreadableExpansion, ...]:
-        """Top-level statements that could not be read (R6: their siblings stay): the expansion's own objects; an
-        include copy not read yet is one, reason ``unread``."""
         return self._unreadable
 
     @property
     def origin(self) -> DirectiveOrigin:
-        """The root file at 0:0, zero width: where a problem with no line of its own is placed."""
         return self._origin
 
     @property
     def diagnostics(self) -> tuple[LocatedDiagnostic, ...]:
-        """The graph's one diagnostics list (spec 7.1): every file's syntax diagnostics (documents in order), then
-        the low level's problems in walk order."""
         return self._diagnostics
 
     @property
     def graph(self) -> DocumentGraph:
-        """The graph it was rendered from."""
         return self._graph
 
     def addresses(self, *, key: KeyRule | None = None) -> Mapping[Directive, Address]:
-        """Every directive's address under ``key``, in walk order (the mapping's order). The key rule is called once
-        per directive, parents before children; what it raises propagates. The one home of the address rule (D4);
-        ``diff`` uses it. Without a key rule, a directive is named by its position among same-name siblings. Raises
-        TypeError when the key rule returns anything but a str or None."""
         out: dict[Directive, Address] = {}
 
         def name(container: Sequence[Directive], parent: tuple[AddressStep, ...]) -> None:
@@ -99,10 +85,6 @@ class Rendered(api.Rendered):
         return MappingProxyType(out)
 
     def diff(self, after: Rendered, /, *, key: KeyRule | None = None) -> tuple[Change, ...]:
-        """What differs from this render to ``after``, by address under ``key`` (D4): removed and unknown in this
-        render's walk order, then added and changed in ``after``'s. A directive missing from ``after`` is Unknown, not
-        Removed, when its block in ``after`` (or the top level) holds an unreadable statement. Raises whatever the key
-        rule raises, and TypeError when it returns anything but a str or None, or when ``after`` is not a render."""
         if not isinstance(after, Rendered):
             raise TypeError(f"diff() argument 'after' must be a Rendered, not {type(after).__name__}")
         old = self.addresses(key=key)
@@ -114,16 +96,11 @@ class Rendered(api.Rendered):
         return (*gone, *came)
 
     def error(self, message: str, *, code: str) -> DiagnosticError:
-        """A located error for a problem of the whole file, such as a required top-level directive left out."""
         check_program_code(code)
         return DiagnosticError(LocatedDiagnostic(code, message, self._origin.place, self._origin.via))
 
 
 def render(graph: DocumentGraph, /) -> Rendered:
-    """The rendered tree of the graph's current texts and overrides: variables substituted, snippets used, included
-    files spliced in. Pure: reads no file; an unread include copy renders as an unreadable with reason ``unread`` at
-    the include line (its edge is in ``graph.unread()``). Builds on ``graph.expand()`` only, on its own objects.
-    TypeError (the argument type error), before any other work, for a ``graph`` with no callable ``expand``."""
     if not callable(getattr(graph, "expand", None)):
         raise TypeError(
             "render() argument 'graph' must be a document graph (an object with an expand method), "

@@ -137,11 +137,9 @@ export class WrittenDirective extends NamedLine implements api.WrittenDirective 
   }
 }
 
-/** `@name` where a registered extension owns `name` (an include line): no `rename`. */
 export class ExtensionLine extends NamedLine implements api.ExtensionLine {
   readonly kind = "extension";
 
-  /** The extension's name: its `@name` token without the `@`. */
   override get name(): string {
     return this.live().nameText().slice(1);
   }
@@ -292,7 +290,6 @@ export class SetVariable extends VariableBase implements api.SetVariable {
   }
 }
 
-/** A snippet parameter's `$name`. */
 export class ParameterVariable extends VariableBase implements Parameter {
   readonly kind = "parameter";
   /** Its VARIABLE token index in the current parse; set by every build. */
@@ -336,7 +333,6 @@ export class ParameterVariable extends VariableBase implements Parameter {
   }
 }
 
-/** An override: one per name for the graph's life (D28). Written in no file: no place, line, rename or set. */
 export class OverrideVariable extends VariableBase implements api.OverrideVariable {
   readonly kind = "override";
 

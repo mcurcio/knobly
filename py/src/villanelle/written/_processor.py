@@ -21,14 +21,9 @@ from villanelle.written._model import DocumentGraph
 
 @final
 class Processor(api.Processor):
-    """Made once with the document source and extensions; loads."""
-
     __slots__ = ("_extensions", "_source")
 
     def __init__(self, *, source: DocumentSource, extensions: Sequence[Extension] | None = None) -> None:
-        """Raises TypeError for an extension whose name is not a str; then ValueError (misuse) for one whose name the
-        ``nameText`` entry rule refuses (it is written ``@`` and its name, one AT_WORD), then for one named ``set``,
-        ``snippet`` or ``use`` (the language statements), or two extensions with one name (one name has one owner)."""
         self._source = source
         self._extensions: dict[str, Extension] = {}
         for extension in extensions or ():
@@ -39,14 +34,6 @@ class Processor(api.Processor):
             self._extensions[name] = extension
 
     def load(self, path: str, *, overrides: Mapping[str, ConfigText] | None = None) -> DocumentGraph:
-        """Read the root file at ``path`` (resolved through the source, as an included file's spec is, so the root
-        has one path in the graph) and every file its include lines name, once each (R21), repeating until nothing
-        new is named. Never raises for anything in the text. ``overrides`` are by name without ``$``, each config text
-        (``{"host": quote("10.0.60.30"), "port": text("8080")}``); which ``set`` lines an override wins over is
-        spec/expansion.md 5. Each is checked as ``DocumentGraph.set_override`` checks it: TypeError for a text that is
-        not a str, ValueError (misuse) for a name that is not letters, digits and ``_``, BadTextError for a text that
-        is not one or more values. Raises ReadError (``paths``: ``[path]``; ``__cause__``: the source's failure) when
-        the source cannot resolve the root to exactly one file or read it."""
         from villanelle.written import _read
 
         return _read.load_graph(self._source, self._extensions, path, overrides or {})

@@ -11,6 +11,7 @@ replaces ``typing.List``."""
 # and the kind lists are generated from spec/schema/api.json (villanelle._api); tests/api_contract.py makes mypy check
 # every handle class against its generated Protocol.
 
+from villanelle import _docs
 from villanelle._api.kinds import StatementKind, UnreadableReason, ValueKind, VariableKind
 from villanelle._api.limits import MAX_DEPTH, MAX_DIRECTIVES, MAX_SAFE_INTEGER, RESERVED, VARIABLE_NAME
 from villanelle._api.written import (
@@ -113,3 +114,5 @@ __all__ = [
     "WrittenValue",
     "format_diagnostic",
 ]
+
+_docs.document(__name__)

@@ -50,5 +50,10 @@ export type {
   WrittenDirective,
   WrittenValue,
 } from "../gen/api/written.js";
-export { formatDiagnostic } from "./format.js";
-export { villanelle } from "./processor.js";
+import type { WrittenFunctions } from "../gen/api/written.js";
+import * as format from "./format.js";
+import * as processor from "./processor.js";
+
+// Each public function is typed by its generated signature, which carries the schema's doc.
+export const formatDiagnostic: WrittenFunctions["formatDiagnostic"] = format.formatDiagnostic;
+export const villanelle: WrittenFunctions["villanelle"] = processor.villanelle;

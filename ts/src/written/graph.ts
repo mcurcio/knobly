@@ -86,11 +86,6 @@ export class DocumentGraph implements api.DocumentGraph, DocumentHost, ReadLedge
     return await readUnread(this, this.source);
   }
 
-  /**
-   * Hand every document whose `text` differs from its `savedText` to the writer in one batch, in `documents` order;
-   * with none, the writer is not called. When the writer resolves, each written document's `savedText` becomes the
-   * text handed over (an edit made while the writer ran stays unsaved); when it rejects, no `savedText` changes.
-   */
   async save(writer: DocumentWriter): Promise<readonly string[]> {
     if (typeof (writer as Partial<DocumentWriter> | null)?.write !== "function") {
       throw new TypeError(
@@ -131,7 +126,6 @@ export class DocumentGraph implements api.DocumentGraph, DocumentHost, ReadLedge
     return name === undefined ? all : all.filter((v) => v.name === name);
   }
 
-  /** The one list (spec 6.3): every syntax diagnostic, then every problem the walk found, in walk order. */
   get diagnostics(): readonly LocatedDiagnostic[] {
     const binding = this.binding();
     const cache = this.cache;

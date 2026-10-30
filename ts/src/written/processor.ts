@@ -13,12 +13,6 @@ import { checkDirectiveName } from "./names.js";
 import { readRoot } from "./read.js";
 import { MisuseError } from "../gen/api/errors.js";
 
-/**
- * Make a processor once, with its document source and extensions. An extension's name is written after `@`
- * (`@include`), so it must be a word the grammar's `nameText` takes, and not a language statement's name.
- * @throws TypeError for an extension name that is not a string; MisuseError for one that is not a word, then for one
- * that is reserved (`set`, `snippet`, `use`) or already taken
- */
 export function villanelle(options: ProcessorOptions): Processor {
   const { source } = options;
   const extensions = new Map<string, Extension>();

@@ -26,7 +26,8 @@ program annotates with what it imports: `def key(d: rendered.Directive) -> str |
 module's `__all__` equals the generated `PUBLIC_NAMES` and each public union holds the generated `UNIONS` variant
 classes (tests/test_api_names.py); mypy checks each module against its generated `<Module>Functions` Protocol, each
 constructed class against its `<Class>Constructor` and each hand class against its generated Protocol, all from the
-generated `tests/api_contract.py`. Inside the
+generated `tests/api_contract.py`. Every public doc is the schema's: each public module gives its hand-written
+classes, members and functions their generated docstrings at import (spec/codegen.md section 3). Inside the
 package a `kind`, `reason` or `code` is compared with an enum member, never a string (tests/test_kind_lint.py runs `tools/lint/kind_lint.py`).
 
 One namespace per layer (binding guide rule 9):

@@ -22,7 +22,6 @@ export abstract class BlockBase<TItem, TDirective extends TItem> implements Bloc
     return this.contents().length;
   }
 
-  /** The item at a 0-based index, as an array's `at`: undefined out of range. */
   at(index: number): TItem | undefined {
     return this.contents().at(index);
   }
@@ -35,11 +34,6 @@ export abstract class BlockBase<TItem, TDirective extends TItem> implements Bloc
     return this.contents().filter((item): item is TDirective => this.isDirective(item, name));
   }
 
-  /**
-   * Every item below this block, depth-first in written order (an item, then everything in its block, then its next
-   * sibling); this block's owner is not visited. `visit` returns `WalkControl.Skip` to pass over an item's block and
-   * `WalkControl.Stop` to end the walk.
-   */
   walk(visit: (item: TItem) => WalkControl | void): void {
     const into = (block: Iterable<TItem>): boolean => {
       for (const item of block) {

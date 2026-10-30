@@ -82,3 +82,43 @@ describe("public docs carry no maintainer history", () => {
     expect(publicDocs().filter(([, doc]) => HISTORY.test(doc)).map(([where, doc]) => `${where}: ${HISTORY.exec(doc)?.[0] ?? ""}`)).toEqual([]);
   });
 });
+
+/**
+ * What a program sees on hover is the schema's doc (spec/codegen.md section 3): every export of every entry has a doc,
+ * on its declaration or, for a function or constructor, on its call or construct signature; and every member of an
+ * exported interface has one. A declaration the schema leaves undocumented, or a public function typed by hand
+ * instead of by its generated signature, fails here.
+ */
+function undocumented(): string[] {
+  const out: string[] = [];
+  const docOf = (symbol: ts.Symbol): string => ts.displayPartsToString(symbol.getDocumentationComment(checker));
+  for (const [i, file] of files.entries()) {
+    const source = program.getSourceFile(file);
+    const module = source === undefined ? undefined : checker.getSymbolAtLocation(source);
+    if (module === undefined) throw new Error(`no module symbol for ${file}`);
+    for (const exported of checker.getExportsOfModule(module)) {
+      const where = `${paths[i] ?? file}.${exported.name}`;
+      const symbol = exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
+      let doc = docOf(symbol);
+      if (symbol.flags & ts.SymbolFlags.Value && doc === "") {
+        const type = checker.getTypeOfSymbol(symbol);
+        const signatures = [...type.getCallSignatures(), ...type.getConstructSignatures()];
+        doc = signatures.map((s) => ts.displayPartsToString(s.getDocumentationComment(checker))).join("");
+      }
+      if (doc === "") out.push(where);
+      for (const decl of symbol.declarations ?? []) {
+        if (!ts.isInterfaceDeclaration(decl)) continue;
+        for (const member of checker.getPropertiesOfType(checker.getDeclaredTypeOfSymbol(symbol))) {
+          if (docOf(member) === "") out.push(`${where}.${member.name}`);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+describe("public declarations carry the schema's docs", () => {
+  it("every export and every interface member has a doc", () => {
+    expect(undocumented()).toEqual([]);
+  });
+});

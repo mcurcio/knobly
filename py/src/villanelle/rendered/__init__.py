@@ -7,6 +7,7 @@ below this layer imports it, and it imports nothing private of the low level (sp
 # (villanelle._api.rendered). The rendered layer holds the expansion's own objects (vil-umh.8). tests/test_layers.py
 # checks the layer direction.
 
+from villanelle import _docs
 from villanelle._api.kinds import ChangeKind
 from villanelle._api.rendered import Added, AddressStep, Change, Changed, KeyRule, Removed, Unknown
 from villanelle.rendered._render import Rendered, render
@@ -27,3 +28,5 @@ __all__ = [
     "Unknown",
     "render",
 ]
+
+_docs.document(__name__)

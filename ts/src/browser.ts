@@ -2,18 +2,14 @@
  * The "villanelle/browser" entry: fetch-based I/O edges.
  */
 
-import type { DocumentSource, DocumentWriter, FetchWriterOptions } from "./gen/api/io.js";
+import type { BrowserFunctions, FetchWriterOptions } from "./gen/api/io.js";
 import { hasGlob } from "./graph/glob.js";
 import { checkLostUpdates } from "./source.js";
 import { LostUpdateError } from "./gen/api/errors.js";
 
 export type { FetchWriterOptions };
 
-/**
- * A document source over fetch. `resolve` resolves a spec as a URL against `context.parentPath` and returns it
- * without fetching; globs resolve to no paths. `read` fetches the URL and rejects on a non-2xx response.
- */
-export function fetchSource(fetchImpl: typeof fetch): DocumentSource {
+export const fetchSource: BrowserFunctions["fetchSource"] = (fetchImpl) => {
   return {
     resolve(spec, context) {
       if (hasGlob(spec)) return Promise.resolve([]);
@@ -26,18 +22,9 @@ export function fetchSource(fetchImpl: typeof fetch): DocumentSource {
       return response.text();
     },
   };
-}
+};
 
-/**
- * A writer that sends each file's text to its resolvedPath with fetch (spec 4.3). First it `GET`s every file and
- * calls `checkLostUpdates` with the bodies (a 404 is absent), so a lost update rejects with a LostUpdateError before
- * anything is sent; then one request per file, in batch order, with the precondition `If-Match: <the GET's ETag>`
- * when the `GET` gave one (RFC 9110 13.1.1): a `412 Precondition Failed` rejects with a LostUpdateError for that file.
- * Without an ETag the window between the `GET` and the write stays open (the server cannot enforce it). It rejects
- * on the first failure (a non-2xx response or a rejected fetch), so it is not all-or-nothing: files sent before the
- * failure stay written.
- */
-export function fetchWriter(fetchImpl: typeof fetch, options?: FetchWriterOptions): DocumentWriter {
+export const fetchWriter: BrowserFunctions["fetchWriter"] = (fetchImpl, options) => {
   const method = options?.method ?? "PUT";
   const contentType = options?.contentType ?? "text/plain";
   return {
@@ -65,4 +52,4 @@ export function fetchWriter(fetchImpl: typeof fetch, options?: FetchWriterOption
       }
     },
   };
-}
+};

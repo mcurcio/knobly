@@ -27,21 +27,11 @@ export function typeNameOf(value: unknown): string {
   return value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
 }
 
-/**
- * A plain string as a villanelle string, escapes included: `quote("10.0.60.31")` is `"10.0.60.31"`. The same
- * canonical string text a rendered value has (backslash, quote, newline, tab and carriage return escaped).
- * @throws TypeError when `text` is not a string
- */
 export function quote(text: string): ConfigText {
   requireText(text, "quote", "text");
   return canonicalString(text) as ConfigText;
 }
 
-/**
- * Text already written as villanelle text, as config text, unchanged and unchecked (the edit it is given to checks
- * it): `statement.set(text("8080"))`, `value.set(text("[1, 2]"))`.
- * @throws TypeError when `raw` is not a string
- */
 export function text(raw: string): ConfigText {
   requireText(raw, "text", "raw");
   return raw as ConfigText;

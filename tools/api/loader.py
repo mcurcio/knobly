@@ -13,7 +13,7 @@ Each closed list (traits, natures, found-by, code layers, factory and root forms
 spec/schema/api.schema.json: the loader reads it from there (``closed``). What differs by target language is not here,
 nor in the schema: each emitter hands the loader a ``Language`` (its key, its casing, each root error group's class,
 its adapter modules, its factory forms, its native types, the argument type sentence, what it leaves out, what its
-public names are, how the docs tables spell it), so a new binding is one emitter and the loader and the schema are
+public names are, how the docs tables spell it, its formatter), so a new binding is one emitter and the loader and the schema are
 unchanged (spec/codegen.md section 10). A schema pattern is an I-Regexp (RFC 9485), the interoperable regex subset,
 between ``^`` and ``$``; each emitter renders it in its engine's dialect.
 
@@ -21,7 +21,8 @@ The loader also keeps the schema's emitted docs clean: a ``doc`` (and every othe
 comment) may not carry a bead id, an owner quote, history or one language's name; that goes in ``rationale``, which no
 emitter reads.
 
-Python 3.9 standard library only (macOS ships 3.9), like the rest of tools/.
+Python 3.9 standard library only (macOS ships 3.9), like the rest of tools/ (whose one exception, running each
+binding's pinned formatter, is tools/api/formatter.py: spec/codegen.md section 4).
 """
 
 from __future__ import annotations
@@ -76,6 +77,19 @@ def sentence(text: str) -> str:
     if not text:
         return ""
     return text[0].upper() + text[1:] + ("" if text[-1] in ".!?" else ".")
+
+
+def raises(entries: Sequence[object]) -> Tuple[List[str], Dict[str, str]]:
+    """A member's 'errors': each entry an error group's name, or {"group", "when"} saying why this member raises it."""
+    names: List[str] = []
+    when: Dict[str, str] = {}
+    for e in entries:
+        if isinstance(e, dict):
+            names.append(e["group"])
+            when[e["group"]] = e["when"]
+        else:
+            names.append(str(e))
+    return names, when
 
 
 # --- the closed type grammar (spec/codegen.md section 2) -------------------------------------------------------------
@@ -430,6 +444,7 @@ class Member:
     options: Optional[str] = None
     type_parameters: List[str] = field(default_factory=list)
     doc: str = ""
+    when: Dict[str, str] = field(default_factory=dict)  # error group -> why this member raises it (else the group's raised when)
 
 
 TRAITS = closed("member", "properties", "trait")
@@ -443,6 +458,17 @@ ROOT_FORMS = closed("rootForm")  # a root error group's class extends the langua
 # What an emitted doc may not carry (spec/codegen.md section 3, "Docs and rationale"): it goes in 'rationale'.
 BEAD_ID = re.compile(r"\bvil-[a-z0-9]{3}(\.[0-9]+)*\b")  # this repository's beads prefix
 HISTORY = re.compile(r"\bmilestone [0-9]|\bowner, [0-9]{4}-")
+
+
+@dataclass(frozen=True)
+class Formatter:
+    """A language's standard formatter, pinned to an exact version where the binding pins its tools, run on every
+    generated file whose name ends in ``suffix`` (spec/codegen.md section 4): the emitters write plain, deterministic
+    code and leave its layout to the formatter. Each command runs from the repository root with the files' paths
+    appended, in order (tools/api/formatter.py)."""
+
+    suffix: str
+    commands: Tuple[Tuple[str, ...], ...]
 
 
 @dataclass(frozen=True)
@@ -494,6 +520,9 @@ class Language:
     # The platform's own type for each native named type the binding has (``is: native``): every one it keeps must be
     # given; a binding with none leaves out the module that holds them.
     native: Dict[str, str] = field(default_factory=dict)
+    # The language's standard formatter, run on the generated code after rendering (None: the output is written as
+    # rendered, as the third-binding stub's is).
+    formatter: Optional[Formatter] = None
 
 
 @dataclass
@@ -563,6 +592,13 @@ class ErrorGroup:
     def builtin(self, lang: str) -> Optional[str]:
         return self.base.get(lang, {}).get("builtin")
 
+    def class_doc(self) -> str:
+        """The error class's doc comment in every binding: when it is raised, its sort, then its own doc."""
+        if self.sort == "base":
+            return f"{sentence(self.raised_when)} {sentence(self.doc)}".strip()
+        sort = "An expected outcome" if self.sort == "expected outcome" else "A program bug"
+        return f"Raised when {self.raised_when.strip().rstrip('.')}. {sort}. {sentence(self.doc)}".strip()
+
 
 @dataclass
 class Function:
@@ -575,6 +611,7 @@ class Function:
     module: Optional[str] = None  # an adapter module; None: the layer's namespace
     options: Optional[str] = None
     doc: str = ""
+    when: Dict[str, str] = field(default_factory=dict)  # error group -> why this function raises it (else the group's raised when)
 
 
 @dataclass
@@ -771,8 +808,9 @@ class Model:
             else:
                 t = self.parse(m["returns"], mw, extra)
                 params = self._params(m.get("params", []), mw, extra)
+            errors, when = raises(m.get("errors", []))
             members.append(Member(m["name"], m["member"], t, params, bool(m.get("optional")), m.get("trait"), bool(m.get("io")),
-                                  list(m.get("errors", [])), str(m.get("order", "")), m.get("options"), mtps, m.get("doc", "")))
+                                  errors, str(m.get("order", "")), m.get("options"), mtps, m.get("doc", ""), when))
         module = c.get("module")
         have = tuple(k for k, lang in self.languages.items()
                      if not lang.omit(c["name"], c["nature"]) and (module is None or module in lang.modules))
@@ -800,8 +838,9 @@ class Model:
         if "factory" in f:
             of = f["factory"]["of"]
             factory = {"of": of, **{k: lang.factory_forms.get(of, "constructor") for k, lang in self.languages.items()}}
+        errors, when = raises(f.get("errors", []))
         return Function(f["name"], f["layer"], self._params(f.get("params", []), where, ()), self.parse(f["returns"], where),
-                        list(f.get("errors", [])), factory, f.get("module"), f.get("options"), f.get("doc", ""))
+                        errors, factory, f.get("module"), f.get("options"), f.get("doc", ""), when)
 
     def _code(self, c: dict) -> Code:
         if not re.fullmatch(r"E[0-9]{4}", c["code"]):
@@ -934,6 +973,8 @@ class Model:
         self._languages()
         self._docs()
         self._spellings()
+        self._documented()
+        self._named_errors()
 
     def _languages(self) -> None:
         """Each emitter's own facts name only what the schema has, and leave out nothing a member it keeps still uses."""
@@ -986,11 +1027,11 @@ class Model:
         for c in self.concepts:
             texts.append((f"concept {c.name!r}", c.doc))
             for m in c.members:
-                texts.append((f"concept {c.name!r}, member {m.name!r}", f"{m.doc} {m.order}"))
+                texts.append((f"concept {c.name!r}, member {m.name!r}", f"{m.doc} {m.order} {' '.join(m.when.values())}"))
                 texts += [(f"concept {c.name!r}, member {m.name!r}, parameter {p.name!r}", p.doc) for p in m.params]
         texts += [(f"kind list {k.name!r}", k.doc) for k in self.kinds]
         for f in self.functions:
-            texts.append((f"free function {f.name!r}", f.doc))
+            texts.append((f"free function {f.name!r}", f"{f.doc} {' '.join(f.when.values())}"))
             texts += [(f"free function {f.name!r}, parameter {p.name!r}", p.doc) for p in f.params]
         texts += [(f"error group {g.name!r}", f"{g.raised_when} {g.doc}") for g in self.groups]
         texts += [(f"constant {c.name!r}", c.means) for c in self.constants]
@@ -1002,6 +1043,34 @@ class Model:
             word = next((n for n in names if re.search(rf"\b{re.escape(n)}\b", text)), None)
             if bad or word:
                 raise SchemaError(f"{where}: its doc names {(bad.group() if bad else word)!r}; move it to 'rationale'")
+
+    def _documented(self) -> None:
+        """Every concept, member, free function and kind list carries a user doc, so nothing reaches a binding's users
+        undocumented: the schema's doc is the one home of each declaration's doc comment (spec/codegen.md section 3)."""
+        missing = [f"concept {c.name!r}" for c in self.concepts if not c.doc]
+        missing += [f"concept {c.name!r}, member {m.name!r}" for c in self.concepts for m in c.members if not m.doc]
+        missing += [f"free function {f.name!r}" for f in self.functions if not f.doc]
+        missing += [f"kind list {k.name!r}" for k in self.kinds if not k.doc]
+        if missing:
+            raise SchemaError(f"{missing[0]}: has no doc (every concept, member, free function and kind list needs one)"
+                              + (f", and {len(missing) - 1} more" if len(missing) > 1 else ""))
+
+    def _named_errors(self) -> None:
+        """A doc that names an error group lists it in 'errors' (or returns it), so the emitted Raises / @throws, built
+        from that list, never leave out an error the doc promises. A port's members are the program's to implement: their
+        docs say what the core does with a failure, so they are not checked."""
+        docs: List[Tuple[str, str, List[str], Type]] = [
+            (f"concept {c.name!r}, member {m.name!r}", m.doc, m.errors, m.type)
+            for c in self.concepts if c.nature != "port" for m in c.members]
+        docs += [(f"free function {f.name!r}", f.doc, f.errors, f.returns) for f in self.functions]
+        for where, text, errors, returns in docs:
+            for g in self.groups:
+                if re.search(rf"\b{re.escape(g.name)}\b", text) and g.name not in errors and g.name not in returns.names():
+                    raise SchemaError(f"{where}: its doc names the {g.name}, which its errors do not list")
+
+    def raised(self, errors: Sequence[str], when: Dict[str, str]) -> List[Tuple[str, str]]:
+        """Each error group a member raises, with why: the member's own 'when', else the group's raised when."""
+        return [(e, when.get(e) or self.group[e].raised_when) for e in errors]
 
     def _direction(self, layer: str, t: Type, where: str, type_params: Sequence[str]) -> None:
         allowed = {layer, *self.layer[layer].may_import}
@@ -1260,6 +1329,11 @@ def planted(api: dict, diagnostics: dict, protocol: dict, languages: Sequence[La
         "bead id in a doc": lambda a, d, p: member(a, "document", "block").__setitem__("doc", "the top block (vil-umh.6)"),
         "history in a doc": lambda a, d, p: concept(a, "document").__setitem__("doc", "a file (milestone 5)"),
         "language in a doc": lambda a, d, p: d["codes"][0].__setitem__("meaning", f"a bad token, as {languages[0].name} reads it"),
+        "undocumented member": lambda a, d, p: member(a, "document", "block").pop("doc"),
+        "undocumented concept": lambda a, d, p: concept(a, "document").pop("doc"),
+        "undocumented free function": lambda a, d, p: next(f for f in a["free functions"] if f["name"] == "parse").pop("doc"),
+        "undocumented kind list": lambda a, d, p: a["kinds"]["node kind"].pop("doc"),
+        "doc names an unlisted error": lambda a, d, p: member(a, "document graph", "save")["errors"].pop(),
     }
     # The refusal each newer plant must give, so it is caught by its own check and not by an earlier one by chance.
     reason = {
@@ -1281,6 +1355,12 @@ def planted(api: dict, diagnostics: dict, protocol: dict, languages: Sequence[La
         "bead id in a doc": "names 'vil-umh.6'",
         "history in a doc": "names 'milestone 5'",
         "language in a doc": f"names {languages[0].name!r}",
+        "spelling collision": "both spell",
+        "undocumented member": "member 'block': has no doc",
+        "undocumented concept": "concept 'document': has no doc",
+        "undocumented free function": "free function 'parse': has no doc",
+        "undocumented kind list": "kind list 'node kind': has no doc",
+        "doc names an unlisted error": "its doc names the lost update error, which its errors do not list",
         "a root without a class": "must give it one of",
         "a language leaves out a used concept": "still uses",
         "an unknown module": "is not one of",

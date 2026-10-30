@@ -11,8 +11,8 @@ dependencies = ["antlr4-python3-runtime==4.13.2"]
 Repository = "https://github.com/mcurcio/villanelle"
 
 [dependency-groups]
-# ruff is pinned exactly: the generator (tools/api/emit_py.py) writes what this ruff format writes, and `ruff format
-# --check` gates the generated code, so a ruff upgrade is a generator change (spec/codegen.md section 4).
+# ruff is pinned exactly: the generator (tools/gen-api.py) runs this ruff on the generated code (its import sorting, then
+# ruff format), so a ruff upgrade is a generator change (spec/codegen.md section 4).
 dev = ["pytest", "ruff==0.17.2", "mypy"]
 
 [build-system]

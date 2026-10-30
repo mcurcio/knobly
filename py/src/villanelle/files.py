@@ -1,4 +1,4 @@
-"""``villanelle.files``: a document source and a writer over the filesystem, the I/O edges the core leaves out (R16),
+"""``villanelle.files``: a document source and a writer over the filesystem, the I/O edges the core leaves out,
 as TypeScript's ``villanelle/node`` entry (``fileSource``, ``fileWriter``)."""
 
 from __future__ import annotations
@@ -9,16 +9,13 @@ import stat
 import tempfile
 from collections.abc import Sequence
 
+from villanelle import _docs
 from villanelle._api.io import DocumentSource, DocumentWriter, FileWrite, LoadContext
 from villanelle._glob import glob_pattern, has_glob
 from villanelle._source import check_lost_updates
 
 
 def file_source() -> DocumentSource:
-    """``read`` reads a path as given, as UTF-8; ``resolve`` joins a spec to the directory of ``context.parent_path``;
-    a glob (``*`` and ``?`` in the last path segment only) lists that directory and returns every matching file. A
-    missing file, a missing directory or a path that is a directory resolves to no paths (E3001); any other
-    filesystem error (permissions) raises (E3004), as TypeScript's ``fileSource`` does (S2-04)."""
     return _FileSource()
 
 
@@ -48,12 +45,6 @@ class _FileSource:
 
 
 def file_writer() -> DocumentWriter:
-    """A writer for one batch (slices.md S3; D18): ``check_lost_updates`` with each file's text on disk first, so it
-    raises ``LostUpdateError``, writing nothing, when any file on disk no longer holds its ``saved_text``; otherwise
-    it writes each text to a temporary file beside its target (``<name>.<random>.tmp``), then renames each over its
-    target, as UTF-8 with line breaks as written. A missing target holds "" (a new file has ``saved_text`` "",
-    D-S2-5). A failure while staging removes the temporaries and raises with nothing replaced; a failure while
-    renaming can leave earlier files replaced (the stated cost) and removes the temporaries not yet renamed."""
     return _FileWriter()
 
 
@@ -103,3 +94,5 @@ def _is_file(path: str) -> bool:
 
 
 __all__ = ["file_source", "file_writer"]
+
+_docs.document(__name__)

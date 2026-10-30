@@ -19,14 +19,11 @@ from villanelle._api.shared import SourceSpan
 
 @dataclass(frozen=True, slots=True)
 class Diagnostic(shared.Diagnostic):
-    """One located problem in one source text. ``message`` is not part of the cross-language contract."""
-
     code: DiagnosticCode = field()
     message: str = field()
     span: SourceSpan = field()
 
     def __str__(self) -> str:
-        """Its people form (spec/contract.md 2): ``line:col: code: message``, counting from 1 (the span's start)."""
         start = self.span.start
         return f"{start.line + 1}:{start.column + 1}: {self.code}: {self.message}"
 

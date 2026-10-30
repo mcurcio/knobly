@@ -42,14 +42,8 @@ def port_text(result: object, *, port: str) -> str:
 
 
 def quote(text: str, /) -> ConfigText:
-    """A plain string as a villanelle string, escapes included: ``quote("10.0.60.31")`` is ``'"10.0.60.31"'``, ready
-    for an edit (``stmt.set(quote(host))``). The canonical string text of an expanded value. TypeError for a ``text``
-    that is not a str."""
     return ConfigText(canonical_string(require_text(text, member="quote", parameter="text")))
 
 
 def text(raw: str, /) -> ConfigText:
-    """``raw`` as config text, unchanged and unchecked: the program's statement that ``raw`` is already written as
-    villanelle text (``stmt.set(text("8080"))``, ``value.set(text("[1, 2]"))``); the edit it is given checks it.
-    TypeError for a ``raw`` that is not a str."""
     return ConfigText(require_text(raw, member="text", parameter="raw"))

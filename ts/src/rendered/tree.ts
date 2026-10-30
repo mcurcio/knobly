@@ -70,12 +70,6 @@ export class Rendered implements api.Rendered {
     readonly graph: DocumentGraph,
   ) {}
 
-  /**
-   * The one home of the address rule (D4): each directive is named by its name, what the key rule returns for it,
-   * and its occurrence among the earlier directives of its container (a block, or the top level, spliced files and
-   * snippets included) with that name and key. The key rule is called once per directive, parents first.
-   * @throws TypeError when the key rule returns anything but a string or undefined
-   */
   addresses(options?: KeyOptions): ReadonlyMap<api.Directive, api.Address> {
     const key = options?.key;
     const out = new Map<api.Directive, api.Address>();

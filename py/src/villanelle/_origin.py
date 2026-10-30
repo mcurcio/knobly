@@ -18,8 +18,6 @@ from villanelle._api.shared import SourceSpan
 
 @dataclass(frozen=True, slots=True)
 class Place(shared.Place):
-    """A range of one file's text."""
-
     resolved_path: str = field()
     """The file's identity, as the document source gave it."""
     span: SourceSpan = field()
@@ -29,17 +27,12 @@ class Place(shared.Place):
         return PlaceKind.FILE
 
     def __str__(self) -> str:
-        """Its people form (spec/contract.md 2): ``path:line:col``, counting from 1, at the span's start. The one home
-        of this form: every located thing's people form and ``format_diagnostic`` build on it."""
         start = self.span.start
         return f"{self.resolved_path}:{start.line + 1}:{start.column + 1}"
 
 
 @dataclass(frozen=True, slots=True)
 class Override(shared.Override):
-    """A value the program passed in at load or with ``set_override`` (``rasl --set host=10.0.60.30``): written in
-    no file."""
-
     variable: str = field()
     """The variable's name, without ``$``."""
 
@@ -48,15 +41,11 @@ class Override(shared.Override):
         return PlaceKind.OVERRIDE
 
     def __str__(self) -> str:
-        """Its people form: ``override <variable>`` (no ``$``)."""
         return f"override {self.variable}"
 
 
 @dataclass(frozen=True, slots=True)
 class Step(shared.Step):
-    """One expansion a directive or value went through to reach where it is read: ``variable`` (``$pixels`` replaced
-    by its value), ``use`` (a snippet's body spliced) or ``extension`` (files spliced by an extension line)."""
-
     kind: StepKind = field()
     name: str = field()
     """The variable (without ``$``), snippet or extension directive name."""
@@ -64,7 +53,6 @@ class Step(shared.Step):
     """Where the reference was written: the ``$pixels`` token, the ``@use`` keyword, the ``@include`` token."""
 
     def __str__(self) -> str:
-        """Its people form: ``<kind> <name> at <place>`` (``variable pixels at main.conf:7:15``)."""
         return f"{self.kind} {self.name} at {self.place}"
 
 

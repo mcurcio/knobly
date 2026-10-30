@@ -12,9 +12,6 @@ if TYPE_CHECKING:
 
 
 def format_diagnostic(diagnostic: LocatedDiagnostic, graph: DocumentGraph | None = None) -> str:
-    """``str(diagnostic)`` (``path:line:col: code: message``, 1-based), then the source line and a caret line under
-    the span when ``graph`` holds the file (its current text), then ``  via `` and ``str(step)`` per step, innermost
-    first. Columns and carets count code points. Reads text only from ``graph``; never does I/O."""
     lines = [str(diagnostic)]
     document = None if graph is None else graph.documents.get(diagnostic.place.resolved_path)
     if document is not None:
