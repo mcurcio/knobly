@@ -1,5 +1,5 @@
-"""villanelle: a configuration language defined by one grammar (grammar/Villanelle.g4). One namespace per layer
-(binding guide rule 9): this package root holds the shared and io names (positions, places, origins, diagnostics,
+"""villanelle: a configuration language defined by one grammar (grammar/Villanelle.g4). One namespace per layer:
+this package root holds the shared and io names (positions, places, origins, diagnostics,
 the error tree, config text, the document source and writer ports and the in-memory adapters);
 ``villanelle.syntax`` the lossless syntax tree (``parse``); ``villanelle.written`` the config as written (the low
 level: ``Processor.load`` returns a ``DocumentGraph`` of editable documents, read further with ``graph.read()`` and

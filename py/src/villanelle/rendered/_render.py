@@ -59,7 +59,6 @@ class Rendered(api.Rendered):
 
     @property
     def graph(self) -> DocumentGraph:
-        """The graph it was rendered from."""
         return self._graph
 
     def addresses(self, *, key: KeyRule | None = None) -> Mapping[Directive, Address]:

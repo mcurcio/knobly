@@ -1,13 +1,4 @@
-"""Each public name's doc comes from spec/schema/api.json, through the generated code (spec/codegen.md section 4).
-
-A hand-written public class takes its doc, and each of its members' docs, from the generated Protocol it subclasses;
-a public function takes its doc from its module's generated ``<Module>Functions`` Protocol, and a constructed class's
-``__init__`` from its ``<Class>Constructor`` Protocol (``villanelle._api.docs`` says which). ``document(__name__)``
-runs once, at the end of each public module. So ``help()`` and ``__doc__`` show the schema's doc and no doc text is
-written twice. Prior art: numpy's ``add_newdoc``, which gives functions their docstrings from a table at import.
-
-A member that already has a doc keeps it, so a hand-written duplicate stays visible to the name test, which compares
-every public doc with its Protocol's (tests/test_api_names.py)."""
+"""Gives each public name its doc from the generated code at import: the mechanism is spec/codegen.md section 3."""
 
 from __future__ import annotations
 

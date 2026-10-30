@@ -98,13 +98,17 @@ def error_class(model: Model, group: str) -> str:
     return g.builtin("ts") or pascal(g.name)
 
 
-def member_doc(model: Model, text: str, params: List[Param], errors: List[str], order: str, indent: str) -> List[str]:
+def member_doc(model: Model, text: str, params: List[Param], raised: List[Tuple[str, str]], order: str, indent: str) -> List[str]:
     """A member's or free function's JSDoc: its doc and order, each documented parameter, each error group it raises."""
     if order:
         text = f"{sentence(text)} Order: {order}.".strip()
     tags = [f"@param {'options.' if p.passed == 'option' else ''}{camel(p.name)} {p.doc}" for p in params if p.doc]
-    tags += [f"@throws {{{error_class(model, e)}}} {model.group[e].raised_when}" for e in errors]
+    tags += [f"@throws {{{error_class(model, e)}}} {why}" for e, why in raised]
     return doc(text, indent, tags)
+
+
+WALK_VISIT = ("called with each item in turn, before the items of its block; return {control}.Skip to pass over its block, "
+              "or {control}.Stop to end the walk")
 
 
 def head(source: str) -> List[str]:
@@ -200,7 +204,7 @@ def method_params(model: Model, m_params: List[Param], options: Optional[str], c
 
 
 def member_lines(model: Model, c: Concept, m: Member, ctx: Ctx) -> List[str]:
-    out = member_doc(model, m.doc, m.params, m.errors, m.order, "  ")
+    out = member_doc(model, m.doc, m.params, model.raised(m.errors, m.when), m.order, "  ")
     if m.trait == "people form":
         return out + ["  toString(): string;"]
     if m.trait == "iterate":
@@ -211,7 +215,9 @@ def member_lines(model: Model, c: Concept, m: Member, ctx: Ctx) -> List[str]:
         return out + [f"  at(index: number): {ts_type(m.type, ctx)} | undefined;"]
     if m.trait == "walk":
         item = ts_type(m.type.item, ctx)
-        return out + [f"  walk(visit: ({camel('item')}: {item}) => {ctx.use('kinds', 'WalkControl')} | void): void;"]
+        control = ctx.use("kinds", "WalkControl")
+        out = member_doc(model, m.doc, [Param("visit", m.type, doc=WALK_VISIT.format(control=control))], [], m.order, "  ")
+        return out + [f"  walk(visit: ({camel('item')}: {item}) => {control} | void): void;"]
     if m.member == "property":
         if m.name == "kind" and c.kind is not None:
             return out + [f"  readonly kind: {s(c.kind)};"]
@@ -287,13 +293,13 @@ def function_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
         if fac == "constructor":
             continue  # constructor_lines
         name = model.package if fac == "package function" else camel(f.name)
-        lines = member_doc(model, f.doc, f.params, f.errors, "", "  ")
+        lines = member_doc(model, f.doc, f.params, model.raised(f.errors, f.when), "", "  ")
         lines.append(f"  {name}({method_params(model, f.params, f.options, ctx)}): {ts_type(f.returns, ctx)};")
         by_module.setdefault(mod, []).extend(lines)
     out: List[str] = []
     for mod, lines in sorted(by_module.items()):
         suffix = mod.split("/", 1)[1] if "/" in mod else layer
-        out += doc(f"The free functions {s(mod)} exports: a module object is checked against it (`const _: X = module`).")
+        out += doc(f"The free functions {s(mod)} exports.")
         out += [f"export interface {pascal(suffix.replace('-', ' '))}Functions {{", *lines, "}", ""]
     return out + constructor_lines(model, layer, ctx)
 
@@ -305,8 +311,8 @@ def constructor_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
         if f.layer != layer or (f.factory or {}).get("ts") != "constructor" or model.function_module(f, "ts") is None:
             continue
         of = pascal(f.factory["of"])  # type: ignore[index]
-        out += doc(f"The {f.factory['of']} class's constructor ({f.name}): `const _: {of}Constructor = {of}` checks it.")  # type: ignore[index]
-        out += [f"export interface {of}Constructor {{", *member_doc(model, f.doc, f.params, f.errors, "", "  "),
+        out += doc(f"The signature of `new {of}(...)`.")
+        out += [f"export interface {of}Constructor {{", *member_doc(model, f.doc, f.params, model.raised(f.errors, f.when), "", "  "),
                 f"  new ({method_params(model, f.params, f.options, ctx)}): {ctx.ref(f.factory['of'])};",  # type: ignore[index]
                 "}", ""]
     return out
@@ -341,12 +347,12 @@ def kinds_module(model: Model) -> str:
         if "ts" not in k.languages:
             continue
         name = pascal(k.name)
-        out += doc(f"The spec's {k.name} list (spec 2.10): compare with a member (`{name}.{kind_key(model, k.name, k.values[0])}`), "
-                   f"never a string literal. {k.doc}")
+        out += doc(f"{sentence(k.doc)} Each value is a string every binding shares; compare with a member, such as "
+                   f"`{name}.{kind_key(model, k.name, k.values[0])}`.")
         out.append(f"export const {name} = {{")
         out += [f"  {kind_key(model, k.name, v)}: {s(v)}," for v in k.values]
         out += ["} as const;", f"export type {name} = (typeof {name})[keyof typeof {name}];", ""]
-    out += doc("The language statements' keywords, written after '@' (spec 2.5): the one keyword list.")
+    out += doc("The language statements' keywords, written after '@': the one keyword list.")
     out.append("export const Keyword = {")
     out += [f"  {pascal(w)}: {s(w)}," for w, _ in model.keywords]
     out += ["} as const;", "export type Keyword = (typeof Keyword)[keyof typeof Keyword];", ""]
@@ -390,10 +396,10 @@ def codes_module(model: Model) -> str:
     if imports:
         out.append(f"import {{ {', '.join(sorted(imports))} }} from \"./limits.js\";")
     out += ["",
-            "/** villanelle's diagnostic codes, by name (spec 2.4). */",
+            "/** villanelle's diagnostic codes, by name. */",
             "export const DiagnosticCode = {", *entries, "} as const;",
             "export type DiagnosticCode = (typeof DiagnosticCode)[keyof typeof DiagnosticCode];", "",
-            "/** The base message of each code (spec 2.3: for people, not part of the contract). */",
+            "/** The base message of each code (for people, not part of the contract). */",
             "export const MESSAGES: Readonly<Record<DiagnosticCode, string>> = {", *messages, "};", "",
             "/** What the registry says of one code: its spec name, owning layer, who finds it, the reason it gives. */",
             "export interface CodeFacts {",
@@ -402,7 +408,7 @@ def codes_module(model: Model) -> str:
             f"  readonly foundBy: readonly ({' | '.join(map(s, FOUND_BY))})[];",
             "  readonly reason: UnreadableReason | null;",
             "}", "",
-            "/** Each code's facts (spec 2.4), typed so `CODE_FACTS[code].reason` is that code's own reason. */",
+            "/** Each code's facts, typed so `CODE_FACTS[code].reason` is that code's own reason. */",
             "export const CODE_FACTS = {", *facts, "} as const satisfies Readonly<Record<DiagnosticCode, CodeFacts>>;", "",
             "/** The unreadable reason a code gives (null: a reader's code, which makes nothing unreadable). */",
             "export type ReasonOf<C extends DiagnosticCode> = (typeof CODE_FACTS)[C][\"reason\"];", "",
@@ -466,13 +472,13 @@ def errors_module(model: Model) -> str:
             if chained and (parent.cause == "chained" or parent.sort == "base"):
                 sup_args.append("options")
             sup = f"super({', '.join(sup_args)});"
-        out += doc(f"{sentence(g.raised_when)} Spec 2.8: {g.sort}. {sentence(g.doc)}")
+        out += doc(g.class_doc())
         out.append(f"export class {name} extends {base} {{")
         out.append(f"  constructor({', '.join(params)}) {{")
         out.append(f"    {sup}")
         out.append(f"    this.name = {s(name)};")
         out += ["  }", "}", ""]
-    out += doc("The argument type error's message (spec 2.8): the one helper every member that takes text calls before it "
+    out += doc("The argument type error's message: the one helper every member that takes text calls before it "
                "changes anything.")
     tmpl = model.argument_type_message["ts"]
     parts, pos = [], 0

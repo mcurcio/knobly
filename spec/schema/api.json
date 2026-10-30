@@ -59,7 +59,7 @@
       "tag of": [
         "token"
       ],
-      "doc": "the grammar's lexer rule names (fragments aside) in declaration order: the grammar is their one home, and they are the one list whose values are not lowercase words"
+      "doc": "the kinds of token, named as the grammar names them (WORD, STRING, SEMI, ...), in the order the grammar declares them"
     },
     "node kind": {
       "layer": "syntax",
@@ -117,7 +117,7 @@
         "index": "index",
         "reference": "reference"
       },
-      "doc": "the written value variants cover the whole list; an expanded value's variants cover it less 'reference'"
+      "doc": "the kinds of value, one type each: a word, a string, a list, a slice, an index, or a reference to a variable ($name); an expanded value is any of these but a reference"
     },
     "variable kind": {
       "layer": "written",
@@ -173,7 +173,7 @@
       "tag of": [
         "unreadable expansion"
       ],
-      "doc": "computed by the low level's expansion (spec 6.10); 'unread' marks an extension copy not read yet (E3007)"
+      "doc": "why a statement could not be read: syntax (it holds a syntax error, or it is an extension line whose block holds one), expansion (a variable, snippet, use or set line could not be expanded), value (a value reached through a variable is not what its place takes, such as a slice bound that is not one integer), extension (an extension line failed: no file found, a read failed, or the extension refused it), unread (an extension line whose files are not read yet, E3007)"
     },
     "change kind": {
       "layer": "rendered",
@@ -256,7 +256,7 @@
     "constant": "reserved",
     "layer": "written",
     "words from": "keywords",
-    "means": "the language statements' names, written @set, @snippet and @use: no extension may take one (spec 2.5, 5). No directive name is reserved: a directive's name is a WORD, which never starts with @"
+    "means": "the language statements' names, written @set, @snippet and @use: no extension may take one. No directive name is reserved: a directive's name is a WORD, which never starts with @"
   },
   "patterns": {
     "variable name": {
@@ -276,7 +276,7 @@
     {
       "name": "villanelle error",
       "sort": "base",
-      "raised when": "never by itself: the base class of every expected-outcome class (spec 2.8), so one except or catch clause catches every outcome the input or the outside world decides, and no program bug",
+      "raised when": "never by itself: the base class of every expected-outcome class, so one except or catch clause catches every outcome the input or the outside world decides, and no program bug",
       "message": {
         "given": true
       }
@@ -316,7 +316,7 @@
       "name": "bad text error",
       "sort": "expected outcome",
       "parent": "villanelle error",
-      "raised when": "the text given to an edit, or an override's text, is not what its entry rule (spec 2.8) and the text-alone rules take; 'diagnostics' are located in that text, in the binding's string unit; its message is built from them (spec 2.8)",
+      "raised when": "the text given to an edit, or an override's text, is not what that place takes; 'diagnostics' are located in that text, in the binding's string unit, and its message is built from them",
       "fields": [
         {
           "name": "diagnostics",
@@ -348,7 +348,7 @@
       "name": "lost update error",
       "sort": "expected outcome",
       "parent": "save error",
-      "raised when": "a file the save would write changed since it was read or last saved: its current text differs from its saved text (spec 4.2). Raised by check lost updates inside every writer; save raises it as is",
+      "raised when": "a file the save would write changed since it was read or last saved: its current text differs from its saved text. Check lost updates raises it inside every writer, and save passes it on unchanged",
       "fields": [
         {
           "name": "paths",
@@ -372,12 +372,12 @@
     {
       "name": "argument type error",
       "sort": "program bug",
-      "raised when": "an argument of the wrong type: anything but text where config text or a name is taken (an extension's name at make processor included), and to quote and text (spec 6.9), a writer that is not a document writer, a render given something that is not a document graph (no callable expand; spec 7.0), a key rule that returns anything but text or absent (spec 7.4)"
+      "raised when": "an argument of the wrong type: anything but text where config text or a name is taken (an extension's name when the processor is made included), and to quote and text; a writer that is not a document writer; a render given something that is not a document graph (no callable expand); a key rule that returns anything but text or absent"
     },
     {
       "name": "misuse error",
       "sort": "program bug",
-      "raised when": "a bad argument value a program could have checked: every bad name (a variable or override name not matching the variable name pattern; a directive rename, or an extension's name at make processor, that the nameText entry rule refuses), a program code without '/', a reserved (set, snippet, use) or repeated extension name",
+      "raised when": "a bad argument value a program could have checked: every bad name (a variable or override name not matching the variable name pattern; a directive's new name, or an extension's name when the processor is made, that is not one word), a program code without '/', a reserved (set, snippet, use) or repeated extension name, a current list in check lost updates not as long as its files, and removing a slice's or index's name or its only bound",
       "message": {
         "given": true
       }
@@ -459,7 +459,10 @@
       ],
       "returns": "config text",
       "errors": [
-        "argument type error"
+        {
+          "group": "argument type error",
+          "when": "given anything but text"
+        }
       ],
       "doc": "the text written as a villanelle string, escapes included, as config text: 10.0.60.31 becomes \"10.0.60.31\", ready for an edit. The canonical string text an expanded value has",
       "rationale": "returns config text since milestone 5"
@@ -475,9 +478,12 @@
       ],
       "returns": "config text",
       "errors": [
-        "argument type error"
+        {
+          "group": "argument type error",
+          "when": "given anything but text"
+        }
       ],
-      "doc": "raw as config text, unchanged and unchecked: the program's statement that raw is already written as villanelle text (8080 for a set, [1, 2] for a value's set); the edit it is given checks it. With quote, the only maker of config text",
+      "doc": "raw as config text, unchanged and unchecked: the program's promise that raw is already villanelle text (8080 as a value, [1, 2] as a list); the edit it is given checks it. With quote, the only maker of config text",
       "rationale": "milestone 5 (vil-umh.6)"
     },
     {
@@ -491,9 +497,12 @@
       ],
       "returns": "rendered",
       "errors": [
-        "argument type error"
+        {
+          "group": "argument type error",
+          "when": "graph has no callable expand, before any other work"
+        }
       ],
-      "doc": "the rendered tree of the graph's current texts and overrides: variables substituted, snippets used, extension files spliced in. Pure and synchronous: reads no file; an extension copy not read yet renders as an unreadable with reason unread (its edge is in the graph's unread). Builds only on the graph's public expand, so it takes anything with the document graph's public members; given anything without a callable expand it raises the argument type error before any other work",
+      "doc": "the rendered tree of the graph's current texts and overrides: variables substituted, snippets used, extension files spliced in. Pure and synchronous: reads no file; an extension copy not read yet renders as an unreadable expansion with reason unread (its edge is in the graph's unread). Builds only on the graph's public expand, so it takes anything with the document graph's public members; given anything without a callable expand it fails with an argument type error before any other work",
       "rationale": "going up a layer is a free function of the upper layer (owner, 2026-10-29); exported only by the rendered layer's namespace (binding guide rule 9); the argument type check since milestone 5"
     },
     {
@@ -511,7 +520,7 @@
         }
       ],
       "returns": "text",
-      "doc": "the located diagnostic's people form (path:line:col: CODE: message), then the source line and a caret line under the span when graph holds the file (its current text), then one '  via <step>' line per step, innermost first. A line ends only at a line feed; columns and carets count the binding's string unit. Reads text only from graph; does no input or output",
+      "doc": "the located diagnostic's text form (path:line:col: CODE: message), then the source line and a caret line under the span when graph holds the file (its current text), then one '  via <step>' line per step, innermost first. A line ends only at a line feed; columns and carets count the binding's string unit. Reads text only from graph; does no input or output",
       "rationale": "takes a document graph (a written type), so it belongs to the low level, not shared; was listed as shared in the first draft of this file"
     },
     {
@@ -532,14 +541,20 @@
       ],
       "returns": "processor",
       "errors": [
-        "argument type error",
-        "misuse error"
+        {
+          "group": "argument type error",
+          "when": "an extension's name is not text"
+        },
+        {
+          "group": "misuse error",
+          "when": "an extension's name is not one word, is a language statement's name (set, snippet, use), or is given twice"
+        }
       ],
       "factory": {
         "of": "processor"
       },
       "options": "processor options",
-      "doc": "makes a processor once, with its document source and extensions. An extension's name is written after @ (@include), so it must be one word the nameText entry rule takes, and not a language statement's name (set, snippet, use) or one already taken"
+      "doc": "makes a processor with its document source and extensions. An extension's name is written after @ (@include), so it must be one word (starting with a letter or one of _ . / * ?), and not a language statement's name (set, snippet, use) or one already taken"
     },
     {
       "name": "make diagnostics",
@@ -567,7 +582,7 @@
         }
       ],
       "returns": "document source",
-      "doc": "a document source over texts held in memory, keyed by path. It reads the map it is given at each call, never a copy: what a memory writer (or the program) puts in that map, a later load or read sees. resolve joins the spec to the directory of the parent path by POSIX rules ('/' separators, '.' and '..' removed, a leading '/' taken as is) and returns the path when it is a key; a glob in the last segment returns every key in that directory it matches. read of a path that is not a key fails. Pure: no input or output"
+      "doc": "a document source over texts held in memory, keyed by path. It reads the map it is given at each call, never a copy: what a memory writer (or the program) puts in that map, a later load or read sees. resolve joins the path spec to the directory of the parent path by POSIX rules ('/' separators, '.' and '..' removed, a leading '/' taken as is) and returns the path when it is a key; a glob in the last segment returns every key in that directory it matches. read of a path that is not a key fails. Pure: no input or output"
     },
     {
       "name": "memory writer",
@@ -579,7 +594,7 @@
         }
       ],
       "returns": "document writer",
-      "doc": "a document writer into the map it is given (the one a memory source reads), so a save is seen by the next load. Each batch is all or nothing: check lost updates with each file's text in the map first (empty when absent), writing nothing when a file's text there differs from its saved text; then it sets every file's text"
+      "doc": "a document writer into the map it is given (the one a memory source reads), so a save is seen by the next load. Each batch is all or nothing: it first calls check lost updates with each file's text in the map (empty when absent), and writes nothing when a file's text there differs from its saved text; then it sets every file's text"
     },
     {
       "name": "file source",
@@ -587,7 +602,7 @@
       "returns": "document source",
       "params": [],
       "module": "files",
-      "doc": "a document source over the local filesystem: read reads a path as given, as UTF-8; resolve joins a spec to the directory of the parent path; a glob (* and ? in the last segment only) lists that directory and returns every matching file. A missing file or directory, or a path that is a directory, resolves to no paths (E3001); any other filesystem failure, such as permissions, fails (E3004)"
+      "doc": "a document source over the local filesystem: read reads a path as given, as UTF-8; resolve joins a path spec to the directory of the parent path; a glob (* and ? in the last segment only) lists that directory and returns every matching file. A missing file or directory, or a path that is a directory, resolves to no paths (E3001); any other filesystem failure, such as permissions, fails (E3004)"
     },
     {
       "name": "file writer",
@@ -595,7 +610,7 @@
       "returns": "document writer",
       "params": [],
       "module": "files",
-      "doc": "a document writer to the local filesystem, for one batch: check lost updates with each file's text on disk first (a missing file holds no text), writing nothing on a lost update; otherwise it writes each text, as UTF-8, to a temporary file beside its target (<name>.<random>.tmp), then renames each over its target in batch order. A failure while staging removes the temporaries and fails with nothing replaced; a failure while renaming can leave earlier files replaced, and removes the temporaries not yet renamed"
+      "doc": "a document writer to the local filesystem, for one batch: it first calls check lost updates with each file's text on disk (a missing file holds no text), and writes nothing on a lost update; otherwise it writes each text, as UTF-8, to a temporary file beside its target (<name>.<random>.tmp), then renames each over its target in batch order. A failure while staging removes the temporaries and fails with nothing replaced; a failure while renaming can leave earlier files replaced, and removes the temporaries not yet renamed"
     },
     {
       "name": "fetch source",
@@ -608,7 +623,7 @@
         }
       ],
       "module": "fetch",
-      "doc": "a document source over fetch: resolve resolves a spec as a URL against the parent path and returns it without fetching (globs resolve to no paths); read fetches the URL and fails on a response that is not a success"
+      "doc": "a document source over fetch: resolve resolves a path spec as a URL against the parent path and returns it without fetching (globs resolve to no paths); read fetches the URL and fails on a response that is not a success"
     },
     {
       "name": "fetch writer",
@@ -652,8 +667,14 @@
       ],
       "returns": "nothing",
       "errors": [
-        "lost update error",
-        "misuse error"
+        {
+          "group": "lost update error",
+          "when": "a file's current text differs from its saved text; its paths are those files, in batch order"
+        },
+        {
+          "group": "misuse error",
+          "when": "current is not as long as files, before any comparison"
+        }
       ],
       "doc": "the one lost-update check: raises a lost update error whose paths are the files whose current text differs from their saved text, in batch order. A current list not as long as files is a misuse error, raised before any comparison. Every writer calls it before it writes; a program's own writer should too"
     }
@@ -744,7 +765,7 @@
           "params": [],
           "returns": "text",
           "trait": "people form",
-          "doc": "the text path:line:col at the span's start, counting from 1, in the binding's string unit: main.conf:4:5. Every located thing's people form, and format diagnostic, build on it"
+          "doc": "the text path:line:col at the span's start, counting from 1, in the binding's string unit: main.conf:4:5. Every located thing's text form, and format diagnostic, build on it"
         }
       ],
       "kind": "file",
@@ -967,7 +988,10 @@
           ],
           "returns": "diagnostic error",
           "errors": [
-            "misuse error"
+            {
+              "group": "misuse error",
+              "when": "the code holds no '/'"
+            }
           ],
           "doc": "a diagnostic error placed on this thing, for the program to raise or report: it is returned, not raised. Its diagnostic carries the message and the program's code, which must hold '/'"
         }
@@ -1011,9 +1035,12 @@
           ],
           "returns": "nothing",
           "errors": [
-            "misuse error"
+            {
+              "group": "misuse error",
+              "when": "the code holds no '/'"
+            }
           ],
-          "doc": "appends the diagnostic that at's error(message, code) would carry: a program's own problem placed on a rendered tree, a directive or an expanded value. The code must hold '/' (rasl/unknown-node)"
+          "doc": "appends the diagnostic that the error of at, given this message and code, would carry: a program's own problem placed on a rendered tree, a directive or an expanded value. The code must hold '/' (rasl/unknown-node)"
         },
         {
           "name": "count",
@@ -1045,7 +1072,7 @@
           "type parameters": [
             "result"
           ],
-          "doc": "runs read and gives what it returns; when it raises a diagnostic error, records its diagnostic and gives absent instead; any other error passes through",
+          "doc": "runs the callback read and returns what it returns; when read raises an error carrying one diagnostic (a reader's error), it records that diagnostic and returns absent instead; any other error passes through",
           "rationale": "Python's context manager is an allowed difference (binding guide section 3); the doc is spec 7.7's collect row"
         }
       ],
@@ -1112,8 +1139,8 @@
           "params": [],
           "returns": "item[]",
           "trait": "walk",
-          "order": "depth first, written order; not the block's owner",
-          "doc": "every item in this block and in the blocks its items hold, at any depth, depth-first: an item, then everything in its block, then its next sibling. The caller may pass over an item's block or stop early"
+          "order": "depth first, written order; the block's owner is not included",
+          "doc": "every item in this block and in the blocks its items hold, at any depth, depth-first: an item, then everything in its block, then its next sibling. The caller can skip an item's block or stop early"
         }
       ],
       "doc": "the one block shape of every layer: iterated and indexed in order, its directives by name, and a depth-first walk over its items at any depth. The written block holds statements, the expansion block directive expansions, the rendered block directives",
@@ -1224,7 +1251,7 @@
           "doc": "the resolved path of the file holding the extension line; empty when the root path itself is resolved"
         }
       ],
-      "doc": "what a document source is told when it resolves a spec"
+      "doc": "what a document source is told when it resolves a path spec"
     },
     {
       "name": "document source",
@@ -1246,7 +1273,7 @@
           ],
           "returns": "text[]",
           "io": true,
-          "doc": "the resolved paths a spec names (a path, or a glob with * and ? in its last segment), in any order: the core sorts them. Empty means not found (E3001); a failure becomes E3004 at the extension line"
+          "doc": "the resolved paths a path spec names (a path, or a glob with * and ? in its last segment), in any order: the core sorts them. Empty means not found (E3001); a failure becomes E3004 at the extension line"
         },
         {
           "name": "read",
@@ -1262,7 +1289,7 @@
           "doc": "the text of one resolved file. A failure becomes E3004 at the extension line, or, for the root file, makes load fail with a read error. A load reads each resolved path at most once"
         }
       ],
-      "doc": "where files come from: the program's port that resolves specs and reads files, so the core does no input or output"
+      "doc": "where files come from: the program's port that resolves path specs and reads files, so the core does no input or output"
     },
     {
       "name": "file write",
@@ -1332,7 +1359,7 @@
           "doc": "the Content-Type header; default text/plain"
         }
       ],
-      "doc": "the fetch writer's options (spec 4.3)"
+      "doc": "the fetch writer's options"
     },
     {
       "name": "platform fetch",
@@ -1341,7 +1368,7 @@
       "is": "native",
       "module": "fetch",
       "members": [],
-      "doc": "the platform's fetch, passed in so the core reaches no global (spec 4.3)",
+      "doc": "the platform's fetch, passed in so the core reaches no global",
       "rationale": "TypeScript: typeof fetch (emit_ts.NATIVE)"
     },
     {
@@ -1353,7 +1380,7 @@
           "name": "directive",
           "member": "property",
           "type": "text",
-          "doc": "the name it owns, without @: include. A line uses it when written @include; make processor refuses a reserved (set, snippet, use), repeated, or malformed (refused by nameText) name",
+          "doc": "the name it owns, without @: include. A line uses it when written @include; making the processor refuses a reserved (set, snippet, use), repeated, or malformed (not one word) name",
           "rationale": "the @name form since milestone 5"
         },
         {
@@ -1372,7 +1399,7 @@
           "doc": "the specs for one use, in splice order. Raise a diagnostic error for a located failure; any other failure, or a result that is not a list of texts, becomes E3006 at the directive's name"
         }
       ],
-      "doc": "a plug-in that owns one directive name and turns each line written with it (@include) into specs of files to splice in its place. It is pure: the load resolves, reads and splices the files"
+      "doc": "a plug-in that owns one directive name and turns each line written with it (@include) into path specs of files to splice in its place. It is pure: the load resolves, reads and splices the files"
     },
     {
       "name": "extension use",
@@ -1383,7 +1410,7 @@
           "name": "values",
           "member": "property",
           "type": "expanded value[]",
-          "doc": "the line's values, expanded, with their links (spec 5)"
+          "doc": "the line's values, expanded, with their links"
         },
         {
           "name": "origin",
@@ -1453,16 +1480,22 @@
           "returns": "document graph",
           "errors": [
             "read error",
-            "misuse error",
-            "argument type error",
+            {
+              "group": "misuse error",
+              "when": "an override's name does not match the variable name pattern, before any file is read"
+            },
+            {
+              "group": "argument type error",
+              "when": "path is not text, or an override's text is not config text"
+            },
             "bad text error"
           ],
           "io": true,
           "options": "load options",
-          "doc": "reads the root file at path (resolved through the source as an included file's spec is, so the root has one path in the graph) and every file its extension lines name, once each, repeating until nothing new is named, and returns the document graph. Never fails for anything in the text: those problems are diagnostics. Each override is by name without $, as config text, and is checked as set override checks it, in order, before any file is read. The read error's paths hold the root path"
+          "doc": "reads the root file at path (resolved through the source as an included file's path spec is, so the root has one path in the graph) and every file its extension lines name, once each, repeating until nothing new is named, and returns the document graph. Never fails for anything in the text: those problems are diagnostics. Each override is by name without $, as config text, and is checked as set override checks it, in order, before any file is read. The read error's paths hold the root path"
         }
       ],
-      "doc": "the factory: made once with a document source and extensions; load is its only operation",
+      "doc": "what loads documents: made with a document source and extensions, it loads any number of times; load is its only operation",
       "rationale": "owner, 2026-10-29"
     },
     {
@@ -1504,10 +1537,16 @@
           "returns": "nothing",
           "errors": [
             "bad text error",
-            "argument type error",
-            "misuse error"
+            {
+              "group": "argument type error",
+              "when": "name is not text, or text is not config text or absent"
+            },
+            {
+              "group": "misuse error",
+              "when": "name does not match the variable name pattern"
+            }
           ],
-          "doc": "adds, changes or (given absent) removes one override without a reload. The name must be letters, digits and _; the text must be one or more values without a $name (the valuesText entry rule), else a bad text error located in that text. A changed name keeps its place; a new one goes last"
+          "doc": "adds, changes or (given absent) removes one override without a reload. The name must be letters, digits and _; the text must be one or more values without a $name, else a bad text error located in that text. A changed name keeps its place; a new one goes last"
         },
         {
           "name": "read",
@@ -1529,11 +1568,15 @@
           ],
           "returns": "text[]",
           "errors": [
-            "save error"
+            "save error",
+            {
+              "group": "lost update error",
+              "when": "the writer fails with one; it passes through unchanged"
+            }
           ],
           "io": true,
           "order": "documents order",
-          "doc": "hands every document whose text differs from its saved text to writer in one batch; with none, the writer is not called. When the writer returns, each written document's saved text becomes the text it was given (an edit made while the writer ran stays unsaved); when it fails, nothing changes: a lost update error is raised as it is, any other failure as a save error whose paths are the batch's and whose cause is that failure. Returns the resolved paths handed over"
+          "doc": "hands every document whose text differs from its saved text to writer in one batch; with none, the writer is not called. When the writer returns, each written document's saved text becomes the text it was given (an edit made while the writer ran stays unsaved); when it fails, nothing changes: a lost update error passes through as it is, and any other failure becomes a save error whose paths are the batch's and whose cause is that failure. Returns the resolved paths handed over"
         },
         {
           "name": "edges",
@@ -1549,7 +1592,7 @@
           "params": [],
           "returns": "document edge[]",
           "order": "walk order",
-          "doc": "the edges naming a spec not resolved or a file not read yet; each such copy expands to an unreadable expansion with reason unread, and E3007 in diagnostics"
+          "doc": "the edges naming a path spec not resolved or a file not read yet; each such copy expands to an unreadable expansion with reason unread, and E3007 in diagnostics"
         },
         {
           "name": "variables",
@@ -1635,7 +1678,10 @@
           ],
           "returns": "nothing",
           "errors": [
-            "argument type error"
+            {
+              "group": "argument type error",
+              "when": "text is not config text"
+            }
           ],
           "doc": "replaces the whole text with any text, broken or not. Every handle into the document but the document itself detaches; saved text is untouched"
         }
@@ -1743,7 +1789,10 @@
           "returns": "statement[]",
           "errors": [
             "bad text error",
-            "argument type error",
+            {
+              "group": "argument type error",
+              "when": "text is not config text"
+            },
             "detached error"
           ],
           "doc": "replaces it and its owned comments with zero or more statements, indented as it was; returns the new statements. This handle detaches"
@@ -1770,10 +1819,13 @@
           "returns": "statement[]",
           "errors": [
             "bad text error",
-            "argument type error",
+            {
+              "group": "argument type error",
+              "when": "text is not config text"
+            },
             "detached error"
           ],
-          "doc": "insert statements before this one in its block: the block's insert statements (index of this one, text)"
+          "doc": "inserts statements before this one, as its block's insert statements does at this one's index; returns the new statements"
         },
         {
           "name": "insert after",
@@ -1787,10 +1839,13 @@
           "returns": "statement[]",
           "errors": [
             "bad text error",
-            "argument type error",
+            {
+              "group": "argument type error",
+              "when": "text is not config text"
+            },
             "detached error"
           ],
-          "doc": "insert statements after this one in its block: the block's insert statements (index of this one + 1, text)"
+          "doc": "inserts statements after this one, as its block's insert statements does at the index after this one's; returns the new statements"
         }
       ],
       "variants": [
@@ -1839,11 +1894,17 @@
           ],
           "returns": "nothing",
           "errors": [
-            "misuse error",
-            "argument type error",
+            {
+              "group": "misuse error",
+              "when": "the new name is not one word"
+            },
+            {
+              "group": "argument type error",
+              "when": "name is not text"
+            },
             "detached error"
           ],
-          "doc": "changes its name and keeps the handle. A name the nameText entry rule refuses (not one word: a word starting with a digit, '-' or '@') is a misuse error; no name is reserved, so use and include are allowed",
+          "doc": "changes its name and keeps the handle. The name must be one word (starting with a letter or one of _ . / * ?, not a digit, '-' or '@'), else a misuse error; no name is reserved, so use and include are allowed",
           "rationale": "no name reserved since milestone 5"
         },
         {
@@ -1858,10 +1919,13 @@
           "returns": "nothing",
           "errors": [
             "bad text error",
-            "argument type error",
+            {
+              "group": "argument type error",
+              "when": "text is not config text"
+            },
             "detached error"
           ],
-          "doc": "replaces its values with text, comments between them included; the empty text removes them. The text must be values (the valuesText entry rule). Not the language's @set line: this edits any statement's values",
+          "doc": "replaces its values with text, comments between them included; the empty text removes them. The text must be zero or more values. Not the language's @set line: this edits any statement's values",
           "rationale": "owner, 2026-10-29: \"Can 'set_values' become simply 'set'?\""
         }
       ],
@@ -1912,10 +1976,13 @@
           "returns": "nothing",
           "errors": [
             "bad text error",
-            "argument type error",
+            {
+              "group": "argument type error",
+              "when": "text is not config text"
+            },
             "detached error"
           ],
-          "doc": "replaces its values with text, comments between them included; the empty text removes them. The text must be values (the valuesText entry rule). Not the language's @set line: this edits any statement's values",
+          "doc": "replaces its values with text, comments between them included; the empty text removes them. The text must be zero or more values. Not the language's @set line: this edits any statement's values",
           "rationale": "owner, 2026-10-29: \"Can 'set_values' become simply 'set'?\""
         }
       ],
@@ -1955,7 +2022,10 @@
           "returns": "nothing",
           "errors": [
             "bad text error",
-            "argument type error",
+            {
+              "group": "argument type error",
+              "when": "text is not config text"
+            },
             "detached error"
           ],
           "doc": "replaces the values after the $name, as a written directive's set does; the line stays a set line, and the empty text is refused (E5009)",
@@ -2045,7 +2115,10 @@
           "returns": "nothing",
           "errors": [
             "bad text error",
-            "argument type error",
+            {
+              "group": "argument type error",
+              "when": "text is not config text"
+            },
             "detached error"
           ],
           "doc": "replaces the values after the snippet name, as a written directive's set does",
@@ -2093,7 +2166,10 @@
           "returns": "statement[]",
           "errors": [
             "bad text error",
-            "argument type error",
+            {
+              "group": "argument type error",
+              "when": "text is not config text"
+            },
             "index out of range"
           ],
           "doc": "inserts statements before the one at index (index equal to the count appends), on lines of their own, indented as the block's first statement; returns the new statements"
@@ -2110,7 +2186,10 @@
           "returns": "statement[]",
           "errors": [
             "bad text error",
-            "argument type error"
+            {
+              "group": "argument type error",
+              "when": "text is not config text"
+            }
           ],
           "doc": "inserts statements at the end, as insert statements at the count does"
         }
@@ -2165,10 +2244,13 @@
           "returns": "nothing",
           "errors": [
             "bad text error",
-            "argument type error",
+            {
+              "group": "argument type error",
+              "when": "text is not config text"
+            },
             "detached error"
           ],
-          "doc": "replaces this value with exactly one value and keeps the handle: the same object stays where it was (its statement's values, its list's items, its slice's bound or name), now holding the new value and of the new value's kind (a word set to [1, 2] is a list). Its old items, bounds and name detach. The text's entry rule is valueText; a bound's is boundText, a slice name's sliceNameText",
+          "doc": "replaces this value with exactly one value and keeps the handle: the same object stays where it was (its statement's values, its list's items, its slice's bound or name), now holding the new value and of the new value's kind (a word set to [1, 2] is a list). Its old items, bounds and name detach. The text must be exactly one value; a bound's text, one integer or $name; a slice or index name's, one word, @word or $name",
           "rationale": "milestone 5 (vil-umh.12). Python: the object's class becomes the new kind's class"
         },
         {
@@ -2183,10 +2265,13 @@
           "returns": "written value[]",
           "errors": [
             "bad text error",
-            "argument type error",
+            {
+              "group": "argument type error",
+              "when": "text is not config text"
+            },
             "detached error"
           ],
-          "doc": "replaces it with values written as config text, separated by spaces on a line or by commas in a list; returns the new values. This handle detaches. The text's entry rule is valuesText; a list item's itemsText, a slice or index bound's boundText (one integer word or $name), a slice or index name's sliceNameText"
+          "doc": "replaces it with values written as config text, separated by spaces on a line or by commas in a list; returns the new values. This handle detaches. The text is zero or more values; a list item's, items separated by commas; a slice or index bound's, one integer or $name; a slice or index name's, one word, @word or $name"
         },
         {
           "name": "remove",
@@ -2196,7 +2281,10 @@
           "errors": [
             "bad text error",
             "detached error",
-            "misuse error"
+            {
+              "group": "misuse error",
+              "when": "it is a slice's or index's name, or its only bound; the text is unchanged"
+            }
           ],
           "doc": "removes it and its separator; then it is detached. A bad text error when that breaks a rule (a set line left with no value); a slice's or index's name, or its only bound, refuses with a misuse error and the text unchanged"
         }
@@ -2432,10 +2520,17 @@
           "returns": "nothing",
           "errors": [
             "bad text error",
-            "argument type error",
-            "detached error"
+            {
+              "group": "argument type error",
+              "when": "name is not text"
+            },
+            "detached error",
+            {
+              "group": "misuse error",
+              "when": "the new name does not match the variable name pattern"
+            }
           ],
-          "doc": "changes its $name only; references keep theirs and are bound again by name. The name must be letters, digits and _ (a misuse error otherwise); a bad text error (E5002) when it would make a second set of a name in its block"
+          "doc": "changes its $name only; references keep theirs and are bound again by name. The name must be letters, digits and _ (else a misuse error); a bad text error (E5002) when it would make a second set of a name in its block"
         },
         {
           "name": "set",
@@ -2449,7 +2544,10 @@
           "returns": "nothing",
           "errors": [
             "bad text error",
-            "argument type error",
+            {
+              "group": "argument type error",
+              "when": "text is not config text"
+            },
             "detached error"
           ],
           "doc": "replaces its set line's values, as that line's set does; not the language's @set line",
@@ -2492,10 +2590,17 @@
           "returns": "nothing",
           "errors": [
             "bad text error",
-            "argument type error",
-            "detached error"
+            {
+              "group": "argument type error",
+              "when": "name is not text"
+            },
+            "detached error",
+            {
+              "group": "misuse error",
+              "when": "the new name does not match the variable name pattern"
+            }
           ],
-          "doc": "changes its $name only. The name must be letters, digits and _ (a misuse error otherwise)"
+          "doc": "changes its $name only. The name must be letters, digits and _ (else a misuse error)"
         }
       ],
       "match args": [
@@ -2599,7 +2704,7 @@
       "nature": "snapshot",
       "extends": "block of directive expansion and directive expansion",
       "members": [],
-      "doc": "the directive expansions of one block of one copy, in written order (spec 6.10)"
+      "doc": "the directive expansions of one block of one copy, in written order"
     },
     {
       "name": "directive expansion",
@@ -2623,13 +2728,13 @@
           "name": "values",
           "member": "property",
           "type": "expanded value[]",
-          "doc": "in order; a reference gives every value it reaches"
+          "doc": "its values, in order; a reference gives every value it reaches"
         },
         {
           "name": "block",
           "member": "property",
           "type": "expansion block or absent",
-          "doc": "absent when written without a block"
+          "doc": "its block; absent when it was written without one"
         },
         {
           "name": "unreadable",
@@ -2661,7 +2766,7 @@
           "name": "reason",
           "member": "property",
           "type": "unreadable reason",
-          "doc": "unread for an extension copy not read yet (E3007, spec 6.10)"
+          "doc": "unread for an extension copy not read yet (E3007)"
         },
         {
           "name": "origin",
@@ -2692,7 +2797,7 @@
           "name": "unreadable",
           "member": "property",
           "type": "unreadable expansion[]",
-          "doc": "the top-level statements that could not be read (their siblings stay); an extension copy not read yet is one, with reason unread"
+          "doc": "the top-level statements that could not be read, as unreadable expansions (their siblings stay); an extension copy not read yet is among them, with reason unread"
         },
         {
           "name": "origin",
@@ -2728,7 +2833,10 @@
           ],
           "returns": "diagnostic error",
           "errors": [
-            "misuse error"
+            {
+              "group": "misuse error",
+              "when": "the code holds no '/'"
+            }
           ],
           "doc": "a diagnostic error for a problem of the whole file, such as a required top-level directive left out; returned, not raised. The code must hold '/'"
         },
@@ -2746,7 +2854,10 @@
           "returns": "map of directive to address",
           "order": "walk order",
           "errors": [
-            "argument type error"
+            {
+              "group": "argument type error",
+              "when": "the key rule returns anything but text or absent"
+            }
           ],
           "options": "key options",
           "doc": "every directive's address under key: its name, what the key rule returns for it, and its occurrence among the earlier directives of its block (or the top level, spliced files and snippets included) with that name and key, under its parent's address. The key rule is called once per directive, parents before children; what it raises passes through unchanged. Without a key rule a directive is named by its position among same-name siblings"
@@ -2769,7 +2880,10 @@
           "returns": "change[]",
           "order": "removed and unknown in before's walk order, then added and changed in after's",
           "errors": [
-            "argument type error"
+            {
+              "group": "argument type error",
+              "when": "the key rule returns anything but text or absent"
+            }
           ],
           "options": "key options",
           "doc": "what differs from this render (the before) to after, matched by address under key. A directive missing from after is unknown, not removed, when its block there (or the top level) holds an unreadable statement. Any two renders may be compared; what the key rule raises passes through unchanged"
@@ -2852,7 +2966,10 @@
           ],
           "returns": "diagnostic error",
           "errors": [
-            "misuse error"
+            {
+              "group": "misuse error",
+              "when": "the code holds no '/'"
+            }
           ],
           "doc": "a diagnostic error placed on this directive's name; returned, not raised. The code must hold '/'"
         }
@@ -2870,7 +2987,7 @@
       "nature": "snapshot",
       "extends": "block of directive and directive",
       "members": [],
-      "doc": "the directives of one block after expansion, in written order (spec 7.1)"
+      "doc": "the directives of one block after expansion, in written order"
     },
     {
       "name": "slice value",
@@ -3061,7 +3178,10 @@
           ],
           "returns": "diagnostic error",
           "errors": [
-            "misuse error"
+            {
+              "group": "misuse error",
+              "when": "the code holds no '/'"
+            }
           ],
           "doc": "a diagnostic error placed on this value (for an override's value, on the $name that used it); returned, not raised. The code must hold '/'"
         }
@@ -3077,7 +3197,7 @@
         "expanded slice",
         "expanded index"
       ],
-      "doc": "a union: one value after expansion ($name replaced) with its links to the lines it came through. The low level owns it (spec 2.9, 6.10): an extension use holds it, a directive expansion's values are it, and a rendered directive's values are the same objects. The readers stay on every variant: a value of the wrong kind is a problem in the config text, reported as E4002. Two expanded values are equal exactly when their texts are equal (spec 2.9)",
+      "doc": "a union: one value after expansion ($name replaced) with its links to the lines it came through. The low level owns it: an extension use holds it, a directive expansion's values are it, and a rendered directive's values are the same objects. The readers stay on every variant: a value of the wrong kind is a problem in the config text, reported as E4002. Two expanded values are equal exactly when their texts are equal",
       "rationale": "milestone 4 collapsed value expansion and the rendered argument family into it; equality is Python's =="
     },
     {
@@ -3189,7 +3309,7 @@
       "nature": "callback",
       "type": "function of directive to (text or absent)",
       "members": [],
-      "doc": "the program's rule naming a directive among its siblings (spec 7.4); absent: no key"
+      "doc": "the program's rule naming a directive among its siblings; absent: no key"
     },
     {
       "name": "key options",

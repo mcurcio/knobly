@@ -4,7 +4,8 @@
     py/src/villanelle/_api/codes.py      DiagnosticCode, MESSAGES, CODE_FACTS and describe()
     py/src/villanelle/_api/limits.py     the rules: limits, reserved words, patterns
     py/src/villanelle/_api/errors.py     the error class tree and argument_type_message()
-    py/src/villanelle/_api/<layer>.py    a Protocol per handle, port and interface, a frozen slotted dataclass per plain
+    py/src/villanelle/_api/record.py     SlottedRecord, the base of every generated record (copy and pickle)
+    py/src/villanelle/_api/<layer>.py    a Protocol per handle, port and interface, a frozen dataclass per plain
                                          record, callback aliases, and union aliases over generated records: one module
                                          per layer api.json lists
     py/conformance/shapes.py             the adapter protocol's message TypedDicts, the spec-name spellings and each
@@ -147,14 +148,18 @@ def error_class(model: Model, group: str) -> str:
     return g.builtin("py") or pascal(g.name)
 
 
-def member_docstring(model: Model, text: str, params: List[Param], errors: List[str], order: str, indent: str) -> List[str]:
+def member_docstring(model: Model, text: str, params: List[Param], raised: List[Tuple[str, str]], order: str, indent: str) -> List[str]:
     """A member's docstring: its doc and order, an ``Args`` section for its documented parameters, and a ``Raises``
     section for the error groups it raises (as TypeScript writes ``@param`` and ``@throws``)."""
     if order:
         text = f"{sentence(text)} Order: {order}.".strip()
     args = [(snake(p.name), p.doc) for p in params if p.doc]
-    raises = [(error_class(model, e), model.group[e].raised_when) for e in errors]
+    raises = [(error_class(model, e), why) for e, why in raised]
     return docstring(text, indent, [("Args", args), ("Raises", raises)])
+
+
+WALK_DESCEND = ("asked of each item after it is given and before its block; false passes over its block. None goes into every "
+                "block; break ends the walk")
 
 
 def tuple_literal(items: List[str]) -> str:
@@ -361,7 +366,8 @@ def documented(indent: str, name: str, params: List[str], result: str, note: Lis
 
 
 def member_lines(model: Model, c: Concept, m: Member, ctx: Ctx, indent: str = "    ") -> List[str]:
-    note = member_docstring(model, m.doc, m.params, m.errors, m.order, indent + "    ")
+    params = [Param("descend", m.type, doc=WALK_DESCEND)] if m.trait == "walk" else m.params
+    note = member_docstring(model, m.doc, params, model.raised(m.errors, m.when), m.order, indent + "    ")
     if m.trait == "people form":
         return documented(indent, "__str__", ["self"], "str", note)
     if m.trait == "iterate":
@@ -421,6 +427,8 @@ def record_lines(model: Model, c: Concept, ctx: Ctx, tvs: Dict[str, str]) -> Lis
         args = ", ".join(s(py_type(a, ctx)) for a in c.extends.args)
         base = ctx.ref(c.extends.name, runtime=True)
         bases.append(f"{base}[{args}]" if args else base)
+    else:
+        bases.append(ctx.imports.add("villanelle._api.record", "SlottedRecord"))
     if tvs:
         bases.append(f"{ctx.imports.add('typing', 'Generic')}[{', '.join(tvs.values())}]")
     own = [m for m in c.members]
@@ -431,7 +439,8 @@ def record_lines(model: Model, c: Concept, ctx: Ctx, tvs: Dict[str, str]) -> Lis
     fields.sort(key=lambda m: order.get(m.name, len(order)))
     # A dataclass matches on every field unless told otherwise; the spec's match args may be fewer (spec 2.10).
     explicit = bool(c.match_args) and [m.name for m in fields] != list(c.match_args)
-    flags = f"frozen=True, slots=True{eq}{', match_args=False' if explicit else ''}"
+    # Slotted by hand, not slots=True: a __slots__ dict gives each field's slot its doc, which help() shows.
+    flags = f"frozen=True{eq}{', match_args=False' if explicit else ''}"
     out = ["@final", f"@dataclass({flags})"] if not any(
         o.extends is not None and o.extends.name == c.name for o in model.concepts) else [f"@dataclass({flags})"]
     if out[0] == "@final":
@@ -440,7 +449,8 @@ def record_lines(model: Model, c: Concept, ctx: Ctx, tvs: Dict[str, str]) -> Lis
     out += docstring(c.doc, "    ")
     if explicit:
         out += ["", match_args_line(c, ctx)] if c.doc else [match_args_line(c, ctx)]
-    if fields and (c.doc or explicit):
+    out += ([""] if c.doc or explicit else []) + slots_lines(fields)
+    if fields:
         out.append("")
     for m in fields:
         out.append(f"    {snake(m.name)}: {py_type(m.type, ctx)}")
@@ -454,6 +464,27 @@ def record_lines(model: Model, c: Concept, ctx: Ctx, tvs: Dict[str, str]) -> Lis
     if len(out) == 1 + out.index(next(line for line in out if line.startswith("class "))):
         out.append("    pass")  # a record with no doc, no field and no kind
     return out
+
+
+def slots_lines(fields: List[Member]) -> List[str]:
+    """``__slots__`` as a dict from each field to its doc, sorted (RUF023): pydoc shows a slot's dict value as its doc,
+    so help() and each slot's ``__doc__`` give the schema's doc (a ``slots=True`` dataclass's slots cannot hold one)."""
+    if not fields:
+        return ["    __slots__ = ()"]
+    entries = sorted((snake(m.name), sentence(m.doc)) for m in fields)
+    one = "    __slots__ = {" + ", ".join(f"{s(n)}: {s(d)}" for n, d in entries) + "}"
+    if len(one) <= WIDTH:
+        return [one]
+    out = ["    __slots__ = {"]
+    for n, d in entries:
+        line = f"        {s(n)}: {s(d)},"
+        if len(line) <= WIDTH:
+            out.append(line)
+        else:
+            inner = "            "  # inside parentheses: ruff joins the parts when the whole string fits there
+            parts = [inner + s(d)] if len(inner + s(d)) <= WIDTH else wrap_string(d, inner)
+            out += [f"        {s(n)}: (", *parts, "        ),"]
+    return out + ["    }"]
 
 
 def match_args_line(c: Concept, ctx: Ctx) -> str:
@@ -576,13 +607,13 @@ def functions_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
         lines = by_module.setdefault(mod, [])
         lines.append("")
         lines += documented("    ", snake(f.name), param_list(f.params, ctx), py_type(f.returns, ctx),
-                            member_docstring(model, f.doc, f.params, f.errors, "", "        "))
+                            member_docstring(model, f.doc, f.params, model.raised(f.errors, f.when), "", "        "))
     out: List[str] = []
     for mod, lines in sorted(by_module.items()):
         suffix = mod.split(".", 1)[1] if "." in mod else layer
         proto = ctx.imports.add("typing", "Protocol")
         out += ["", "", f"class {pascal(suffix)}Functions({proto}):",
-                *docstring(f"The free functions {mod} exports: mypy checks the module against it (`_: X = module`).", "    "),
+                *docstring(f"The free functions {mod} exports.", "    "),
                 *lines]
     for f in model.functions:
         if f.layer != layer or (f.factory or {}).get("py") != "constructor" or model.function_module(f, "py") is None:
@@ -590,9 +621,9 @@ def functions_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
         of = f.factory["of"]  # type: ignore[index]
         proto = ctx.imports.add("typing", "Protocol")
         out += ["", "", f"class {pascal(of)}Constructor({proto}):",
-                *docstring(f"The {of} class's constructor ({f.name}): mypy checks the class against it (`_: X = {pascal(of)}`).", "    "),
+                *docstring(f"The signature of {pascal(of)}(...).", "    "),
                 "", *documented("    ", "__call__", param_list(f.params, ctx), ctx.ref(of),
-                                member_docstring(model, f.doc, f.params, f.errors, "", "        "))]
+                                member_docstring(model, f.doc, f.params, model.raised(f.errors, f.when), "", "        "))]
     return out
 
 
@@ -645,10 +676,12 @@ def kinds_module(model: Model) -> str:
         if "py" not in k.languages:
             continue
         members = "\n".join(f"    {kind_member(model, k.name, v)} = {s(v)}" for v in k.values)
-        doc = "\n".join(docstring(f"The spec's {k.name} list (spec 2.10): compare members, never strings. {k.doc}", "    "))
+        first = f"{pascal(k.name)}.{kind_member(model, k.name, k.values[0])}"
+        doc = "\n".join(docstring(f"{sentence(k.doc)} Each value is a string every binding shares; compare with a member, such as "
+                                  f"{first}.", "    "))
         blocks.append(f"class {pascal(k.name)}(StrEnum):\n{doc}\n\n{members}")
     kw = "\n".join(f"    {upper_snake(w)} = {s(w)}" for w, _ in model.keywords)
-    blocks.append(f'class Keyword(StrEnum):\n    """The language statements\' keywords, written after \'@\' (spec 2.5): the one keyword list."""\n\n{kw}')
+    blocks.append(f'class Keyword(StrEnum):\n    """The language statements\' keywords, written after \'@\': the one keyword list."""\n\n{kw}')
     table = "\n".join(f"        Keyword.{upper_snake(w)}: StatementKind.{upper_snake(sk)}," for w, sk in model.keywords)
     blocks.append("STATEMENT_OF_KEYWORD: Final[Mapping[Keyword, StatementKind]] = MappingProxyType(\n    {\n"
                   f"{table}\n    }}\n)\n" + '"""The statement kind each keyword writes: the one dispatch table."""')
@@ -697,16 +730,16 @@ def codes_module(model: Model) -> str:
     return "\n".join([
         *head, "", "",
         "class DiagnosticCode(StrEnum):",
-        '    """villanelle\'s diagnostic codes, by name (spec 2.4)."""', "",
+        '    """villanelle\'s diagnostic codes, by name."""', "",
         *members, "", "",
         "MESSAGES: Final[Mapping[DiagnosticCode, str]] = MappingProxyType(", "    {", *messages, "    }", ")",
-        '"""The base message of each code (spec 2.3: for people, not part of the contract)."""', "", "",
+        '"""The base message of each code (for people, not part of the contract)."""', "", "",
         "@dataclass(frozen=True, slots=True)",
         "class CodeFacts:",
         '    """What the registry says of one code: its spec name, owning layer, who finds it, the reason it gives."""', "",
         "    name: str", "    layer: str", "    found_by: tuple[str, ...]", "    reason: UnreadableReason | None", "", "",
         "CODE_FACTS: Final[Mapping[DiagnosticCode, CodeFacts]] = MappingProxyType(", "    {", *facts, "    }", ")",
-        '"""Each code\'s facts (spec 2.4)."""', "", "",
+        '"""Each code\'s facts."""', "", "",
         "@dataclass(frozen=True, slots=True)",
         "class Described:",
         '    """One diagnostic\'s code, message and reason, built from the registry."""', "",
@@ -768,7 +801,7 @@ def errors_module(model: Model) -> str:
         parent = model.group[g.parent] if g.parent else None
         base = pascal(parent.name) if parent else g.base["py"]["base"]
         body += ["", "", f"class {name}({base}):"]
-        body += docstring(f"{sentence(g.raised_when)} Spec 2.8: {g.sort}. {sentence(g.doc)}", "    ")
+        body += docstring(g.class_doc(), "    ")
         own = [(f, t) for f, t in g.fields if not (parent and any(pf == f for pf, _ in parent.fields))]
         if not g.fields:
             continue
@@ -800,7 +833,7 @@ def errors_module(model: Model) -> str:
         pos = m.end()
     parts.append(tmpl[pos:])
     body += ["", "", "def argument_type_message(member: str, parameter: str, got: str, /) -> str:",
-             *docstring("The argument type error's message (spec 2.8): the one helper every member that takes text calls.", "    "),
+             *docstring("The argument type error's message: the one helper every member that takes text calls.", "    "),
              "    return (", *wrap_string("".join(parts), "        "), "    )"]
     head = [f'"""{HEADER}', "", 'Source: spec/schema/api.json "error groups"."""', ""]
     return "\n".join(head + imports.render() + body) + "\n"
@@ -999,6 +1032,26 @@ def shapes_module(model: Model) -> str:
     return "\n".join(head + imports.render() + body) + "\n"
 
 
+RECORD_MODULE = f'''"""{HEADER}
+
+The base of every generated record: its fields' docs live in a __slots__ dict, so the dataclass is slotted by hand, not
+with slots=True, and copy and pickle need the state methods slots=True would have added for a frozen class."""
+
+from dataclasses import Field, fields
+from typing import Any, ClassVar, Self
+
+
+class SlottedRecord:
+    """A frozen dataclass slotted by hand: copied and pickled field by field."""
+
+    __slots__ = ()
+    __dataclass_fields__: ClassVar[dict[str, Field[Any]]]
+
+    def __reduce__(self) -> tuple[type[Self], tuple[object, ...]]:
+        return type(self), tuple(getattr(self, f.name) for f in fields(self))
+'''
+
+
 def render(model: Model) -> Dict[str, str]:
     files = {
         "__init__.py": f'"""{HEADER}"""\n',
@@ -1007,6 +1060,7 @@ def render(model: Model) -> Dict[str, str]:
         "limits.py": limits_module(model),
         "errors.py": errors_module(model),
         "docs.py": docs_module(model),
+        "record.py": RECORD_MODULE,
         # The folder is generated and never committed: ignore it from inside, as tools/gen.sh's own output is ignored.
         ".gitignore": f"# {HEADER}\n*\n",
     }

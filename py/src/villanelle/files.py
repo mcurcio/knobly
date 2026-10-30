@@ -1,4 +1,4 @@
-"""``villanelle.files``: a document source and a writer over the filesystem, the I/O edges the core leaves out (R16),
+"""``villanelle.files``: a document source and a writer over the filesystem, the I/O edges the core leaves out,
 as TypeScript's ``villanelle/node`` entry (``fileSource``, ``fileWriter``)."""
 
 from __future__ import annotations

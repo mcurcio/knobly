@@ -15,6 +15,8 @@
     "wireType": {"type": "string", "pattern": "^[a-z0-9 ()\\[\\]\"-]+$", "description": "a type in the protocol grammar (spec/codegen.md section 5)"},
     "layerName": {"$ref": "#/$defs/specName", "description": "a layer api.json lists under 'layers' (tools/api/loader.py checks it: one home)"},
     "errorName": {"$ref": "#/$defs/specName"},
+    "raises": {"oneOf": [{"$ref": "#/$defs/errorName"}, {"type": "object", "additionalProperties": false, "required": ["group", "when"], "properties": {
+      "group": {"$ref": "#/$defs/errorName"}, "when": {"$ref": "#/$defs/prose", "description": "why this member raises it: the doc emitted beside the error class in place of the group's 'raised when'"}}}]},
     "doc": {"$ref": "#/$defs/prose", "description": "the user-facing doc each emitter writes as the declaration's doc comment (JSDoc, docstring): no bead id, owner quote, history or one language's advice (tools/api/loader.py refuses the first kinds)"},
     "rationale": {"$ref": "#/$defs/prose", "description": "why the declaration is as it is (history, quotes, bead ids, per-language notes): read by people, never emitted"},
     "moduleName": {"enum": ["files", "fetch", "include"], "description": "an adapter module, named for what it holds; each emitter maps it to its own import path or leaves it out (spec/codegen.md section 10)"},
@@ -47,7 +49,7 @@
         "optional": {"type": "boolean"},
         "trait": {"enum": ["people form", "iterate", "count", "index", "walk", "collect"]},
         "io": {"type": "boolean"},
-        "errors": {"type": "array", "items": {"$ref": "#/$defs/errorName"}},
+        "errors": {"type": "array", "items": {"$ref": "#/$defs/raises"}},
         "order": {"$ref": "#/$defs/prose"},
         "options": {"$ref": "#/$defs/specName"},
         "type parameters": {"type": "array", "items": {"$ref": "#/$defs/specName"}},
@@ -129,7 +131,7 @@
         "layer": {"$ref": "#/$defs/layerName"},
         "params": {"type": "array", "items": {"$ref": "#/$defs/param"}},
         "returns": {"$ref": "#/$defs/type"},
-        "errors": {"type": "array", "items": {"$ref": "#/$defs/errorName"}},
+        "errors": {"type": "array", "items": {"$ref": "#/$defs/raises"}},
         "factory": {"type": "object", "additionalProperties": false, "required": ["of"], "properties": {
           "of": {"$ref": "#/$defs/specName"}}, "description": "the function makes this concept; each emitter picks its form (a constructor, or the package's own function)"},
         "module": {"$ref": "#/$defs/moduleName"},

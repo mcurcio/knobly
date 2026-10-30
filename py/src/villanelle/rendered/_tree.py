@@ -92,7 +92,6 @@ class Directive(api.Directive):
 
     @property
     def origin(self) -> DirectiveOrigin:
-        """Where its name was written, and the uses and includes that brought it here."""
         return self._origin
 
     @property

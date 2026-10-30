@@ -18,9 +18,6 @@ types name the binding's public classes (section 4), the schema holds no per-lan
 each schema entry's user doc is split from its rationale (section 3, "Docs and rationale"). What each binding builds
 against is [frozen-m7.md](../.claude/design/consumer-api/round15/frozen-m7.md).
 
-Bead vil-umh.19 gives every concept, member, free function and kind list a user doc, and makes the schema's doc the
-one home of each public doc in both bindings (section 3, "Docs and rationale").
-
 Earlier milestones generated only the fixed lists (milestone 1: codes, kinds, limits; milestone 2: one spelling per
 list); milestone 3 wrote the shared conformance driver by hand. What each binding builds against is
 [frozen-m6.md](../.claude/design/consumer-api/round15/frozen-m6.md).
@@ -166,11 +163,16 @@ Each concept, member, parameter, kind list, error group and free function, and e
 binding's users: each emitter writes it as the declaration's doc comment (JSDoc, a docstring), as a sentence
 (capitalized, ending in a stop), and it reaches every binding, so it says what the thing is and does, in spec terms:
 what it returns or raises, and an example where one helps. A member's or free function's comment
-also holds its `order` ("Order: walk order."), each parameter's doc (`@param`; a docstring's `Args:` section) and each
-error group in its `errors` (`@throws {ReadError}`; `Raises:`, with the group's `raised when`); an error class's and
-a kind list's comment holds the group's or list's `doc`. **Every concept, member, free function and kind list has a
-doc**: the loader refuses one without (each form planted in `tools/gen-api.py --check`), so nothing ships
-undocumented; a parameter's doc stays optional (the member's doc names its parameters). The `rationale` is for the people who maintain the schema: history (renames, what a milestone
+also holds its `order` ("Order: walk order."), each parameter's doc (`@param`; a docstring's `Args:` section; the walk trait's parameter differs per binding, so its
+doc is the emitter's: TypeScript's `visit` and Python's `descend` say how to skip a block and how to stop) and each
+error group in its `errors` (`@throws {ReadError}`; `Raises:`). An `errors` entry is a group's name, or
+`{"group", "when"}` saying why this member raises it; the comment gives the entry's `when`, else the group's `raised
+when`, so a catch-all group (argument type error, misuse error) states the member's own case, not every case the
+group covers. A doc that names an error group must list it in `errors` or return it (a port's members, which the
+program implements, aside): the loader refuses one that does not, so the emitted `Raises:` and `@throws` never leave
+out an error the doc promises. An error class's and a kind list's comment holds the group's or list's `doc`.
+**Every concept, member, free function and kind list has a doc**: the loader refuses one without (each form planted
+in `tools/gen-api.py --check`), so nothing ships undocumented; a parameter's doc stays optional (the member's doc names its parameters). The `rationale` is for the people who maintain the schema: history (renames, what a milestone
 changed), the owner's words, bead ids, and anything true of one language only. No emitter reads it.
 
 The loader refuses, in every text an emitter writes as a doc (each `doc`, `params doc` and `order`, an error group's
@@ -200,9 +202,13 @@ the schema has. What a program reads is the generated doc, in each binding:
   `<Module>Functions` or `<Class>Constructor` Protocol (`_api/docs.py` names them by dotted path, imported only for
   the module being documented, so the table breaks no layer direction). Prior art: numpy's `add_newdoc`, which gives
   functions their docstrings from a table at import; a docstring the hand-written code already has is kept, so the
-  names test sees it. `help()` and `__doc__` then show the schema's doc. The names test
-  (`test_public_docs_are_the_schema_docs`, `test_public_functions_take_no_hand_written_doc`) compares every public
-  class's and member's doc with its Protocol's, and fails on a public function whose doc its source holds.
+  names test sees it. `help()` and `__doc__` then show the schema's doc. A generated record (a frozen dataclass) is
+  slotted by hand: its `__slots__` is a dict from each field to its doc, which `help()` and `inspect.getdoc` show for
+  the field (a `slots=True` dataclass's slots cannot hold one), and it extends `SlottedRecord`, whose `__reduce__`
+  copies and pickles it field by field as `slots=True` would have. The names test
+  (`test_public_docs_are_the_schema_docs`) compares every public class's, member's and function's doc with its
+  Protocol's and fails on any of them whose source holds a docstring, even one that copies the schema's word for word;
+  `test_generated_records_show_their_field_docs` fails on a generated record or field without a doc.
 
 ## 4. What each emitter generates
 
@@ -229,8 +235,9 @@ ruff is pinned exactly in `py/pyproject.toml`: a ruff upgrade is a generator cha
 | `codes.py` | `DiagnosticCode`, `MESSAGES`, `CodeFacts`, `CODE_FACTS`, `Described`, `describe(code, detail=None)` |
 | `limits.py` | the rules module, as TypeScript's (patterns end in `\Z`, the text's end) |
 | `errors.py` | the error class tree; `argument_type_message(member, parameter, got)` |
-| `shared.py`, `syntax.py`, `io.py`, `written.py`, `rendered.py` (one per layer `api.json` lists) | per layer: a `Protocol` per handle, port and interface (variants with `kind: Literal[...]`, and the schema's `__match_args__`, which a class implementing it inherits); a frozen slotted `@dataclass` per plain record or snapshot (only properties: `eq=False` for a snapshot, field order the match args, `match_args=False` and an explicit `__match_args__` when the schema's are fewer than the fields, a fixed `kind` as a property); each member's doc as its docstring; callback `TypeAlias`es; a union `TypeAlias` only over generated records (`Change`); `ConfigText`; the generic `Block` Protocol (the index trait states `Sequence`'s read methods); a `<Module>Functions` Protocol per module and a `<Class>Constructor` Protocol (`__call__`) per constructor factory, whose docstrings the public functions and constructors take (section 3). Every annotation that names a concept the binding implements by hand names its public class (below) |
+| `shared.py`, `syntax.py`, `io.py`, `written.py`, `rendered.py` (one per layer `api.json` lists) | per layer: a `Protocol` per handle, port and interface (variants with `kind: Literal[...]`, and the schema's `__match_args__`, which a class implementing it inherits); a frozen `@dataclass` per plain record or snapshot, slotted by hand with a `__slots__` dict of each field's doc, extending `SlottedRecord` (only properties: `eq=False` for a snapshot, field order the match args, `match_args=False` and an explicit `__match_args__` when the schema's are fewer than the fields, a fixed `kind` as a property); each member's doc as its docstring; callback `TypeAlias`es; a union `TypeAlias` only over generated records (`Change`); `ConfigText`; the generic `Block` Protocol (the index trait states `Sequence`'s read methods); a `<Module>Functions` Protocol per module and a `<Class>Constructor` Protocol (`__call__`) per constructor factory, whose docstrings the public functions and constructors take (section 3). Every annotation that names a concept the binding implements by hand names its public class (below) |
 | `docs.py` | `FUNCTIONS` (each public module's `<Module>Functions` Protocols) and `CONSTRUCTORS` (each constructed class's `<Class>Constructor`), by dotted path: what `villanelle._docs` reads (section 3) |
+| `record.py` | `SlottedRecord`, the base of every generated record: its `__reduce__` copies and pickles a record slotted by hand (section 3) |
 | `py/conformance/shapes.py` | the protocol's `TypedDict`s, `PROTOCOL`, `SPELLING` (in snake_case), `ERROR_GROUP_OF_CLASS` |
 | `py/tests/api_contract.py` | what the tests check the binding against, every type named through its public module: `PUBLIC_NAMES` (each module's `__all__`), `MATCH_ARGS`, `UNIONS` (each public union's variant classes); and a type checker's block (`if TYPE_CHECKING:`) that mypy checks and nothing runs: each module assigned to its generated `<Module>Functions`, each constructed class to its `<Class>Constructor`, and each hand-written public class (a handle, or a snapshot or record with methods) to `type[<its generated Protocol>]`, so a member that drifts from the schema fails mypy even in a class that forgot to subclass its Protocol |
 
@@ -419,11 +426,15 @@ language either.
   same doc twice: the names test fails when the two differ, since one function holds one docstring.
 - Python gives its hand-written objects their docs at import (section 3): `help()` and `__doc__` show them, but a
   tool that reads the source without running it sees a public function's doc nowhere and a member's only through its
-  Protocol; a frozen dataclass field (a slot) cannot hold a doc, so its doc is its Protocol's property alone; a
-  union alias (`written.Statement`) cannot hold one.
+  Protocol; a hand-written frozen dataclass's field (a `slots=True` slot) cannot hold a doc, so its doc is its
+  Protocol's property alone; a union alias (`written.Statement`) cannot hold one. A generated record's field doc is
+  in its `__slots__` dict, read by `help()`, while an editor reads the attribute docstring under the field: the
+  generator writes both from the one schema doc.
 - In TypeScript a class's own doc is not inherited from its interface, so the one exported class, `Diagnostics`,
   is a constant typed by its generated constructor beside a type alias of its interface: hovering a call shows the
-  constructor's doc, hovering the alias shows none.
+  constructor's doc, hovering the alias shows none. Likewise, hovering a public function's bare name or its import
+  (`import { parse }`, `const f = parse`) shows no doc: the constant has none of its own, and its doc is on its
+  generated call signature, shown on a call and in signature help.
 - Python's generated code is laid out by hand to match `ruff format`, and TypeScript's is not formatted at all; a
   formatter run after generation would be simpler but add a formatter to every generation (section 4).
 - The driver checks dumps only as far as it reads them; the generated shapes move the rest of that check to each

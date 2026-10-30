@@ -9,9 +9,12 @@ reads in ``help()`` carry no maintainer history (``test_public_docs_carry_no_his
 
 from __future__ import annotations
 
+import ast
+import dataclasses
 import importlib
 import inspect
 import re
+import textwrap
 import types
 import typing
 from pathlib import Path
@@ -101,7 +104,10 @@ def test_no_public_path_but_the_public_modules() -> None:
 
 
 # What a public doc may not carry (spec/codegen.md section 3, "Docs and rationale"): it belongs in a comment.
-HISTORY = re.compile(r"\bvil-[a-z0-9]{3}(\.[0-9]+)*\b|\bmilestone [0-9]|\bowner, [0-9]{4}-|\bvillanelle\._|\btests/")
+HISTORY = re.compile(
+    r"\bvil-[a-z0-9]{3}(\.[0-9]+)*\b|\bmilestone [0-9]|\bowner, [0-9]{4}-|\bvillanelle\._|\btests/"
+    r"|\(R[0-9]+\)|\bround [0-9]+ review|\bbinding guide rule [0-9]"
+)
 
 
 def public_docs() -> list[tuple[str, str]]:
@@ -128,12 +134,11 @@ def test_public_docs_carry_no_history() -> None:
     assert bad == []
 
 
-def schema_docs() -> list[tuple[str, str | None, str | None]]:
-    """Each public doc that comes from the schema, as (where, what a program reads, what it must be). A hand-written
-    class and each member it implements read their generated Protocol's docs; a public function has a doc, which
-    ``test_public_functions_take_no_hand_written_doc`` shows is not written in its source (the package gives each its
-    ``<Module>Functions`` Protocol's doc at import)."""
-    out: list[tuple[str, str | None, str | None]] = []
+def schema_docs() -> list[tuple[str, object, str | None, str | None]]:
+    """Each public doc that comes from the schema, as (where, its object, what a program reads, what it must be). A
+    hand-written class and each member it implements read their generated Protocol's docs; a public function reads its
+    ``<Module>Functions`` Protocol's doc, which the package gives it at import."""
+    out: list[tuple[str, object, str | None, str | None]] = []
     for path in sorted(PUBLIC_NAMES):
         module = importlib.import_module(path)
         for name in sorted(PUBLIC_NAMES[path]):
@@ -142,14 +147,14 @@ def schema_docs() -> list[tuple[str, str | None, str | None]]:
             if not here.startswith("villanelle.") or here.startswith("villanelle._api."):
                 continue
             if inspect.isfunction(obj):
-                out.append((f"{path}.{name}", obj.__doc__, None))
+                out.append((f"{path}.{name}", obj, obj.__doc__, None))
                 continue
             if not isinstance(obj, type):
                 continue
             bases = [b for b in obj.__mro__[1:] if b.__module__.startswith("villanelle._api.")]
             if not bases:
                 continue
-            out.append((f"{path}.{name}", obj.__doc__, bases[0].__doc__))
+            out.append((f"{path}.{name}", obj, obj.__doc__, bases[0].__doc__))
             for base in bases:
                 for attr, member in vars(base).items():
                     if isinstance(member, (types.FunctionType, property)) and member.__doc__:
@@ -158,37 +163,64 @@ def schema_docs() -> list[tuple[str, str | None, str | None]]:
                         if not owner.__module__.startswith("villanelle._api.") and not isinstance(
                             target, types.MemberDescriptorType
                         ):
-                            out.append((f"{path}.{name}.{attr}", target.__doc__, member.__doc__))
+                            out.append((f"{path}.{name}.{attr}", target, target.__doc__, member.__doc__))
     return out
 
 
-def written_in_source(obj: object, doc: str) -> bool:
+def written_by_hand(obj: object) -> bool:
+    """Whether the source of a hand-written function, property or class holds a docstring of its own."""
+    code = obj.fget if isinstance(obj, property) else obj
     try:
-        return doc.splitlines()[0].strip() in inspect.getsource(obj)  # type: ignore[arg-type]
+        source = textwrap.dedent(inspect.getsource(code))  # type: ignore[arg-type]
     except (OSError, TypeError):
         return False
+    node = ast.parse(source).body[0]
+    if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return False
+    return ast.get_docstring(node) is not None
 
 
 def test_public_docs_are_the_schema_docs() -> None:
     """The schema is the one home of each public doc (spec/codegen.md section 3): what ``help()`` shows for a public
-    function, class or member is the generated doc, never a hand-written copy, and nothing the schema describes is
-    left without one."""
+    function, class or member is the generated doc, never a hand-written one, and nothing the schema describes is left
+    without one. A docstring in the source fails even when it copies the schema's doc word for word."""
     bad = []
-    for where, doc, expected in schema_docs():
+    for where, obj, doc, expected in schema_docs():
         if not doc:
             bad.append(f"{where}: no doc")
+        elif written_by_hand(obj):
+            bad.append(f"{where}: its doc is written in its source")
         elif expected is not None and doc != expected:
             bad.append(f"{where}: not its Protocol's doc")
     assert bad == []
 
 
-def test_public_functions_take_no_hand_written_doc() -> None:
-    bad = []
+def generated_records() -> list[tuple[str, type]]:
+    """Each public class the generator writes whole (a record): a frozen dataclass of villanelle._api."""
+    out: list[tuple[str, type]] = []
     for path in sorted(PUBLIC_NAMES):
         module = importlib.import_module(path)
         for name in sorted(PUBLIC_NAMES[path]):
             obj = getattr(module, name)
-            hand = inspect.isfunction(obj) and obj.__module__.startswith("villanelle.")
-            if hand and obj.__doc__ and written_in_source(obj, obj.__doc__):
-                bad.append(f"{path}.{name}")
+            if (
+                dataclasses.is_dataclass(obj)
+                and isinstance(obj, type)
+                and obj.__module__.startswith("villanelle._api.")
+            ):
+                out.append((f"{path}.{name}", obj))
+    return out
+
+
+def test_generated_records_show_their_field_docs() -> None:
+    """``help()`` shows each generated record's doc and each field's: a field's doc lives in its slot (the record's
+    ``__slots__`` dict), which ``inspect.getdoc`` reads."""
+    records = generated_records()
+    bad = [where for where, cls in records if not inspect.getdoc(cls)]
+    bad += [
+        f"{where}.{f.name}"
+        for where, cls in records
+        for f in dataclasses.fields(cls)
+        if not inspect.getdoc(getattr(cls, f.name))
+    ]
+    assert records != []
     assert bad == []

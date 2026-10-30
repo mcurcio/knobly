@@ -213,7 +213,6 @@ class Document(api.Document):
 
     @property
     def block(self) -> WrittenBlock:
-        """Its top-level statements."""
         return self._block
 
     def included_by(self) -> tuple[DocumentEdge, ...]:

@@ -660,3 +660,11 @@
   `<Class>Constructor` Protocols moved from `py/tests/api_contract.py` into the layer modules of `villanelle._api`
   (as TypeScript's are in `gen/api/`), and `_api/docs.py` is new; TypeScript's public functions and `Diagnostics`
   are constants typed by their generated signatures.
+- **spec/spec.md 2.8's misuse error row (generated from the schema's `raised when`) left out two cases the spec
+  states elsewhere**: a `current` list in check lost updates not as long as its files (4.2), and removing a slice's or
+  index's name or only bound (6.6). The group's text now lists both. The two renames (`set variable`, `parameter`)
+  promised a misuse error and `save` a lost update error their `errors` lists left out; the lists now name them, and
+  the loader refuses a member doc naming an error group its `errors` neither list nor return.
+- **Error groups' `raised when` texts and the schema's other user docs cited spec sections** ("(spec 2.8)"), which a
+  binding's user cannot follow from a doc comment; the docs drop the citations, so the generated tables in spec/spec.md
+  (2.5 reserved names, 2.8 error groups) lose them too.
