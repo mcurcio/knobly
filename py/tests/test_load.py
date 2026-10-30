@@ -4,6 +4,8 @@ and ``memory_source``."""
 
 from __future__ import annotations
 
+import inspect
+import sys
 from collections.abc import Callable, Mapping, Sequence
 from typing import cast
 
@@ -599,6 +601,42 @@ def test_more_than_100000_directives_is_e5008_and_expansion_stops() -> None:
     assert at(loaded.diagnostics[0]) == (6, 0)
     assert len(loaded.block) == 100_000
     assert [u.reason for u in loaded.unreadable] == ["expansion"]
+
+
+def deep_snippets(leaf: str) -> str:
+    """Sixteen snippets of sixteen blocks, each using the next inside its blocks: ``leaf`` stands inside 256 expanded
+    blocks, while no text nests deeper than 17."""
+    lines = [f"@snippet s{i} {{ {'b { ' * 16}@use s{i + 1}; {'} ' * 16}}}" for i in range(1, 16)]
+    return "\n".join([*lines, f"@snippet s16 {{ {'b { ' * 16}{leaf} {'} ' * 16}}}", "@use s1;", ""])
+
+
+def test_the_walks_over_a_tree_256_levels_deep_do_not_recurse_per_level() -> None:
+    # A per-level recursion needs 256 frames or more for this tree (the bind walk took two a level); each walk here
+    # gets 200 above the caller's depth, enough for the parse of a 17-deep text and no per-level recursion.
+    limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(len(inspect.stack(0)) + 200)
+    try:
+        before = load(deep_snippets("leaf;"))
+        after = load(deep_snippets("leaf 1;"))
+        walked = list(before.block.walk())
+        changes = before.diff(after)
+    finally:
+        sys.setrecursionlimit(limit)
+    assert codes(before) == []
+    assert len(walked) == 257
+    assert [(c.kind, str(c.address).count("b")) for c in changes] == [("changed", 256)]
+
+
+def test_a_block_or_list_past_256_levels_after_expansion_is_e5013_at_its_statements_name() -> None:
+    loaded = load(deep_snippets("leaf { }"))
+    assert codes(loaded) == ["E5013"]
+    assert at(loaded.diagnostics[0]) == (15, len("@snippet s16 { ") + 4 * 16)
+    deep = "[" * 99 + "1" + "]" * 99
+    deeper = "[" * 99 + "$a" + "]" * 99
+    loaded = load(f"@set $a {deep};\n@set $b {deeper};\nb {{ x [$b]; }}\n{'c { ' * 58}y [$b]; {'} ' * 58}\n")
+    assert codes(loaded) == ["E5013"]
+    assert at(loaded.diagnostics[0]) == (3, 4 * 58)
+    assert [str(a) for a in loaded.addresses().values()][:2] == ["b", "b > x"]
 
 
 # --- rule 10: value rules at load --------------------------------------------------------------------------------

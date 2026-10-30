@@ -86,23 +86,39 @@ inline expanded_node* make_expanded(arena& a, expanded_data data, ::knobly::orig
 
 /// The same value having travelled further: the last `drop` steps of its origin (and of each list item's) are replaced
 /// by `append`, and `resolution` (when given) leads its chain. A variable's value is stored with drop = the set line's
-/// own steps, and read with append = the variable step and the reading place's steps.
+/// own steps, and read with append = the variable step and the reading place's steps. A loop, not a recursion: a list
+/// may be max_expanded_nesting deep (spec 2.5). Each list is made after its items, which wait on `made` in order.
 inline expanded_node* rebase(arena& a, const expanded_node* value, std::size_t drop,
                              const std::vector<::knobly::step>& append, resolution_node* resolution) {
-    const ::knobly::sequence<::knobly::step> old = value->origin.via();
-    std::vector<::knobly::step> via(old.begin(), old.begin() + static_cast<std::ptrdiff_t>(old.size() - drop));
-    via.insert(via.end(), append.begin(), append.end());
-    expanded_data data{value->kind, value->value, {}, value->name, value->start, value->end, value->index};
-    for (const expanded_node* item : value->items) {
-        data.items.push_back(rebase(a, item, drop, append, resolution));
+    std::vector<expanded_node*> made;
+    std::vector<std::pair<const expanded_node*, bool>> stack{
+        {value, false}};  // a value, and whether its items are made
+    while (!stack.empty()) {
+        const auto [at, items_made] = stack.back();
+        stack.pop_back();
+        if (!at->items.empty() && !items_made) {
+            stack.emplace_back(at, true);
+            for (auto item = at->items.rbegin(); item != at->items.rend(); ++item) {
+                stack.emplace_back(*item, false);
+            }
+            continue;
+        }
+        const ::knobly::sequence<::knobly::step> old = at->origin.via();
+        std::vector<::knobly::step> via(old.begin(), old.begin() + static_cast<std::ptrdiff_t>(old.size() - drop));
+        via.insert(via.end(), append.begin(), append.end());
+        expanded_data data{at->kind, at->value, {}, at->name, at->start, at->end, at->index};
+        const auto first = made.end() - static_cast<std::ptrdiff_t>(at->items.size());
+        data.items.assign(first, made.end());
+        made.erase(first, made.end());
+        std::vector<resolution_node*> chain;
+        if (resolution != nullptr) {
+            chain.push_back(resolution);
+        }
+        chain.insert(chain.end(), at->chain.begin(), at->chain.end());
+        made.push_back(make_expanded(a, std::move(data), ::knobly::origin(at->origin.place(), std::move(via)),
+                                     at->definition, std::move(chain)));
     }
-    std::vector<resolution_node*> chain;
-    if (resolution != nullptr) {
-        chain.push_back(resolution);
-    }
-    chain.insert(chain.end(), value->chain.begin(), value->chain.end());
-    return make_expanded(a, std::move(data), ::knobly::origin(value->origin.place(), std::move(via)), value->definition,
-                         std::move(chain));
+    return made.front();
 }
 
 // ---- problems
@@ -307,7 +323,38 @@ struct place_context {
     std::vector<::knobly::step> via;  // innermost first
     std::vector<open_item> open;
     std::vector<bound_item>* into;
+    /// The expanded blocks around this place (spec 2.5): a directive's block is one more; a snippet's body and a
+    /// spliced file's top level stand where their line does.
+    std::int64_t depth = 0;
 };
+
+/// A block or a document's top level to walk, into a place.
+struct opened {
+    ::knobly::syntax::node block;
+    place_context context;
+};
+
+/// How many lists deep the deepest of `values` goes (spec 2.5: a list is one level, a word none). A loop, not a
+/// recursion: a value may hold lists up to max_expanded_nesting deep.
+inline std::int64_t nesting_of(const std::vector<const expanded_node*>& values) {
+    std::int64_t deepest = 0;
+    std::vector<std::pair<const expanded_node*, std::int64_t>> stack;
+    for (const expanded_node* v : values) {
+        stack.emplace_back(v, 1);
+    }
+    while (!stack.empty()) {
+        const auto [value, level] = stack.back();
+        stack.pop_back();
+        if (value->kind != ::knobly::value_kind::list) {
+            continue;
+        }
+        deepest = std::max(deepest, level);
+        for (const expanded_node* item : value->items) {
+            stack.emplace_back(item, level + 1);
+        }
+    }
+    return deepest;
+}
 
 inline std::vector<::knobly::step> with_step(::knobly::step first, const std::vector<::knobly::step>& via) {
     std::vector<::knobly::step> out{std::move(first)};
@@ -337,8 +384,8 @@ public:
     /// The root document's top level at the root copy, includes and uses spliced in place.
     void run(document_node* root) {
         scope* top = make_scope(nullptr);
-        statements(root->parsed.syntax.root(),
-                   {document_text(root), top, {}, {open_item(root->path)}, &binding_->items});
+        walk_from(
+            {root->parsed.syntax.root(), {document_text(root), top, {}, {open_item(root->path)}, &binding_->items, 0}});
     }
 
     /// One written value, expanded: a $name becomes all its values; a list's items expand the same way.
@@ -413,30 +460,58 @@ private:
         return located(code, text.place(span), via, detail);
     }
 
-    /// Walk the statements of a document or block node at a place.
-    void statements(const ::knobly::syntax::node& container, place_context context) {
+    /// Walk statements depth first in written order (spec/expansion.md 2). A loop over a stack of open blocks, not a
+    /// recursion: expansion nests blocks deeper than any one text (up to max_expanded_nesting, E5013), and a
+    /// statement's own work is done before the blocks it opens are walked, so the stack keeps the order.
+    void walk_from(opened start) {
+        using children = ::knobly::sequence<::knobly::syntax::node>;
+        struct open_block {
+            children::iterator next;  // shares its list, as `end` does
+            children::iterator end;
+            place_context context;
+        };
+        const auto open = [](const ::knobly::syntax::node& block, place_context context) {
+            const children items = block.children();
+            return open_block{items.begin(), items.end(), std::move(context)};
+        };
+        std::vector<open_block> stack;
+        stack.push_back(open(start.block, std::move(start.context)));
+        std::vector<opened> blocks;
+        while (!stack.empty() && !stopped_) {
+            open_block& top = stack.back();
+            if (top.next == top.end) {
+                stack.pop_back();
+                continue;
+            }
+            const ::knobly::syntax::node n = *top.next++;
+            blocks.clear();
+            item(n, top.context, blocks);  // `top` is not used after: pushing below may move it
+            for (auto it = blocks.rbegin(); it != blocks.rend(); ++it) {
+                stack.push_back(open(it->block, std::move(it->context)));
+            }
+        }
+    }
+
+    /// One statement of a walked block, kept readable or unreadable; the blocks it opens go to `blocks`, in walk order.
+    void item(const ::knobly::syntax::node& n, place_context& context, std::vector<opened>& blocks) {
         document_node* const doc = context.text.doc;
-        for (const ::knobly::syntax::node& n : container.children()) {
-            if (stopped_) {
-                return;
+        if (n.kind() != ::knobly::node_kind::directive && n.kind() != ::knobly::node_kind::error) {
+            return;
+        }
+        copy_node* const copy = copy_of(doc->statements_by_token.at(n.start()), context.via);
+        if (n.kind() == ::knobly::node_kind::error) {
+            context.into->push_back(unreadable(copy, ::knobly::unreadable_reason::syntax));
+            return;
+        }
+        if (failure f = statement(n, copy, context, blocks)) {
+            blocks.clear();
+            if (f->diagnostic) {
+                binding_->diagnostics.push_back(*f->diagnostic);
             }
-            if (n.kind() != ::knobly::node_kind::directive && n.kind() != ::knobly::node_kind::error) {
-                continue;
+            if (f->value) {
+                binding_->expanded.erase(copy);
             }
-            copy_node* const copy = copy_of(doc->statements_by_token.at(n.start()), context.via);
-            if (n.kind() == ::knobly::node_kind::error) {
-                context.into->push_back(unreadable(copy, ::knobly::unreadable_reason::syntax));
-                continue;
-            }
-            if (failure f = statement(n, copy, context)) {
-                if (f->diagnostic) {
-                    binding_->diagnostics.push_back(*f->diagnostic);
-                }
-                if (f->value) {
-                    binding_->expanded.erase(copy);
-                }
-                context.into->push_back(unreadable(copy, f->reason));
-            }
+            context.into->push_back(unreadable(copy, f->reason));
         }
     }
 
@@ -448,8 +523,9 @@ private:
     }
 
     /// One directive node. Its head's token kind decides (spec 2.5): an @ statement does its work; a WORD head is a
-    /// directive, and its block is walked.
-    failure statement(const ::knobly::syntax::node& n, copy_node* copy, place_context& context) {
+    /// directive, and its block is walked. The blocks it opens go to `blocks`.
+    failure statement(const ::knobly::syntax::node& n, copy_node* copy, place_context& context,
+                      std::vector<opened>& blocks) {
         const parsed_text& p = *context.text.parsed;
         const anatomy a = anatomy_of(p, n);
         const token_info& name = p.at(a.name);
@@ -457,17 +533,17 @@ private:
             const std::string keyword(p.text_at(a.name).substr(1));
             const std::optional<::knobly::statement_kind> language = statement_of_keyword(keyword);
             if (language == ::knobly::statement_kind::set) {
-                return set(a, copy, context.text, *context.scope, context.via);
+                return set(a, copy, context.text, *context.scope, context.via, context.depth);
             }
             if (language == ::knobly::statement_kind::snippet) {
                 return snippet(a, copy, context);
             }
             if (language == ::knobly::statement_kind::use) {
-                return use(a, name, copy, context);
+                return use(a, name, copy, context, blocks);
             }
             for (const auto& [directive, extension] : graph_->extensions) {
                 if (directive == keyword) {
-                    return this->extension(directive, *extension, a, name, copy, context);
+                    return this->extension(directive, *extension, a, name, copy, context, blocks);
                 }
             }
             return at(::knobly::diagnostic_code::unknown_extension, context.text, name.span, context.via,
@@ -475,13 +551,18 @@ private:
         }
         statement_node* const statement = copy->statement;
         std::unordered_map<value_node*, std::vector<expanded_node*>> values;
+        std::vector<const expanded_node*> all;
         for (value_node* v : statement->values) {
             std::vector<expanded_node*> out;
             if (failure f = value(context.text, v->ref, *context.scope, context.via, copy, out)) {
                 f->value = true;
                 return f;
             }
+            all.insert(all.end(), out.begin(), out.end());
             values.emplace(v, std::move(out));
+        }
+        if (failure f = check_nesting(context.depth, a.block.has_value(), all, context.text, name, context.via)) {
+            return f;
         }
         binding_->expanded[copy] = std::move(values);
         if (++count_ > static_cast<std::size_t>(::knobly::written::max_directives)) {
@@ -496,7 +577,9 @@ private:
         context.into->push_back(std::move(item));
         if (a.block) {
             std::vector<bound_item>* children = &context.into->back().children;
-            statements(*a.block, {context.text, make_scope(context.scope), context.via, context.open, children});
+            blocks.push_back(
+                {*a.block,
+                 {context.text, make_scope(context.scope), context.via, context.open, children, context.depth + 1}});
         }
         return std::nullopt;
     }
@@ -511,9 +594,10 @@ private:
         return std::nullopt;
     }
 
-    /// @set $name value...; binds from this line to the end of the enclosing block.
+    /// @set $name value...; binds from this line to the end of the enclosing block. `depth`: the expanded blocks
+    /// around the line, for E5013.
     failure set(const anatomy& a, copy_node* copy, const text_ref& text, block_scope& sc,
-                const std::vector<::knobly::step>& via) {
+                const std::vector<::knobly::step>& via, std::int64_t depth) {
         if (failure f = well_formed(a, text, via)) {
             return f;
         }
@@ -530,6 +614,9 @@ private:
             if (failure f = value(text, a.values[i], sc, via, copy, bound)) {
                 return f;
             }
+        }
+        if (failure f = check_nesting(depth, false, {bound.begin(), bound.end()}, text, p.at(a.name), via)) {
+            return f;
         }
         definition def{line->variable, {}, line->values, std::nullopt};
         for (const expanded_node* v : bound) {
@@ -564,6 +651,17 @@ private:
         return std::nullopt;
     }
 
+    /// E5013 at the statement's name (spec 2.5): the line stands inside `depth` expanded blocks, and its block (when
+    /// `block`) or a list among its values would sit deeper than max_expanded_nesting. Checked before the values are
+    /// kept or the block walked, so no walk over the expanded tree goes deeper.
+    failure check_nesting(std::int64_t depth, bool block, const std::vector<const expanded_node*>& values,
+                          const text_ref& text, const token_info& name, const std::vector<::knobly::step>& via) const {
+        if (std::max(depth + (block ? 1 : 0), depth + nesting_of(values)) > ::knobly::written::max_expanded_nesting) {
+            return at(::knobly::diagnostic_code::expanded_nesting_too_deep, text, name.span, via);
+        }
+        return std::nullopt;
+    }
+
     failure check_depth(const std::vector<open_item>& open, const text_ref& text, const token_info& name,
                         const std::vector<::knobly::step>& via) const {
         // `open` holds the root file and every expansion around this place: its length is this expansion's depth.
@@ -575,7 +673,8 @@ private:
     }
 
     /// @use name value...; the snippet's body, spliced in place with its parameters bound.
-    failure use(const anatomy& a, const token_info& keyword, copy_node* copy, place_context& context) {
+    failure use(const anatomy& a, const token_info& keyword, copy_node* copy, place_context& context,
+                std::vector<opened>& blocks) {
         const text_ref& text = context.text;
         if (failure f = well_formed(a, text, context.via)) {
             return f;
@@ -606,6 +705,10 @@ private:
             }
             value_node* const handle = value_of(text, a.values[i].start);
             written.insert(written.end(), values.size() - before, handle);
+        }
+        if (failure f =
+                check_nesting(context.depth, false, {values.begin(), values.end()}, text, keyword, context.via)) {
+            return f;
         }
         if (values.size() != snippet->params.size()) {
             return at(
@@ -638,16 +741,19 @@ private:
         }
         std::vector<open_item> open = context.open;
         open.emplace_back(snippet);
-        statements(snippet->block,
-                   {snippet->text, body,
-                    with_step(::knobly::step(::knobly::step_kind::use, name, text.place(keyword.span)), context.via),
-                    std::move(open), context.into});
+        blocks.push_back(
+            {snippet->block,
+             {snippet->text, body,
+              with_step(::knobly::step(::knobly::step_kind::use, name, text.place(keyword.span)), context.via),
+              std::move(open), context.into, context.depth}});
         return std::nullopt;
     }
 
-    /// An extension directive's block: only set lines (E5012), bound for the spliced files.
+    /// An extension directive's block: only set lines (E5012), bound for the spliced files. Its lines stand at the
+    /// extension line's `depth`: the block is gone after expansion.
     failure extension_block(const std::optional<::knobly::syntax::node>& block, const text_ref& text, block_scope& sc,
-                            const std::vector<::knobly::step>& via, std::map<std::string, const definition*>& forced) {
+                            const std::vector<::knobly::step>& via, std::int64_t depth,
+                            std::map<std::string, const definition*>& forced) {
         if (!block) {
             return std::nullopt;
         }
@@ -667,7 +773,7 @@ private:
                 statement_of_keyword(p.text_at(a.name).substr(1)) != ::knobly::statement_kind::set) {
                 return at(::knobly::diagnostic_code::extension_block_not_set, text, name.span, via);
             }
-            if (failure f = set(a, copy_of(text.doc->statements_by_token.at(n.start()), via), text, *own, via)) {
+            if (failure f = set(a, copy_of(text.doc->statements_by_token.at(n.start()), via), text, *own, via, depth)) {
                 return f;
             }
         }
@@ -677,7 +783,7 @@ private:
 
     /// An extension directive: the files its specs name, spliced in place.
     failure extension(const std::string& directive, const ::knobly::written::extension& ext, const anatomy& a,
-                      const token_info& name, copy_node* copy, place_context& context) {
+                      const token_info& name, copy_node* copy, place_context& context, std::vector<opened>& blocks) {
         const text_ref& text = context.text;
         edge_node* const edge = binding_->nodes.make<edge_node>(copy);
         binding_->edges.push_back(edge);
@@ -687,8 +793,11 @@ private:
                 return f;
             }
         }
+        if (failure f = check_nesting(context.depth, false, {values.begin(), values.end()}, text, name, context.via)) {
+            return f;
+        }
         std::map<std::string, const definition*> forced;
-        if (failure f = extension_block(a.block, text, *context.scope, context.via, forced)) {
+        if (failure f = extension_block(a.block, text, *context.scope, context.via, context.depth, forced)) {
             return f;
         }
         const auto fail = [&](::knobly::diagnostic_code code, std::string detail) {
@@ -765,8 +874,9 @@ private:
         for (document_node* file : files) {
             std::vector<open_item> open = context.open;
             open.emplace_back(file->path);
-            statements(file->parsed.syntax.root(),
-                       {document_text(file), spliced, with_step(step, context.via), std::move(open), context.into});
+            blocks.push_back({file->parsed.syntax.root(),
+                              {document_text(file), spliced, with_step(step, context.via), std::move(open),
+                               context.into, context.depth}});
         }
         return std::nullopt;
     }

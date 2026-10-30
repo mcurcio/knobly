@@ -3,6 +3,7 @@
 #ifndef KNOBLY_DETAIL_RENDERED_DIFF_HPP
 #define KNOBLY_DETAIL_RENDERED_DIFF_HPP
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -73,38 +74,44 @@ inline ::knobly::sequence<::knobly::rendered::change> diff(const render_core* be
         const auto found = is.by_text.find(was.of.at(directive->parent)->text());
         return found != is.by_text.end() && !found->second->unreadable.empty();
     };
-    const auto walk_before = [&](const auto& self, const block_node* block) -> void {
-        for (directive_node* directive : block->items) {
-            const ::knobly::rendered::address& address = *was.of.at(directive);
-            if (is.by_text.count(address.text()) != 0) {
-                if (directive->block != nullptr) {
-                    self(self, directive->block);
-                }
+    // Each walk is a loop over a stack of open blocks (the next directive of each), not a recursion: the tree may be
+    // max_expanded_nesting deep (spec 2.5). `visit` says whether to walk a directive's block.
+    const auto walk = [](const block_node* top, const auto& visit) {
+        std::vector<std::pair<const block_node*, std::size_t>> stack{{top, 0}};
+        while (!stack.empty()) {
+            auto& [block, next] = stack.back();
+            if (next == block->items.size()) {
+                stack.pop_back();
                 continue;
             }
-            const ::knobly::change_kind kind =
-                unreadable_after(directive) ? ::knobly::change_kind::unknown : ::knobly::change_kind::removed;
-            changes.push_back(make_change(kind, address, directive, nullptr));
-        }
-    };
-    const auto walk_after = [&](const auto& self, const block_node* block) -> void {
-        for (directive_node* directive : block->items) {
-            const ::knobly::rendered::address& address = *is.of.at(directive);
-            const auto old = was.by_text.find(address.text());
-            if (old == was.by_text.end()) {
-                changes.push_back(make_change(::knobly::change_kind::added, address, nullptr, directive));
-                continue;
-            }
-            if (!same_own(old->second, directive)) {
-                changes.push_back(make_change(::knobly::change_kind::changed, address, old->second, directive));
-            }
-            if (directive->block != nullptr) {
-                self(self, directive->block);
+            directive_node* const directive = block->items[next++];
+            if (visit(directive) && directive->block != nullptr) {
+                stack.emplace_back(directive->block, 0);
             }
         }
     };
-    walk_before(walk_before, before->block);
-    walk_after(walk_after, after->block);
+    walk(before->block, [&](directive_node* directive) {
+        const ::knobly::rendered::address& address = *was.of.at(directive);
+        if (is.by_text.count(address.text()) != 0) {
+            return true;
+        }
+        const ::knobly::change_kind kind =
+            unreadable_after(directive) ? ::knobly::change_kind::unknown : ::knobly::change_kind::removed;
+        changes.push_back(make_change(kind, address, directive, nullptr));
+        return false;
+    });
+    walk(after->block, [&](directive_node* directive) {
+        const ::knobly::rendered::address& address = *is.of.at(directive);
+        const auto old = was.by_text.find(address.text());
+        if (old == was.by_text.end()) {
+            changes.push_back(make_change(::knobly::change_kind::added, address, nullptr, directive));
+            return false;
+        }
+        if (!same_own(old->second, directive)) {
+            changes.push_back(make_change(::knobly::change_kind::changed, address, old->second, directive));
+        }
+        return true;
+    });
     return changes;
 }
 

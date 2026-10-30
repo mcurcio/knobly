@@ -3,6 +3,7 @@
 #ifndef KNOBLY_DETAIL_RENDERED_TREE_HPP
 #define KNOBLY_DETAIL_RENDERED_TREE_HPP
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -99,24 +100,35 @@ struct addressed {
 /// parents before children; an occurrence counts the earlier siblings with the same name and key.
 inline std::vector<addressed> address_all(const render_core* render, const ::knobly::rendered::key_rule& key) {
     std::vector<addressed> out;
-    const auto name = [&](const auto& self, const block_node* block,
-                          const std::optional<::knobly::rendered::address>& parent) -> void {
+    // A loop over a stack of open blocks, not a recursion: the tree may be max_expanded_nesting deep (spec 2.5). Per
+    // open block: the next directive, its address, and how often each name and key occurred in it.
+    struct open_block {
+        const block_node* block;
+        std::size_t next;
+        std::optional<::knobly::rendered::address> parent;
         std::map<std::pair<std::string, std::optional<std::string>>, std::int64_t> occurrences;
-        for (directive_node* directive : block->items) {
-            std::optional<std::string> key_text;
-            if (key) {
-                key_text = key(::knobly::detail::make_handle<::knobly::rendered::directive>(directive));
-            }
-            const std::int64_t occurrence = occurrences[{directive->name, key_text}]++;
-            ::knobly::rendered::address address =
-                make_address(parent, ::knobly::rendered::address_step(directive->name, key_text, occurrence));
-            out.push_back({directive, address});
-            if (directive->block != nullptr) {
-                self(self, directive->block, address);
-            }
-        }
     };
-    name(name, render->block, std::nullopt);
+    std::vector<open_block> stack;
+    stack.push_back({render->block, 0, std::nullopt, {}});
+    while (!stack.empty()) {
+        open_block& top = stack.back();
+        if (top.next == top.block->items.size()) {
+            stack.pop_back();
+            continue;
+        }
+        directive_node* const directive = top.block->items[top.next++];
+        std::optional<std::string> key_text;
+        if (key) {
+            key_text = key(::knobly::detail::make_handle<::knobly::rendered::directive>(directive));
+        }
+        const std::int64_t occurrence = top.occurrences[{directive->name, key_text}]++;
+        ::knobly::rendered::address address =
+            make_address(top.parent, ::knobly::rendered::address_step(directive->name, key_text, occurrence));
+        out.push_back({directive, address});
+        if (directive->block != nullptr) {
+            stack.push_back({directive->block, 0, std::move(address), {}});  // `top` is not used after this
+        }
+    }
     return out;
 }
 

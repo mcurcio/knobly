@@ -11,7 +11,7 @@
  */
 
 import { anatomyOf, type DirectiveAnatomy, itemsOf, valuesOf } from "../anatomy.js";
-import { MAX_DEPTH, MAX_DIRECTIVES } from "../gen/api/limits.js";
+import { MAX_DEPTH, MAX_DIRECTIVES, MAX_EXPANDED_NESTING } from "../gen/api/limits.js";
 import { compareCodePoints } from "../graph/order.js";
 import { makeOverride, makePlace, makeStep } from "../origin.js";
 import { makeLocated } from "../report.js";
@@ -373,6 +373,31 @@ interface PlaceContext {
   /** The snippets and files being walked around this place, outermost first; the root file is the first. */
   readonly open: readonly (Snippet | string)[];
   readonly into: BoundItem[];
+  /**
+   * The expanded blocks around this place (spec 2.5): a directive's block is one more; a snippet's body and a spliced
+   * file's top level stand where their line does.
+   */
+  readonly depth: number;
+}
+
+/** A block or a document's top level to walk, into a place. */
+type Opened = readonly [Node, PlaceContext];
+
+/**
+ * How many lists deep the deepest of `values` goes (spec 2.5: a list is one level, a word none). A loop, not a
+ * recursion: a value may hold lists up to MAX_EXPANDED_NESTING deep.
+ */
+function nestingOf(values: Iterable<ExpandedRecord>): number {
+  let deepest = 0;
+  const stack: [ExpandedRecord, number][] = [];
+  for (const value of values) stack.push([value, 1]);
+  for (let top = stack.pop(); top !== undefined; top = stack.pop()) {
+    const [value, level] = top;
+    if (value.items === undefined) continue;
+    deepest = Math.max(deepest, level);
+    for (const item of value.items) stack.push([item, level + 1]);
+  }
+  return deepest;
 }
 
 class Walk implements BindingWithNeeds {
@@ -402,13 +427,8 @@ class Walk implements BindingWithNeeds {
     const input = this.input;
     if (input === undefined) throw new Error("no input");
     const root = asDocument(input.root);
-    this.statements(root.syntax.root, {
-      text: documentText(root),
-      scope: new Scope(undefined),
-      via: [],
-      open: [root.resolvedPath],
-      into: this.items,
-    });
+    const top = { text: documentText(root), scope: new Scope(undefined), via: [], open: [root.resolvedPath], into: this.items, depth: 0 };
+    this.walk([root.syntax.root, top]);
     return this;
   }
 
@@ -456,36 +476,58 @@ class Walk implements BindingWithNeeds {
     return copy;
   }
 
-  /** Walk the statements of `scopeNode` (a document or block node) at `context`. */
-  private statements(scopeNode: Node, context: PlaceContext): void {
-    const doc = context.text.doc;
-    if (doc === undefined) throw new Error("an override's text has no statements");
-    for (const node of scopeNode.children) {
-      if (this.stopped) return;
-      if (node.kind !== NodeKind.Directive && node.kind !== NodeKind.Error) continue;
-      const copy = this.copyOf(doc.statementOf(node), context.via);
-      if (node.kind === NodeKind.Error) {
-        context.into.push({ tag: "unreadable", copy, reason: UnreadableReason.Syntax, diagnostic: undefined });
+  /**
+   * Walk statements depth first in written order (spec/expansion.md 2). A loop over a stack of open blocks, not a
+   * recursion: expansion nests blocks deeper than any one text (up to MAX_EXPANDED_NESTING, E5013), and a statement's
+   * own work is done before the blocks it opens are walked, so the stack keeps the order.
+   */
+  private walk(start: Opened): void {
+    const stack: [Iterator<Node>, PlaceContext][] = [[start[0].children[Symbol.iterator](), start[1]]];
+    while (!this.stopped) {
+      const top = stack.at(-1);
+      if (top === undefined) return;
+      const next = top[0].next();
+      if (next.done === true) {
+        stack.pop();
         continue;
       }
-      try {
-        this.statement(node, copy, context);
-      } catch (error) {
-        if (!(error instanceof Problem)) throw error;
-        if (error.diagnostic !== undefined) this.diagnostics.push(error.diagnostic);
-        if (error instanceof ValueProblem && error.diagnostic !== undefined) {
-          this.expanded.set(copy, new BindingProblem(error.reason, error.diagnostic));
-        }
-        context.into.push({ tag: "unreadable", copy, reason: error.reason, diagnostic: error.diagnostic });
+      const opened = this.item(next.value, top[1]);
+      for (let i = opened.length - 1; i >= 0; i--) {
+        const [block, context] = opened[i] as Opened;
+        stack.push([block.children[Symbol.iterator](), context]);
       }
+    }
+  }
+
+  /** One statement of a walked block, kept readable or unreadable; the blocks it opens, in walk order. */
+  private item(node: Node, context: PlaceContext): readonly Opened[] {
+    const doc = context.text.doc;
+    if (doc === undefined) throw new Error("an override's text has no statements");
+    if (node.kind !== NodeKind.Directive && node.kind !== NodeKind.Error) return [];
+    const copy = this.copyOf(doc.statementOf(node), context.via);
+    if (node.kind === NodeKind.Error) {
+      context.into.push({ tag: "unreadable", copy, reason: UnreadableReason.Syntax, diagnostic: undefined });
+      return [];
+    }
+    try {
+      return this.statement(node, copy, context);
+    } catch (error) {
+      if (!(error instanceof Problem)) throw error;
+      if (error.diagnostic !== undefined) this.diagnostics.push(error.diagnostic);
+      if (error instanceof ValueProblem && error.diagnostic !== undefined) {
+        this.expanded.set(copy, new BindingProblem(error.reason, error.diagnostic));
+      }
+      context.into.push({ tag: "unreadable", copy, reason: error.reason, diagnostic: error.diagnostic });
+      return [];
     }
   }
 
   /**
    * One directive node. Its head's token kind decides (spec 2.5): an `@` statement does its work (`@set`, `@snippet`,
    * `@use`, an extension's `@name`; any other `@name` is E3008); a WORD head is a directive, and its block is walked.
+   * Returns the blocks it opens.
    */
-  private statement(node: Node, copy: Copy, context: PlaceContext): void {
+  private statement(node: Node, copy: Copy, context: PlaceContext): readonly Opened[] {
     const { tokens } = context.text.syntax;
     const anatomy = anatomyOf(tokens, node);
     const name = tokens[anatomy.name];
@@ -493,9 +535,11 @@ class Walk implements BindingWithNeeds {
     if (name.kind === TokenKind.AT_WORD) {
       switch (statementOfKeyword(name.text.slice(1))) {
         case StatementKind.Set:
-          return this.set(anatomy, copy, context.text, context.scope, context.via);
+          this.set(anatomy, copy, context.text, context.scope, context.via, context.depth);
+          return [];
         case StatementKind.Snippet:
-          return this.snippet(anatomy, copy, context);
+          this.snippet(anatomy, copy, context);
+          return [];
         case StatementKind.Use:
           return this.use(anatomy, name, copy, context);
         default:
@@ -517,6 +561,7 @@ class Walk implements BindingWithNeeds {
         throw error;
       }
     }
+    this.checkNesting(context.depth, anatomy.block !== undefined, [...values.values()].flat(), text, name, via);
     this.expanded.set(copy, values);
     if (++this.count > MAX_DIRECTIVES) {
       this.stopped = true;
@@ -524,8 +569,8 @@ class Walk implements BindingWithNeeds {
     }
     const children: BoundItem[] | undefined = anatomy.block === undefined ? undefined : [];
     context.into.push({ tag: "directive", copy, children });
-    if (anatomy.block === undefined || children === undefined) return;
-    this.statements(anatomy.block, { text, scope: new Scope(scope), via, open: context.open, into: children });
+    if (anatomy.block === undefined || children === undefined) return [];
+    return [[anatomy.block, { text, scope: new Scope(scope), via, open: context.open, into: children, depth: context.depth + 1 }]];
   }
 
   /** A `set`, `snippet` or `use` line's text-alone shape (shape.ts, the one home of those rules), or its problem. */
@@ -534,8 +579,11 @@ class Walk implements BindingWithNeeds {
     if (fault !== undefined) throw this.problem(fault.code, text, fault.span, via);
   }
 
-  /** `@set $name value...;` (rule 2): binds from this line to the end of the enclosing block. */
-  private set(anatomy: DirectiveAnatomy, copy: Copy, text: Text, scope: BlockScope, via: readonly Step[]): void {
+  /**
+   * `@set $name value...;` (rule 2): binds from this line to the end of the enclosing block. `depth`: the expanded
+   * blocks around the line, for E5013.
+   */
+  private set(anatomy: DirectiveAnatomy, copy: Copy, text: Text, scope: BlockScope, via: readonly Step[], depth: number): void {
     const { tokens } = text.syntax;
     this.wellFormed(anatomy, text, via);
     const [first, ...values] = anatomy.values;
@@ -547,6 +595,7 @@ class Walk implements BindingWithNeeds {
     const line = copy.statement as unknown as StatementHandle;
     if (!(line instanceof SetLine)) throw new Error("a set line that claims its name is kind set");
     const bound = values.flatMap((ref) => this.value(text, ref, scope, via, copy));
+    this.checkNesting(depth, false, bound, text, tokens[anatomy.name] as Token, via);
     // Stored without this line's own steps; a reader adds the variable step and its own (ExpandedRecord.rebase).
     scope.bind(variableName, {
       variable: line.variableHandle,
@@ -572,7 +621,7 @@ class Walk implements BindingWithNeeds {
   }
 
   /** `@use name value...;` (rule 6): the snippet's body, spliced in place with its parameters bound. */
-  private use(anatomy: DirectiveAnatomy, keyword: Token, copy: Copy, context: PlaceContext): void {
+  private use(anatomy: DirectiveAnatomy, keyword: Token, copy: Copy, context: PlaceContext): readonly Opened[] {
     const { text, scope, via, open } = context;
     const { tokens } = text.syntax;
     this.wellFormed(anatomy, text, via);
@@ -600,6 +649,7 @@ class Walk implements BindingWithNeeds {
       for (let i = 0; i < expanded.length; i++) written.push(handle);
       return expanded;
     });
+    this.checkNesting(context.depth, false, values, text, keyword, via);
     if (values.length !== snippet.params.length) {
       const detail = `${name.text} takes ${String(snippet.params.length)}, given ${String(values.length)}`;
       throw this.problem(DiagnosticCode.SnippetArity, text, keyword.span, via, detail);
@@ -620,18 +670,19 @@ class Walk implements BindingWithNeeds {
       }
     });
     const step = makeStep("use", name.text, text.place(keyword.span));
-    this.statements(snippet.block, { ...context, text: snippet.text, scope: body, via: [step, ...via], open: [...open, snippet] });
+    return [[snippet.block, { ...context, text: snippet.text, scope: body, via: [step, ...via], open: [...open, snippet] }]];
   }
 
   /** An extension directive (rules 7 and 8): the files its specs name, spliced in place. */
-  private extension(extension: Extension, anatomy: DirectiveAnatomy, name: Token, copy: Copy, context: PlaceContext): void {
+  private extension(extension: Extension, anatomy: DirectiveAnatomy, name: Token, copy: Copy, context: PlaceContext): readonly Opened[] {
     const { text, scope, via, open } = context;
     const specs: string[] = [];
     const targets: string[] = [];
     const edge: DocumentEdge = { copy, specs, targets };
     this.edges.push(edge);
     const values = anatomy.values.flatMap((ref) => this.value(text, ref, scope, via, copy));
-    const forced = this.extensionBlock(anatomy.block, text, scope, via);
+    this.checkNesting(context.depth, false, values, text, name, via);
+    const forced = this.extensionBlock(anatomy.block, text, scope, via, context.depth);
     const origin = { place: text.place(name.span), via };
     const fail = (code: DiagnosticCode, detail: string): Problem =>
       this.problem(code, text, name.span, via, detail);
@@ -677,19 +728,17 @@ class Walk implements BindingWithNeeds {
     // The step's name is the extension's, without `@`, as a variable step's is without `$`; its place the `@name`.
     const step = makeStep(StepKind.Extension, extension.directive, text.place(name.span));
     const spliced = new SpliceScope(scope, forced);
-    for (const file of files) {
-      this.statements(file.syntax.root, {
-        ...context,
-        text: documentText(file),
-        scope: spliced,
-        via: [step, ...via],
-        open: [...open, file.resolvedPath],
-      });
-    }
+    return files.map((file) => [
+      file.syntax.root,
+      { ...context, text: documentText(file), scope: spliced, via: [step, ...via], open: [...open, file.resolvedPath] },
+    ]);
   }
 
-  /** An extension directive's block: only `set` lines (E5012), bound for the spliced files. */
-  private extensionBlock(block: Node | undefined, text: Text, scope: BlockScope, via: readonly Step[]): ReadonlyMap<string, Definition> {
+  /**
+   * An extension directive's block: only `set` lines (E5012), bound for the spliced files. Its lines stand at the
+   * extension line's `depth`: the block is gone after expansion.
+   */
+  private extensionBlock(block: Node | undefined, text: Text, scope: BlockScope, via: readonly Step[], depth: number): ReadonlyMap<string, Definition> {
     if (block === undefined) return new Map();
     const own = new Scope(scope);
     const { tokens } = text.syntax;
@@ -705,7 +754,7 @@ class Walk implements BindingWithNeeds {
       if (name.kind !== TokenKind.AT_WORD || statementOfKeyword(name.text.slice(1)) !== StatementKind.Set) {
         throw this.problem(DiagnosticCode.ExtensionBlockNotSet, text, name.span, via);
       }
-      this.set(anatomy, this.copyOf(doc.statementOf(node), via), text, own, via);
+      this.set(anatomy, this.copyOf(doc.statementOf(node), via), text, own, via, depth);
     }
     return own.own();
   }
@@ -715,6 +764,17 @@ class Walk implements BindingWithNeeds {
     // `open` holds the root file and every expansion around this place, so its length is this expansion's depth.
     if (open.length > MAX_DEPTH) {
       throw this.problem(DiagnosticCode.ExpansionTooDeep, text, name.span, via, `more than ${String(MAX_DEPTH)}`);
+    }
+  }
+
+  /**
+   * E5013 at the statement's name (spec 2.5): the line stands inside `depth` expanded blocks, and its block (when
+   * `block`) or a list among its values would sit deeper than MAX_EXPANDED_NESTING. Checked before the values are
+   * kept or the block walked, so no walk over the expanded tree goes deeper.
+   */
+  private checkNesting(depth: number, block: boolean, values: Iterable<ExpandedRecord>, text: Text, name: Token, via: readonly Step[]): void {
+    if (Math.max(depth + (block ? 1 : 0), depth + nestingOf(values)) > MAX_EXPANDED_NESTING) {
+      throw this.problem(DiagnosticCode.ExpandedNestingTooDeep, text, name.span, via);
     }
   }
 

@@ -489,6 +489,19 @@
       "meaning": "An extension line whose block holds a line other than `@set`.",
       "summary": "an extension line's block holds a line other than `@set`",
       "placed at": "that line's name"
+    },
+    {
+      "code": "E5013",
+      "name": "expanded nesting too deep",
+      "layer": "written",
+      "found by": [
+        "low level"
+      ],
+      "unreadable reason": "expansion",
+      "message": "expanded blocks and lists nest deeper than {expanded nesting depth}",
+      "meaning": "Blocks and lists nested deeper than 256 levels after expansion (2.5): a directive whose block or values, or a `set`, `use` or extension line whose values, would sit deeper. The statement is unreadable there and its block is not walked.",
+      "summary": "blocks and lists nested deeper than 256 after expansion",
+      "placed at": "the name of the statement whose block or values sit too deep"
     }
   ]
 }

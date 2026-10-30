@@ -13,7 +13,14 @@ replaces ``typing.List``."""
 
 from knobly import _docs
 from knobly._api.kinds import StatementKind, UnreadableReason, ValueKind, VariableKind
-from knobly._api.limits import MAX_DEPTH, MAX_DIRECTIVES, MAX_SAFE_INTEGER, RESERVED, VARIABLE_NAME
+from knobly._api.limits import (
+    MAX_DEPTH,
+    MAX_DIRECTIVES,
+    MAX_EXPANDED_NESTING,
+    MAX_SAFE_INTEGER,
+    RESERVED,
+    VARIABLE_NAME,
+)
 from knobly._api.written import (
     Copy,
     DirectiveExpansion,
@@ -65,6 +72,7 @@ from knobly.written._value import (
 __all__ = [
     "MAX_DEPTH",
     "MAX_DIRECTIVES",
+    "MAX_EXPANDED_NESTING",
     "MAX_SAFE_INTEGER",
     "RESERVED",
     "VARIABLE_NAME",

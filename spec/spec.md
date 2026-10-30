@@ -192,6 +192,7 @@ is stale), which also holds each code's message and owning layer.
 | E5010 | `bad snippet` | low level, edit | expansion | A malformed `snippet` line (`@snippet name $p... { ... }`), or one naming a parameter twice. |
 | E5011 | `bad use` | low level, edit | expansion | A `use` line that is not `@use name value...;`. |
 | E5012 | `extension block not set` | low level | extension | An extension line whose block holds a line other than `@set`. |
+| E5013 | `expanded nesting too deep` | low level | expansion | Blocks and lists nested deeper than 256 levels after expansion (2.5): a directive whose block or values, or a `set`, `use` or extension line whose values, would sit deeper. The statement is unreadable there and its block is not walked. |
 <!-- end generated -->
 
 Every code but the readers' is in the one diagnostics list: the `document graph`'s `diagnostics` (6.3), which the
@@ -224,6 +225,7 @@ statement classification reads; no binding compares a keyword's text by hand.
 
 <!-- generated: limits (tools/gen-api.py docs) -->
 - `MAX_NESTING` (nesting depth; the syntax layer): 100, blocks and lists nested at most this deep (E2010).
+- `MAX_EXPANDED_NESTING` (expanded nesting depth; the written layer): 256, blocks and lists nested at most this deep after expansion (E5013).
 - `MAX_DEPTH` (expansion depth; the written layer): 16, use and extension lines nested at most this deep (E5007).
 - `MAX_DIRECTIVES` (directives; the written layer): 100,000, directives after expansion, at most (E5008).
 - `MAX_SAFE_INTEGER` (integer range; the written layer): 9,007,199,254,740,991, integer words and slice or index bounds lie within plus or minus this (2^53-1) (E4005).
