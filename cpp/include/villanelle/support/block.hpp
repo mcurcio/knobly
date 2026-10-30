@@ -1,5 +1,5 @@
 // villanelle::block<Item, Directive>: the one block shape (spec 2.11; design.md 3.1; frozen-m1.md section 5).
-// SKELETON: declarations only; defined in slice 2.
+// Interface frozen by frozen-m2.md 3.1; slice W defines the members (declared only until then).
 #ifndef VILLANELLE_SUPPORT_BLOCK_HPP
 #define VILLANELLE_SUPPORT_BLOCK_HPP
 

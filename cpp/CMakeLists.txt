@@ -81,7 +81,8 @@ if(VILLANELLE_BUILD_TESTS)
   # check (a header that includes a layer it may not import fails to compile).
   file(GLOB _villanelle_layer_checks "${CMAKE_CURRENT_SOURCE_DIR}/tests/generated/layers_*.cpp")
   add_library(villanelle_compile_check OBJECT tests/compile/headers.cpp tests/compile/support.cpp
-                                              tests/compile/parser_hooks.cpp ${_villanelle_layer_checks})
+                                              tests/compile/parser_hooks.cpp tests/compile/unions.cpp
+                                              ${_villanelle_layer_checks})
   target_link_libraries(villanelle_compile_check PRIVATE villanelle::villanelle)
   villanelle_test_target(villanelle_compile_check)
 
@@ -92,22 +93,37 @@ if(VILLANELLE_BUILD_TESTS)
                                                           -fno-rtti> $<$<CXX_COMPILER_ID:MSVC>:/EHs-c- /GR->)
   villanelle_test_target(villanelle_no_exceptions)
 
-  # The generated contract of each implemented layer: a declaration without a definition fails to link.
-  add_executable(villanelle_contract_syntax tests/generated/api_contract_syntax.cpp)
-  target_link_libraries(villanelle_contract_syntax PRIVATE ${_villanelle_program_libraries})
-  villanelle_test_target(villanelle_contract_syntax)
-  add_test(NAME contract_syntax COMMAND villanelle_contract_syntax)
+  # The generated contract of every public header: a declaration without a definition fails to link (milestone 2
+  # defines every declaration, as a stub until its slice lands: frozen-m2.md section 2).
+  file(GLOB _villanelle_contracts CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/generated/api_contract_*.cpp")
+  foreach(_villanelle_contract IN LISTS _villanelle_contracts)
+    get_filename_component(_villanelle_stem "${_villanelle_contract}" NAME_WE)
+    string(REPLACE "api_contract_" "" _villanelle_stem "${_villanelle_stem}")
+    add_executable(villanelle_contract_${_villanelle_stem} "${_villanelle_contract}")
+    target_link_libraries(villanelle_contract_${_villanelle_stem} PRIVATE ${_villanelle_program_libraries})
+    villanelle_test_target(villanelle_contract_${_villanelle_stem})
+    add_test(NAME contract_${_villanelle_stem} COMMAND villanelle_contract_${_villanelle_stem})
+  endforeach()
 
+  # One Catch2 program per file of tests/unit/: villanelle_unit_<name>, test unit_<name>, so each slice builds and runs
+  # its own (cmake --build ... --target villanelle_unit_<name>; ctest -R unit_<name>) beside another's work in progress.
   file(GLOB _villanelle_unit_tests CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/*.cpp")
-  add_executable(villanelle_unit_tests ${_villanelle_unit_tests})
-  target_link_libraries(villanelle_unit_tests PRIVATE ${_villanelle_program_libraries} Catch2::Catch2WithMain)
-  villanelle_test_target(villanelle_unit_tests)
-  add_test(NAME unit COMMAND villanelle_unit_tests)
+  foreach(_villanelle_unit IN LISTS _villanelle_unit_tests)
+    get_filename_component(_villanelle_stem "${_villanelle_unit}" NAME_WE)
+    add_executable(villanelle_unit_${_villanelle_stem} "${_villanelle_unit}")
+    target_link_libraries(villanelle_unit_${_villanelle_stem} PRIVATE ${_villanelle_program_libraries}
+                                                                       Catch2::Catch2WithMain)
+    villanelle_test_target(villanelle_unit_${_villanelle_stem})
+    add_test(NAME unit_${_villanelle_stem} COMMAND villanelle_unit_${_villanelle_stem}
+             WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+  endforeach()
 
   add_executable(villanelle_adapter conformance/adapter.cpp)
   target_link_libraries(villanelle_adapter PRIVATE ${_villanelle_program_libraries})
   villanelle_test_target(villanelle_adapter)
-  # The shared driver (spec/conformance.md) runs every case up to the level the adapter claims.
-  add_test(NAME conformance_l0 COMMAND Python3::Interpreter "${VILLANELLE_REPO}/conformance/driver/run.py" --level 0
-                                       -- $<TARGET_FILE:villanelle_adapter>)
+  # The shared driver (spec/conformance.md) runs every case up to the level the adapter claims (its hello). A stalled
+  # adapter fails the test instead of hanging the run (vil-p5x; the driver also times out each request).
+  add_test(NAME conformance COMMAND Python3::Interpreter "${VILLANELLE_REPO}/conformance/driver/run.py"
+                                    -- $<TARGET_FILE:villanelle_adapter>)
+  set_tests_properties(conformance PROPERTIES TIMEOUT 900)
 endif()

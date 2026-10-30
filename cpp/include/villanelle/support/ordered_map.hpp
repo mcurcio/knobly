@@ -1,5 +1,5 @@
 // villanelle::ordered_map<K, V>: the binding's one map type (design.md 1.3; frozen-m1.md section 5).
-// SKELETON: declarations only; defined in slice 2 (the first layer that returns a map).
+// Interface frozen by frozen-m2.md 3.1; slice W defines the members (declared only until then).
 #ifndef VILLANELLE_SUPPORT_ORDERED_MAP_HPP
 #define VILLANELLE_SUPPORT_ORDERED_MAP_HPP
 

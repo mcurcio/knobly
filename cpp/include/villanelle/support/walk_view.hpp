@@ -1,5 +1,6 @@
 // villanelle::walk_view<Item>: the range a block's walk returns (codegen 3's walk trait; design.md 2.3, D12;
-// frozen-m1.md section 5). SKELETON: declarations only; defined in slice 3.
+// frozen-m1.md section 5). Interface frozen by frozen-m2.md 3.1; slice W defines the members (declared only until
+// then).
 #ifndef VILLANELLE_SUPPORT_WALK_VIEW_HPP
 #define VILLANELLE_SUPPORT_WALK_VIEW_HPP
 

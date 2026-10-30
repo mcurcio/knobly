@@ -765,3 +765,17 @@
   path 'conformance/expected/nul.json'", because `NUL` is a reserved device name on Windows. Passing there would
   need the syntax case `nul` renamed (its expected file with it) or a sparse checkout in the leg, which is special
   casing; the case's name is the conformance corpus's to change, not Slice T's.
+
+## 2026-10-30, C++ binding milestone 2 freeze (.claude/design/cpp/frozen-m2.md)
+
+- **M2-1. The milestone 2 ask ("L1 and L2 as spec/conformance.md defines them") needs the rendered layer.** L2 is the
+  load, rendered and contract corpora, which `render`, `diff` and `read`; design.md section 7 puts render in slice 3
+  and says slice 2 proves "the `load` ... cases", which render. Milestone 2 takes in the rendered layer and, since the
+  include extension is in its scope, claims level 3 (frozen-m2.md choice 1).
+- **M2-2. `program_code(std::string_view)` was declared `VILLANELLE_API` but missing from the generated contract** (the
+  named type had no `Hand`): a missing definition would not have failed to link. The emitter now records it.
+- **M2-3. The block shape had no way to reach its layer** (support/block.hpp declared members over a bare view):
+  frozen-m2.md 3.1 adds `detail::block_traits<Item>`, specialized per item type in `detail/<layer>/templates.hpp`.
+- **M2-4. design.md 2.4's `file_source` join (`lexically_normal()`) and spec 4.3's memory source join (POSIX rules) were
+  two rules**; milestone 2 resolves both through `detail::io::join` (frozen-m2.md choice 7). A trailing `/` and
+  Windows paths are where they would differ.

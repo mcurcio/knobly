@@ -29,6 +29,7 @@ Layout does not live here: the output goes through the pinned clang-format (CLAN
 
 from __future__ import annotations
 
+import re
 import textwrap
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Set, Tuple
@@ -653,7 +654,7 @@ def interface_concept(model: Model, c: Concept) -> List[str]:
             *reqs, "};"]
 
 
-def named_type(model: Model, c: Concept) -> List[str]:
+def named_type(model: Model, c: Concept, out: Out) -> List[str]:
     """A named text type: a brand made only by the free functions that return it, read through ``view() const&``
     (the rvalue overload deleted, so it cannot dangle); or a code checked against its pattern, at compile time for a
     literal (design.md 1.3)."""
@@ -675,6 +676,7 @@ def named_type(model: Model, c: Concept) -> List[str]:
     if c.pattern is not None:
         match = LANGUAGE.pattern_form(c.pattern)  # type: ignore[misc]
         refused = f"{name}_literal_does_not_match_its_pattern"
+        out.hand.append(Hand(cls, ["std::string_view"], f"{cls}(a0)"))
         return [
             "namespace detail {", "// Never defined: called in a constant expression, it stops the compile.",
             f"void {refused}();", "}  // namespace detail", "",
@@ -714,7 +716,7 @@ def concept_lines(model: Model, c: Concept, out: Out) -> List[str]:
     if is_alias(model, c):
         return []  # with the forward declarations (alias_lines)
     if c.nature == "named type":
-        return named_type(model, c)
+        return named_type(model, c, out)
     if c.nature == "interface":
         return interface_concept(model, c)
     if c.nature == "port":
@@ -1081,7 +1083,7 @@ def matcher(model: Model, c: Constant) -> List[str]:
 # --- headers ---------------------------------------------------------------------------------------------------------
 
 STD = ["<concepts>", "<cstddef>", "<cstdint>", "<functional>", "<memory>", "<optional>", "<string>", "<string_view>",
-       "<utility>", "<variant>"]
+       "<type_traits>", "<utility>", "<variant>"]
 SUPPORT = ["config", "sequence", "ordered_map", "view", "block", "walk_view"]
 
 
@@ -1305,7 +1307,109 @@ def detail_dirs(layers: List[str], module: Optional[str]) -> List[str]:
     return [LANGUAGE.modules[module]] if module else layers
 
 
-def layer_header(model: Model, name: str, layers: List[str], module: Optional[str], out: Out) -> str:
+def union_templates(model: Model, c: Concept) -> List[str]:
+    """A union root's ``as<V>()`` and ``visit(f)``, defined whole from the schema's variant list (each variant's kind):
+    out of the class, after every variant is defined. They read only ``kind()`` (which works on a detached view, contract
+    4.3) and build the variant from the same view through ``detail::access``."""
+    cls = qual(model, c.name)
+    kind = next(m for m in c.members if m.name == "kind")
+    kind_t = value_type(kind.type, Ctx(model))
+    variants = [(qual(model, v), f"{kind_t}::{ident(snake(model.concept[v].kind or ''))}") for v in c.variants]
+    own = ident(snake(c.name))  # defined inside the layer's namespace: "std::optional<V> ::x" would parse as one name
+    lines = ["template <class V>", f"    requires std::derived_from<V, {cls}>", f"std::optional<V> {own}::as() const {{",
+             f"if constexpr (std::is_same_v<V, {cls}>) {{", "return *this;"]
+    for v, k in variants:
+        lines += [f"}} else if constexpr (std::is_same_v<V, {v}>) {{",
+                  f"if (kind() == {k}) {{ return {ACCESS}::make<V>(view_); }}", "return std::nullopt;"]
+    lines += ["} else {", "return std::nullopt;", "}", "}", "",
+              "template <class F>", f"decltype(auto) {own}::visit(F&& f) const {{", "switch (kind()) {"]
+    lines += [f"case {k}: return std::forward<F>(f)({ACCESS}::make<{v}>(view_));" for v, k in variants]
+    if c.except_kinds:  # kinds of the list no variant has (an expanded value is never a reference)
+        lines.append("default: break;")
+    lines += ["}", "::villanelle::detail::bad_kind();", "}"]
+    return lines
+
+
+def template_layers(model: Model, concepts: List[Concept]) -> List[str]:
+    """The layers of a header whose classes have member templates the hand code defines (a class template's members,
+    ``collect``, a member taking an interface) or that spell the block shape (whose support template reads the layer's
+    ``detail::block_traits`` specialization): their definitions and specializations sit in
+    ``detail/<layer>/templates.hpp``, which the header includes in both modes, since a template cannot be compiled
+    once (errata A3; frozen-m2.md 3.1)."""
+    out: List[str] = []
+    for c in concepts:
+        hand = bool(c.type_parameters and c.members) or extends_shape(model, c) or any(
+            m.trait == "collect" or any((pc := concept_of(model, p.type)) is not None and pc.nature == "interface"
+                                        for p in m.params)
+            for m in c.members)
+        if hand and c.layer not in out:
+            out.append(c.layer)
+    return out
+
+
+SUPPORT_TEMPLATES = ("sequence", "ordered_map", "block", "walk_view")
+
+
+def instantiations(model: Model, text: str) -> List[str]:
+    """Every specialization of a support template or a generated class template that ``text`` spells, in order, for
+    explicit instantiation in compiled mode (design.md 2.5, point 2): read from what the header spells, so no
+    instantiation it uses can be missed. A block adds the walk view and the directive sequence its members return.
+    Specializations over a template's own parameters are left out."""
+    generated = [qual(model, c.name) for c in model.concepts if c.type_parameters and KEY in c.languages]
+    params = {template_param(p) for c in model.concepts for p in c.type_parameters}
+    heads = [f"::villanelle::{t}<" for t in SUPPORT_TEMPLATES] + [f"{g}<" for g in generated]
+    found: List[str] = []
+
+    def add(spec: str) -> None:
+        if spec not in found and not any(re.search(rf"\b{p}\b", spec) for p in params):
+            found.append(spec)
+
+    at = 0
+    while True:
+        hits = [(text.find(h, at), h) for h in heads]
+        hits = [(i, h) for i, h in hits if i >= 0]
+        if not hits:
+            return found
+        start, h = min(hits)
+        depth, end = 0, start + len(h) - 1
+        for end in range(start + len(h) - 1, len(text)):
+            depth += {"<": 1, ">": -1}.get(text[end], 0)
+            if depth == 0:
+                break
+        spec = text[start:end + 1]
+        for inner in instantiations(model, spec[len(h):-1]):
+            add(inner)
+        add(spec)
+        if h == "::villanelle::block<":
+            item, directive = split_args(spec[len(h):-1])
+            add(f"::villanelle::walk_view<{item}>")
+            add(f"::villanelle::sequence<{directive}>")
+        at = start + len(h)
+
+
+def split_args(args: str) -> List[str]:
+    """A template argument list's top-level arguments."""
+    out, depth, cur = [], 0, ""
+    for ch in args:
+        if ch == "," and depth == 0:
+            out.append(cur.strip())
+            cur = ""
+            continue
+        depth += {"<": 1, ">": -1, "(": 1, ")": -1}.get(ch, 0)
+        cur += ch
+    return [*out, cur.strip()]
+
+
+def extern_templates(specs: Sequence[str]) -> List[str]:
+    """Compiled mode: the specializations this header spells first, instantiated once in implementation.hpp."""
+    if not specs:
+        return []
+    return ["#if !VILLANELLE_HEADER_ONLY  // compiled mode: instantiated once, in <villanelle/implementation.hpp>",
+            *(f"extern template class {s};" for s in specs), "#endif", ""]
+
+
+def layer_header(model: Model, name: str, layers: List[str], module: Optional[str], out: Out,
+                 seen: Optional[List[str]] = None) -> str:
     package = name == f"{model.package}.hpp"
     mine = own_layers(model, layers, module)
     if module is None:
@@ -1346,6 +1450,9 @@ def layer_header(model: Model, name: str, layers: List[str], module: Optional[st
         lines = concept_lines(model, c, out)
         if lines:
             body += ["", *lines]
+    for c in concepts:
+        if c.is_union and is_view_class(c):
+            body += ["", *union_templates(model, c)]
     for f in functions:
         if model.function_module(f, KEY) is not None and (f.factory or {}).get(KEY) != "constructor":
             body += ["", *function_lines(model, f, out, where)]
@@ -1353,6 +1460,12 @@ def layer_header(model: Model, name: str, layers: List[str], module: Optional[st
         body += ["", f"}}  // namespace {ns}"]
     body += ["", "VILLANELLE_NAMESPACE_END"]
     tail = ["#include <villanelle/errors.hpp>  // after the records its classes hold", ""] if package else []
+    tail += [*(f"#include <villanelle/detail/{d}/templates.hpp>  // templates and block traits: both modes"
+               for d in template_layers(model, concepts)), ""]
+    if seen is not None:
+        mine = [s for s in instantiations(model, "\n".join(body)) if s not in seen]
+        seen.extend(mine)
+        tail += extern_templates(mine)
     tail += ["#if VILLANELLE_HEADER_ONLY", *(f"#include <villanelle/detail/{d}/definitions.hpp>" for d in detail_dirs(layers, module)),
              "#endif"]
     what = (f"the {' and '.join(layers)} layer{'s' if len(layers) > 1 else ''}" if module is None
@@ -1360,25 +1473,28 @@ def layer_header(model: Model, name: str, layers: List[str], module: Optional[st
     return header(name, f"spec/schema/api.json, {what}", includes, body, tail)
 
 
-def implementation_header(model: Model) -> str:
+def implementation_header(model: Model, specs: Sequence[str] = ()) -> str:
     hs = headers(model)
     every = [d for layers, module in hs.values() for d in detail_dirs(layers, module)]
+    instantiated = ["", "// Every support and class template specialization the headers spell, instantiated once here (each header",
+                    "// declares its own extern in compiled mode).", *(f"template class {s};" for s in specs)] if specs else []
     return header("implementation.hpp", "spec/schema/api.json layers", ["<villanelle/support/config.hpp>"],
                   ["#if VILLANELLE_HEADER_ONLY",
                    '#error "<villanelle/implementation.hpp> is for compiled mode: define VILLANELLE_HEADER_ONLY=0"',
                    "#endif", "", *(f"#include <villanelle/{name}>" for name in hs), "",
-                   *(f"#include <villanelle/detail/{d}/definitions.hpp>" for d in every)])
+                   *(f"#include <villanelle/detail/{d}/definitions.hpp>" for d in every), *instantiated])
 
 
 def render_with_hands(model: Model) -> Tuple[Dict[str, str], Dict[str, List[Hand]]]:
     files = {"kinds.hpp": kinds_header(model), "codes.hpp": codes_header(model), "limits.hpp": limits_header(model),
              "errors.hpp": errors_header(model)}
     hands: Dict[str, List[Hand]] = {}
+    seen: List[str] = []
     for name, (layers, module) in headers(model).items():
         out = Out()
-        files[name] = layer_header(model, name, layers, module, out)
+        files[name] = layer_header(model, name, layers, module, out, seen)
         hands[name] = out.hand
-    files["implementation.hpp"] = implementation_header(model)
+    files["implementation.hpp"] = implementation_header(model, seen)
     return files, hands
 
 

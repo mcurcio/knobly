@@ -8,7 +8,10 @@
 #include <string>
 
 #include <villanelle/detail/raise.hpp>
+#include <villanelle/detail/shared/diagnostics.hpp>
 #include <villanelle/detail/shared/people.hpp>
+#include <villanelle/detail/shared/values.hpp>
+#include <villanelle/detail/shared/view.hpp>
 #include <villanelle/villanelle.hpp>
 
 VILLANELLE_NAMESPACE_BEGIN
