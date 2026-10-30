@@ -27,7 +27,7 @@ describe("Diagnostics", () => {
       ["rasl/no-graph", "main.conf:0:0"],
       ["rasl/x", "main.conf:0:0"],
     ]);
-    expect(sink.toArray().map((d) => d.message)).toEqual([expect.stringContaining("$nope"), "no such node", "bad id", "no graph", "x"]);
+    expect([...sink].map((d) => d.message)).toEqual([expect.stringContaining("$nope"), "no such node", "bad id", "no graph", "x"]);
     expect(new Diagnostics().length).toBe(0);
   });
 
