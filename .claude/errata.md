@@ -970,3 +970,7 @@
 - **N7. Spec 2.5 named only the checks after E5013.** It now also names those before it: the line's shape (E5009 to
   E5011), E5002, E5003 and the codes its values give while they expand; an extension block's `@set` lines come after
   the extension line's own E5013. The bindings already agreed; `diag-expanded-nesting-*` now pin it.
+- **N8. Spec 3.2 did not say which code the end of the text gives inside a block, or how many E2003.** It now
+  states what all three bindings and the corpus (`nest-skipped-list`, `nest-recovered-100`) already do: an open `[`
+  gives E2004, else an open block E2003, else E2001; E2003 once, however many blocks are open; none after a
+  statement whose error node runs to the end. E2001's and E2003's meanings in diagnostics.json say the same.

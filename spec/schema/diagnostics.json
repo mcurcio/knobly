@@ -104,7 +104,7 @@
       ],
       "unreadable reason": "syntax",
       "message": "unexpected token",
-      "meaning": "A token the grammar does not allow here, when no more specific code applies: among them the end of the text or a `}` where a directive's `;` or block is due. Also an edit's bad text error, from its entry rule (2.8): at the first token the entry rule does not allow, or at the end of the text.",
+      "meaning": "A token the grammar does not allow here, when no more specific code applies: among them the end of the text at the top level, or a `}`, where a directive's `;` or block is due (3.2). Also an edit's bad text error, from its entry rule (2.8): at the first token the entry rule does not allow, or at the end of the text.",
       "summary": "a token where it cannot go, a missing `;` at the end of a block or file among them",
       "placed at": "per `conformance/`"
     },
@@ -117,7 +117,7 @@
       ],
       "unreadable reason": "syntax",
       "message": "expected '}' to close the block",
-      "meaning": "The text ends inside a block.",
+      "meaning": "The text ends inside a block: reported once, at the end of the text, however many blocks are open; not after a statement whose error runs to the end of the text, and not inside an open `[` (E2004) (3.2).",
       "summary": "a block with no `}`",
       "placed at": "per `conformance/`"
     },

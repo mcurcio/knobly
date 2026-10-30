@@ -162,8 +162,8 @@ is stale), which also holds each code's message and owning layer.
 | E1003 | `unexpected character` | parse | syntax | A character no token may start with, or a byte-order mark after the first character. |
 | E1004 | `lone dollar` | parse | syntax | A `$` not followed by a variable name. |
 | E1005 | `bad escape` | parse | syntax | A closed double-quoted string holding a backslash escape other than the six (the `BAD_ESCAPE` error token), placed on the string. A single-quoted string is raw: it has no escapes. |
-| E2001 | `unexpected token` | parse | syntax | A token the grammar does not allow here, when no more specific code applies: among them the end of the text or a `}` where a directive's `;` or block is due. Also an edit's bad text error, from its entry rule (2.8): at the first token the entry rule does not allow, or at the end of the text. |
-| E2003 | `expected closing brace` | parse | syntax | The text ends inside a block. |
+| E2001 | `unexpected token` | parse | syntax | A token the grammar does not allow here, when no more specific code applies: among them the end of the text at the top level, or a `}`, where a directive's `;` or block is due (3.2). Also an edit's bad text error, from its entry rule (2.8): at the first token the entry rule does not allow, or at the end of the text. |
+| E2003 | `expected closing brace` | parse | syntax | The text ends inside a block: reported once, at the end of the text, however many blocks are open; not after a statement whose error runs to the end of the text, and not inside an open `[` (E2004) (3.2). |
 | E2004 | `expected closing bracket` | parse | syntax | A stray `]`, or a `[` list with no matching `]`. |
 | E2007 | `bad slice` | parse | syntax | A malformed slice after a slice name (a word or a `$name`): `a[~]`, `a[1~b c]`, an unclosed slice, or a literal bound that is not an integer (`a[i]`, `a[1.5]`, `a[1:3]`, whose `1:3` is one word). |
 | E2009 | `values touch` | parse | syntax | Two values with nothing between them, such as `a"b"`. |
@@ -632,9 +632,16 @@ Read-only, one text at a time, no I/O. Covered by the syntax conformance cases (
   and the diagnostic is its first error. Recovery skips to the end of the bad statement: its `;` outside brackets,
   or a whole block it opens, and it stops before the `}` that closes the enclosing block (or consumes a stray `}` at
   the top level, which ends the statement). A directive whose block was opened keeps its node, and its block's
-  statements are read (an unclosed block at the end of the text is E2003). So a broken statement never hides a
+  statements are read (an unclosed block at the end of the text is E2003, below). So a broken statement never hides a
   later statement after its `;` (`rec-*` syntax cases), but an unterminated string or a missing `;` runs on to the
   next `;` (`unterminated`, `load-missing-semicolon`).
+- **The end of the text.** A statement still open when the text ends has its first error there: E2004 when a list's
+  `[` is open, else E2003 when a block is open around it, else E2001 (a top-level statement's `;` or block is due).
+  When the text ends between statements inside open blocks, E2003 is reported once, at the end of the text, however
+  many blocks are open. A statement whose error node runs to the end of the text (recovery found no `;` or block that
+  ends it) carries only its first error, so no E2003 follows for the blocks still open around it. So `a { b [1;` is
+  E2001 at 0:8 alone, `a { b [1` is E2004 at 0:8, `a {\n b 1\n` is E2003 at 2:0, and `a { b { c 1;` is one E2003
+  (cases `nest-skipped-list`, `nest-recovered-100`).
 
 ### 3.3 Operations
 
