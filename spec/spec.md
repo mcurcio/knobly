@@ -234,6 +234,29 @@ statement classification reads; no binding compares a keyword's text by hand.
 - `PROGRAM_CODE` (program code pattern; the shared layer): `^[^/\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/[^\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$`, <namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out); knobly's codes start with E.
 <!-- end generated -->
 
+- **Nesting levels** (`MAX_NESTING`, `MAX_EXPANDED_NESTING`; proposed to the owner 2026-10-30 and not objected to: the
+  current rule). Each block `{...}` and each list `[...]` a value sits inside is one level, blocks and lists counted
+  together: `[[1,2],[3,4]]` is 2 levels, and in `a { b [1]; }` the `1` sits 2 deep. A slice's brackets (`foo[0~3]`) are
+  no level: a slice holds only bounds.
+- **In one text (E2010).** Only the blocks and lists the parser opens count, the ones error recovery opens included;
+  brackets that recovery skips open nothing and do not count (owner, 2026-10-30, asked whether they should: "that
+  sounds right"). So `"]"` 500 times then `"["` 101 times is E2004, and `a {` then `x [` 100 times is E2001 at 0:8,
+  each the statement's first error (3.2). The block or list that would be level 101 ends the parse: `parse` returns a
+  `document` node over every token whose one child is an `error` node over every token, and one diagnostic, E2010,
+  on the `{` or `[` that opens that level. An entry rule (2.8) returns a `document` node with no children and that one
+  E2010. Cases `nest-*`, `nestlist-*`, `nest-recovered-*` (`depth.json`).
+- **After expansion (E5013).** The same count over the expanded tree: a directive's block is one level deeper than
+  the directive; a snippet's body at a `use` and an included file's top level stand where their line stands (their
+  own braces are gone); a `$name` brings its values' lists with it. A statement whose block, or a list among its
+  values, would sit deeper than `MAX_EXPANDED_NESTING` is unreadable (reason `expansion`), with E5013 at its name (a
+  directive's name, the `@set`, the `@use`, an extension's `@name`), and its block is not walked; a `set` that fails
+  so defines nothing ([expansion.md](expansion.md) 8). It is checked once the statement's values are expanded, before
+  the statement's other checks (E5004, E5006, E5007, E5008's count, an extension's `specs`), so no value or block
+  deeper than the limit is ever kept and no walk over the expanded tree goes deeper. The owner, 2026-10-30, of a
+  limit of 100 after expansion: "100 seems too low. can we increase it?"; asked which limit: "after expansion"; real
+  configs are "likely a few dozen, but i want the headroom". 256 is a revisable choice, not his number; `MAX_NESTING`
+  stays 100. Cases `diag-expanded-nesting-257`, `diag-expanded-nesting-1568` (written corpus),
+  `load-expanded-nesting-256`, `load-expanded-nesting-lists`.
 - **No directive name is reserved** (milestone 5; owner, 2026-10-29, bead kno-umh.14: "yes" to language
   statements behind one sigil). A statement written `@name` is a language statement (`@set`, `@snippet`, `@use`) or
   an extension statement (`@include`); a directive's name is a `WORD` token, which never starts with `@` (3.1). So
@@ -328,7 +351,8 @@ milestone 4 leftover: these were called checks of the grammar, though the overri
 are not shapes. An `overrideText` entry rule would need a second, variable-free copy of the value rules in the
 grammar, a second home for them, so the rule here is reworded instead.) The entry rule's
 diagnostics are its parse's first error, coded as in a document (2.4: E1xxx for an error token, E2004, E2007,
-E2009, else E2001) and placed at the offending token, or at the end of the text when the text ends too soon. Which
+E2009, E2010 for nesting past `MAX_NESTING` (2.5), else E2001) and placed at the offending token, or at the end of the
+text when the text ends too soon. Which
 codes each edit checks, and where it places them:
 
 | Edit | Codes | Placed at |

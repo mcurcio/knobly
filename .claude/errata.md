@@ -940,3 +940,24 @@
   protocol schema, the generated message types and all three adapters, so it is a design choice, not made here.
   The other codes (E5003 E5005 E5007 E5008 E5010 E5011) and the empty glob's E3001 are in
   `conformance/written/diagnostics.json`, and all three bindings pass them.
+
+## 2026-10-30, nesting limits (kno-bzv.6), applied
+
+- **N1. Applied: skipped brackets do not count toward the 100-level limit.** Owner, 2026-10-30, asked whether
+  brackets that error recovery skips should count: "that sounds right". Recorded in spec 2.5 ("In one text (E2010)").
+  The bindings already counted this way since 3d759bc (the guard on the parser's own block and list rules).
+- **N2. Applied: a limit after expansion, MAX_EXPANDED_NESTING = 256, code E5013.** Owner, 2026-10-30, of a limit of
+  100 after expansion: "100 seems too low. can we increase it?"; asked which limit: "after expansion"; real configs
+  "likely a few dozen, but i want the headroom". 256 is a revisable choice, not his number; MAX_NESTING stays 100.
+  Spec 2.4 (E5013), 2.5 ("After expansion (E5013)"), spec/schema/api.json and diagnostics.json. Placed at the name
+  of the statement whose block or values would sit deeper, the statement unreadable with reason expansion, checked
+  once its values are expanded and before its other checks.
+- **N3. Applied: the nesting level definition** (proposed to the owner 2026-10-30, not objected to; the current rule,
+  revisable): each block and each list a value sits inside is one level, blocks and lists counted together,
+  `[[1,2],[3,4]]` is 2 levels, a slice's brackets are no level. Spec 2.5 ("Nesting levels").
+- **N4. Spec 2.5 did not say what parse returns at E2010**, though `py/src/knobly/syntax/_parse.py` and
+  `cpp/include/knobly/detail/syntax/definitions.hpp` cited "spec 2.5" for it. Spec 2.5 now says it (a document over
+  every token holding one error node over every token, one E2010 on the bracket that opens level 101; an entry rule:
+  a document with no children and that E2010), and 2.8's list of an entry rule's codes now names E2010.
+- **N5. `.claude/design/cpp/design.md` said the nesting guard "runs before parsing"**; since 3d759bc it counts in the
+  parser's `open_node` hook. Corrected there.

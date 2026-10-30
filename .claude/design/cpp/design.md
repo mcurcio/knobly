@@ -356,7 +356,7 @@ switch):
 | error codes (spec 2.4: which code for which situation) | 45 | a policy table over token kinds, not grammar; ported line for line from `classify_error` |
 | per-statement recovery (spec 3.2: what ends a bad statement, what a stray `}` does) | 90 | spec policy; the generated parser calls `recover_document`, `recover_statements`, `recover_block` |
 | tree hooks (a failed directive without its block becomes part of the error node) | 40 | spec 3.2 policy |
-| the nesting guard (E2010) | 12 | runs before parsing |
+| the nesting guard (E2010) | 12 | counts the blocks and lists the parser opens, in its `open_node` hook (since 3d759bc; before, a pre-scan that ran before parsing) |
 
 TypeScript and Python each carry about 550 lines of ANTLR glue for the same job (`parse`, `recovery`, `walk`):
 ANTLR's error strategy must be bent into spec 3.2's recovery, and its parse tree walked into the CST. A generated

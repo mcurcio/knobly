@@ -17,7 +17,7 @@ The user guide, with every sample in TypeScript, Python and C++: [https://mcurci
 |---|---|
 | `knobly` | The shared layer and the I/O ports: places, origins, diagnostics (`Diagnostics`, `DiagnosticCode`), the error classes, config text (`quote`, `text`), `PlaceKind`, `StepKind`, `WalkControl`, `PROGRAM_CODE`. It does no input or output; `memorySource(files)` and `memoryWriter(files)` keep texts in one object; `checkLostUpdates(files, current)` is the one lost-update check every writer calls |
 | `knobly/syntax` | The syntax layer: `parse`, `spanOf`, `textOf`, `Token`, `Node`, `TokenKind`, `NodeKind`, `MAX_NESTING` |
-| `knobly/written` | The low level: `knobly(...)`, the document graph and its statements, values and variables, `formatDiagnostic`, `StatementKind`, `ValueKind`, `VariableKind`, `UnreadableReason`, the limits (`MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`) |
+| `knobly/written` | The low level: `knobly(...)`, the document graph and its statements, values and variables, `formatDiagnostic`, `StatementKind`, `ValueKind`, `VariableKind`, `UnreadableReason`, the limits (`MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_EXPANDED_NESTING`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`) |
 | `knobly/rendered` | The rendered tree: `render(graph)`, `Rendered`, `Directive`, `Address`, `Change`, `ChangeKind` |
 | `knobly/include` | `include()`: the include extension |
 | `knobly/node` | `fileSource()` and `fileWriter()`: files on disk |

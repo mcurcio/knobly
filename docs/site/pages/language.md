@@ -265,7 +265,11 @@ Shared by `@use` and included files:
 - A snippet or file that reaches itself again is E5006, placed on the `@use` or `@include` that closes the loop.
 - Up to 16 snippets or included files may be open inside each other; the 17th is E5007. The root file is not counted.
 - More than 100,000 directives after expansion is E5008, and the load stops expanding there.
-- Blocks and lists may nest 100 deep in one file; deeper is E2010.
+- Blocks and lists may nest 100 deep in one file; deeper is E2010. Each block `{ }` and each list `[ ]` counts as one
+  level (`[[1, 2], [3, 4]]` is two); a slice's brackets (`leds[0~3]`) do not.
+- After expansion, with snippets and included files spliced in and variables replaced by their values, blocks and
+  lists may nest 256 deep; a statement whose block or values would sit deeper is E5013 at its name, and its block is
+  not read.
 
 ## When a statement is broken
 
