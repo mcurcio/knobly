@@ -6,7 +6,6 @@
 #define VILLANELLE_DETAIL_SYNTAX_PARSE_HPP
 
 #include <cstddef>
-#include <cstdio>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -160,9 +159,10 @@ inline std::string quoted(std::string_view text) {
         } else if (c == '\t') {
             out += "\\t";
         } else if (byte < 0x20) {
-            char escape[8];
-            std::snprintf(escape, sizeof escape, "\\u%04x", static_cast<unsigned>(byte));
-            out += escape;
+            constexpr std::string_view digits = "0123456789abcdef";
+            out += "\\u00";
+            out += digits[byte >> 4U];
+            out += digits[byte & 0xFU];
         } else {
             out += c;
         }

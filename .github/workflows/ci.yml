@@ -101,7 +101,8 @@ jobs:
       matrix:
         include:
           # Compilers come with the runner image, pinned to a major version here (apt's exact versions move with the
-          # image's runtime libraries); each leg prints the full version it ran.
+          # image's runtime libraries); each leg prints the full version it ran. No MSVC leg: a Windows checkout
+          # fails on conformance/expected/nul.json (NUL is a reserved device name there).
           - leg: gcc
             os: ubuntu-24.04
             cxx: g++-13
@@ -115,16 +116,9 @@ jobs:
             cxx: c++
             developer_dir: /Applications/Xcode_16.4.app/Contents/Developer
             flags: -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3
-          - leg: msvc  # the Visual Studio generator picks MSVC itself
-            os: windows-2022
-            cxx: ""
-            flags: ""
     env:
       CXX: ${{ matrix.cxx }}
       DEVELOPER_DIR: ${{ matrix.developer_dir }}
-    defaults:
-      run:
-        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -133,8 +127,7 @@ jobs:
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: ${{ env.UV_VERSION }}
-      - name: Compiler version
-        run: if [ -n "$CXX" ]; then "$CXX" --version; fi
+      - run: $CXX --version
       # The hand-written C++ against the pinned clang-format; the pin's one home is tools/api/emit_cpp.py.
       - name: clang-format (hand-written files)
         if: matrix.leg == 'gcc'

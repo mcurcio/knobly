@@ -318,9 +318,17 @@ inline std::pair<char32_t, std::size_t> decode(std::string_view s, std::size_t a
     return {cp, length};
 }
 
+/// "\\u" and four lowercase hex digits of a UTF-16 unit.
+inline void write_unit(std::string& out, char32_t unit) {
+    constexpr std::string_view digits = "0123456789abcdef";
+    out += "\\u";
+    for (int shift = 12; shift >= 0; shift -= 4) {
+        out += digits[(unit >> static_cast<unsigned>(shift)) & 0xFU];
+    }
+}
+
 inline void write_string(std::string& out, std::string_view s) {
     out += '"';
-    char escape[8];
     for (std::size_t at = 0; at < s.size();) {
         const auto [cp, length] = decode(s, at);
         at += length;
@@ -336,14 +344,11 @@ inline void write_string(std::string& out, std::string_view s) {
         } else if (cp >= 0x20 && cp < 0x7F) {
             out += static_cast<char>(cp);
         } else if (cp < 0x10000) {
-            std::snprintf(escape, sizeof escape, "\\u%04x", static_cast<unsigned>(cp));
-            out += escape;
+            write_unit(out, cp);
         } else {
             const char32_t v = cp - 0x10000;
-            std::snprintf(escape, sizeof escape, "\\u%04x", static_cast<unsigned>(0xD800 + (v >> 10U)));
-            out += escape;
-            std::snprintf(escape, sizeof escape, "\\u%04x", static_cast<unsigned>(0xDC00 + (v & 0x3FFU)));
-            out += escape;
+            write_unit(out, 0xD800 + (v >> 10U));
+            write_unit(out, 0xDC00 + (v & 0x3FFU));
         }
     }
     out += '"';

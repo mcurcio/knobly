@@ -156,7 +156,7 @@ cmake -S cpp -B build && cmake --build build && ctest --test-dir build   # C++: 
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs these on every push and pull
 request: the grammar check, the TypeScript checks on Node 24, the Python checks on Python 3.11
-and 3.13, and the C++ tests (GCC, Clang, AppleClang, MSVC).
+and 3.13, and the C++ tests (GCC, Clang, AppleClang).
 
 ## Releases
 

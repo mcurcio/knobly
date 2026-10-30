@@ -761,3 +761,7 @@
   never defined" as an error under `-Werror`, with no flag to silence it, so `api_contract_villanelle.cpp` and the
   other layers' contracts are not compiled in milestone 1. `api_contract_syntax.cpp` is linked and run by `ctest`.
   The shared layer's contract joins when the io functions, `diagnostics` and the other people forms are defined.
+- **T5. No MSVC leg** (frozen-m1.md 5.4 allows leaving it out): on `windows-2022` the checkout itself fails, "invalid
+  path 'conformance/expected/nul.json'", because `NUL` is a reserved device name on Windows. Passing there would
+  need the syntax case `nul` renamed (its expected file with it) or a sparse checkout in the leg, which is special
+  casing; the case's name is the conformance corpus's to change, not Slice T's.
