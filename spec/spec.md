@@ -239,8 +239,8 @@ statement classification reads; no binding compares a keyword's text by hand.
   together: `[[1,2],[3,4]]` is 2 levels, and in `a { b [1]; }` the `1` sits 2 deep. A slice's brackets (`foo[0~3]`) are
   no level: a slice holds only bounds.
 - **In one text (E2010).** Only the blocks and lists the parser opens count, the ones error recovery opens included;
-  brackets that recovery skips open nothing and do not count (owner, 2026-10-30, asked whether they should: "that
-  sounds right"). So `"]"` 500 times then `"["` 101 times is E2004, and `a {` then `x [` 100 times is E2001 at 0:8,
+  brackets that recovery skips open nothing and do not count (owner, 2026-10-30, of the proposal that they not count:
+  "that sounds right"). So `"]"` 500 times then `"["` 101 times is E2004, and `a {` then `x [` 100 times is E2001 at 0:8,
   each the statement's first error (3.2). The block or list that would be level 101 ends the parse: `parse` returns a
   `document` node over every token whose one child is an `error` node over every token, and one diagnostic, E2010,
   on the `{` or `[` that opens that level. An entry rule (2.8) returns a `document` node with no children and that one
@@ -250,13 +250,16 @@ statement classification reads; no binding compares a keyword's text by hand.
   own braces are gone); a `$name` brings its values' lists with it. A statement whose block, or a list among its
   values, would sit deeper than `MAX_EXPANDED_NESTING` is unreadable (reason `expansion`), with E5013 at its name (a
   directive's name, the `@set`, the `@use`, an extension's `@name`), and its block is not walked; a `set` that fails
-  so defines nothing ([expansion.md](expansion.md) 8). It is checked once the statement's values are expanded, before
-  the statement's other checks (E5004, E5006, E5007, E5008's count, an extension's `specs`), so no value or block
-  deeper than the limit is ever kept and no walk over the expanded tree goes deeper. The owner, 2026-10-30, of a
-  limit of 100 after expansion: "100 seems too low. can we increase it?"; asked which limit: "after expansion"; real
-  configs are "likely a few dozen, but i want the headroom". 256 is a revisable choice, not his number; `MAX_NESTING`
-  stays 100. Cases `diag-expanded-nesting-257`, `diag-expanded-nesting-1568` (written corpus),
-  `load-expanded-nesting-256`, `load-expanded-nesting-lists`.
+  so defines nothing ([expansion.md](expansion.md) 8). It is checked once the statement's values are expanded: after
+  the checks that need no expanded value (the line's shape, E5009 to E5011; a `set` of a name already set, E5002; a
+  `use` of no visible snippet, E5003) and the codes its values give while they expand (E5001 among them), and before
+  the statement's other checks (E5004, E5006, E5007, E5008's count, an extension's `specs`, and for an extension line
+  the `@set` lines of its block, each checked as a `set` line standing where the extension line stands). So no value
+  or block deeper than the limit is ever kept and no walk over the expanded tree goes deeper. The owner, 2026-10-30
+  (bead kno-bzv.6), of a limit of 100 after expansion: "100 seems too low. can we increase it?"; asked which limit:
+  "after expansion"; real configs are "likely a few dozen, but i want the headroom". 256 is a revisable choice, not
+  his number; `MAX_NESTING` stays 100. Cases `diag-expanded-nesting-*` (written corpus: 257 and 1568 levels of
+  blocks, and the place and order cases), `load-expanded-nesting-256`, `load-expanded-nesting-lists`.
 - **No directive name is reserved** (milestone 5; owner, 2026-10-29, bead kno-umh.14: "yes" to language
   statements behind one sigil). A statement written `@name` is a language statement (`@set`, `@snippet`, `@use`) or
   an extension statement (`@include`); a directive's name is a `WORD` token, which never starts with `@` (3.1). So

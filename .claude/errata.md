@@ -961,3 +961,12 @@
   a document with no children and that E2010), and 2.8's list of an entry rule's codes now names E2010.
 - **N5. `.claude/design/cpp/design.md` said the nesting guard "runs before parsing"**; since 3d759bc it counts in the
   parser's `open_node` hook. Corrected there.
+
+## 2026-10-30, nesting review round (kno-bzv.6), applied
+
+- **N6. N1's wording read the wrong way round.** He answered the proposal that skipped brackets not count ("that
+  sounds right"), not a question whether they should count. Spec 2.5 now says so. That answer is not yet in any bead's
+  notes (kno-bzv.6 holds the after-expansion quotes, now cited in 2.5); recording it there is left to the main session.
+- **N7. Spec 2.5 named only the checks after E5013.** It now also names those before it: the line's shape (E5009 to
+  E5011), E5002, E5003 and the codes its values give while they expand; an extension block's `@set` lines come after
+  the extension line's own E5013. The bindings already agreed; `diag-expanded-nesting-*` now pin it.
