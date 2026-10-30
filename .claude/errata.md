@@ -828,3 +828,15 @@
 - **R3. A key rule's "returns anything but text or absent" (spec 7.4) is a compile-time refusal in C++**: `key_rule` is
   `std::function<std::optional<std::string>(const directive&)>`, so `addresses` and `diff` never raise that
   `argument_type_error`. Same follow-up as R2.
+
+## 2026-10-30, C++ binding milestone 3, Slice P (format tests, programs 4.1 and 4.3, compile-fail tests)
+
+- **P1. `9bad=1` is not a bad override name** (frozen-m3.md 4 and the slice brief: "`9bad=1` (the usage line, exit
+  2)"). spec.md's `VARIABLE_NAME` is `^[A-Za-z0-9_]+$` (grammar `VARIABLE : '$' [A-Za-z0-9_]+`), so a leading digit
+  is allowed: `is_variable_name("9bad")` is true, program 4.1 loads with an override nobody reads and prints the two
+  sinks (exit 1), not the usage line. Following the spec, the `programs_sinks` usage run passes `bad-name=1` (a `-` is
+  outside the pattern), which prints `usage: sinks name=value...` and exits 2. No code changed.
+- **P2. design.md 4.3's prose builds `vl::located_diagnostic(code, message, field.place())` with three arguments**;
+  the generated record constructor takes four (`via` too, no default), so the call as written does not compile. The
+  `report_written_statement` compile-fail control passes `{}` for `via`. Whether records get defaulted trailing
+  fields is a generator question for every binding's record constructors (follow-up), not changed here.
