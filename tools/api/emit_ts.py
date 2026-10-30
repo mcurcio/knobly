@@ -626,12 +626,7 @@ def shapes_module(model: Model) -> str:
     for r in p.requests:
         out.append(f"  readonly {s(r.op)}: {shape_type(r.result)};")
     out += ["}", ""]
-    spell: Dict[str, str] = {}
-    for c in model.concepts:
-        for m in c.members:
-            spell[m.name] = camel(m.name)
-    for name in p.edit_members + p.readers:
-        spell[name] = camel(name)
+    spell, _ = model.spellings(LANGUAGE.key)
     out += doc("Each spec name the driver sends (a member, a reader) to this binding's spelling: the casing rule, applied "
                "once here so no adapter writes it again.")
     out.append("export const SPELLING: Readonly<Record<string, string>> = {")

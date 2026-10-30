@@ -961,12 +961,7 @@ def shapes_module(model: Model) -> str:
             body += ["", "", f"{name}: TypeAlias = (", *(f"    {'| ' if i else ''}{a}" for i, a in enumerate(alts)), ")"]
         else:
             body += td(name, dict(sh.fields), list(sh.optional))
-    spell: Dict[str, str] = {}
-    for c in model.concepts:
-        for m in c.members:
-            spell[m.name] = snake(m.name)
-    for name in p.edit_members + p.readers:
-        spell[name] = snake(name)
+    spell, _ = model.spellings(LANGUAGE.key)
     imports.add("collections.abc", "Mapping")
     imports.add("typing", "Final")
     body += ["", "", "SPELLING: Final[Mapping[str, str]] = {", *(f"    {s(k)}: {s(v)}," for k, v in sorted(spell.items())), "}",

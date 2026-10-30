@@ -1169,6 +1169,25 @@ class Model:
             out += self.all_members(self.concept[c.extends.name])
         return out + list(c.members)
 
+    def spellings(self, lang: str) -> Tuple[Dict[str, str], Dict[Tuple[str, str], str]]:
+        """Each spec name a conformance adapter is sent (every concept's members, the protocol's edit members and
+        readers) in ``lang``'s spelling: (by name, the language's function_case; by (concept, member), where the
+        language's member_spelling spells it otherwise in that concept, C++'s written::index::index_()). The one home
+        of the adapters' spelling tables, so no emitter applies a casing rule of its own."""
+        language = self.languages[lang]
+        by_name: Dict[str, str] = {}
+        by_concept: Dict[Tuple[str, str], str] = {}
+        for c in self.concepts:
+            for m in self.all_members(c):
+                by_name[m.name] = language.function_case(m.name)
+                if language.member_spelling is not None and lang in c.languages:
+                    spelled = language.member_spelling(c.name, m.name)
+                    if spelled != by_name[m.name]:
+                        by_concept[(c.name, m.name)] = spelled
+        for name in self.protocol.edit_members + self.protocol.readers:
+            by_name[name] = language.function_case(name)
+        return by_name, by_concept
+
     def kind_list_of(self, c: Concept) -> str:
         """The kind list a concept's kind member is typed by (a variant's, or a fixed-kind record's)."""
         for m in self.all_members(c) + ([m for m in self.concept[c.variant_of].members] if c.variant_of else []):

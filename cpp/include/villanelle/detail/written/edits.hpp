@@ -642,14 +642,15 @@ inline document_node* make_document(graph_core* graph, std::string resolved_path
     return doc;
 }
 
-/// Re-parses a document's new text and reconciles its handles; leftovers are detached; the graph is told.
+/// Re-parses a document's new text and reconciles its handles; leftovers are detached; the graph is told first, so
+/// a build that fails part way (std::bad_alloc) never leaves the cached binding in use over the new parse.
 inline std::vector<handle_node*> adopt(document_node* doc, parsed_text parsed, reconcile r) {
+    ++doc->graph->version;
     doc->parsed = std::move(parsed);
     builder(doc, r).build();
     for (handle_node* left : r.leftovers()) {
         left->detached = true;
     }
-    ++doc->graph->version;
     return std::move(r.created);
 }
 

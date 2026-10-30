@@ -54,13 +54,13 @@ VILLANELLE_API void document_graph::set_override(std::string_view name,
         if (!graph->override_texts.erase(key)) {
             return;
         }
-        graph->overrides.erase(key);
         ++graph->version;
+        graph->overrides.erase(key);
         return;
     }
     detail::override_values values = detail::check_override(graph, name, text->view());
+    ++graph->version;  // before the change, so one that fails part way never leaves the cached binding in use
     detail::put_override(graph, std::string(name), std::move(*text), std::move(values));
-    ++graph->version;
 }
 
 VILLANELLE_API ::villanelle::sequence<std::string> document_graph::read() const {

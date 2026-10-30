@@ -29,6 +29,11 @@
 #include "json.hpp"
 #include "shapes.hpp"
 
+// The generated spelling table knows a member a class spells otherwise (the loader's Model.spellings).
+static_assert(adapter::shapes::spelling("index", "index") == "index_");
+static_assert(adapter::shapes::spelling("expanded_value", "list") == "list");
+static_assert(adapter::shapes::spelling("set override") == "set_override");
+
 namespace {
 
 namespace vl = villanelle;

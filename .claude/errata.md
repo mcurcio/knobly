@@ -857,3 +857,28 @@
 - **D3. C++'s `trait_names` puts a description where `Model.public` expects `type`, `value` or `both`**
   (`emit_cpp.LANGUAGE.trait_names`: "the list type form"; Python gives `value`). Not changed (it would change C++'s
   generated contract, which P builds against); follow-up for the emitter's owner.
+
+## 2026-10-30, C++ binding review fixes (PR 8, overnight)
+
+- **F1. design.md 1.3 promises `std::hash` for every view class and text equality for `expanded_value` (spec 2.9:
+  "a language with an equality operator ... MUST make it compare the texts"); the C++ code had neither** (identity
+  `==` on `expanded_value`, no hash anywhere). Fixed: api.json's `expanded value` gained `"equal by": "text"` (a new
+  concept key in api.schema.json, read only by emit_cpp today; Python's `__eq__`/`__hash__` stay hand-written), and
+  emit_cpp emits `==` and `std::hash` for every view class from it.
+- **F2. design.md 2.3 names three handle states (live, detached, gone with its graph) but a moved-from view was a
+  fourth, null one** that crashed on any member, `kind()` included. Choice made overnight (the finding's first
+  option): a view's move copies (one atomic increment), so no handle is ever null. Render's "an empty document
+  graph" argument type error for a moved-from graph is gone with it (frozen-m3.md R2's moved-from case).
+- **F3. design.md 2.3 does not state that a graph keeps every node it ever made** (detached ones until the graph
+  dies; about 20 KB per whole-document replace of a 50-line file). Stated in cpp/README.md ("Memory"); design 2.3
+  should say it too. Freeing detached nodes when their last view goes is a follow-up.
+- **F4. cpp/README.md said "An edit that throws changes nothing"; that held only for refusals.** An edit cut short by
+  `std::bad_alloc` part way through re-building the handle tree leaves a half-built tree (a probe that failed each
+  allocation in turn then saw `expand()` raise `unordered_map::at`). Choice made overnight (the finding's second
+  option): the graph's version is bumped before the change, and the README now says a refused edit changes nothing
+  and a graph an allocation failure cut short should be dropped. A real strong guarantee (build the new handle tree
+  aside, then commit) is a follow-up.
+- **F5. spec 4.2 does not say how a file writer replaces a file**, and the bindings differ: Python stages with
+  `mkstemp` (mode 0600) and renames, TypeScript writes in place (0666 less the umask). C++ now replaces a symbolic
+  link's target (the link stays) and gives the staged file the old file's permissions. The rule belongs in spec 4.2
+  for all three bindings (follow-up).

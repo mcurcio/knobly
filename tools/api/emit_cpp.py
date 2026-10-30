@@ -1636,13 +1636,9 @@ def render(model: Model) -> Dict[str, str]:
 
 def render_shapes(model: Model) -> Dict[str, str]:
     p = model.protocol
-    spell: Dict[str, str] = {}
-    for c in model.concepts:
-        for m in c.members:
-            spell[m.name] = snake(m.name)
-    for name in p.edit_members + p.readers:
-        spell[name] = snake(name)
+    spell, by_concept = model.spellings(KEY)
     rows = [f"{{{lit(k)}, {lit(v)}}}," for k, v in sorted(spell.items())]
+    exceptions = [f"{{{lit(snake(c))}, {lit(m)}, {lit(v)}}}," for (c, m), v in sorted(by_concept.items())]
     order: List[ErrorGroup] = []
 
     def down(g: ErrorGroup) -> None:  # the most specific group first
@@ -1661,12 +1657,21 @@ def render_shapes(model: Model) -> Dict[str, str]:
             f"inline constexpr int protocol = {p.version};", "",
             "namespace detail {",
             f"inline constexpr std::array<std::pair<std::string_view, std::string_view>, {len(rows)}> spellings = {{{{",
-            *rows, "}};", "}  // namespace detail", "",
+            *rows, "}};",
+            *doc("The members a class spells otherwise (one named as its class takes a trailing underscore): (class, "
+                 "spec name, spelling)."),
+            "inline constexpr std::array<std::array<std::string_view, 3>, "
+            f"{len(exceptions)}> member_spellings = {{{{", *exceptions, "}};", "}  // namespace detail", "",
             *doc("Each spec name the driver sends (a member, a reader) in this binding's spelling, snake_case; empty "
                  "for a name the schema does not have."),
             "constexpr std::string_view spelling(std::string_view spec_name) noexcept {",
             "for (const auto& [name, spelled] : detail::spellings) {",
             "if (name == spec_name) { return spelled; }", "}", "return {};", "}", "",
+            *doc("A member's spelling in one class (its C++ name, snake_case): where the class spells it otherwise "
+                 "(written::index::index_()), that; else spelling(spec_name)."),
+            "constexpr std::string_view spelling(std::string_view class_name, std::string_view spec_name) noexcept {",
+            "for (const auto& [cls, name, spelled] : detail::member_spellings) {",
+            "if (cls == class_name && name == spec_name) { return spelled; }", "}", "return spelling(spec_name);", "}", "",
             *doc("The error group an exception is, the most specific first; empty for any other exception."),
             "inline std::optional<std::string_view> error_group_of(const std::exception& error) {",
             *checks, "return std::nullopt;", "}", "",

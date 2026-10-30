@@ -153,7 +153,7 @@ public:
         // Stage every file; on the first failure remove what was staged and raise, with nothing replaced.
         std::vector<std::pair<std::string, std::string>> staged;  // (temporary, target)
         for (const ::villanelle::file_write& file : files) {
-            const std::string target = file.resolved_path();
+            const std::string target = real_target(file.resolved_path());
             std::error_code code;
             auto [temporary, out] = create_temporary(target, code);
             if (out == nullptr) {
@@ -168,7 +168,7 @@ public:
             if (written && !closed) {
                 code = last_error();
             }
-            if (!written || !closed) {
+            if (!written || !closed || !keep_permissions(target, temporary, code)) {
                 remove_from(staged, 0);
                 raise_failure("cannot stage", target, code);
             }
@@ -184,6 +184,29 @@ public:
     }
 
 private:
+    /// The file a write replaces: a symbolic link's target (followed to the end), so the edit reaches the real file
+    /// and the link stays a link; the path itself otherwise, or when it cannot be resolved.
+    static std::string real_target(const std::string& path) {
+        std::error_code code;
+        if (!std::filesystem::is_symlink(path, code)) {
+            return path;
+        }
+        const std::filesystem::path real = std::filesystem::weakly_canonical(path, code);
+        return code ? path : real.generic_string();
+    }
+
+    /// Gives the staged temporary the permissions of the file it replaces, so a save never widens (or narrows) who
+    /// may read it; a new file keeps the temporary's (0666 less the umask). False, with `code`, when that fails.
+    static bool keep_permissions(const std::string& target, const std::string& temporary, std::error_code& code) {
+        std::error_code missing;
+        const std::filesystem::file_status status = std::filesystem::status(target, missing);
+        if (missing || !std::filesystem::exists(status)) {
+            return true;
+        }
+        std::filesystem::permissions(temporary, status.permissions(), std::filesystem::perm_options::replace, code);
+        return !code;
+    }
+
     static void remove_from(const std::vector<std::pair<std::string, std::string>>& staged, std::size_t first) {
         for (std::size_t i = first; i < staged.size(); ++i) {
             std::remove(staged[i].first.c_str());

@@ -67,14 +67,17 @@ rendered directive keeps its render and the graph alive). Two handles are equal 
 Every list is a `villanelle::sequence<T>` and every map a `villanelle::ordered_map<K, V>` (insertion order): copying
 one shares it, and elements come back by value. A loop over a block, or a `walk()`, reads a snapshot, so editing
 during it is allowed. A statement an edit removed is detached: its `kind()` still works and every other member
-throws `villanelle::detached_error`.
+throws `villanelle::detached_error`. **Memory:** every object of a graph lives until the graph dies, detached ones
+included, so each edit grows the graph by what it re-parses (about 20 KB for a 50-line document replaced whole):
+a process that keeps one graph for a long run of edits should load a fresh graph from time to time.
 
 **Errors.** Problems in the config text are never thrown: `load` returns a graph whose `diagnostics()` lists them,
 and `render` returns a tree with the same list. Exceptions mirror the error groups of the other bindings: expected
 outcomes derive `villanelle::villanelle_error` (`diagnostic_error`, `read_error`, `bad_text_error`, `save_error` and
 its `lost_update_error`; a `save_error` nests the writer's exception, so `std::rethrow_if_nested` gives the cause),
 and program bugs derive `std::logic_error` (`detached_error`, `argument_type_error`, `misuse_error`,
-`index_out_of_range`). An edit that throws changes nothing. `parse` never throws (but `std::bad_alloc`).
+`index_out_of_range`). An edit refused with an exception (`bad_text_error`, `detached_error`, `index_out_of_range`, ...) changes nothing;
+one cut short by `std::bad_alloc` may leave its graph part edited and unfit for further use, so drop that graph. `parse` never throws (but `std::bad_alloc`).
 
 **Threads.** Copying a handle or destroying one on another thread is safe (the count is atomic); nothing else is,
 not even reading one graph from two threads through `const`.
@@ -83,7 +86,11 @@ not even reading one graph from two threads through `const`.
 `format_diagnostic`, count from 1). **Paths** are UTF-8 text with `/`: `file_source` resolves an include against
 its parent's directory by a lexical join (`.` and empty segments dropped, `..` popped), so a relative root stays
 relative, as in Python (TypeScript makes paths absolute). They are the keys of `documents()` and the paths in every
-message.
+message. An include follows an absolute path and any number of `..` as written, so it can read any file the process
+can (`@include "/etc/hosts";`), and that file's lines come back as directives and in diagnostics: do not load a
+config from someone you do not trust with `file_source()` and the include extension. `file_writer()` stages each file
+beside the one it replaces and renames it over: a symbolic link's target is replaced (the link stays), and the new
+file keeps the old one's permissions.
 
 ## Using it
 
