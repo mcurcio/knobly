@@ -96,6 +96,9 @@ jobs:
   cpp:
     name: C++ (${{ matrix.leg }})
     runs-on: ${{ matrix.os }}
+    # A stalled build or adapter fails the job instead of holding the runner for hours (vil-p5x; the driver also
+    # times out each request, and ctest each test).
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -137,6 +140,27 @@ jobs:
       # Configure generates the headers (tools/gen.sh cpp); ctest runs the unit tests, the generated contract and the
       # shared driver's level 0.
       - run: cmake -S cpp -B build -DCMAKE_BUILD_TYPE=Debug -DVILLANELLE_BUILD_TESTS=ON ${{ matrix.flags }}
+      # Wall time of -fsyntax-only -O2 on a file including only one public header, in header-only and compiled mode
+      # (design.md 2.5 point 4): reported, not gated. Configure generated the headers.
+      - name: Compile-time report (reported, not gated)
+        if: matrix.leg == 'gcc'
+        run: |
+          TIMEFORMAT=%R
+          printf '%-16s %12s %9s\n' header header-only compiled
+          for header in cpp/include/villanelle/*.hpp; do
+            name=${header##*/}
+            [ "$name" = implementation.hpp ] && continue
+            row=$(printf '%-16s' "$name")
+            for mode in 1 0; do
+              if seconds=$( { time "$CXX" -std=c++20 -fsyntax-only -O2 -DVILLANELLE_HEADER_ONLY=$mode -Icpp/include \
+                  -x c++ - <<< "#include <villanelle/$name>" > /dev/null 2>&1; } 2>&1 ); then
+                row+=$(printf ' %11ss' "$seconds")
+              else
+                row+=$(printf ' %12s' failed)
+              fi
+            done
+            echo "$row"
+          done
       - run: cmake --build build --config Debug
       - run: ctest --test-dir build --build-config Debug --output-on-failure
 
