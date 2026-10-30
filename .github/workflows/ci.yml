@@ -17,6 +17,7 @@ env:
   JAVA_VERSION: 21.0.13+9
   UV_VERSION: 0.13.5
   BISON_APT_VERSION: 2:3.8.2+dfsg-1build2
+  CMAKE_BUILD_PARALLEL_LEVEL: 4
 
 jobs:
   grammar:
@@ -92,9 +93,63 @@ jobs:
       # The shared conformance driver (spec/conformance.md) against this binding's adapter; pytest generated the parser.
       - run: python3 ../conformance/driver/run.py -- uv run --locked python conformance/adapter.py
 
+  cpp:
+    name: C++ (${{ matrix.leg }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Compilers come with the runner image, pinned to a major version here (apt's exact versions move with the
+          # image's runtime libraries); each leg prints the full version it ran.
+          - leg: gcc
+            os: ubuntu-24.04
+            cxx: g++-13
+            flags: -DVILLANELLE_SANITIZE=ON
+          - leg: clang
+            os: ubuntu-24.04
+            cxx: clang++-18
+            flags: -DVILLANELLE_COMPILED=ON -DCMAKE_CXX_STANDARD=23
+          - leg: appleclang
+            os: macos-15
+            cxx: c++
+            developer_dir: /Applications/Xcode_16.4.app/Contents/Developer
+            flags: -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3
+          - leg: msvc  # the Visual Studio generator picks MSVC itself
+            os: windows-2022
+            cxx: ""
+            flags: ""
+    env:
+      CXX: ${{ matrix.cxx }}
+      DEVELOPER_DIR: ${{ matrix.developer_dir }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # clang-format, the generated headers' formatter, comes through uv (spec/codegen.md section 4).
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: ${{ env.UV_VERSION }}
+      - name: Compiler version
+        run: if [ -n "$CXX" ]; then "$CXX" --version; fi
+      # The hand-written C++ against the pinned clang-format; the pin's one home is tools/api/emit_cpp.py.
+      - name: clang-format (hand-written files)
+        if: matrix.leg == 'gcc'
+        run: |
+          read -r -a format < <(python3 -c 'import sys; sys.path.insert(0, "tools"); from api.emit_cpp import CLANG_FORMAT; print(*CLANG_FORMAT)')
+          git ls-files 'cpp/*.hpp' 'cpp/*.cpp' | xargs "${format[@]}" --dry-run --Werror --style=file:cpp/.clang-format
+      # Configure generates the headers (tools/gen.sh cpp); ctest runs the unit tests, the generated contract and the
+      # shared driver's level 0.
+      - run: cmake -S cpp -B build -DCMAKE_BUILD_TYPE=Debug -DVILLANELLE_BUILD_TESTS=ON ${{ matrix.flags }}
+      - run: cmake --build build --config Debug
+      - run: ctest --test-dir build --build-config Debug --output-on-failure
+
   release:
     name: Release (semantic-release)
-    needs: [grammar, ts, py]
+    needs: [grammar, ts, py, cpp]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     concurrency:

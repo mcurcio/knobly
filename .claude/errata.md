@@ -741,3 +741,23 @@
   header's layers may import; every adapter module's header is forbidden to every other header.
 - **A12. The loader's doc check could not catch "C++"**: it searched `\bC\+\+\b`, and no word boundary follows `+`.
   It now matches a language's name not inside a word, which is the same test for TypeScript and Python.
+
+## 2026-10-30, C++ binding milestone 1, Slice T (the tracer)
+
+- **T1. The CI compilers are pinned to a major version from the runner image, not to an exact apt version**
+  (frozen-m1.md 5.4 says "GCC 13 (apt, pinned version)", "Clang 18 (apt, pinned version)"). Ubuntu keeps only the
+  newest build of a package in `-updates`; pinning the release-pocket build would downgrade the image's runtime
+  libraries (`libgcc`, `libstdc++`) that `g++-13` and `clang-18` depend on. The legs run the image's `g++-13` and
+  `clang++-18` and print the full version; AppleClang is pinned through `DEVELOPER_DIR` (Xcode 16.4).
+- **T2. The shared driver's position check is quadratic in `byte` units** (`conformance/driver/syntax.py`,
+  `native_position`, not an owned path): it rescans the text for every position, so the case `list-5000` alone
+  takes about 40 s and the C++ L0 run about a minute per CI leg; the C++ adapter answers all 168 cases in about a
+  second under ASan and UBSan. A fix (one pass building an offset table per case) belongs to the driver's owner.
+- **T3. `sequence::at` cannot name `index_out_of_range`**: `errors.hpp` includes `support/sequence.hpp`, so the
+  error class is incomplete where the template is defined. `detail/raise.hpp` declares
+  `raise_index_out_of_range(index, size)` (`VILLANELLE_API`), defined with the shared layer; `ordered_map::at` and
+  `block::at` (slice 2) use the same helper.
+- **T4. Only the contract of an implemented layer is built** (Lane A's A4): GCC reports "inline function used but
+  never defined" as an error under `-Werror`, with no flag to silence it, so `api_contract_villanelle.cpp` and the
+  other layers' contracts are not compiled in milestone 1. `api_contract_syntax.cpp` is linked and run by `ctest`.
+  The shared layer's contract joins when the io functions, `diagnostics` and the other people forms are defined.

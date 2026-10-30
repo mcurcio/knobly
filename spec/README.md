@@ -25,12 +25,12 @@ graph (owner, 2026-10-29: "The low level shouldn't "depend on" the middle layer 
 
 ```mermaid
 flowchart LR
-  G["grammar/Villanelle.g4<br/>the language"] -->|tools/gen.sh| P["generated parser<br/>(per language, not committed)"]
+  G["grammar/Villanelle.g4<br/>the language"] -->|"tools/gen.sh<br/>(ANTLR, or tools/parser/gen.py)"| P["generated parser<br/>(per language, not committed)"]
   S["spec.md<br/>what every binding must do"] --> DG["binding-guide.md<br/>how to make it idiomatic"]
   W["glossary.md<br/>one word per concept"] --> S
   SC["schema/<br/>api.json, diagnostics.json, protocol.json"] -->|tools/gen.sh| GL["generated declarations<br/>(interfaces, records, errors, kinds, codes, rules, names; not committed)"]
   S --> C["conformance/<br/>shared cases, byte-for-byte"]
-  P --> B["a binding<br/>ts/ · py/ · next"]
+  P --> B["a binding<br/>ts/ · py/ · cpp/ · next"]
   GL --> B
   DG --> B
   B --> A["the binding's adapter<br/>(one small program)"]
@@ -86,9 +86,12 @@ A binding claims one level; it holds it when every shared case at that level and
 
 ## A new binding's path
 
-1. **Generate**: add the language to `tools/gen.sh` (the parser; ANTLR 4.13.2 has no official Rust target, an open
-   question in [binding-guide.md 5](binding-guide.md#5-checklist-a-new-binding-start-to-finish)) and
-   `tools/gen-api.py` (the fixed lists). The adapter of step 2 can come first, with a stub `parse`.
+1. **Generate**: add the language to `tools/gen.sh` (the parser) and `tools/gen-api.py` (the fixed lists). A parser
+   comes by one of two routes from `grammar/Villanelle.g4`: ANTLR 4.13.2 with its runtime (TypeScript, Python), or
+   villanelle's own parser generator, `tools/parser/gen.py`, with no runtime (C++). Either way the generator must
+   accept the grammar (`tools/check.sh`) and the adapter must pass every syntax case (L0); ANTLR has no official Rust
+   target, an open question in [binding-guide.md 5](binding-guide.md#5-checklist-a-new-binding-start-to-finish).
+   The adapter of step 2 can come first, with a stub `parse`.
 2. **Write the adapter**: one small program that answers the driver's requests through the binding's public API
    ([conformance.md 6](conformance.md#6-what-a-binding-writes)). It starts by answering `hello` and `parse`.
 3. **Run the driver**: `python3 conformance/driver/run.py -- <your adapter's command>`.

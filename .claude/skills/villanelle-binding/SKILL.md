@@ -1,6 +1,6 @@
 ---
 name: villanelle-binding
-description: Use when adding a new language binding to villanelle (Go, Rust, Java, any language beyond ts/ and py/), or when changing the public API shape of any villanelle binding - renaming or moving a type, member, function, error, kind or module in ts/ or py/, adding an operation, or changing what a layer (syntax, low level / written, rendered tree) exposes. Also use when writing or fixing a binding's conformance adapter, the shared conformance driver or a corpus, or when the TypeScript and Python bindings disagree.
+description: Use when adding a new language binding to villanelle (Go, Rust, Java, any language beyond ts/, py/ and cpp/), or when changing the public API shape of any villanelle binding - renaming or moving a type, member, function, error, kind or module in ts/, py/ or cpp/, adding an operation, or changing what a layer (syntax, low level / written, rendered tree) exposes. Also use when writing or fixing a binding's conformance adapter, the shared conformance driver or a corpus, or when the TypeScript and Python bindings disagree.
 ---
 
 # villanelle language bindings
@@ -50,7 +50,9 @@ member or removed member:
 Follow the checklist in `spec/binding-guide.md` section 5. In short: pick one model and get the
 first-hour program approved, then:
 
-1. **Generate the parser** (`tools/gen.sh`).
+1. **Generate the parser** (`tools/gen.sh`): ANTLR 4.13.2 with its runtime (TypeScript, Python), or villanelle's
+   own generator `tools/parser/gen.py` with no runtime (C++: the binding hand-writes the tree hooks, error codes and
+   recovery in `cpp/include/villanelle/detail/syntax/parse.hpp`). `spec/binding-guide.md` step 3 has both routes.
 2. **Write an emitter**: `tools/api/emit_<lang>.py`, rendering the loader's model (`tools/api/loader.py`) in your
    language's idiom: kind lists, codes, rules, the error tree, one declaration per concept with each trait of
    `spec/codegen.md` section 3 in your form, the names table, the adapter's message shapes and spelling table. Start
@@ -102,6 +104,12 @@ corepack pnpm -C ts install && corepack pnpm -C ts build
 bash tools/gen.sh py
 (cd py && python3 ../conformance/driver/run.py -- uv run --locked python conformance/adapter.py)
 
+# C++: configure generates the headers (tools/gen.sh cpp); ctest runs the unit tests, the contract and the driver.
+# Build trees on the owner's Mac go under /Volumes/Dock (Catch2 is fetched at configure time).
+cmake -S cpp -B /Volumes/Dock/tmp/vil-cpp-build -DVILLANELLE_SANITIZE=ON && cmake --build /Volumes/Dock/tmp/vil-cpp-build
+ctest --test-dir /Volumes/Dock/tmp/vil-cpp-build --output-on-failure   # add -DVILLANELLE_COMPILED=ON for compiled mode
+python3 conformance/driver/run.py -- /Volumes/Dock/tmp/vil-cpp-build/villanelle_adapter
+
 # One corpus or case, or the cases up to a level while you climb:
 python3 conformance/driver/run.py --corpus written --case set-comment -- <adapter...>
 python3 conformance/driver/run.py --level 1 -- <adapter...>
@@ -120,6 +128,14 @@ its test suite (`corepack pnpm -C ts test`, `cd py && uv run pytest`); lint, for
   `surrogate-*` syntax cases too: a byte-unit binding passes them by holding a lone surrogate as WTF-8 (Go can; Rust's
   `String` cannot). spec 2.1's proposal for UTF-8 bindings (a skip plus invalid-byte cases) is pending the owner
   and not in the driver.
+- **The driver is slow in `byte` units on long texts**: its position check (`conformance/driver/syntax.py`,
+  `native_position`) rescans the text per position, so `list-5000` alone takes about 40 s and the C++ L0 run about a
+  minute, almost all in the driver; the adapter answers all 168 cases in about a second under ASan.
+- **C++ templates in `support/` cannot name an error class**: `errors.hpp` includes `sequence.hpp`, so
+  `sequence::at` raises through `detail::raise_index_out_of_range`, declared in `detail/raise.hpp` and defined with
+  the shared layer. GCC turns "inline function used but never defined" into an error under `-Werror` with no flag to
+  silence it, so CMake links only the generated contract of an implemented layer (`api_contract_syntax.cpp` in
+  milestone 1).
 - **The adapter finds and compares nothing.** It dumps objects with ids and applies one member by id;
   the driver finds targets (a statement by its name token, a value by its start), converts positions
   and prints the expected bytes. Logic that creeps into an adapter is logic the next binding copies.

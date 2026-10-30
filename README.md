@@ -2,8 +2,8 @@
 
 A small configuration language: directives ended by `;` (a line break is a space, as in nginx), `{ }` blocks,
 lists and slices (`name[1~3]`), raw single-quoted strings, `#` comments, and variables and snippets written as
-`@` statements (`@set`, `@snippet`, `@use`, and an extension's `@include`), with parsers for TypeScript and Python
-generated from one grammar.
+`@` statements (`@set`, `@snippet`, `@use`, and an extension's `@include`), with parsers for TypeScript, Python
+and C++ generated from one grammar.
 
 ```conf
 @set $pixels 2284;
@@ -70,10 +70,16 @@ rule 9). Type names carry no prefix (`DocumentGraph`, `Rendered`), the same in b
 | files on disk | `villanelle/node`: `fileSource()`, `fileWriter()` | `villanelle.files`: `file_source()`, `file_writer()` |
 | files over `fetch` | `villanelle/browser`: `fetchSource(fetch)`, `fetchWriter(fetch, options?)` | none |
 
+**C++** (milestone 1, the syntax tree only): a header-only library, the CMake target `villanelle::villanelle`;
+`#include <villanelle/syntax.hpp>` gives `villanelle::syntax::parse`, `span_of`, `text_of`, `syntax`, `token`,
+`node`, with names in snake_case from the same schema ([`cpp/README.md`](cpp/README.md)). Its adapter claims level 0
+of the conformance cases.
+
 ## The language is defined by one file
 
 [`grammar/Villanelle.g4`](grammar/Villanelle.g4) (ANTLR4) is the specification. ANTLR4
-generates the TypeScript and Python parsers from it, so both parsers accept exactly the
+generates the TypeScript and Python parsers from it, and villanelle's own parser generator
+([`tools/parser/gen.py`](tools/parser/gen.py), no runtime library) the C++ one, so every parser accepts exactly the
 grammar's language. Its entry rules (`statementsText`, `valuesText`, `valueText`, `itemsText`, `boundText`,
 `sliceNameText`, `nameText`) also check the shape of every text a program hands to an edit, so no binding keeps a scanner of its own. [`grammar/villanelle.ebnf`](grammar/villanelle.ebnf)
 is the same grammar in W3C EBNF, kept by hand as a readable view (whether to derive or retire it is an open question
@@ -99,7 +105,9 @@ The script runs these checks:
 - it checks the API schema (every type resolves, the layer direction, the error tree), renders both bindings'
   declarations, checks the generated docs tables are current, and validates the schema files against their JSON
   Schema, each check also run against planted broken copies;
-- it runs the kind lint's and the conformance driver's own tests.
+- it runs the kind lint's and the conformance driver's own tests;
+- it runs villanelle's own parser generator over the grammar, which must accept it and refuse every planted grammar
+  in `tools/planted-parser/`.
 
 It needs `python3`, `bison` and `uv`.
 
@@ -111,6 +119,7 @@ It needs `python3`, `bison` and `uv`.
 | `tools/` | The soundness checks (`check.sh`), the planted bad grammars they must catch, the parser generator script (`gen.sh`), the API generator (`gen-api.py`: a loader in `api/loader.py` and one emitter per language) and the kind lint (`lint/`) |
 | `ts/` | The TypeScript package, npm name `villanelle` ([`ts/README.md`](ts/README.md)) |
 | `py/` | The Python package, PyPI name `villanelle` ([`py/README.md`](py/README.md)) |
+| `cpp/` | The C++ library, header-only, CMake target `villanelle::villanelle` ([`cpp/README.md`](cpp/README.md)) |
 | `conformance/` | Test cases every package must pass, with the expected output for each, and the one driver that runs them against each package's adapter ([`spec/conformance.md`](spec/conformance.md)): syntax cases ([`conformance/format.md`](conformance/format.md)), low-level cases in `conformance/written/`, load cases in `conformance/load/`, addresses and diff order in `conformance/rendered/`, and readers, positions and formatting in `conformance/contract/`; `conformance/corpora.json` lists them |
 | `fixtures/rasl/` | rasl's real config files, which each package's rasl test loads ([`fixtures/rasl/README.md`](fixtures/rasl/README.md)) |
 | `docs/` | The language ([`docs/language.md`](docs/language.md)), the low level ([`docs/low-level-api.md`](docs/low-level-api.md)) and the rendered tree ([`docs/rendered-tree.md`](docs/rendered-tree.md)) |
@@ -125,7 +134,8 @@ It needs `python3`, `bison` and `uv`.
 The generated parsers and API declarations are not committed (owner, 2026-10-23: "Don't commit the generated
 code, just the source"). `tools/gen.sh ts` and `tools/gen.sh py` write them to `ts/src/gen/` (with
 `ts/conformance/shapes.ts`) and `py/src/villanelle/_gen/` and `_api/` (with `py/conformance/shapes.py` and
-`py/tests/api_contract.py`), all ignored by git, and every build and test runs it first. The generated docs tables are the one committed output
+`py/tests/api_contract.py`), all ignored by git, and every build and test runs it first; `tools/gen.sh cpp` writes
+the C++ headers into `cpp/` (CMake runs it at configure time; Python and `uv` only, no Java). The generated docs tables are the one committed output
 (`python3 tools/gen-api.py docs`; [spec/codegen.md](spec/codegen.md) section 6). It needs
 Java 11+ and `curl`: it downloads the ANTLR 4.13.2 jar once, checks its sha256, and caches it in
 `$ANTLR_JAR_DIR` (default `~/.cache/antlr`).
@@ -140,11 +150,13 @@ corepack pnpm -C ts test                  # also: typecheck, lint, build
 
 cd py && uv run pytest                    # Python 3.11 or later, through uv
 uv run ruff check && uv run ruff format --check && uv run mypy
+
+cmake -S cpp -B build && cmake --build build && ctest --test-dir build   # C++: CMake 3.24+, a C++20 compiler
 ```
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs these on every push and pull
-request: the grammar check, the TypeScript checks on Node 24, and the Python checks on Python 3.11
-and 3.13.
+request: the grammar check, the TypeScript checks on Node 24, the Python checks on Python 3.11
+and 3.13, and the C++ tests (GCC, Clang, AppleClang, MSVC).
 
 ## Releases
 
@@ -167,6 +179,7 @@ gh variable set RELEASE_ENABLED --body true -R mcurcio/villanelle
 
 The TypeScript and Python packages are built from the grammar and pass the same conformance cases, run by one
 shared driver (`python3 conformance/driver/run.py -- <adapter>`, [`spec/conformance.md`](spec/conformance.md)). Both have the syntax tree, the low level (the files as written, editable and saved back) and the
-rendered tree; the high-level API, where a program declares its directives, is deferred (`vil-xlo`). No release has
+rendered tree; the high-level API, where a program declares its directives, is deferred (`vil-xlo`). The C++
+library has the syntax tree (level 0); its low level and rendered tree come in later milestones. No release has
 been made yet. The grammar design was done in [mcurcio/rasl#2](https://github.com/mcurcio/rasl/pull/2), where this
 language began as `@rasl/config`.

@@ -335,13 +335,24 @@ Work in this order. Each step ends with shared cases passing, so progress is mea
    4), and write it in your binding's README with the reason. Get the owner's approval on a short
    page that leads with the first-hour program (rule 2.7) written against the planned API, before
    building the layers.
-3. **Generate the parser.** Add your target to `tools/gen.sh` (ANTLR 4.13.2) and keep generated code
-   out of git. Wrap the generated parser in an adapter so its types never cross into your API, as
-   `ts/src/syntax/parse.ts` and `py/src/villanelle/syntax/_parse.py` do. ANTLR 4.13.2 has official targets for Go,
-   Java, C#, C++, Swift, PHP, Dart, JavaScript, TypeScript and Python, but not Rust (`antlr4rust` is a third-party
-   runtime and lags the official releases). How a binding without an official target gets its parser (a
-   third-party runtime, a parser written by hand and held to the syntax corpus, or another generator checked
-   against the grammar) is an open question for the owner; ask before choosing.
+3. **Generate the parser.** Add your target to `tools/gen.sh` and keep generated code out of git. There are two
+   routes, both from `grammar/Villanelle.g4`:
+   - **ANTLR 4.13.2** (TypeScript, Python): `tools/gen.sh` runs the pinned ANTLR jar; the binding links its
+     language's ANTLR runtime. Wrap the generated parser in an adapter so its types never cross into your API, as
+     `ts/src/syntax/parse.ts` and `py/src/villanelle/syntax/_parse.py` do, and bend ANTLR's error strategy into
+     spec 3.2's recovery. ANTLR has official targets for Go, Java, C#, C++, Swift, PHP, Dart, JavaScript,
+     TypeScript and Python, but not Rust (`antlr4rust` is a third-party runtime and lags the official releases).
+   - **villanelle's own parser generator** (`tools/parser/gen.py`, C++): Python standard library only, no runtime
+     library. It writes a longest-match lexer and an LL(*) recursive-descent parser whose tree hooks, error codes
+     (spec 2.4) and per-statement recovery (spec 3.2) the binding writes by hand
+     (`cpp/include/villanelle/detail/syntax/parse.hpp`). A new language needs a backend beside `tools/parser/cpp.py`.
+
+   Either way, a generated parser passes the same checks: the generator accepts the grammar (`tools/check.sh`:
+   ANTLR through the Bison and token checks, villanelle's generator through check 8, which also proves it refuses
+   every planted grammar in `tools/planted-parser/`), and the binding's adapter passes every syntax case (L0,
+   step 5). Which route a binding with no official ANTLR target takes (villanelle's generator with a new backend, a
+   third-party runtime, or a parser written by hand and held to the syntax corpus) is the owner's call; ask before
+   choosing.
 4. **Write your emitter** ([codegen.md](codegen.md) section 10): `tools/api/emit_<lang>.py`, rendering the
    loader's model in your language: the kind lists, codes, rules, error tree, one declaration per concept (each
    trait of codegen.md section 3 in your idiom, one module per layer), the test contract and the adapter's message

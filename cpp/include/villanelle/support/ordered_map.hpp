@@ -28,9 +28,9 @@ public:
     std::size_t size() const noexcept;
     bool empty() const noexcept;
     bool contains(const Key& key) const;
-    Value at(const Key& key) const;              // index_out_of_range when absent
+    Value at(const Key& key) const;                   // index_out_of_range when absent
     std::optional<Value> find(const Key& key) const;  // nullopt when absent
-    void insert_or_assign(Key key, Value value);  // copies first if shared; a changed key keeps its place
+    void insert_or_assign(Key key, Value value);      // copies first if shared; a changed key keeps its place
     bool erase(const Key& key);
 
 private:
