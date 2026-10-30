@@ -219,6 +219,40 @@ jobs:
       # exits 0 only on the expected output, and its symbols carry the stamped inline namespace.
       - run: bash cpp/tests/consumer/check.sh "$VERSION" "$WORK/assets" "$WORK"
 
+  # The release flow's own build (.github/release-build.sh, semantic-release's prepare step) end to end on every push
+  # and pull request, so a change that breaks it fails here instead of in the release job on main. The version is
+  # made up (any semver that is also a valid Python version) so the asset names prove it was stamped.
+  release-build:
+    name: Release build (.github/release-build.sh)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      VERSION: 1.2.3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: ${{ env.UV_VERSION }}
+      - run: corepack pnpm -C ts install --frozen-lockfile
+      - run: bash .github/release-build.sh "$VERSION"
+      # The five assets .releaserc.json attaches, and no stamped version left in the tree.
+      - run: |
+          for asset in "villanelle-$VERSION.tgz" "villanelle-$VERSION-py3-none-any.whl" "villanelle-$VERSION.tar.gz" \
+              "villanelle-cpp-$VERSION.tar.gz" villanelle.hpp; do
+            [ -s "dist/release/$asset" ] || { echo "::error::missing release asset dist/release/$asset"; exit 1; }
+          done
+          changed=$(git status --porcelain)
+          [ -z "$changed" ] || { echo "::error::release-build.sh left changes in the tree:"; echo "$changed"; exit 1; }
+
   # The user guide (docs/site/, MkDocs Material: .claude/design/cpp/frozen-docs.md). Built on every push and pull
   # request; a missing sample file or region fails the build (pymdownx.snippets check_paths, --strict). The samples
   # themselves run in the ts, py and cpp jobs (each binding's tests run examples/samples.json).
@@ -265,7 +299,7 @@ jobs:
 
   release:
     name: Release (semantic-release)
-    needs: [grammar, ts, py, cpp-format, cpp, cpp-package]
+    needs: [grammar, ts, py, cpp-format, cpp, cpp-package, release-build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     concurrency:
