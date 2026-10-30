@@ -156,6 +156,13 @@ knows its language's form. Milestone 5's 31 prose `spell` notes are gone.
 Python methods take their parameters positional-only (`/`): a hand-written class that also accepts them by keyword
 still satisfies the Protocol, so the generated signature never forbids what a binding allows.
 
+Layout is not idiom an emitter carries: each `Language` names its language's standard formatter (`formatter`, a
+`Formatter`: the suffix of the files it takes and the commands that run it), and the generated files go through it
+before they are written (section 4). An emitter writes each statement plainly and deterministically, and wraps only
+what no formatter splits: docstrings, doc comments and long string literals, to the line length. Owner, 2026-10-30, Q3
+of the C++ review page: "A", run each language's standard formatter on generated code, pinned to exact versions,
+instead of hand layout in emitters.
+
 ### Docs and rationale
 
 Each concept, member, parameter, kind list, error group and free function, and each protocol shape and request
@@ -226,8 +233,9 @@ typechecked and linted with the adapter):
 | `ts/test/api-contract.ts` (git-ignored, typechecked by `tsc -p test`) | `PUBLIC_NAMES` (every public name per import path, values and types apart), outside `src/`, so the published package never ships it |
 
 **Python** (`py/src/villanelle/_api/`, git-ignored, checked by ruff and `mypy --strict`; `py/conformance/shapes.py`
-and `py/tests/api_contract.py`, git-ignored, checked the same). The emitter writes what `ruff format` writes, and `ruff format --check` gates it, so
-ruff is pinned exactly in `py/pyproject.toml`: a ruff upgrade is a generator change.
+and `py/tests/api_contract.py`, git-ignored, checked the same). The generated files go through ruff before they are
+written, as ruff's docs order it: its import sorting (`ruff check --select I --fix`), then `ruff format`, both with
+`py/pyproject.toml`'s settings, so `ruff check` and `ruff format --check` pass on them as on hand code.
 
 | Module | Holds |
 |---|---|
@@ -276,6 +284,28 @@ Prior art for the Python choice: typeshed's and `lsprotocol`'s practice of annot
 classes a package exports, with `TYPE_CHECKING` imports for cycles (PEP 484, "Runtime or type checking?"). The
 alternative, making the Protocols the public names, was rejected: `match` and `isinstance` need the binding's
 classes, and two public types per concept is the confusion this removes.
+
+### Formatting the generated code
+
+After an emitter renders a binding, `tools/gen-api.py` hands every file to the binding's formatter
+(`tools/api/formatter.py`): it writes them into a fresh temporary folder, runs each command of the `Language`'s
+`Formatter` once over all of them from the repository root, and reads them back, so each finished file still moves
+into place in one step. Each formatter is pinned to an exact version where its binding pins its tools, so the output
+is byte-identical between runs, and a formatter upgrade is a generator change:
+
+| Binding | Formatter | Pinned in | Run as |
+|---|---|---|---|
+| TypeScript | Prettier, its defaults with a print width of 120 (`--no-config`: the options are the emitter's, and the hand-written code's editors pick up none) | `ts/package.json` and `ts/pnpm-lock.yaml`, exact | `ts/node_modules/.bin/prettier`, installed by `pnpm install` |
+| Python | ruff (import sorting, then `ruff format`) | `py/pyproject.toml` and `py/uv.lock`, exact | `uv run --project py --locked ruff`, with `--config py/pyproject.toml` |
+| C++ (planned) | clang-format | the C++ emitter's `Language`, as a PyPI wheel version (the `clang-format` package ships the binary, so no system install) | `uv tool run --from clang-format==<version> clang-format -i --style=file:<the binding's .clang-format>` |
+
+A new binding adds its formatter the same way: one `Formatter` in its `Language` and nothing in `tools/gen-api.py`.
+`tools/gen-api.py --check` renders without formatting, since it checks the schema and the emitters, not the layout;
+the bindings' builds format, and their linters check the result.
+
+**The one exception to `tools/`' standard-library rule:** `tools/` is Python 3.9 standard library only, and its one
+exception is invoking these pinned formatter executables (as subprocesses, through `uv` and the binding's
+`node_modules`): building a binding needs its own toolchain anyway, Node for TypeScript and uv for Python.
 
 ## 5. The adapter protocol
 
@@ -348,8 +378,9 @@ Why not one of those tools as is:
 | TypeSpec | Its core is protocol-neutral, but a custom emitter is written in TypeScript against its compiler, a Node toolchain for the Python-only `tools/`, and the per-language idiom would still be written by hand in each emitter |
 | LSP metaModel generators | Written for LSP's own model (requests and notifications), not reusable outside it. Its model shape is used |
 
-So the bespoke part is small: about 1,300 lines of loader and 630 to 980 lines per emitter, in Python's standard
-library (the same toolchain as the driver and the grammar checks), for a schema of 78 concepts, 10 kind lists, 34
+So the bespoke part is small: about 1,400 lines of loader and 640 to 1,000 lines per emitter, in Python's standard
+library (the same toolchain as the driver and the grammar checks; the pinned formatters it runs are section 4's one
+exception), for a schema of 78 concepts, 10 kind lists, 34
 codes and 13 protocol requests.
 
 ## 10. A new binding
@@ -379,6 +410,7 @@ A new binding is **one emitter, one adapter and one name test** (binding guide s
 - Its regex dialect, in the emitter: a schema pattern is an I-Regexp (section 2); the emitter renders it (the
   loader's `pattern_body` does RFC 9485's mapping given the engine's escape for one character) and refuses a
   construct its engine lacks.
+  - `formatter`: the language's standard formatter, pinned (section 4, "Formatting the generated code").
 - `tools/gen-api.py` (`EMITTERS`, `OUT`: the code folder, the adapter's shapes folder, the test contract's folder)
   and `tools/gen.sh` (the output directory).
 - The binding's name test, hand-written once against its generated contract (as `py/tests/test_api_names.py` and
@@ -435,7 +467,11 @@ language either.
   constructor's doc, hovering the alias shows none. Likewise, hovering a public function's bare name or its import
   (`import { parse }`, `const f = parse`) shows no doc: the constant has none of its own, and its doc is on its
   generated call signature, shown on a call and in signature help.
-- Python's generated code is laid out by hand to match `ruff format`, and TypeScript's is not formatted at all; a
-  formatter run after generation would be simpler but add a formatter to every generation (section 4).
+- Every generation runs a formatter (section 4): building TypeScript needs `pnpm install` first (Prettier), and
+  building Python runs ruff through `uv`. That is the one exception to `tools/`' standard-library rule. Each run
+  starts the formatter once per command (under a second for each binding), and the layout is the formatter's, so a
+  formatter upgrade changes generated code. Docstrings, doc comments and long strings are still wrapped by the
+  emitter, since no formatter splits them. `--check` does not format, so a layout a formatter would refuse shows up
+  in the binding's build, not in `tools/check.sh`.
 - The driver checks dumps only as far as it reads them; the generated shapes move the rest of that check to each
   adapter's compiler, not to the driver (spec/conformance.md 7).

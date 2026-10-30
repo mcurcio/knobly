@@ -13,7 +13,7 @@ Each closed list (traits, natures, found-by, code layers, factory and root forms
 spec/schema/api.schema.json: the loader reads it from there (``closed``). What differs by target language is not here,
 nor in the schema: each emitter hands the loader a ``Language`` (its key, its casing, each root error group's class,
 its adapter modules, its factory forms, its native types, the argument type sentence, what it leaves out, what its
-public names are, how the docs tables spell it), so a new binding is one emitter and the loader and the schema are
+public names are, how the docs tables spell it, its formatter), so a new binding is one emitter and the loader and the schema are
 unchanged (spec/codegen.md section 10). A schema pattern is an I-Regexp (RFC 9485), the interoperable regex subset,
 between ``^`` and ``$``; each emitter renders it in its engine's dialect.
 
@@ -21,7 +21,8 @@ The loader also keeps the schema's emitted docs clean: a ``doc`` (and every othe
 comment) may not carry a bead id, an owner quote, history or one language's name; that goes in ``rationale``, which no
 emitter reads.
 
-Python 3.9 standard library only (macOS ships 3.9), like the rest of tools/.
+Python 3.9 standard library only (macOS ships 3.9), like the rest of tools/ (whose one exception, running each
+binding's pinned formatter, is tools/api/formatter.py: spec/codegen.md section 4).
 """
 
 from __future__ import annotations
@@ -460,6 +461,17 @@ HISTORY = re.compile(r"\bmilestone [0-9]|\bowner, [0-9]{4}-")
 
 
 @dataclass(frozen=True)
+class Formatter:
+    """A language's standard formatter, pinned to an exact version where the binding pins its tools, run on every
+    generated file whose name ends in ``suffix`` (spec/codegen.md section 4): the emitters write plain, deterministic
+    code and leave its layout to the formatter. Each command runs from the repository root with the files' paths
+    appended, in order (tools/api/formatter.py)."""
+
+    suffix: str
+    commands: Tuple[Tuple[str, ...], ...]
+
+
+@dataclass(frozen=True)
 class Language:
     """Everything one target language adds to the shared model. The schema names no language: each emitter states its
     own facts here, and the loader checks them against the schema (a third binding is an emitter, never a schema edit).
@@ -508,6 +520,9 @@ class Language:
     # The platform's own type for each native named type the binding has (``is: native``): every one it keeps must be
     # given; a binding with none leaves out the module that holds them.
     native: Dict[str, str] = field(default_factory=dict)
+    # The language's standard formatter, run on the generated code after rendering (None: the output is written as
+    # rendered, as the third-binding stub's is).
+    formatter: Optional[Formatter] = None
 
 
 @dataclass

@@ -668,3 +668,8 @@
 - **Error groups' `raised when` texts and the schema's other user docs cited spec sections** ("(spec 2.8)"), which a
   binding's user cannot follow from a doc comment; the docs drop the citations, so the generated tables in spec/spec.md
   (2.5 reserved names, 2.8 error groups) lose them too.
+- **spec/conformance.md 6 calls the driver "standard library only (as `tools/gen-api.py`)"** (vil-umh.20): the
+  driver still is, and so is `tools/gen-api.py`'s own Python, but generating a binding now also runs its pinned
+  formatter (Prettier from `ts/node_modules`, ruff through `uv`), the one exception spec/codegen.md sections 4 and 11
+  record. The comparison in spec/conformance.md is left as written (not an owned path); it reads true of imports
+  only.

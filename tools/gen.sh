@@ -6,7 +6,8 @@
 # py/src/villanelle/_api/ and py/conformance/shapes.py (spec/codegen.md section 4).
 # Generated code is never committed (owner, 2026-10-23: "Don't commit the generated code, just the source"):
 # build and test run this first, and every run regenerates.
-# Needs: Java 11+, curl, python3 (3.9+). The ANTLR jar is cached in $ANTLR_JAR_DIR (default ${XDG_CACHE_HOME:-$HOME/.cache}/antlr)
+# Needs: Java 11+, curl, python3 (3.9+), and the binding's pinned formatter (spec/codegen.md section 4): for ts,
+# Prettier from ts/node_modules (pnpm install); for py, ruff through uv. The ANTLR jar is cached in $ANTLR_JAR_DIR (default ${XDG_CACHE_HOME:-$HOME/.cache}/antlr)
 # and verified against the pinned sha256 on every run.
 set -euo pipefail
 cd "$(dirname "$0")/.."

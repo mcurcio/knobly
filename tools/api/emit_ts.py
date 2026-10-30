@@ -27,6 +27,7 @@ from .loader import (
     HEADER,
     PLACEHOLDER,
     Concept,
+    Formatter,
     Language,
     Member,
     Model,
@@ -71,6 +72,10 @@ LANGUAGE = Language(
     modules={"files": "node", "fetch": "browser", "include": "include"},
     factory_forms={"processor": "package function"},  # villanelle({ source }); every other factory is a class
     native={"platform fetch": "typeof globalThis.fetch"},  # a native type is the platform's, never declared here
+    # Prettier, pinned exactly in ts/package.json and installed by pnpm install; its options are here (no config file,
+    # so the hand-written code's editors do not pick them up) and otherwise its defaults.
+    formatter=Formatter(".ts", (("ts/node_modules/.bin/prettier", "--write", "--no-config", "--no-editorconfig",
+                                 "--print-width", "120", "--log-level", "warn"),)),
 )
 
 

@@ -23,7 +23,9 @@ every generated record, callback and Protocol, and nothing outside the package i
 
 Idiom lives here and only here: properties, tuples for results, Sequence and Mapping for parameters, positional-only
 parameters, keyword-only options, __str__ / __iter__ / __len__ / __getitem__ / a generator walk / a context manager for
-the traits. The output is what ruff format writes, so py's ruff and mypy --strict check it as they check hand code.
+the traits. Layout is not: the output goes through py's pinned ruff (its import sorting, then ruff format) before it is
+written (tools/api/formatter.py), so this module writes each statement plainly and wraps only what no formatter splits
+(docstrings and long strings, to the line length), and py's ruff and mypy --strict check it as they check hand code.
 """
 
 from __future__ import annotations
@@ -36,6 +38,7 @@ from .loader import (
     HEADER,
     PLACEHOLDER,
     Concept,
+    Formatter,
     Function,
     Language,
     Member,
@@ -50,7 +53,10 @@ from .loader import (
     upper_snake,
 )
 
-WIDTH = 120
+WIDTH = 120  # py/pyproject.toml's line-length: docstrings and long strings are wrapped to it (no formatter splits them)
+CHUNK = 96  # the longest part of a long string: it fits the line at any indentation the generated code reaches
+RUFF = ("uv", "run", "--quiet", "--project", "py", "--locked", "ruff")  # the ruff py/pyproject.toml pins exactly
+RUFF_CONFIG = ("--config", "py/pyproject.toml", "--no-cache", "--quiet")
 
 
 def _public_kind(model: Model, c: Optional[Concept]) -> str:
@@ -102,15 +108,14 @@ LANGUAGE = Language(
     omit=_omit,
     omitted_as=_omitted_as,
     trait_names=_trait_names,
+    # ruff's documented order: sort the imports (a lint fix), then format.
+    formatter=Formatter(".py", ((*RUFF, "check", "--select", "I", "--fix", *RUFF_CONFIG), (*RUFF, "format", *RUFF_CONFIG))),
 )
 
 
 def s(text: str) -> str:
-    """A string literal as ruff format writes it: double quotes unless that would need more escapes."""
-    body = json.dumps(text, ensure_ascii=False)[1:-1]
-    if '"' in text and "'" not in text:
-        return "'" + body.replace('\\"', '"') + "'"
-    return '"' + body + '"'
+    """A string literal (ruff format picks its quotes)."""
+    return json.dumps(text, ensure_ascii=False)
 
 
 def _escape(text: str) -> str:
@@ -120,27 +125,18 @@ def _escape(text: str) -> str:
 def docstring(text: str, indent: str, sections: Optional[List[Tuple[str, List[Tuple[str, str]]]]] = None) -> List[str]:
     """A docstring: the text as a sentence, wrapped, then each Google-style section (``Args:``, ``Raises:``) with one
     entry a name."""
-    text = _escape(sentence(text))
-    sections = [(title, [(n, _escape(d)) for n, d in entries]) for title, entries in (sections or []) if entries]
-    if not text and not sections:
-        return []
-    if sections:
-        lines = textwrap.wrap(text, WIDTH - len(indent) - 3) if text else []
-        for title, entries in sections:
-            lines += ([""] if lines else []) + [f"{title}:"]
+    width = WIDTH - len(indent) - 6  # room for both quotes
+    lines = textwrap.wrap(_escape(sentence(text)), width)
+    for title, entries in sections or []:
+        if entries:  # the loader gives every member a doc, so a section never opens the docstring
+            lines += ["", f"{title}:"]
             for name, d in entries:
-                lines += textwrap.wrap(f"{name}: {d}", WIDTH - len(indent) - 4, initial_indent="    ", subsequent_indent="        ")
-        if not text:  # sections only: they start on the line after the quotes, so ruff keeps their indentation
-            return [f'{indent}"""', *(f"{indent}{line}" if line else "" for line in lines), f'{indent}"""']
-        return [f'{indent}"""{lines[0]}', *(f"{indent}{line}" if line else "" for line in lines[1:]), f'{indent}"""']
-    if text.endswith('"'):
-        text += " "
-    lines = textwrap.wrap(text, WIDTH - len(indent) - 3)
-    if len(lines) == 1 and len(indent) + len(lines[0]) + 6 > WIDTH:
-        lines = textwrap.wrap(text, WIDTH - len(indent) - 6)  # one line would not fit its quotes: ruff joins a lone line
+                lines += textwrap.wrap(f"{name}: {_escape(d)}", width, initial_indent="    ", subsequent_indent="        ")
+    if not lines:
+        return []
     if len(lines) == 1:
-        return [f'{indent}"""{lines[0]}"""']
-    return [f'{indent}"""{lines[0]}', *(f"{indent}{line}" for line in lines[1:]), f'{indent}"""']
+        return [f'{indent}"""{lines[0]}{" " if lines[0].endswith(chr(34)) else ""}"""']
+    return [f'{indent}"""{lines[0]}', *(f"{indent}{line}" if line else "" for line in lines[1:]), f'{indent}"""']
 
 
 def error_class(model: Model, group: str) -> str:
@@ -163,23 +159,25 @@ WALK_DESCEND = ("asked of each item after it is given and before its block; fals
 
 
 def tuple_literal(items: List[str]) -> str:
-    """A tuple literal ruff format leaves on one line: a trailing comma only for one item (no magic comma)."""
+    """A tuple literal: one item takes the comma that makes it a tuple."""
     return f"({items[0]},)" if len(items) == 1 else f"({', '.join(items)})"
 
 
-def wrap_string(text: str, indent: str) -> List[str]:
-    """A long (f-)string as implicitly joined parts that each fit, split at spaces outside {placeholders}."""
-    room = WIDTH - len(indent) - 4
+def long_string(text: str, f: bool = False) -> str:
+    """A string (an f-string when ``f``) as implicitly joined parts of at most CHUNK characters, split at spaces
+    outside {placeholders}, in parentheses: ruff format joins the parts that fit a line and lays out the rest."""
     parts, cur, depth = [], "", 0
     for ch in text:
         cur += ch
-        depth += {"{": 1, "}": -1}.get(ch, 0)
-        if ch == " " and depth == 0 and len(cur) >= room - 12:
+        depth += {"{": 1, "}": -1}.get(ch, 0) if f else 0
+        if ch == " " and depth == 0 and len(cur) >= CHUNK - 12:
             parts.append(cur)
             cur = ""
     if cur:
         parts.append(cur)
-    return [f"{indent}{'f' if '{' in p else ''}{s(p)}" for p in parts]
+    if len(parts) == 1:
+        return f"{'f' if f else ''}{s(text)}"
+    return "(" + " ".join(f"{'f' if f and '{' in p else ''}{s(p)}" for p in parts) + ")"
 
 
 def kind_member(model: Model, list_name: str, value: str) -> str:
@@ -187,7 +185,7 @@ def kind_member(model: Model, list_name: str, value: str) -> str:
 
 
 class Imports:
-    """What one module imports, sorted as ruff's isort writes it (order-by-type: CONSTANTS, Classes, functions)."""
+    """What one module imports (ruff's import sorting orders and groups them)."""
 
     def __init__(self) -> None:
         self.runtime: Dict[str, Set[str]] = {}
@@ -203,30 +201,9 @@ class Imports:
         return name
 
     @staticmethod
-    def _key(name: str) -> Tuple[int, str]:
-        if name.isupper() and len(name) > 1:
-            return (0, name)
-        if name[0].isupper():
-            return (1, name)
-        return (2, name)
-
-    def _lines(self, mods: Dict[str, Set[str]], indent: str, plain: Set[str] = frozenset()) -> List[str]:  # type: ignore[assignment]
-        out = []
-        std = sorted(m for m in mods if not m.startswith("villanelle"))
-        first = sorted(m for m in mods if m.startswith("villanelle"))
-        for group in (std, first):
-            if group is first:
-                out += [f"{indent}import {m}" for m in sorted(plain)]  # isort: plain imports before from-imports
-            for m in group:
-                names = sorted(mods[m], key=self._key)
-                line = f"{indent}from {m} import {', '.join(names)}"
-                if len(line) <= WIDTH:
-                    out.append(line)
-                else:
-                    out += [f"{indent}from {m} import (", *(f"{indent}    {n}," for n in names), f"{indent})"]
-            if group and group is std and (first or plain):
-                out.append("")
-        return out
+    def _lines(mods: Dict[str, Set[str]], indent: str, plain: Set[str] = frozenset()) -> List[str]:  # type: ignore[assignment]
+        return [*(f"{indent}import {m}" for m in sorted(plain)),
+                *(f"{indent}from {m} import {', '.join(sorted(mods[m]))}" for m in sorted(mods))]
 
     def render(self) -> List[str]:
         typing_only = {m: n - self.runtime.get(m, set()) for m, n in self.typing_only.items()}
@@ -322,23 +299,11 @@ def type_vars(params: List[str], covariant: bool) -> Dict[str, str]:
     return {p: pascal(p) + ("T_co" if covariant else "T") for p in params}
 
 
-# --- signatures, written as ruff format writes them ------------------------------------------------------------------
+# --- signatures -------------------------------------------------------------------------------------------------------
 
 
 def signature(indent: str, name: str, params: List[str], result: str, body: str = " ...") -> List[str]:
-    one = f"{indent}def {name}({', '.join(params)}) -> {result}:{body}"
-    if len(one) <= WIDTH:
-        return [one]
-    hug = f"{indent}    {', '.join(params)}"
-    tail = f"{indent}) -> {result}:{body}"
-    if len(hug) <= WIDTH and not params[-1].endswith(",") and len(tail) <= WIDTH:
-        # ruff format, as black, adds a trailing comma to a split signature that holds no comma (one parameter)
-        return [f"{indent}def {name}(", hug + ("," if len(params) == 1 else ""), tail]
-    exploded = [f"{indent}def {name}(", *(f"{indent}    {p}," for p in params)]
-    if len(tail) <= WIDTH:
-        return exploded + [tail]
-    # A return annotation too long for its line: ruff format puts it in parentheses on a line of its own.
-    return exploded + [f"{indent}) -> (", f"{indent}    {result}", f"{indent}):{body}"]
+    return [f"{indent}def {name}({', '.join(params)}) -> {result}:{body}"]
 
 
 def param_list(m_params: List[Param], ctx: Ctx, self_: bool = True) -> List[str]:
@@ -472,19 +437,7 @@ def slots_lines(fields: List[Member]) -> List[str]:
     if not fields:
         return ["    __slots__ = ()"]
     entries = sorted((snake(m.name), sentence(m.doc)) for m in fields)
-    one = "    __slots__ = {" + ", ".join(f"{s(n)}: {s(d)}" for n, d in entries) + "}"
-    if len(one) <= WIDTH:
-        return [one]
-    out = ["    __slots__ = {"]
-    for n, d in entries:
-        line = f"        {s(n)}: {s(d)},"
-        if len(line) <= WIDTH:
-            out.append(line)
-        else:
-            inner = "            "  # inside parentheses: ruff joins the parts when the whole string fits there
-            parts = [inner + s(d)] if len(inner + s(d)) <= WIDTH else wrap_string(d, inner)
-            out += [f"        {s(n)}: (", *parts, "        ),"]
-    return out + ["    }"]
+    return ["    __slots__ = {" + ", ".join(f"{s(n)}: {long_string(d)}" for n, d in entries) + "}"]
 
 
 def match_args_line(c: Concept, ctx: Ctx) -> str:
@@ -493,12 +446,7 @@ def match_args_line(c: Concept, ctx: Ctx) -> str:
     names = [s(snake(a)) for a in c.match_args]
     lit = ctx.imports.add("typing", "Literal", False)
     cv = ctx.imports.add("typing", "ClassVar")  # at run time: dataclasses read the annotation to skip the field
-    head = f"    __match_args__: {cv}[tuple[{', '.join(f'{lit}[{n}]' for n in names)}]] = "
-    if len(head) + len(tuple_literal(names)) <= WIDTH:
-        return head + tuple_literal(names)
-    if len(head) + 1 > WIDTH:
-        raise SchemaError(f"concept {c.name!r}: its match args annotation is longer than {WIDTH} (teach emit_py to wrap it)")
-    return head + "(\n" + "".join(f"        {n},\n" for n in names) + "    )"  # ruff explodes a tuple one item a line
+    return f"    __match_args__: {cv}[tuple[{', '.join(f'{lit}[{n}]' for n in names)}]] = {tuple_literal(names)}"
 
 
 def concept_lines(model: Model, c: Concept, ctx: Ctx) -> Tuple[List[str], List[str]]:
@@ -522,10 +470,7 @@ def concept_lines(model: Model, c: Concept, ctx: Ctx) -> Tuple[List[str], List[s
         if not generated_public(model, c):
             return [], []  # a union over the binding's own classes is the binding's (api_contract.UNIONS checks it)
         ctx.imports.add("typing", "TypeAlias")
-        line = f"{name}: TypeAlias = {' | '.join(pascal(v) for v in c.variants)}"
-        if len(line) > WIDTH:
-            line = f"{name}: TypeAlias = (\n    " + "\n    | ".join(pascal(v) for v in c.variants) + "\n)"
-        return [], [line, *docstring(c.doc, "")]
+        return [], [f"{name}: TypeAlias = {' | '.join(pascal(v) for v in c.variants)}", *docstring(c.doc, "")]
     covariant = c.nature == "shape"
     tvs = type_vars(c.type_parameters, covariant and True)
     cctx = Ctx(model, ctx.here, ctx.imports, tvs)
@@ -582,13 +527,10 @@ def docs_module(model: Model) -> str:
         layer = f"{model.package}._api.{f.layer}"
         if (f.factory or {}).get("py") == "constructor":
             of = pascal(f.factory["of"])  # type: ignore[index]
-            constructors.append(f"        {s(mod + '.' + of)}: {s(f'{layer}.{of}Constructor')},")
+            constructors.append(f"{s(mod + '.' + of)}: {s(f'{layer}.{of}Constructor')}")
         else:
             functions.setdefault(mod, set()).add(s(f"{layer}.{functions_protocol(model, f)}"))
-    entries = []
-    for mod, protos in sorted(functions.items()):
-        line = f"        {s(mod)}: {tuple_literal(sorted(protos))},"
-        entries += [line] if len(line) <= WIDTH else [f"        {s(mod)}: (", *(f"            {p}," for p in sorted(protos)), "        ),"]
+    entries = [f"{s(mod)}: {tuple_literal(sorted(protos))}" for mod, protos in sorted(functions.items())]
     body = ["", *frozen_map("FUNCTIONS", "str, tuple[str, ...]", entries,
                             "Each public module's <Module>Functions Protocols: each of its functions takes its doc from one."),
             "", *frozen_map("CONSTRUCTORS", "str, str", sorted(constructors),
@@ -659,7 +601,7 @@ def layer_module(model: Model, layer: str) -> str:
     for block in classes:
         body += ["", "", *block]
     for block in aliases:
-        body += ["", *block] if body and body[-1].startswith(tuple(pascal(c.name) for c in model.concepts)) else ["", "", *block]
+        body += ["", "", *block]
     body += functions_lines(model, layer, ctx)
     head = [f'"""{HEADER}', "", f'Source: spec/schema/api.json, the {layer} layer."""', ""]
     out = head + imports.render() + body
@@ -717,11 +659,7 @@ def codes_module(model: Model) -> str:
         messages.append(f"        DiagnosticCode.{upper_snake(c.name)}: {message_expr(model, c.message, imports)},")
         reason = "None" if c.reason is None else f"UnreadableReason.{upper_snake(c.reason)}"
         found = tuple_literal([s(f) for f in c.found_by])
-        fact = f"        DiagnosticCode.{upper_snake(c.name)}: CodeFacts({s(c.name)}, {s(c.layer)}, {found}, {reason}),"
-        if len(fact) > WIDTH:
-            fact = (f"        DiagnosticCode.{upper_snake(c.name)}: CodeFacts(\n            {s(c.name)}, {s(c.layer)}, {found}, {reason}\n"
-                    "        ),")
-        facts.append(fact)
+        facts.append(f"        DiagnosticCode.{upper_snake(c.name)}: CodeFacts({s(c.name)}, {s(c.layer)}, {found}, {reason}),")
     head = [f'"""{HEADER}', "", 'Source: spec/schema/diagnostics.json."""', "", "from collections.abc import Mapping",
             "from dataclasses import dataclass", "from enum import StrEnum", "from types import MappingProxyType",
             "from typing import Final", "", "from villanelle._api.kinds import UnreadableReason"]
@@ -768,18 +706,14 @@ def limits_module(model: Model) -> str:
                 raise SchemaError(f"pattern {c.about!r}: Python's re has no \\p{{..}}: write the class out")
             # Python's $ also matches before a final newline; \Z is the text's end. In a raw string \" is a quote.
             regex = "^" + body.replace('"', '\\"') + "\\Z"
-            line = f'{name}: Final = re.compile(r"{regex}")'
-            if len(line) <= WIDTH:
-                out += [line]
-            else:  # implicitly joined raw strings, each line in the width (no part may end on a backslash)
-                parts, room = [], WIDTH - 8
-                while regex:
-                    cut = min(room, len(regex))
-                    while regex[:cut].endswith("\\") and cut > 1:
-                        cut -= 1
-                    parts.append(regex[:cut])
-                    regex = regex[cut:]
-                out += [f"{name}: Final = re.compile(", *(f'    r"{part}"' for part in parts), ")"]
+            parts = []  # implicitly joined raw strings of at most CHUNK characters, none ending on a backslash
+            while regex:
+                cut = min(CHUNK, len(regex))
+                while regex[:cut].endswith("\\") and cut > 1:
+                    cut -= 1
+                parts.append(regex[:cut])
+                regex = regex[cut:]
+            out += [f"{name}: Final = re.compile({' '.join(f'r{chr(34)}{part}{chr(34)}' for part in parts)})"]
         out += docstring(f"{c.about}: {c.means}.", "") + [""]
     while out[-1] == "":
         out.pop()
@@ -834,7 +768,7 @@ def errors_module(model: Model) -> str:
     parts.append(tmpl[pos:])
     body += ["", "", "def argument_type_message(member: str, parameter: str, got: str, /) -> str:",
              *docstring("The argument type error's message: the one helper every member that takes text calls.", "    "),
-             "    return (", *wrap_string("".join(parts), "        "), "    )"]
+             f"    return {long_string(''.join(parts), f=True)}"]
     head = [f'"""{HEADER}', "", 'Source: spec/schema/api.json "error groups"."""', ""]
     return "\n".join(head + imports.render() + body) + "\n"
 
@@ -858,8 +792,9 @@ def template(message: Dict[str, object], fields: List[Tuple[str, Type]]) -> str:
 
 
 def frozen_map(name: str, kind: str, entries: List[str], what: str) -> List[str]:
-    """A read-only module constant, one entry a line, as ruff format writes it."""
-    return [f"{name}: Final[Mapping[{kind}]] = MappingProxyType(", "    {", *entries, "    }", ")", f'"""{what}"""']
+    """A read-only module constant; each entry ends in a comma, so ruff format keeps one entry a line."""
+    return [f"{name}: Final[Mapping[{kind}]] = MappingProxyType({{{''.join(e + ', ' for e in entries).rstrip()}}})",
+            f'"""{what}"""']
 
 
 def contract_module(model: Model) -> str:
@@ -872,23 +807,11 @@ def contract_module(model: Model) -> str:
     by_mod: Dict[str, List[str]] = {}
     for mod, name, _ in model.public("py"):
         by_mod.setdefault(mod, []).append(name)
-    names = []
-    for mod in sorted(by_mod):
-        line = f"        {s(mod)}: frozenset({{{', '.join(s(n) for n in sorted(by_mod[mod]))}}}),"
-        if len(line) <= WIDTH:
-            names.append(line)
-        else:
-            names += [f"        {s(mod)}: frozenset(", "            {", *(f"                {s(n)}," for n in sorted(by_mod[mod])),
-                      "            }", "        ),"]
-    matches = [f"        {s(pascal(c.name))}: {tuple_literal([s(snake(a)) for a in c.match_args])},"
+    names = [f"{s(mod)}: frozenset({{{', '.join(s(n) for n in sorted(by_mod[mod]))}}})" for mod in sorted(by_mod)]
+    matches = [f"{s(pascal(c.name))}: {tuple_literal([s(snake(a)) for a in c.match_args])}"
                for c in model.concepts if c.match_args and "py" in c.languages]
-    unions = []
-    for c in model.concepts:
-        if c.is_union and "py" in c.languages:
-            line = f"        {s(pascal(c.name))}: {tuple_literal([s(pascal(v)) for v in c.variants])},"
-            if len(line) > WIDTH:
-                line = f"        {s(pascal(c.name))}: (\n" + "".join(f"            {s(pascal(v))},\n" for v in c.variants) + "        ),"
-            unions.append(line)
+    unions = [f"{s(pascal(c.name))}: {tuple_literal([s(pascal(v)) for v in c.variants])}"
+              for c in model.concepts if c.is_union and "py" in c.languages]
     body = ["", *frozen_map("PUBLIC_NAMES", "str, frozenset[str]", names,
                             "Every public name by module: each module's __all__ must equal its set (the name test)."),
             "", "", *frozen_map("MATCH_ARGS", "str, tuple[str, ...]", matches,
@@ -920,8 +843,7 @@ def contract_checks(model: Model, ctx: Ctx) -> List[str]:
     lines: List[str] = []
 
     def assign(var: str, annotation: str, value: str) -> None:
-        line = f"    {var}: {annotation} = {value}"
-        lines.extend([line] if len(line) <= WIDTH else [f"    {var}: {annotation} = (", f"        {value}", "    )"])
+        lines.append(f"    {var}: {annotation} = {value}")
 
     seen: Set[str] = set()
     for f in model.functions:
