@@ -609,3 +609,21 @@
   its one use (`ts/src/rendered/report.test.ts`).
 - **The generated files' header quoted the owner** ("Never committed (owner, 2026-10-23)"), in every generated module
   docstring. It now reads "do not edit, and never commit"; the quote stays in `tools/gen-api.py` and spec/codegen.md.
+
+## 2026-10-29, milestone 7 (Python lane)
+
+- **frozen-m7.md section A's list misses `py/tests/test_layers.py`.** With item A, the generated
+  `villanelle._api.rendered` imports `villanelle.rendered` under `TYPE_CHECKING` (its annotations name
+  `villanelle.rendered.Directive`, `Rendered`, ...), and the layer check (spec 5, "Layer direction") governed every
+  module outside `villanelle.rendered`, `_api/` included, so it failed for that one module. The rendered layer's
+  generated declarations are the rendered layer's own: the check now treats `villanelle.rendered` and
+  `villanelle._api.rendered` as the layer, so a lower module importing either still fails (none does). The page's
+  list came from `mypy`; `pytest` could not run at the spec lane's commit (the package failed to import).
+- **"The shared driver must pass every case before" could not hold for Python**: at 0477392 the package fails to
+  import (milestone 7 spec lane erratum above), so the driver ran only after this lane. After: 380 of 380, L3 holds.
+- **`grep -rn "villanelle._api" py/tests` is not empty, by design:** `tests/test_layers.py` names the modules
+  `villanelle._api.kinds` and `villanelle._api.rendered` as strings (the layer check's coverage and the layer's
+  extent), not imports. No test, adapter or doc imports `villanelle._api`.
+- **Milestone 6's `own()` helper (`written/_model.py`) went with the workarounds:** it narrowed a generated record's
+  `Copy.statement` (typed with the `_api` Protocol union) to the binding's classes; the field is now typed
+  `villanelle.written.Statement`, so its three call sites read the field directly.
