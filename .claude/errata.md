@@ -779,3 +779,11 @@
 - **M2-4. design.md 2.4's `file_source` join (`lexically_normal()`) and spec 4.3's memory source join (POSIX rules) were
   two rules**; milestone 2 resolves both through `detail::io::join` (frozen-m2.md choice 7). A trailing `/` and
   Windows paths are where they would differ.
+
+## 2026-10-30, C++ binding milestone 2, slice F
+
+- **F1. spec/conformance.md section 3 (transport) does not say a stalled adapter is a fault.** The driver now waits at
+  most 60 s per request (`VILLANELLE_DRIVER_TIMEOUT` overrides it, bead vil-p5x, frozen-m2.md 5 and choice 9), then
+  kills the adapter, fails the case with "timed out after N s waiting for <op>" and restarts it for the next case, as
+  for any fault. Section 3's fault list ("If it exits early, or writes a line that is not a response") should name the
+  timeout too; spec/ is not slice F's to change, so this is a follow-up.
