@@ -1,7 +1,8 @@
-// A program as a consumer writes it, built two ways by CI's C++ package job: against an installed villanelle found
-// with find_package (CMakeLists.txt here), and against the single header alone (-DVILLANELLE_SINGLE_HEADER, the
-// release asset villanelle.hpp on the include path and nothing else). It loads two texts from memory with an include
-// and a variable, renders them and prints one line per sink; it exits 0 only when the output is the expected one.
+// A program as a consumer writes it, built three ways by cpp/tests/consumer/check.sh (CI's C++ package job): with
+// FetchContent of the release source archive (CMakeLists.txt here), with add_subdirectory of the extracted archive
+// (../consumer-subdirectory/), and against the single header alone (-DVILLANELLE_SINGLE_HEADER, the release asset
+// villanelle.hpp on the include path and nothing else). It loads two texts from memory with an include and a
+// variable, renders them and prints one line per sink; it exits 0 only when the output is the expected one.
 #ifdef VILLANELLE_SINGLE_HEADER
 #include <villanelle.hpp>
 #else

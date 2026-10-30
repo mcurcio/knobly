@@ -1,18 +1,22 @@
-# A consumer of an installed villanelle (CI's C++ package job): configure with -DCMAKE_PREFIX_PATH=<install prefix>,
-# build, and run the program (consumer.cpp; it exits 0 only on the expected output). VILLANELLE_WANTED is the version
-# asked of find_package (the package's version file accepts the same major version); VILLANELLE_COMPILED builds the
-# program in compiled mode, with the one implementation file.
+# A program taking villanelle with FetchContent of the release source archive, as the user guide's Quickstart shows
+# (region fetchcontent; cpp/tests/consumer/check.sh builds and runs it). The archive is downloaded and unpacked into
+# this build folder; nothing is installed and no Python is needed. -DVILLANELLE_COMPILED=ON is the subproject's own
+# option (compiled mode); the program then compiles the one implementation file.
 cmake_minimum_required(VERSION 3.24)
 project(villanelle_consumer LANGUAGES CXX)
 
-set(VILLANELLE_WANTED "" CACHE STRING "The version asked of find_package(villanelle)")
-option(VILLANELLE_COMPILED "Compiled mode: define VILLANELLE_HEADER_ONLY=0 and compile implementation.hpp once" OFF)
+set(VILLANELLE_RELEASE_URL "" CACHE STRING "The release's URL: villanelle-cpp-<version>.tar.gz")
+set(VILLANELLE_RELEASE_SHA256 "" CACHE STRING "The release archive's SHA-256")
 
-find_package(villanelle ${VILLANELLE_WANTED} REQUIRED CONFIG)
+# --8<-- [start:fetchcontent]
+include(FetchContent)
+FetchContent_Declare(villanelle URL ${VILLANELLE_RELEASE_URL} URL_HASH SHA256=${VILLANELLE_RELEASE_SHA256})
+FetchContent_MakeAvailable(villanelle)
 
 add_executable(consumer consumer.cpp)
 target_link_libraries(consumer PRIVATE villanelle::villanelle)
+# --8<-- [end:fetchcontent]
+
 if(VILLANELLE_COMPILED)
   target_sources(consumer PRIVATE implementation.cpp)
-  target_compile_definitions(consumer PRIVATE VILLANELLE_HEADER_ONLY=0)
 endif()

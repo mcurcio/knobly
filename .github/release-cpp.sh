@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Build the C++ release assets for one version into a directory (default dist/release/, ignored by git):
 #   villanelle-cpp-<version>.tar.gz   the C++ source archive: cpp/CMakeLists.txt, cpp/include/ with the generated
-#                                     headers, cpp/README.md and LICENSE, under villanelle-cpp-<version>/. CMake 3.24+
-#                                     and a C++20 compiler build and install it with no Python and no network.
+#                                     headers, cpp/README.md and LICENSE, under villanelle-cpp-<version>/. A program
+#                                     takes it with FetchContent or add_subdirectory (CMake 3.24+, a C++20 compiler):
+#                                     no Python, no network beyond the download, nothing installed.
 #   villanelle.hpp                    the single header (tools/amalgamate.py), from the archive's headers
 # The version is stamped into the archive's copy of include/villanelle/support/config.hpp (the C++ version's one
 # home), never into the repository. Run by .github/release-build.sh (semantic-release's prepare step, and the
-# dry-run release job) and by the C++ package job in .github/workflows/ci.yml.
+# dry-run release job) and by the C++ package job in .github/workflows/ci.yml (cpp/tests/consumer/check.sh).
 # Needs: python3 (3.9+) and uv (tools/gen.sh cpp, for the pinned clang-format), tar.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -44,6 +45,8 @@ open(path, "w", encoding="utf-8").write(text)
 EOF
 
 mkdir -p "$out"
-tar -C "$stage" -czf "$out/$name.tar.gz" "$name"
+# No extended attributes or macOS metadata files (._*): a second top-level entry stops FetchContent from stripping
+# the villanelle-cpp-<version>/ folder.
+COPYFILE_DISABLE=1 tar --no-xattrs -C "$stage" -czf "$out/$name.tar.gz" "$name"
 python3 tools/amalgamate.py --include "$dir/include" --output "$out/villanelle.hpp"
 ls -l "$out/$name.tar.gz" "$out/villanelle.hpp"

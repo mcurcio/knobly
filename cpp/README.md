@@ -94,32 +94,32 @@ file keeps the old one's permissions.
 
 ## Using it
 
-Four ways in, all with CMake 3.24 or later and a C++20 compiler; none needs Python or network but a git checkout:
+Nothing is installed: villanelle goes into your project or its build folder, by one of three routes. None needs Python;
+the release assets carry the generated headers.
 
-- **An install.** Build the release source archive (`villanelle-cpp-<version>.tar.gz`, on each GitHub release; it
-  holds the generated headers), or a git checkout, and install it:
-
-  ```bash
-  cmake -S villanelle-cpp-<version> -B build && cmake --install build --prefix /opt/villanelle
-  ```
+- **The single header** `villanelle.hpp` (on each GitHub release): every header in one file. Copy it into your
+  project and `#include "villanelle.hpp"`; nothing else is needed. It is header-only mode only, and every file
+  including it compiles every layer.
+- **`FetchContent`** of the release source archive (`villanelle-cpp-<version>.tar.gz`, on each GitHub release), with
+  CMake 3.24 or later. CMake downloads and unpacks it into your build folder:
 
   ```cmake
-  find_package(villanelle 1 REQUIRED)   # -DCMAKE_PREFIX_PATH=/opt/villanelle; accepts the same major version
+  include(FetchContent)
+  FetchContent_Declare(villanelle
+    URL https://github.com/mcurcio/villanelle/releases/download/v<version>/villanelle-cpp-<version>.tar.gz
+    URL_HASH SHA256=<the archive's SHA-256>)
+  FetchContent_MakeAvailable(villanelle)
+
   target_link_libraries(my_program PRIVATE villanelle::villanelle)
   ```
 
-  The install is the headers under `include/villanelle/` and an architecture-independent package config with its
-  version file under `share/cmake/villanelle/`. There is nothing to link.
-- **`add_subdirectory` or `FetchContent`** of the archive (or of `cpp/` in a checkout), then the same
-  `target_link_libraries`. As a subproject it builds no tests and installs nothing unless asked
-  (`VILLANELLE_BUILD_TESTS`, `VILLANELLE_INSTALL`).
-- **Copy `include/`** from the archive into a project and put it on the include path.
-- **The single header** `villanelle.hpp` (on each GitHub release): every header in one file, for `#include
-  "villanelle.hpp"` with nothing else. It is header-only mode only, and every file including it compiles every
-  layer.
+- **`add_subdirectory`** of the extracted archive, or of a copy vendored into your repository (or of `cpp/` in a git
+  checkout), then the same `target_link_libraries`.
 
-In a git checkout the public headers are generated at configure time ("Generated code" below), which needs Python
-3.9 or later and `uv`; the archive and the single header carry them already.
+As a subproject it builds no tests (`VILLANELLE_BUILD_TESTS` is on only when it is the top-level project). There is
+nothing to link: `villanelle::villanelle` only adds the include path and C++20. A C++20 compiler is needed by every
+route. In a git checkout the public headers are generated at configure time ("Generated code" below), which needs
+Python 3.9 or later and `uv`.
 
 **Header-only** is the default: every definition is inline in the headers.
 
@@ -132,8 +132,8 @@ target_compile_definitions(my_program PRIVATE VILLANELLE_HEADER_ONLY=0)
 target_sources(my_program PRIVATE villanelle_implementation.cpp)  # #include <villanelle/implementation.hpp>
 ```
 
-As a subproject, `-DVILLANELLE_COMPILED=ON` defines it for every user of the target; an install never carries it,
-so the program chooses. Compiled mode also instantiates every template the headers spell once, in
+With `FetchContent` or `add_subdirectory`, `-DVILLANELLE_COMPILED=ON` (a cache option of the subproject) defines it
+for every user of the target instead; the program still compiles `implementation.hpp` once. Compiled mode also instantiates every template the headers spell once, in
 `implementation.hpp` (each header declares it `extern`), so other files do not compile them again.
 
 **Versions.** Every name sits in a versioned inline namespace, `villanelle::v<major>_<minor>_<patch>` (a program
@@ -191,6 +191,13 @@ ctest --test-dir build --output-on-failure
 One test at a time: `ctest --test-dir build -R programs_lint --output-on-failure`. Building also compiles every header
 together, each layer's header against the layers it may not import, the generated parser against its hooks, and
 the syntax layer with exceptions and RTTI off. `VILLANELLE_BUILD_TESTS` is on when this is the top-level project.
+
+The routes of "Using it" are checked from the release assets, with nothing installed and Python stubbed out (CI's
+C++ package job; `tests/consumer/`):
+
+```bash
+bash .github/release-cpp.sh 1.2.3 work/assets && bash cpp/tests/consumer/check.sh 1.2.3 work/assets work
+```
 
 Format the hand-written files with the pinned clang-format (its one pin is `CLANG_FORMAT` in
 `tools/api/emit_cpp.py`):

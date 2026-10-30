@@ -77,9 +77,9 @@ in snake_case, as its standard library does (`document_graph`), and its import p
 (`<villanelle/syntax.hpp>`), the low level (`<villanelle/written.hpp>`), the rendered tree
 (`<villanelle/rendered.hpp>`), files on disk (`<villanelle/files.hpp>`) and the include extension
 (`<villanelle/extensions.hpp>`), with names in snake_case from the same schema ([`cpp/README.md`](cpp/README.md)).
-Its adapter claims level 3 of the conformance cases. `cmake --install` makes `find_package(villanelle)` work; each
-release carries a C++ source archive with the generated headers (no Python or network to build it) and a single
-header, `villanelle.hpp`, made by `tools/amalgamate.py`.
+Its adapter claims level 3 of the conformance cases. Nothing is installed: copy the single header `villanelle.hpp`
+(made by `tools/amalgamate.py`) into your project, or take each release's C++ source archive, which carries the
+generated headers, with CMake `FetchContent` or `add_subdirectory` (no Python needed either way).
 
 ## The language is defined by one file
 

@@ -196,13 +196,13 @@ jobs:
       - run: ctest --test-dir build --build-config Debug --output-on-failure
 
   cpp-package:
-    name: C++ package (archive, install, single header)
+    name: C++ package (FetchContent, add_subdirectory, single header)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       CXX: g++-13
-      # A made-up version, so the test proves it is stamped into the archive, the package's version file and the
-      # inline namespace (villanelle::v1_2_3).
+      # A made-up version, so the test proves it is stamped into the archive and the inline namespace
+      # (villanelle::v1_2_3).
       VERSION: 1.2.3
     steps:
       - run: echo "WORK=$RUNNER_TEMP/package" >> "$GITHUB_ENV"
@@ -214,41 +214,10 @@ jobs:
           version: ${{ env.UV_VERSION }}
       # The release flow's own script (.github/release-build.sh runs it): the source archive and the single header.
       - run: bash .github/release-cpp.sh "$VERSION" "$WORK/assets"
-      # The archive builds and installs with no Python and no uv (each is a stub that fails if called) and no network
-      # (its one download, Catch2, is for the tests, which the archive leaves out, so they default off).
-      - name: Install from the source archive
-        run: |
-          mkdir -p "$WORK/stubs" "$WORK/archive"
-          for tool in python python3 uv curl; do
-            printf '#!/bin/sh\necho "%s was called: the source archive must build without it" >&2\nexit 1\n' "$tool" > "$WORK/stubs/$tool"
-            chmod +x "$WORK/stubs/$tool"
-          done
-          tar -C "$WORK/archive" -xzf "$WORK/assets/villanelle-cpp-$VERSION.tar.gz"
-          export PATH="$WORK/stubs:$PATH"
-          cmake -S "$WORK/archive/villanelle-cpp-$VERSION" -B "$WORK/archive-build"
-          grep -qx 'VILLANELLE_BUILD_TESTS:BOOL=OFF' "$WORK/archive-build/CMakeCache.txt"
-          grep -qx 'VILLANELLE_REGENERATE:BOOL=OFF' "$WORK/archive-build/CMakeCache.txt"
-          cmake --build "$WORK/archive-build"
-          cmake --install "$WORK/archive-build" --prefix "$WORK/prefix"
-      # A tiny program from the install, found with find_package by version, in both modes; it exits 0 only on the
-      # expected output, and its symbols carry the stamped inline namespace.
-      - name: Consumer from the install
-        run: |
-          for mode in OFF ON; do
-            cmake -S cpp/tests/consumer -B "$WORK/consumer-$mode" -DCMAKE_PREFIX_PATH="$WORK/prefix" \
-              -DVILLANELLE_WANTED=1.2 -DVILLANELLE_COMPILED=$mode
-            cmake --build "$WORK/consumer-$mode"
-            "$WORK/consumer-$mode/consumer"
-            nm -C "$WORK/consumer-$mode/consumer" | grep -c 'villanelle::v1_2_3::'
-          done
-      # The same program from the single header alone: the include path holds villanelle.hpp and nothing else.
-      - name: Consumer from the single header
-        run: |
-          mkdir -p "$WORK/single"
-          cp "$WORK/assets/villanelle.hpp" "$WORK/single/"
-          "$CXX" -std=c++20 -Wall -Wextra -Werror -DVILLANELLE_SINGLE_HEADER -I"$WORK/single" \
-            cpp/tests/consumer/consumer.cpp -o "$WORK/single-consumer"
-          "$WORK/single-consumer"
+      # A tiny program by every route, with nothing installed and python, python3, uv and curl stubbed to fail:
+      # FetchContent of the archive (header-only and compiled), add_subdirectory of it, the single header alone. Each
+      # exits 0 only on the expected output, and its symbols carry the stamped inline namespace.
+      - run: bash cpp/tests/consumer/check.sh "$VERSION" "$WORK/assets" "$WORK"
 
   # The user guide (docs/site/, MkDocs Material: .claude/design/cpp/frozen-docs.md). Built on every push and pull
   # request; a missing sample file or region fails the build (pymdownx.snippets check_paths, --strict). The samples
