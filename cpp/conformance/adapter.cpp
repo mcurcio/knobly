@@ -1,14 +1,18 @@
 // The C++ binding's conformance adapter (spec/conformance.md): the shared driver runs the corpora through it over
-// standard input and output, one JSON request per line and one response per line. Milestone 2's slice W claims level
-// 1 with "unit": "byte" (frozen-m2.md section 4): parse, then load, graph, edit, save and quote on the written layer.
-// It uses the public headers only, like any program: members are spelled by the generated shapes::spelling and
-// thrown errors named by the generated shapes::error_group_of.
+// standard input and output, one JSON request per line and one response per line. It claims level 3 with "unit":
+// "byte" (frozen-m2.md section 6): parse; load, graph, edit, save and quote on the written layer; render, diff, read,
+// print, format and cut on the rendered layer and the contract; and the include extension. It uses the public headers
+// only, like any program: members are spelled by the generated shapes::spelling and thrown errors named by the
+// generated shapes::error_group_of.
 #include <villanelle/extensions.hpp>
+#include <villanelle/rendered.hpp>
 #include <villanelle/syntax.hpp>
 #include <villanelle/villanelle.hpp>
 #include <villanelle/written.hpp>
 
 #include <algorithm>
+#include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <exception>
@@ -29,16 +33,18 @@ namespace {
 
 namespace vl = villanelle;
 namespace vw = villanelle::written;
+namespace vr = villanelle::rendered;
 
 using adapter::json::array;
 using adapter::json::object;
 using adapter::json::value;
 
-constexpr int level = 1;
+constexpr int level = 3;
 
 /// Every dumped object, kept alive until the adapter exits; an object's id is "<index>".
 using kept = std::variant<vl::diagnostic, vl::place, vl::override, vl::step, vl::located_diagnostic, vw::document_graph,
-                          vw::document, vw::written_block, vw::statement, vw::written_value, vw::variable>;
+                          vw::document, vw::written_block, vw::statement, vw::written_value, vw::variable,
+                          vw::expanded_value, vr::rendered, vr::directive>;
 std::vector<kept> dumped;
 
 template <class T>
@@ -130,6 +136,19 @@ value steps(const vl::sequence<vl::step>& via) {
     }
     return out;
 }
+
+/// An origin's place: a file place, or an override.
+value origin_place(const std::variant<vl::place, vl::override>& p) {
+    if (const auto* file = std::get_if<vl::place>(&p)) {
+        return place(*file);
+    }
+    const vl::override& o = std::get<vl::override>(p);
+    return object{{"id", keep(o)}, {"override", o.variable()}};
+}
+
+value origin(const vl::origin& o) { return object{{"place", origin_place(o.place())}, {"via", steps(o.via())}}; }
+
+value origin(const vl::directive_origin& o) { return object{{"place", place(o.place())}, {"via", steps(o.via())}}; }
 
 std::string code_text(const std::variant<vl::diagnostic_code, vl::program_code>& code) {
     if (const auto* own = std::get_if<vl::diagnostic_code>(&code)) {
@@ -337,6 +356,231 @@ value graph_dump(const vw::document_graph& g) {
                   {"edges", std::move(edges)},
                   {"variables", std::move(variables)},
                   {"diagnostics", std::move(diagnostics)}};
+}
+
+// ---- the rendered layer (spec/conformance.md 4.2 to 4.4)
+
+/// A key rule from its data (spec/conformance.md 4.3): the first rule naming the directive (and its parent's name, when
+/// the rule gives one) gives the key; no rule: absent.
+vr::key_options key_options(const value* rules) {
+    if (rules == nullptr) {
+        return {};
+    }
+    struct rule {
+        std::string directive;
+        std::optional<std::string> parent;
+        bool join = false;
+        std::string separator;
+        std::size_t index = 0;
+    };
+    std::vector<rule> parsed;
+    for (const value& each : array_of(*rules, "key")) {
+        rule r;
+        r.directive = text_member(each, "directive");
+        if (const value* parent = each.find("parent");
+            parent != nullptr && !std::holds_alternative<std::nullptr_t>(parent->data)) {
+            r.parent = text_of(*parent, "a key rule's parent");
+        }
+        const array& key = array_of(member_of(each, "key"), "a key rule's key");
+        if (key.size() != 2) {
+            throw std::runtime_error("a key rule's key is [how, argument]");
+        }
+        const std::string& how = text_of(key[0], "a key rule's how");
+        if (how == "join") {
+            r.join = true;
+            r.separator = text_of(key[1], "a join separator");
+        } else if (how == "value") {
+            const auto* index = std::get_if<std::int64_t>(&key[1].data);
+            if (index == nullptr || *index < 0) {
+                throw std::runtime_error("a value key's index is a non-negative integer");
+            }
+            r.index = static_cast<std::size_t>(*index);
+        } else {
+            throw std::runtime_error("unknown key rule: " + how);
+        }
+        parsed.push_back(std::move(r));
+    }
+    return {[parsed](const vr::directive& d) -> std::optional<std::string> {
+        const std::string name = d.name();
+        for (const rule& r : parsed) {
+            if (r.directive != name) {
+                continue;
+            }
+            if (r.parent) {
+                const std::optional<vr::directive> parent = d.parent();
+                if (!parent || parent->name() != *r.parent) {
+                    continue;
+                }
+            }
+            const vl::sequence<vw::expanded_value> values = d.values();
+            if (!r.join) {
+                return r.index < values.size() ? std::optional<std::string>(values.at(r.index).text()) : std::nullopt;
+            }
+            std::string joined;
+            for (std::size_t i = 0; i < values.size(); ++i) {
+                joined += (i == 0 ? "" : r.separator) + values.at(i).text();
+            }
+            return joined;
+        }
+        return std::nullopt;
+    }};
+}
+
+value address(const std::optional<vr::address>& a) {
+    if (!a) {
+        throw std::runtime_error("a directive without an address");
+    }
+    return object{{"text", a->text()}, {"people", vr::to_string(*a)}};
+}
+
+value unreadable(const vl::sequence<vw::unreadable_expansion>& list) {
+    array out;
+    for (const vw::unreadable_expansion& u : list) {
+        out.push_back(object{{"reason", std::string(vl::to_string(u.reason()))}, {"origin", origin(u.origin())}});
+    }
+    return out;
+}
+
+value expanded(const vw::expanded_value& v) {
+    const std::optional<vw::written_value> definition = v.definition();
+    array chain;
+    for (const vw::reference_resolution& r : v.chain()) {
+        chain.push_back(resolution(r));
+    }
+    return object{{"id", keep(v)},
+                  {"kind", std::string(vl::to_string(v.kind()))},
+                  {"text", v.text()},
+                  {"origin", origin(v.origin())},
+                  {"definition", definition ? place(definition->place()) : value(nullptr)},
+                  {"chain", std::move(chain)}};
+}
+
+value directives(const vr::rendered_block& b, const vl::ordered_map<vr::directive, vr::address>& addresses) {
+    array out;
+    for (const vr::directive& d : b) {
+        array values;
+        for (const vw::expanded_value& v : d.values()) {
+            values.push_back(expanded(v));
+        }
+        const std::optional<vr::rendered_block> inner = d.block();
+        out.push_back(object{{"id", keep(d)},
+                             {"name", d.name()},
+                             {"address", address(addresses.find(d))},
+                             {"origin", origin(d.origin())},
+                             {"values", std::move(values)},
+                             {"block", inner ? directives(*inner, addresses) : value(nullptr)},
+                             {"unreadable", unreadable(d.unreadable())}});
+    }
+    return out;
+}
+
+value render_dump(const vr::rendered& r, const value* rules) {
+    const vl::ordered_map<vr::directive, vr::address> addresses = r.addresses(key_options(rules));
+    array diagnostics;
+    for (const vl::located_diagnostic& d : r.diagnostics()) {
+        diagnostics.push_back(located(d));
+    }
+    return object{{"id", keep(r)},
+                  {"block", directives(r.block(), addresses)},
+                  {"unreadable", unreadable(r.unreadable())},
+                  {"diagnostics", std::move(diagnostics)}};
+}
+
+value render(const value& request) {
+    const kept target = find(text_member(request, "graph"));
+    const auto* graph = std::get_if<vw::document_graph>(&target);
+    if (graph == nullptr) {
+        // C++'s render takes a document graph by type, so a call with anything else does not compile (design.md
+        // finding F1): the adapter reports that refusal as the argument type error the case expects (spec 7.0).
+        throw vl::argument_type_error("render(): argument 'graph' must be a document graph");
+    }
+    return render_dump(vr::render(*graph), request.find("key"));
+}
+
+value diff(const value& request) {
+    const vr::rendered before = get<vr::rendered>(text_member(request, "before"));
+    const vr::rendered after = get<vr::rendered>(text_member(request, "after"));
+    array out;
+    for (const vr::change& c : before.diff(after, key_options(request.find("key")))) {
+        out.push_back(object{{"kind", std::string(vl::to_string(c.kind()))}, {"address", address(c.address())}});
+    }
+    return out;
+}
+
+/// A reader's result, neutral (spec/conformance.md 4.4): negative zero as "-0", a list's items by their text.
+value read(const value& request) {
+    const vw::expanded_value v = get<vw::expanded_value>(text_member(request, "value"));
+    const std::string_view reader = adapter::shapes::spelling(text_member(request, "reader"));
+    if (reader == "word") {
+        return object{{"text", v.word()}};
+    }
+    if (reader == "string") {
+        return object{{"text", v.string()}};
+    }
+    if (reader == "number") {
+        const double n = v.number();
+        return object{{"number", n == 0 && std::signbit(n) ? value("-0") : value(n)}};
+    }
+    if (reader == "integer") {
+        return object{{"number", v.integer()}};
+    }
+    if (reader == "boolean") {
+        return object{{"boolean", v.boolean()}};
+    }
+    if (reader == "list") {
+        array items;
+        for (const vw::expanded_value& item : v.list()) {
+            items.push_back(object{{"value", item.text()}});
+        }
+        return object{{"list", std::move(items)}};
+    }
+    if (reader == "slice") {
+        const std::variant<vw::slice_value, vw::index_value> s = v.slice();
+        if (const auto* index = std::get_if<vw::index_value>(&s)) {
+            return object{{"index", array{index->name(), index->index()}}};
+        }
+        const vw::slice_value& slice = std::get<vw::slice_value>(s);
+        const auto bound = [](std::optional<std::int64_t> b) { return b ? value(*b) : value(nullptr); };
+        return object{{"slice", array{slice.name(), bound(slice.start()), bound(slice.end())}}};
+    }
+    throw std::runtime_error("no reader '" + std::string(reader) + "'");
+}
+
+/// The object's people form (contract 2): this binding's to_string.
+value print(const value& request) {
+    const kept target = find(text_member(request, "target"));
+    return std::visit(
+        [](const auto& o) -> value {
+            if constexpr (requires { vl::to_string(o); }) {
+                return value(std::string(vl::to_string(o)));
+            } else {
+                throw std::runtime_error("that object has no people form");
+            }
+        },
+        target);
+}
+
+value format(const value& request) {
+    const vl::located_diagnostic d = get<vl::located_diagnostic>(text_member(request, "diagnostic"));
+    if (const value* graph = request.find("graph")) {
+        return value(vw::format_diagnostic(d, get<vw::document_graph>(text_of(*graph, "graph"))));
+    }
+    return value(vw::format_diagnostic(d));
+}
+
+/// The text cut at two byte offsets, as std::string slices (clamped to the text, as a slice of a string is).
+value cut(const value& request) {
+    const std::string& text = text_member(request, "text");
+    const auto offset = [&](std::string_view name) {
+        const auto* n = std::get_if<std::int64_t>(&member_of(request, name).data);
+        if (n == nullptr) {
+            throw std::runtime_error(std::string(name) + " is not an integer");
+        }
+        return static_cast<std::size_t>(std::clamp<std::int64_t>(*n, 0, static_cast<std::int64_t>(text.size())));
+    };
+    const std::size_t start = offset("start");
+    const std::size_t end = offset("end");
+    return value(start < end ? text.substr(start, end - start) : std::string());
 }
 
 // ---- edits: a member by its spec name, in this binding's spelling, called on the object the id names
@@ -579,6 +823,24 @@ std::optional<value> answer(const std::string& op, const value& request) {
     }
     if (op == "save") {
         return save(request);
+    }
+    if (op == "render") {
+        return render(request);
+    }
+    if (op == "diff") {
+        return diff(request);
+    }
+    if (op == "read") {
+        return read(request);
+    }
+    if (op == "print") {
+        return print(request);
+    }
+    if (op == "format") {
+        return format(request);
+    }
+    if (op == "cut") {
+        return cut(request);
     }
     if (op == "quote") {
         const vl::config_text quoted = vl::quote(text_member(request, "text"));

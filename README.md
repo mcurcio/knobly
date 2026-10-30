@@ -70,10 +70,11 @@ rule 9). Type names carry no prefix (`DocumentGraph`, `Rendered`), the same in b
 | files on disk | `villanelle/node`: `fileSource()`, `fileWriter()` | `villanelle.files`: `file_source()`, `file_writer()` |
 | files over `fetch` | `villanelle/browser`: `fetchSource(fetch)`, `fetchWriter(fetch, options?)` | none |
 
-**C++** (milestone 1, the syntax tree only): a header-only library, the CMake target `villanelle::villanelle`;
-`#include <villanelle/syntax.hpp>` gives `villanelle::syntax::parse`, `span_of`, `text_of`, `syntax`, `token`,
-`node`, with names in snake_case from the same schema ([`cpp/README.md`](cpp/README.md)). Its adapter claims level 0
-of the conformance cases.
+**C++** (milestone 2): a header-only library, the CMake target `villanelle::villanelle`, with the syntax tree
+(`<villanelle/syntax.hpp>`), the low level (`<villanelle/written.hpp>`), the rendered tree
+(`<villanelle/rendered.hpp>`), files on disk (`<villanelle/files.hpp>`) and the include extension
+(`<villanelle/extensions.hpp>`), with names in snake_case from the same schema ([`cpp/README.md`](cpp/README.md)).
+Its adapter claims level 3 of the conformance cases.
 
 ## The language is defined by one file
 
@@ -180,6 +181,6 @@ gh variable set RELEASE_ENABLED --body true -R mcurcio/villanelle
 The TypeScript and Python packages are built from the grammar and pass the same conformance cases, run by one
 shared driver (`python3 conformance/driver/run.py -- <adapter>`, [`spec/conformance.md`](spec/conformance.md)). Both have the syntax tree, the low level (the files as written, editable and saved back) and the
 rendered tree; the high-level API, where a program declares its directives, is deferred (`vil-xlo`). The C++
-library has the syntax tree (level 0); its low level and rendered tree come in later milestones. No release has
+library has all three (level 3). No release has
 been made yet. The grammar design was done in [mcurcio/rasl#2](https://github.com/mcurcio/rasl/pull/2), where this
 language began as `@rasl/config`.

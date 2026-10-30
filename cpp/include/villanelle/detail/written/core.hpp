@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include <villanelle/detail/arena.hpp>
 #include <villanelle/detail/raise.hpp>
 #include <villanelle/support/view.hpp>
 #include <villanelle/written.hpp>
@@ -113,36 +114,11 @@ struct anatomy {
     std::optional<::villanelle::syntax::node> block;
 };
 
-// ---- arenas
+// ---- arenas and handles (detail/arena.hpp, shared with the rendered layer)
 
-/// The nodes a counted node owns: each names that node as its counted owner, and dies with it.
-struct arena {
-    explicit arena(node* owner) noexcept : owner_(owner) {}
-    template <class T, class... Args>
-    T* make(Args&&... args) {
-        auto made = std::make_unique<T>(std::forward<Args>(args)...);
-        made->counted = owner_;
-        T* const raw = made.get();
-        nodes_.push_back(std::move(made));
-        return raw;
-    }
-
-private:
-    node* owner_;
-    std::vector<std::unique_ptr<node>> nodes_;
-};
-
-/// A generated handle class over a node.
-template <class Handle>
-Handle make_handle(node* n) {
-    return ::villanelle::detail::access::make<Handle>(::villanelle::detail::view(n));
-}
-
-/// The node a handle shows.
-template <class Node, class Handle>
-Node* node_of(const Handle& handle) noexcept {
-    return static_cast<Node*>(::villanelle::detail::access::view_of(handle).get());
-}
+using ::villanelle::detail::arena;
+using ::villanelle::detail::make_handle;
+using ::villanelle::detail::node_of;
 
 // ---- the graph's nodes
 

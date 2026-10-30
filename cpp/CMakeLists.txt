@@ -93,8 +93,7 @@ if(VILLANELLE_BUILD_TESTS)
                                                           -fno-rtti> $<$<CXX_COMPILER_ID:MSVC>:/EHs-c- /GR->)
   villanelle_test_target(villanelle_no_exceptions)
 
-  # The generated contract of every public header: a declaration without a definition fails to link (milestone 2
-  # defines every declaration, as a stub until its slice lands: frozen-m2.md section 2).
+  # The generated contract of every public header: a declaration without a definition fails to link.
   file(GLOB _villanelle_contracts CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/generated/api_contract_*.cpp")
   foreach(_villanelle_contract IN LISTS _villanelle_contracts)
     get_filename_component(_villanelle_stem "${_villanelle_contract}" NAME_WE)
@@ -117,6 +116,18 @@ if(VILLANELLE_BUILD_TESTS)
     add_test(NAME unit_${_villanelle_stem} COMMAND villanelle_unit_${_villanelle_stem}
              WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
   endforeach()
+
+  # Design program 4.2 as a user writes it (frozen-m2.md 6), with the stricter warnings the design names; the test runs
+  # it in a fresh copy of its files and compares them after.
+  add_executable(villanelle_program_editor tests/programs/editor.cpp)
+  target_link_libraries(villanelle_program_editor PRIVATE ${_villanelle_program_libraries})
+  villanelle_test_target(villanelle_program_editor)
+  target_compile_options(villanelle_program_editor PRIVATE $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wsign-conversion>
+                                                           $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wdangling>)
+  add_test(NAME programs_editor
+           COMMAND ${CMAKE_COMMAND} -DPROGRAM=$<TARGET_FILE:villanelle_program_editor>
+                   "-DSOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/programs" "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/programs/editor"
+                   -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/programs/run_editor.cmake")
 
   add_executable(villanelle_adapter conformance/adapter.cpp)
   target_link_libraries(villanelle_adapter PRIVATE ${_villanelle_program_libraries})
