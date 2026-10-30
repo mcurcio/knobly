@@ -115,3 +115,23 @@ Docs and generators:
   hand-typed; people forms are hand-ported per binding.
 - Optional: generate Python's expanded-value equality from the schema's `equal by` key.
 - Known elsewhere: vil-g8g (TypeScript/Python recovery), vil-9ao, vil-167, vil-a0y (MSVC).
+
+## User guides round (2026-10-30)
+
+Landed on `feat/cpp-binding` (head dbd02a0, CI green): the MkDocs Material guide in `docs/site/`
+(plan `frozen-docs.md`), samples in `ts/examples/`, `py/examples/` and `cpp/examples/` listed in
+`examples/samples.json` and run by each binding's tests; the no-install C++ routes (single header,
+FetchContent of the release archive, `add_subdirectory`; owner, 2026-10-30: "i dont want to
+install villanelle for it to be usable"), proved by `cpp/tests/consumer/check.sh`; Python's E3007
+message now names the extension. The old `docs/language.md`, `low-level-api.md` and
+`rendered-tree.md` are folded into the guide.
+
+Open:
+- Owner, once: set the repository's Pages source to "GitHub Actions" (`gh api
+  repos/mcurcio/villanelle/pages` returned 404); the `docs-deploy` job publishes from `main` only.
+- Delete remote `wip/pages` and `wip/py-samples` by hand (refused by the permission system; their
+  content is on the branch).
+- `design/RECORD.md` lines 128-129 and 168 link the deleted docs (errata W2, user-guide section;
+  the id repeats the earlier W2, so renumber one). Errata F5 still open.
+- Python hatch build hook running `tools/gen.sh py`; TypeScript `src/` parameter properties block
+  `erasableSyntaxOnly`; prettier not enforced in `ts/`; messages are outside the shared contract.
