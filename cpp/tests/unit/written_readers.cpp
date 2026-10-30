@@ -136,3 +136,15 @@ TEST_CASE("an override's value is placed on the $name that used it", "[readers]"
     CHECK(std::string(code.view()) == "app/x");
     CHECK_THROWS_AS(vl::program_code(std::string("nocode")), vl::misuse_error);
 }
+
+TEST_CASE("number reads a JSON number, rounded to the nearest double, never negative zero", "[readers]") {
+    const vw::document_graph graph = fixture::load("x 1e400 -1e-400 1e-310 0.1 -0.0 01;\n");
+    const vl::sequence<vw::expanded_value> v = values_of(graph, 0);
+    CHECK(code_of([&] { v.at(0).number(); }) == "E4004@main.conf:1:3");  // beyond the double range
+    CHECK(v.at(1).number() == 0.0);
+    CHECK_FALSE(std::signbit(v.at(1).number()));
+    CHECK(v.at(2).number() == 1e-310);  // a subnormal is kept
+    CHECK(v.at(3).number() == 0.1);
+    CHECK_FALSE(std::signbit(v.at(4).number()));
+    CHECK(code_of([&] { v.at(5).number(); }) == "E4004@main.conf:1:33");  // a leading zero is no NumberText
+}

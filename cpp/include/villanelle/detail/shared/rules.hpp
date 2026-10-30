@@ -3,9 +3,13 @@
 #ifndef VILLANELLE_DETAIL_SHARED_RULES_HPP
 #define VILLANELLE_DETAIL_SHARED_RULES_HPP
 
+#include <cerrno>
 #include <charconv>
+#include <clocale>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -52,74 +56,53 @@ inline std::optional<std::int64_t> integer_of(std::string_view word) noexcept {
 
 /// The number a word spells (NumberText, a JSON number), rounded to the nearest double; nullopt when it is not one or
 /// its value lies beyond the double range (1e400). Never negative zero: -0, -0.0 and -1e-400 read as 0.
-inline std::optional<double> number_of(std::string_view word) noexcept {
-    std::size_t at = !word.empty() && word.front() == '-' ? 1 : 0;
-    const std::size_t integer_start = at;
-    at = digits(word, at);
+inline std::optional<double> number_of(std::string_view word) {
+    std::size_t at = digits(word, !word.empty() && word.front() == '-' ? 1 : 0);
     if (at == std::string_view::npos) {
         return std::nullopt;
     }
-    const std::size_t integer_end = at;
-    std::size_t fraction_start = at;
-    std::size_t fraction_end = at;
-    if (at < word.size() && word[at] == '.') {
-        fraction_start = ++at;
+    std::size_t point_at = std::string_view::npos;
+    const auto run = [&] {
+        const std::size_t from = at;
         while (at < word.size() && word[at] >= '0' && word[at] <= '9') {
             ++at;
         }
-        if (at == fraction_start) {
+        return at > from;
+    };
+    if (at < word.size() && word[at] == '.') {
+        point_at = at++;
+        if (!run()) {
             return std::nullopt;
         }
-        fraction_end = at;
     }
-    std::int64_t exponent = 0;
     if (at < word.size() && (word[at] == 'e' || word[at] == 'E')) {
         ++at;
-        bool negative = false;
         if (at < word.size() && (word[at] == '+' || word[at] == '-')) {
-            negative = word[at] == '-';
             ++at;
         }
-        const std::size_t exponent_start = at;
-        while (at < word.size() && word[at] >= '0' && word[at] <= '9') {
-            if (exponent < 100000) {
-                exponent = exponent * 10 + (word[at] - '0');
-            }
-            ++at;
-        }
-        if (at == exponent_start) {
+        if (!run()) {
             return std::nullopt;
         }
-        exponent = negative ? -exponent : exponent;
     }
     if (at != word.size()) {
         return std::nullopt;
     }
-    double value = 0;
-    const auto [end, error] = std::from_chars(word.data(), word.data() + word.size(), value);
-    if (error == std::errc::result_out_of_range) {
-        // Too large or too small for a double: the first non-zero digit's place (its power of ten) tells which.
-        std::int64_t place = 0;
-        bool found = false;
-        for (std::size_t i = integer_start; i < integer_end && !found; ++i) {
-            if (word[i] != '0') {
-                place = static_cast<std::int64_t>(integer_end - i) - 1;
-                found = true;
-            }
-        }
-        for (std::size_t i = fraction_start; i < fraction_end && !found; ++i) {
-            if (word[i] != '0') {
-                place = -static_cast<std::int64_t>(i - fraction_start) - 1;
-                found = true;
-            }
-        }
-        if (!found || place + exponent < 0) {
-            return 0.0;  // underflow: the nearest double is zero, and zero has one sign
-        }
+    // strtod rounds to the nearest double and keeps subnormals; floating-point std::from_chars is not available on
+    // every supported platform (macOS before 13.4). strtod reads the current C locale's decimal point, so the text's
+    // '.' is handed over as that point, whatever locale the program set.
+    std::string text(word);
+    if (point_at != std::string_view::npos) {
+        const char* point = std::localeconv()->decimal_point;
+        text.replace(point_at, 1, point != nullptr && *point != '\0' ? point : ".");
+    }
+    errno = 0;
+    char* end = nullptr;
+    const double value = std::strtod(text.c_str(), &end);
+    if (end != text.c_str() + text.size()) {
         return std::nullopt;
     }
-    if (error != std::errc() || end != word.data() + word.size()) {
-        return std::nullopt;
+    if (errno == ERANGE && std::fabs(value) == HUGE_VAL) {
+        return std::nullopt;  // beyond the double range
     }
     return value == 0 ? 0.0 : value;
 }
