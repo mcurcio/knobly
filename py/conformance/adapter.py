@@ -7,8 +7,8 @@ It speaks the adapter protocol on standard input and output: one JSON request pe
 Every object it dumps gets an id; a later request names the object by that id. It finds no target and compares
 nothing: the driver does both. Its dumps are typed by the generated message shapes (``shapes.py``, from
 spec/schema/protocol.json), members are spelled through the generated ``SPELLING`` and error groups named through the
-generated ``ERROR_GROUP_OF_CLASS``. Parameters are typed with the generated Protocols (``villanelle._api``), the types
-the generated records' fields carry."""
+generated ``ERROR_GROUP_OF_CLASS``. Parameters are typed with the binding's public classes, the types the generated
+records' fields carry."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from shapes import (
+    ERROR_GROUP_OF_CLASS,
     PROTOCOL,
     SPELLING,
     AddressDump,
@@ -51,10 +52,6 @@ from shapes import (
 
 import villanelle as vl
 from villanelle import rendered, syntax, written
-from villanelle._api import rendered as rendered_api
-from villanelle._api import shared
-from villanelle._api import written as api
-from villanelle._api.names import ERROR_GROUP_OF_CLASS
 from villanelle.include import include
 
 handles: list[object] = []
@@ -73,17 +70,17 @@ def pos(p: vl.SourcePosition) -> Position:
     return (p.line, p.column, p.offset)
 
 
-def file_place(p: shared.Place) -> PlaceDump:
+def file_place(p: vl.Place) -> PlaceDump:
     return {"id": ref(p), "path": p.resolved_path, "start": pos(p.span.start), "end": pos(p.span.end)}
 
 
-def place(p: shared.Place | shared.Override) -> PlaceDump | OverrideDump:
+def place(p: vl.Place | vl.Override) -> PlaceDump | OverrideDump:
     if p.kind is vl.PlaceKind.OVERRIDE:
         return {"id": ref(p), "override": p.variable}
     return file_place(p)
 
 
-def steps(via: Sequence[shared.Step]) -> list[StepDump]:
+def steps(via: Sequence[vl.Step]) -> list[StepDump]:
     return [{"id": ref(s), "kind": str(s.kind), "name": s.name, "place": file_place(s.place)} for s in via]
 
 
@@ -91,11 +88,11 @@ def origin(o: vl.Origin | vl.DirectiveOrigin) -> OriginDump:
     return {"place": place(o.place), "via": steps(o.via)}
 
 
-def diagnostic(d: shared.Diagnostic) -> SyntaxDiagnosticDump:
+def diagnostic(d: vl.Diagnostic) -> SyntaxDiagnosticDump:
     return {"id": ref(d), "code": str(d.code), "message": d.message, "start": pos(d.span.start), "end": pos(d.span.end)}
 
 
-def located(d: shared.LocatedDiagnostic) -> LocatedDiagnosticDump:
+def located(d: vl.LocatedDiagnostic) -> LocatedDiagnosticDump:
     return {"id": ref(d), "code": str(d.code), "message": d.message, "place": file_place(d.place), "via": steps(d.via)}
 
 
@@ -110,7 +107,7 @@ def syntax_dump(s: syntax.Syntax) -> SyntaxDump:
     }
 
 
-def variable(v: api.Variable) -> VariableReferenceDump:
+def variable(v: written.Variable) -> VariableReferenceDump:
     where = None if v.kind is written.VariableKind.OVERRIDE else file_place(v.place)
     return {"id": ref(v), "name": v.name, "kind": str(v.kind), "place": where}
 
@@ -124,7 +121,7 @@ def resolution(r: written.ReferenceResolution) -> ResolutionDump:
     }
 
 
-def value(v: api.WrittenValue) -> WrittenValueDump:
+def value(v: written.WrittenValue) -> WrittenValueDump:
     """The dump of one value: a discriminated union on the wire's kind, so each kind's own fields are checked."""
     i, at, text = ref(v), file_place(v.place), v.text
     match v:
@@ -161,11 +158,11 @@ def value(v: api.WrittenValue) -> WrittenValueDump:
             return {"id": i, "kind": "string", "place": at, "text": text}
 
 
-def statement(s: api.Statement) -> StatementDump:
+def statement(s: written.Statement) -> StatementDump:
     """The dump of one statement, one alternative per kind (as value above)."""
     i, at, text = ref(s), file_place(s.place), s.text
 
-    def inner(b: api.WrittenBlock | None) -> BlockDump | None:
+    def inner(b: written.WrittenBlock | None) -> BlockDump | None:
         return None if b is None else block(b)
 
     match s:
@@ -197,7 +194,7 @@ def statement(s: api.Statement) -> StatementDump:
             return {"id": i, "kind": "unreadable", "place": at, "text": text}
 
 
-def block(b: api.WrittenBlock) -> BlockDump:
+def block(b: written.WrittenBlock) -> BlockDump:
     return {"id": ref(b), "statements": [statement(s) for s in b]}
 
 
@@ -205,7 +202,7 @@ def copy(c: written.Copy) -> CopyDump:
     return {"place": file_place(c.statement.place), "via": steps(c.via)}
 
 
-def graph_dump(g: api.DocumentGraph) -> GraphDump:
+def graph_dump(g: written.DocumentGraph) -> GraphDump:
     return {
         "id": ref(g),
         "documents": [
@@ -238,7 +235,7 @@ def key_rule(rules: Sequence[KeyRuleDump] | None) -> rendered.KeyRule | None:
     if rules is None:
         return None
 
-    def key(d: rendered_api.Directive) -> str | None:
+    def key(d: rendered.Directive) -> str | None:
         for rule in rules:
             parent = rule.get("parent")
             if rule["directive"] == d.name and (parent is None or (d.parent is not None and d.parent.name == parent)):
@@ -251,17 +248,17 @@ def key_rule(rules: Sequence[KeyRuleDump] | None) -> rendered.KeyRule | None:
     return key
 
 
-def address(a: rendered_api.Address) -> AddressDump:
+def address(a: rendered.Address) -> AddressDump:
     return {"text": a.text, "people": str(a)}
 
 
-def render_dump(r: rendered_api.Rendered, rules: Sequence[KeyRuleDump] | None) -> RenderDump:
+def render_dump(r: rendered.Rendered, rules: Sequence[KeyRuleDump] | None) -> RenderDump:
     addresses = r.addresses(key=key_rule(rules))
 
     def unreadable(u: written.UnreadableExpansion) -> UnreadableDump:
         return {"reason": str(u.reason), "origin": origin(u.origin)}
 
-    def expanded(a: api.ExpandedValue) -> ExpandedValueDump:
+    def expanded(a: written.ExpandedValue) -> ExpandedValueDump:
         return {
             "id": ref(a),
             "kind": str(a.kind),
@@ -271,7 +268,7 @@ def render_dump(r: rendered_api.Rendered, rules: Sequence[KeyRuleDump] | None) -
             "chain": [resolution(x) for x in a.chain],
         }
 
-    def directive(d: rendered_api.Directive) -> DirectiveDump:
+    def directive(d: rendered.Directive) -> DirectiveDump:
         return {
             "id": ref(d),
             "name": d.name,

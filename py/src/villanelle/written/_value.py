@@ -15,10 +15,10 @@ from villanelle import _values
 from villanelle._api import written as api
 from villanelle._api.codes import DiagnosticCode, describe
 from villanelle._api.errors import DiagnosticError
-from villanelle._api.kinds import PlaceKind, ValueKind
+from villanelle._api.kinds import ValueKind
 from villanelle._api.shared import Origin
 from villanelle._api.written import IndexValue, SliceValue
-from villanelle._origin import Step
+from villanelle._origin import Override, Step
 from villanelle._report import LocatedDiagnostic, check_program_code
 
 if TYPE_CHECKING:
@@ -80,7 +80,7 @@ class _Expanded:
         return self._origin
 
     @property
-    def written(self) -> api.WrittenValue:
+    def written(self) -> WrittenValue:
         """The written value on the same line: for a value that came through a variable, the ``$name`` there
         (``chain[0].reference``; a list item shares its list's); otherwise the value itself, also its ``definition``.
         Never None. Editing it edits that one written line, which every copy of the line shares: a file included
@@ -377,11 +377,11 @@ came through. A snapshot that holds live handles. Its kind is never ``reference`
 ``case ExpandedWord("true"):``."""
 
 
-def value_error(value: _Expanded | api.ExpandedValue, code: DiagnosticCode | str, message: str) -> DiagnosticError:
+def value_error(value: _Expanded, code: DiagnosticCode | str, message: str) -> DiagnosticError:
     """A located error placed on a value. An override is written in no file: the problem is placed on the ``$name``
     that used it (``via[0]``) and the message names the variable. Private to the package (the include extension
     places E3005 with it)."""
     place, via = value.origin.place, value.origin.via
-    if place.kind is PlaceKind.FILE:
+    if not isinstance(place, Override):
         return DiagnosticError(LocatedDiagnostic(code, message, place, via))
     return DiagnosticError(LocatedDiagnostic(code, f"{message} (override ${place.variable})", via[0].place, via[1:]))

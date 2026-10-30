@@ -1,6 +1,7 @@
 """Check spec/schema/{api,diagnostics,protocol}.json against spec/schema/api.schema.json (JSON Schema 2020-12), then
-check that the meta-schema bites: a planted copy with a per-language spelling, a free-text type, an unknown trait and an
-unknown 'found by' must each be refused. Run by tools/check.sh as `uv run --with jsonschema python tools/api/validate.py`
+check that the meta-schema bites: a planted copy with a per-language spelling, a per-language error base, a language
+list, a note in place of doc and rationale (in api.json and protocol.json), a free-text type, an unknown trait and an unknown 'found by' must each be
+refused (the schema names no language: spec/codegen.md section 10). Run by tools/check.sh as `uv run --with jsonschema python tools/api/validate.py`
 (the one third-party package tools/ uses, for the shape check only; the generator itself needs none)."""
 
 import copy
@@ -30,6 +31,10 @@ def main() -> int:
 
     plants = {
         "per-language spelling": ("api.json", lambda a: concept(a, "document").__setitem__("ts", "IDocument")),
+        "per-language error base": ("api.json", lambda a: a["error groups"][0].__setitem__("py", {"base": "Exception"})),
+        "language list": ("api.json", lambda a: concept(a, "document").__setitem__("languages", ["ts"])),
+        "note for doc": ("api.json", lambda a: concept(a, "document").__setitem__("note", "a file (milestone 5)")),
+        "protocol note for doc": ("protocol.json", lambda p: p["shapes"][0].__setitem__("note", "a position (milestone 5)")),
         "free-text type": ("api.json", lambda a: concept(a, "copy")["members"][1].__setitem__("type", "the steps, innermost first")),
         "unknown trait": ("api.json", lambda a: concept(a, "place")["members"][-1].__setitem__("trait", "display")),
         "spell note": ("api.json", lambda a: concept(a, "place")["members"][-1].__setitem__("spell", {"ts": "toString()"})),

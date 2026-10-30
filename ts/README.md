@@ -141,9 +141,10 @@ corepack pnpm -C ts conformance # the shared conformance driver, on the build ab
 
 Each script first runs `bash ../tools/gen.sh ts`, which regenerates the parser into `src/gen/`, and from
 `spec/schema/` the declarations into `src/gen/api/` (each layer's interfaces, the kind lists, the diagnostic codes,
-the error classes, the limits and `PUBLIC_NAMES`) and the adapter's protocol types into `conformance/shapes.ts`
-(ignored by git, never committed). `src/api-names.test.ts` checks every entry's exports against `PUBLIC_NAMES`, both
-ways. `pnpm lint` also runs the kind rule (`tools/lint/kind-rule.mjs`): inside the package a `.kind`, `.reason` or
+the error classes, the limits), the adapter's protocol types and `ERROR_GROUP_OF_CLASS` into
+`conformance/shapes.ts`, and `PUBLIC_NAMES` into `test/api-contract.ts` (all ignored by git, never committed; the
+last two sit outside `src/`, so the published package never ships them). `test/api-names.test.ts` checks every
+entry's exports against `PUBLIC_NAMES`, both ways. `pnpm lint` also runs the kind rule (`tools/lint/kind-rule.mjs`): inside the package a `.kind`, `.reason` or
 `.code` is compared with a generated member, never a string literal. That needs Java 11+; the ANTLR jar is cached in
 `$ANTLR_JAR_DIR` (default `~/.cache/antlr`).
 

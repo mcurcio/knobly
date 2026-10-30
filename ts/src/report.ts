@@ -68,11 +68,6 @@ export class Diagnostics implements api.Diagnostics {
     }
   }
 
-  /** The problems recorded, in order. */
-  toArray(): readonly api.LocatedDiagnostic[] {
-    return [...this.items];
-  }
-
   [Symbol.iterator](): Iterator<api.LocatedDiagnostic> {
     return this.items[Symbol.iterator]();
   }

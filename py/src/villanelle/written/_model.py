@@ -23,7 +23,6 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Literal, TypeAlias, cast, final
 
-from villanelle._api import shared
 from villanelle._api import written as api
 from villanelle._api.errors import DetachedError
 from villanelle._api.kinds import StatementKind, ValueKind, VariableKind
@@ -38,14 +37,8 @@ from villanelle.syntax._cst import ValueRef
 if TYPE_CHECKING:
     from villanelle._api.io import DocumentSource, DocumentWriter
     from villanelle._api.written import Extension
+    from villanelle._report import LocatedDiagnostic
     from villanelle.written._bind import Binding, OverrideValues
-
-
-def own(statement: api.Statement) -> Statement:
-    """A statement a generated record holds (``Copy.statement``, ``UnreadableExpansion.written``) as the class this
-    binding made it with: every statement is one of the six classes below."""
-    assert isinstance(statement, _Statement), "every statement is this binding's"
-    return cast("Statement", statement)
 
 
 def _detached(what: str) -> DetachedError:
@@ -114,7 +107,7 @@ class DocumentGraph(api.DocumentGraph):
         return MappingProxyType(self._override_texts)
 
     @property
-    def diagnostics(self) -> tuple[shared.LocatedDiagnostic, ...]:
+    def diagnostics(self) -> tuple[LocatedDiagnostic, ...]:
         """The one list (spec 6.3): each document's syntax diagnostics (documents in order), then every problem the
         low level finds, in walk order. The expansion's and the render's ``diagnostics`` are this same list."""
         from villanelle.written import _graph
@@ -537,7 +530,7 @@ class UseLine(_Statement, api.UseLine):
         found = _document.above(self, lambda s: isinstance(s, SnippetLine) and s.name == name)
         return found if isinstance(found, SnippetLine) else None
 
-    def snippets(self) -> tuple[Resolution[api.SnippetLine], ...]:
+    def snippets(self) -> tuple[Resolution[SnippetLine], ...]:
         """Per copy."""
         self._live()
         return self._doc._graph._binding().snippets_of(self)

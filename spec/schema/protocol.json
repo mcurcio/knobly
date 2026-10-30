@@ -11,7 +11,7 @@
         "integer",
         "integer"
       ],
-      "note": "[line, column, offset], in the binding's own unit"
+      "doc": "[line, column, offset], in the binding's own unit"
     },
     {
       "name": "place",
@@ -21,7 +21,7 @@
         "start": "position",
         "end": "position"
       },
-      "note": "a place (spec 2.2)"
+      "doc": "a place (spec 2.2)"
     },
     {
       "name": "override",
@@ -29,7 +29,7 @@
         "id": "id",
         "override": "text"
       },
-      "note": "an origin's place for a value from an override"
+      "doc": "an origin's place for a value from an override"
     },
     {
       "name": "step",
@@ -75,7 +75,7 @@
         "position",
         "position"
       ],
-      "note": "[kind, text, start, end]"
+      "doc": "[kind, text, start, end]"
     },
     {
       "name": "node",
@@ -85,7 +85,7 @@
         "integer",
         "node[]"
       ],
-      "note": "[kind, start, end, children]: token indices, half-open"
+      "doc": "[kind, start, end, children]: token indices, half-open"
     },
     {
       "name": "syntax",
@@ -103,7 +103,7 @@
         "kind": "text",
         "place": "place or null"
       },
-      "note": "place null for an override variable"
+      "doc": "place null for an override variable"
     },
     {
       "name": "reference place",
@@ -120,7 +120,7 @@
         "winner": "variable reference or null",
         "shadowed": "variable reference[]"
       },
-      "note": "a reference resolution; via is its copy's"
+      "doc": "a reference resolution; via is its copy's"
     },
     {
       "name": "written value",
@@ -149,7 +149,8 @@
           "resolutions": "resolution[]"
         }
       },
-      "note": "a slice's or index's name is a word or a reference (milestone 5)"
+      "doc": "a slice's or index's name is a word or a reference",
+      "rationale": "milestone 5 let a slice's or index's name be a reference"
     },
     {
       "name": "statement",
@@ -193,7 +194,7 @@
         "place": "place",
         "via": "step[]"
       },
-      "note": "place is the copy's statement's place"
+      "doc": "place is the copy's statement's place"
     },
     {
       "name": "document",
@@ -206,7 +207,7 @@
         "block": "block",
         "includedBy": "copy[]"
       },
-      "note": "includedBy: the copies of included by ()"
+      "doc": "includedBy: the copies of included by ()"
     },
     {
       "name": "edge",
@@ -226,7 +227,7 @@
         "wins": "resolution[]",
         "shadowedAt": "resolution[]"
       },
-      "note": "a variable reference with its wins and shadowed at"
+      "doc": "a variable reference with its wins and shadowed at"
     },
     {
       "name": "graph",
@@ -237,7 +238,7 @@
         "variables": "graph variable[]",
         "diagnostics": "located diagnostic[]"
       },
-      "note": "each list in the graph's own order"
+      "doc": "each list in the graph's own order"
     },
     {
       "name": "address",
@@ -245,7 +246,7 @@
         "text": "text",
         "people": "text"
       },
-      "note": "an address's text and its people form (spec 7.4)"
+      "doc": "an address's text and its people form (spec 7.4)"
     },
     {
       "name": "unreadable",
@@ -253,7 +254,7 @@
         "reason": "text",
         "origin": "origin"
       },
-      "note": "an unreadable expansion"
+      "doc": "an unreadable expansion"
     },
     {
       "name": "expanded value",
@@ -265,7 +266,7 @@
         "definition": "place or null",
         "chain": "resolution[]"
       },
-      "note": "definition: the place of the value's definition"
+      "doc": "definition: the place of the value's definition"
     },
     {
       "name": "directive",
@@ -312,7 +313,7 @@
       "optional": [
         "parent"
       ],
-      "note": "one rule of a key rule as data (spec/conformance.md 4.3)"
+      "doc": "one rule of a key rule as data (spec/conformance.md 4.3)"
     },
     {
       "name": "reader result",
@@ -325,7 +326,7 @@
         "value": "text",
         "list": "reader result[]"
       },
-      "note": "exactly one member: a reader's value (spec/conformance.md 4.4); negative zero is the string \"-0\""
+      "doc": "exactly one member: a reader's value (spec/conformance.md 4.4); negative zero is the string \"-0\""
     }
   ],
   "requests": [
@@ -336,8 +337,8 @@
       },
       "result": "hello result",
       "level": "all",
-      "note": "`{\"protocol\": 1, \"binding\": name, \"unit\": \"utf-16\" \\| \"code point\" \\| \"byte\", \"level\": 0 to 4}`",
-      "params note": "`protocol`: 1"
+      "doc": "`{\"protocol\": 1, \"binding\": name, \"unit\": \"utf-16\" \\| \"code point\" \\| \"byte\", \"level\": 0 to 4}`",
+      "params doc": "`protocol`: 1"
     },
     {
       "op": "parse",
@@ -346,8 +347,8 @@
       },
       "result": "syntax",
       "level": "L0",
-      "note": "a **syntax** dump of `parse (text)`",
-      "params note": "`text`"
+      "doc": "a **syntax** dump of `parse (text)`",
+      "params doc": "`text`"
     },
     {
       "op": "load",
@@ -362,8 +363,8 @@
       ],
       "result": "loaded",
       "level": "L1",
-      "note": "`{\"graph\": id}`: a processor with a `memory source` over `files` and the extensions named, then `load (root, overrides)`",
-      "params note": "`files` (path to text), `root`, `extensions` (`[]` or `[\"include\"]`), `overrides`? (name to text)"
+      "doc": "`{\"graph\": id}`: a processor with a `memory source` over `files` and the extensions named, then `load (root, overrides)`",
+      "params doc": "`files` (path to text), `root`, `extensions` (`[]` or `[\"include\"]`), `overrides`? (name to text)"
     },
     {
       "op": "graph",
@@ -372,8 +373,8 @@
       },
       "result": "graph",
       "level": "L1",
-      "note": "a **graph** dump",
-      "params note": "`graph`"
+      "doc": "a **graph** dump",
+      "params doc": "`graph`"
     },
     {
       "op": "edit",
@@ -384,8 +385,9 @@
       },
       "result": "edited",
       "level": "L1",
-      "note": "`{\"handles\": [{\"id\", \"text\"}, ...]}` when the member returns handles, else `{}`",
-      "params note": "`target` (an id), `member` (a spec member name: `set` (on a statement, a variable or, milestone 5, a written value), `replace with text`, `remove`, `rename`, `insert statements`, `add statements`, `insert before`, `insert after`, `set override`), `args` (in the member's parameter order; `null` means the argument is absent)"
+      "doc": "`{\"handles\": [{\"id\", \"text\"}, ...]}` when the member returns handles, else `{}`",
+      "params doc": "`target` (an id), `member` (a spec member name: `set` (on a statement, a variable or a written value), `replace with text`, `remove`, `rename`, `insert statements`, `add statements`, `insert before`, `insert after`, `set override`), `args` (in the member's parameter order; `null` means the argument is absent)",
+      "rationale": "milestone 5 let `set` reach a written value"
     },
     {
       "op": "save",
@@ -398,8 +400,8 @@
       ],
       "result": "saved",
       "level": "L1",
-      "note": "without `disk`: `{\"batches\": [[[path, text], ...], ...]}`, what a recording writer got, each `write` call one batch, during this one `save (writer)`. With `disk`: `save (writer)` with a `memory writer` over a new map holding `disk` (so a file whose text there differs from its saved text is a lost update), then `{\"files\": [[path, text], ...]}`, the map after, sorted by path",
-      "params note": "`graph`, `disk`? (path to text)"
+      "doc": "without `disk`: `{\"batches\": [[[path, text], ...], ...]}`, what a recording writer got, each `write` call one batch, during this one `save (writer)`. With `disk`: `save (writer)` with a `memory writer` over a new map holding `disk` (so a file whose text there differs from its saved text is a lost update), then `{\"files\": [[path, text], ...]}`, the map after, sorted by path",
+      "params doc": "`graph`, `disk`? (path to text)"
     },
     {
       "op": "quote",
@@ -408,8 +410,8 @@
       },
       "result": "text",
       "level": "L1",
-      "note": "`quote (text)`",
-      "params note": "`text`"
+      "doc": "`quote (text)`",
+      "params doc": "`text`"
     },
     {
       "op": "render",
@@ -422,8 +424,9 @@
       ],
       "result": "render",
       "level": "L2",
-      "note": "a **render** dump of `render (graph)`, its addresses under the key rule; for an id that is not a graph, the binding's `render` is called with that object and raises the `argument type error` (milestone 5, spec 7.0)",
-      "params note": "`graph` (any dumped object's id), `key`? (key rules, section 4.3)"
+      "doc": "a **render** dump of `render (graph)`, its addresses under the key rule; for an id that is not a graph, the binding's `render` is called with that object and raises the `argument type error` (spec 7.0)",
+      "rationale": "milestone 5 added the render call on an object that is not a graph",
+      "params doc": "`graph` (any dumped object's id), `key`? (key rules, section 4.3)"
     },
     {
       "op": "diff",
@@ -437,8 +440,8 @@
       ],
       "result": "change[]",
       "level": "L2",
-      "note": "`[{\"kind\", \"address\": address}, ...]`: `before`'s `diff (after, key?)`, in its order",
-      "params note": "`before`, `after` (render ids), `key`?"
+      "doc": "`[{\"kind\", \"address\": address}, ...]`: `before`'s `diff (after, key?)`, in its order",
+      "params doc": "`before`, `after` (render ids), `key`?"
     },
     {
       "op": "read",
@@ -448,8 +451,9 @@
       },
       "result": "reader result",
       "level": "L2",
-      "note": "the reader's **result** (section 4.4)",
-      "params note": "`value` (an expanded value's id), `reader` (`word`, `string`, `number`, `integer`, `boolean`, `list`, `slice`; milestone 5 deleted `plain`)"
+      "doc": "the reader's **result** (section 4.4)",
+      "params doc": "`value` (an expanded value's id), `reader` (`word`, `string`, `number`, `integer`, `boolean`, `list`, `slice`)",
+      "rationale": "milestone 5 deleted the `plain` reader"
     },
     {
       "op": "print",
@@ -458,8 +462,8 @@
       },
       "result": "text",
       "level": "L2",
-      "note": "the object's `people form` (contract 2): the language's own to-text conversion",
-      "params note": "`target` (an id)"
+      "doc": "the object's `people form` (contract 2): the language's own to-text conversion",
+      "params doc": "`target` (an id)"
     },
     {
       "op": "format",
@@ -472,8 +476,8 @@
       ],
       "result": "text",
       "level": "L2",
-      "note": "`format diagnostic (diagnostic, graph?)`",
-      "params note": "`diagnostic` (a located diagnostic's id), `graph`?"
+      "doc": "`format diagnostic (diagnostic, graph?)`",
+      "params doc": "`diagnostic` (a located diagnostic's id), `graph`?"
     },
     {
       "op": "cut",
@@ -484,8 +488,8 @@
       },
       "result": "text",
       "level": "L2",
-      "note": "`text` cut at `start` and `end` with the language's own string slicing (the check that the binding's unit is its language's, contract 1)",
-      "params note": "`text`, `start`, `end` (native offsets)"
+      "doc": "`text` cut at `start` and `end` with the language's own string slicing (the check that the binding's unit is its language's, contract 1)",
+      "params doc": "`text`, `start`, `end` (native offsets)"
     }
   ],
   "results": [
@@ -512,7 +516,7 @@
       "optional": [
         "handles"
       ],
-      "note": "handles only when the member returns handles"
+      "doc": "handles only when the member returns handles"
     },
     {
       "name": "saved",
@@ -524,7 +528,7 @@
         "batches",
         "files"
       ],
-      "note": "batches without disk; files with disk"
+      "doc": "batches without disk; files with disk"
     }
   ],
   "edit members": [

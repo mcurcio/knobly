@@ -14,8 +14,12 @@
     "type": {"type": "string", "pattern": "^[a-z0-9 ()\\[\\]-]+$", "description": "a type in the closed type grammar (spec/codegen.md section 2)"},
     "wireType": {"type": "string", "pattern": "^[a-z0-9 ()\\[\\]\"-]+$", "description": "a type in the protocol grammar (spec/codegen.md section 5)"},
     "layerName": {"$ref": "#/$defs/specName", "description": "a layer api.json lists under 'layers' (tools/api/loader.py checks it: one home)"},
-    "languages": {"type": "array", "items": {"enum": ["ts", "py"]}, "minItems": 1, "uniqueItems": true},
     "errorName": {"$ref": "#/$defs/specName"},
+    "doc": {"$ref": "#/$defs/prose", "description": "the user-facing doc each emitter writes as the declaration's doc comment (JSDoc, docstring): no bead id, owner quote, history or one language's advice (tools/api/loader.py refuses the first kinds)"},
+    "rationale": {"$ref": "#/$defs/prose", "description": "why the declaration is as it is (history, quotes, bead ids, per-language notes): read by people, never emitted"},
+    "moduleName": {"enum": ["files", "fetch", "include"], "description": "an adapter module, named for what it holds; each emitter maps it to its own import path or leaves it out (spec/codegen.md section 10)"},
+    "factoryForm": {"enum": ["constructor", "package function"], "description": "how a binding makes a concept a factory function makes: a class constructed, or the package's own name called; each emitter picks one per concept (Language.factory_forms), so no api.json entry uses this enum: it is the closed list's one home"},
+    "rootForm": {"enum": ["base", "builtin"], "description": "a root error group's class in a binding: one that extends the language's class, or the language's class itself (Language.error_roots); the closed list's one home, used by no api.json entry"},
 
     "param": {
       "type": "object",
@@ -25,8 +29,9 @@
         "name": {"$ref": "#/$defs/specName"},
         "type": {"$ref": "#/$defs/type"},
         "optional": {"type": "boolean"},
-        "passed": {"enum": ["position", "keyword", "option"], "description": "keyword: Python keyword-only, TypeScript positional; option: Python keyword-only, a TypeScript options object"},
-        "note": {"$ref": "#/$defs/prose"}
+        "passed": {"enum": ["position", "keyword", "option"], "description": "keyword: named at the call where the language can; option: an optional setting (spec/codegen.md section 3 has each emitter's form)"},
+        "doc": {"$ref": "#/$defs/doc"},
+        "rationale": {"$ref": "#/$defs/rationale"}
       }
     },
     "member": {
@@ -46,7 +51,8 @@
         "order": {"$ref": "#/$defs/prose"},
         "options": {"$ref": "#/$defs/specName"},
         "type parameters": {"type": "array", "items": {"$ref": "#/$defs/specName"}},
-        "note": {"$ref": "#/$defs/prose"}
+        "doc": {"$ref": "#/$defs/doc"},
+        "rationale": {"$ref": "#/$defs/rationale"}
       },
       "if": {"properties": {"member": {"const": "property"}}},
       "then": {"required": ["type"], "not": {"anyOf": [{"required": ["returns"]}, {"required": ["params"]}]}},
@@ -69,14 +75,14 @@
         "extends": {"$ref": "#/$defs/type"},
         "type parameters": {"type": "array", "items": {"$ref": "#/$defs/specName"}},
         "match args": {"type": "array", "items": {"$ref": "#/$defs/specName"}},
-        "languages": {"$ref": "#/$defs/languages"},
-        "module": {"enum": ["node", "browser", "files", "include"]},
+        "module": {"$ref": "#/$defs/moduleName"},
         "is": {"enum": ["text", "native"]},
         "brand": {"type": "boolean"},
         "pattern": {"$ref": "#/$defs/specName"},
         "template": {"type": "string", "pattern": "^([^{}]|\\{text\\})+$", "description": "a named type's form where a type system can state it: '{text}' is any text, the rest literal"},
         "type": {"$ref": "#/$defs/type"},
-        "note": {"$ref": "#/$defs/prose"}
+        "doc": {"$ref": "#/$defs/doc"},
+        "rationale": {"$ref": "#/$defs/rationale"}
       }
     },
     "kindList": {
@@ -90,20 +96,10 @@
         "sort": {"enum": ["variant set", "tag"]},
         "variants": {"type": "object", "additionalProperties": {"$ref": "#/$defs/specName"}},
         "tag of": {"type": "array", "items": {"$ref": "#/$defs/specName"}},
-        "languages": {"$ref": "#/$defs/languages"},
-        "note": {"$ref": "#/$defs/prose"}
+        "doc": {"$ref": "#/$defs/doc"},
+        "rationale": {"$ref": "#/$defs/rationale"}
       },
       "oneOf": [{"required": ["values"]}, {"required": ["values from"]}]
-    },
-    "languageBase": {
-      "type": "object",
-      "additionalProperties": false,
-      "minProperties": 1,
-      "maxProperties": 1,
-      "properties": {
-        "base": {"enum": ["Error", "ReferenceError", "Exception"]},
-        "builtin": {"enum": ["TypeError", "RangeError", "ValueError", "IndexError"]}
-      }
     },
     "errorGroup": {
       "type": "object",
@@ -120,9 +116,8 @@
           "given": {"const": true}, "template": {"$ref": "#/$defs/prose"}, "separator": {"type": "string"}},
           "oneOf": [{"required": ["given"]}, {"required": ["template"]}]},
         "cause": {"enum": ["chained"]},
-        "ts": {"$ref": "#/$defs/languageBase"},
-        "py": {"$ref": "#/$defs/languageBase"},
-        "note": {"$ref": "#/$defs/prose"}
+        "doc": {"$ref": "#/$defs/doc"},
+        "rationale": {"$ref": "#/$defs/rationale"}
       }
     },
     "function": {
@@ -135,12 +130,12 @@
         "params": {"type": "array", "items": {"$ref": "#/$defs/param"}},
         "returns": {"$ref": "#/$defs/type"},
         "errors": {"type": "array", "items": {"$ref": "#/$defs/errorName"}},
-        "factory": {"type": "object", "additionalProperties": false, "required": ["of", "ts", "py"], "properties": {
-          "of": {"$ref": "#/$defs/specName"}, "ts": {"enum": ["package function", "constructor"]}, "py": {"enum": ["constructor"]}}},
-        "module": {"type": "object", "additionalProperties": false, "minProperties": 1, "properties": {
-          "ts": {"enum": ["node", "browser", "include"]}, "py": {"enum": ["files", "include"]}}},
+        "factory": {"type": "object", "additionalProperties": false, "required": ["of"], "properties": {
+          "of": {"$ref": "#/$defs/specName"}}, "description": "the function makes this concept; each emitter picks its form (a constructor, or the package's own function)"},
+        "module": {"$ref": "#/$defs/moduleName"},
         "options": {"$ref": "#/$defs/specName"},
-        "note": {"$ref": "#/$defs/prose"}
+        "doc": {"$ref": "#/$defs/doc"},
+        "rationale": {"$ref": "#/$defs/rationale"}
       }
     },
     "constantName": {"$ref": "#/$defs/specName"},
@@ -149,7 +144,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["version", "package", "layers", "layer direction", "kinds", "keywords", "limits", "reserved names", "patterns",
-                   "error groups", "argument type error message", "free functions", "concepts"],
+                   "registry layer", "adapter layer", "error groups", "argument type error message", "free functions", "concepts"],
       "properties": {
         "$schema": {"type": "string"},
         "$comment": {"type": "string"},
@@ -160,6 +155,8 @@
           "properties": {"name": {"$ref": "#/$defs/layerName"}, "holds": {"$ref": "#/$defs/prose"},
             "may import": {"type": "array", "items": {"$ref": "#/$defs/layerName"}}, "namespace": {"enum": ["package", "own"]}}}},
         "layer direction": {"$ref": "#/$defs/prose"},
+        "registry layer": {"$ref": "#/$defs/layerName", "description": "the layer that holds the error groups and the diagnostic code type"},
+        "adapter layer": {"$ref": "#/$defs/layerName", "description": "the one layer whose concepts may sit in an adapter module (moduleName)"},
         "kinds": {"type": "object", "propertyNames": {"$ref": "#/$defs/specName"}, "additionalProperties": {"$ref": "#/$defs/kindList"}},
         "keywords": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["word", "statement kind"],
           "properties": {"word": {"$ref": "#/$defs/specName"}, "statement kind": {"$ref": "#/$defs/specName"}}}},
@@ -173,11 +170,12 @@
         "patterns": {"type": "object", "propertyNames": {"$ref": "#/$defs/specName"}, "additionalProperties": {"type": "object",
           "additionalProperties": false, "required": ["constant", "layer", "regex", "means"],
           "properties": {"constant": {"$ref": "#/$defs/constantName"}, "layer": {"$ref": "#/$defs/layerName"},
-            "regex": {"type": "string", "pattern": "^\\^.*\\$$"}, "means": {"$ref": "#/$defs/prose"}}}},
+            "regex": {"type": "string", "pattern": "^\\^[\\s\\S]*\\$$", "description": "an I-Regexp (RFC 9485) between ^ and $ (tools/api/loader.py checks the subset)"}, "means": {"$ref": "#/$defs/prose"}}}},
         "error groups": {"type": "array", "items": {"$ref": "#/$defs/errorGroup"}},
         "argument type error message": {"type": "object", "additionalProperties": false,
-          "required": ["rule", "ts", "py", "got", "member", "parameter", "other"],
-          "properties": {"rule": {"$ref": "#/$defs/prose"}, "ts": {"$ref": "#/$defs/prose"}, "py": {"$ref": "#/$defs/prose"},
+          "description": "what the argument type error's message says; each emitter holds its language's sentence, with the placeholders {member}, {parameter} and {got}",
+          "required": ["rule", "got", "member", "parameter", "other"],
+          "properties": {"rule": {"$ref": "#/$defs/prose"},
             "got": {"$ref": "#/$defs/prose"}, "member": {"$ref": "#/$defs/prose"}, "parameter": {"$ref": "#/$defs/prose"},
             "other": {"$ref": "#/$defs/prose"}}},
         "free functions": {"type": "array", "items": {"$ref": "#/$defs/function"}},
@@ -226,7 +224,8 @@
         "other kinds": {"type": "array", "items": {"$ref": "#/$defs/specName"}, "uniqueItems": true, "description": "the kinds with no fields of their own beside 'by kind': together they are every kind the shape takes"},
         "tuple": {"type": "array", "items": {"$ref": "#/$defs/wireType"}, "minItems": 1},
         "one of": {"type": "object", "additionalProperties": {"$ref": "#/$defs/wireType"}, "minProperties": 1},
-        "note": {"$ref": "#/$defs/prose"}
+        "doc": {"$ref": "#/$defs/doc"},
+        "rationale": {"$ref": "#/$defs/rationale"}
       },
       "oneOf": [{"required": ["fields"]}, {"required": ["tuple"]}, {"required": ["one of"]}]
     },
@@ -242,10 +241,11 @@
         "shapes": {"type": "array", "items": {"$ref": "#/$defs/shape"}},
         "results": {"type": "array", "items": {"$ref": "#/$defs/shape"}},
         "requests": {"type": "array", "items": {"type": "object", "additionalProperties": false,
-          "required": ["op", "params", "result", "level", "note", "params note"],
+          "required": ["op", "params", "result", "level", "doc", "params doc"],
           "properties": {"op": {"$ref": "#/$defs/specName"}, "params": {"type": "object", "additionalProperties": {"$ref": "#/$defs/wireType"}},
             "optional": {"type": "array", "items": {"type": "string"}}, "result": {"$ref": "#/$defs/wireType"},
-            "level": {"enum": ["all", "L0", "L1", "L2", "L3", "L4"]}, "note": {"$ref": "#/$defs/prose"}, "params note": {"$ref": "#/$defs/prose"}}}},
+            "level": {"enum": ["all", "L0", "L1", "L2", "L3", "L4"]}, "doc": {"$ref": "#/$defs/doc"}, "params doc": {"$ref": "#/$defs/doc"},
+            "rationale": {"$ref": "#/$defs/rationale"}}}},
         "edit members": {"type": "array", "items": {"$ref": "#/$defs/specName"}},
         "readers": {"type": "array", "items": {"$ref": "#/$defs/specName"}}
       }

@@ -11,7 +11,6 @@ import pytest
 
 import villanelle as vl
 from villanelle import rendered, written
-from villanelle._api import shared
 from villanelle.include import include as include_extension
 
 
@@ -42,7 +41,7 @@ def codes(loaded: rendered.Rendered) -> list[str]:
     return [str(d.code) for d in loaded.diagnostics]
 
 
-def at(d: shared.LocatedDiagnostic) -> tuple[int, int]:
+def at(d: vl.LocatedDiagnostic) -> tuple[int, int]:
     return d.place.span.start.line, d.place.span.start.column
 
 

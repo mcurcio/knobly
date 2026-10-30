@@ -204,24 +204,29 @@ public-name check reads the `parent` of each group in the schema.
 ## 5. Adapters
 
 Each adapter is named after its medium and the port it fills: `memory`, `file` or `fetch`, then `source` or
-`writer`. Every binding ships memory and file adapters for both ports. Fetch adapters stay optional (TypeScript
-only).
+`writer`. Every binding MUST ship the memory and file adapters for both ports. The fetch adapters are optional
+(MAY): a binding whose emitter has no `fetch` module has none.
 
-| Spec name | Port | Required | TypeScript | Python |
-|---|---|---|---|---|
-| `memory source` | source | MUST | `memorySource(files)` from `"villanelle"` | `memory_source(files)` from `villanelle` |
-| `memory writer` | writer | MUST | `memoryWriter(files)` from `"villanelle"` | `memory_writer(files)` from `villanelle` |
-| `file source` | source | MUST | `fileSource()` from `"villanelle/node"` | `file_source()` from `villanelle.files` |
-| `file writer` | writer | MUST | `fileWriter()` from `"villanelle/node"` | `file_writer()` from `villanelle.files` |
-| `fetch source` | source | MAY | `fetchSource(fetch)` from `"villanelle/browser"` | none |
-| `fetch writer` | writer | MAY | `fetchWriter(fetch, options)` from `"villanelle/browser"` | none |
+The adapters, generated from the schema (each is a free function returning a port) and each binding's emitter (its
+import paths):
+
+<!-- generated: adapters (tools/gen-api.py docs) -->
+| Spec name | Port | TypeScript | Python |
+|---|---|---|---|
+| `memory source` | document source | `memorySource(files)` from `villanelle` | `memory_source(files)` from `villanelle` |
+| `memory writer` | document writer | `memoryWriter(files)` from `villanelle` | `memory_writer(files)` from `villanelle` |
+| `file source` | document source | `fileSource()` from `villanelle/node` | `file_source()` from `villanelle.files` |
+| `file writer` | document writer | `fileWriter()` from `villanelle/node` | `file_writer()` from `villanelle.files` |
+| `fetch source` | document source | `fetchSource(fetch)` from `villanelle/browser` | none |
+| `fetch writer` | document writer | `fetchWriter(fetch, options)` from `villanelle/browser` | none |
+<!-- end generated -->
 
 - **The memory pair shares one map.** `memory source (files)` reads the map it is given at every call, never a
   copy made when it was created; `memory writer (files)` writes each batch into the map it is given. Given the same
   map, a save is visible to the next `load` or `read`: a program keeps its texts in one place (TypeScript: a plain
   `Record<string, string>`; Python: a `MutableMapping[str, str]`, such as a `dict`).
-- **Every writer refuses a lost update through one check**, `check lost updates (files, current)` (spec 4.2;
-  TypeScript `checkLostUpdates` from `"villanelle"`, Python `check_lost_updates` from `villanelle`): the memory
+- **Every writer refuses a lost update through one check**, `check lost updates (files, current)` (spec 4.2; its
+  spelling in each binding is in the glossary's generated io table): the memory
   writer with each file's text in the map (absent when the key is), the file writer with each file's text on disk,
   the fetch writer with each URL's `GET` body, then a `PUT` with `If-Match` on the `GET`'s ETag (a `412` is a lost
   update). The memory writer's batch is all or nothing, since nothing can fail part way.

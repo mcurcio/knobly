@@ -161,7 +161,7 @@ is stale), which also holds each code's message and owning layer.
 | E1001 | `unterminated string` | parse | syntax | A string reaches the end of its line or of the text without its closing quote. |
 | E1003 | `unexpected character` | parse | syntax | A character no token may start with, or a byte-order mark after the first character. |
 | E1004 | `lone dollar` | parse | syntax | A `$` not followed by a variable name. |
-| E1005 | `bad escape` | parse | syntax | A closed double-quoted string holding a backslash escape other than the six (the `BAD_ESCAPE` error token), placed on the string. A single-quoted string is raw: it has no escapes (milestone 5). |
+| E1005 | `bad escape` | parse | syntax | A closed double-quoted string holding a backslash escape other than the six (the `BAD_ESCAPE` error token), placed on the string. A single-quoted string is raw: it has no escapes. |
 | E2001 | `unexpected token` | parse | syntax | A token the grammar does not allow here, when no more specific code applies: among them the end of the text or a `}` where a directive's `;` or block is due. Also an edit's bad text error, from its entry rule (2.8): at the first token the entry rule does not allow, or at the end of the text. |
 | E2003 | `expected closing brace` | parse | syntax | The text ends inside a block. |
 | E2004 | `expected closing bracket` | parse | syntax | A stray `]`, or a `[` list with no matching `]`. |
@@ -173,13 +173,13 @@ is stale), which also holds each code's message and owning layer.
 | E3005 | `include bad path` | include extension | extension | An `include` whose values are not exactly one quoted path. |
 | E3006 | `extension failed` | load and read | extension | An extension threw something other than a diagnostic error, or returned something other than a list of texts. |
 | E3007 | `unread copy` | low level | unread | An extension line's copy whose specs are not resolved or whose files are not read yet (it is in `unread ()`); `read ()` reads them. Placed on the extension line's name. |
-| E3008 | `unknown extension` | low level | extension | A statement written `@name` where `name` is no language statement (`set`, `snippet`, `use`) and no registered extension's name (milestone 5). Placed on the `@name`; the statement is an `unreadable line`. |
+| E3008 | `unknown extension` | low level | extension | A statement written `@name` where `name` is no language statement (`set`, `snippet`, `use`) and no registered extension's name. Placed on the `@name`; the statement is an `unreadable line`. |
 | E4001 | `non-integer bound` | low level | value | A slice or index bound reached through a variable that is not one integer word, or a literal integer beyond the integer range. A literal bound that is not an integer is E2007, found by parse. |
 | E4002 | `wrong value kind` | readers | none | A reader asked for a kind the value is not. |
 | E4004 | `not a number` | readers | none | A word read as a number that is not a JSON number, or one beyond the double range (`1e400`; contract 2). |
 | E4005 | `not an integer` | readers | none | A word read as an integer that is not one, or one beyond plus or minus 2^53-1. |
 | E4006 | `not a boolean` | readers | none | A word other than `true` or `false`, read as a boolean. |
-| E4007 | `bad slice name` | low level | value | A slice or index whose name is a `$name` that does not hold exactly one `WORD` or `AT_WORD`, the words the grammar's `sliceName` takes (`$src[0~3]` with `$src` a string, a list, two values, or a number-like word such as `5`, `1.5`, `-` or `07:30`); placed as E4001 is (milestone 5). |
+| E4007 | `bad slice name` | low level | value | A slice or index whose name is a `$name` that does not hold exactly one `WORD` or `AT_WORD`, the words the grammar's `sliceName` takes (`$src[0~3]` with `$src` a string, a list, two values, or a number-like word such as `5`, `1.5`, `-` or `07:30`); placed as E4001 is. |
 | E5001 | `unknown variable` | low level | expansion | A `$name` with no `set` visible and no override. |
 | E5002 | `variable set twice` | low level, edit | expansion | Two `set` lines for one name in one block. |
 | E5003 | `unknown snippet` | low level | expansion | A `use` naming no visible snippet. |
@@ -227,9 +227,9 @@ statement classification reads; no binding compares a keyword's text by hand.
 - `MAX_DEPTH` (expansion depth; the written layer): 16, use and extension lines nested at most this deep (E5007).
 - `MAX_DIRECTIVES` (directives; the written layer): 100,000, directives after expansion, at most (E5008).
 - `MAX_SAFE_INTEGER` (integer range; the written layer): 9,007,199,254,740,991, integer words and slice or index bounds lie within plus or minus this (2^53-1) (E4005).
-- `RESERVED` (reserved names; the written layer): `set`, `snippet`, `use`: the language statements' names, written @set, @snippet and @use: no extension may take one (spec 2.5, 5). Milestone 5: no directive name is reserved any more; a directive's name is a WORD, which never starts with @.
+- `RESERVED` (reserved names; the written layer): `set`, `snippet`, `use`: the language statements' names, written @set, @snippet and @use: no extension may take one (spec 2.5, 5). No directive name is reserved: a directive's name is a WORD, which never starts with @.
 - `VARIABLE_NAME` (variable name pattern; the written layer): `^[A-Za-z0-9_]+$`, a $name without its $, an override name, a variable rename.
-- `PROGRAM_CODE` (program code pattern; the shared layer): `^[^/\t\n\u000b\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$`, <namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out so JavaScript and Python agree); villanelle's codes start with E.
+- `PROGRAM_CODE` (program code pattern; the shared layer): `^[^/\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/[^\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$`, <namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out); villanelle's codes start with E.
 <!-- end generated -->
 
 - **No directive name is reserved** (milestone 5; owner, 2026-10-29, bead vil-umh.14: "yes" to language
@@ -286,7 +286,7 @@ generated from the schema:
 | `save error` | expected outcome, under `villanelle error` | the writer failed | `SaveError` | `SaveError` |
 | `lost update error` | expected outcome, under `save error` | a file the save would write changed since it was read or last saved: its current text differs from its saved text (spec 4.2). Raised by check lost updates inside every writer; save raises it as is | `LostUpdateError` | `LostUpdateError` |
 | `detached error` | program bug | any member but kind of a detached handle is used | `DetachedError`, extends `ReferenceError` | `DetachedError`, subclass of `ReferenceError` |
-| `argument type error` | program bug | an argument of the wrong type: anything but text where config text or a name is taken (an extension's name at make processor included), and to quote and text (spec 6.9), a writer that is not a document writer, a render given something that is not a document graph (no callable expand; spec 7.0, milestone 5), a key rule that returns anything but text or absent (spec 7.4) | `TypeError` | `TypeError` |
+| `argument type error` | program bug | an argument of the wrong type: anything but text where config text or a name is taken (an extension's name at make processor included), and to quote and text (spec 6.9), a writer that is not a document writer, a render given something that is not a document graph (no callable expand; spec 7.0), a key rule that returns anything but text or absent (spec 7.4) | `TypeError` | `TypeError` |
 | `misuse error` | program bug | a bad argument value a program could have checked: every bad name (a variable or override name not matching the variable name pattern; a directive rename, or an extension's name at make processor, that the nameText entry rule refuses), a program code without '/', a reserved (set, snippet, use) or repeated extension name | `MisuseError`, extends `Error` | `ValueError` |
 | `index out of range` | program bug | an insert index outside a block; a token range outside a parse | `RangeError` | `IndexError` |
 <!-- end generated -->
@@ -569,7 +569,8 @@ Read-only, one text at a time, no I/O. Covered by the syntax conformance cases (
   starts with a digit or `-` (`1.5`, `20hz`, `007`, `-x`, `-`, `07:30`). All four are the value kind `word` (6.6,
   2.9). After its first character every word may hold letters, digits and `_ . / @ # + : * ? -`: so `:` is a word
   character in every word (`07:30`, `00:1a:2b:3c:4d:5e`, `127.0.0.1:3000`), and a word cannot start with `:`
-  (`:80` is E1003 at the `:`). Milestone 5 (owner, 2026-10-29, bead vil-umh.14: "yes" to a slice separator outside
+  (`:80` is E1003 at the `:`); a value that starts with `:` is quoted (nginx `listen "[::]:80";`, `"::1:80"`;
+  owner, 2026-10-30, bead vil-umh.15: "If the tradeoff is that those strings require quotes, let's go with that"). Milestone 5 (owner, 2026-10-29, bead vil-umh.14: "yes" to a slice separator outside
   the word alphabet); before it `:` was the slice separator and could not follow a digit word's digits.
 - A slice or index is a **slice name** touching `[`, its bounds, then `]` (grammar `slicedWord : sliceName '['
   bounds ']'`). The slice name is a `WORD`, an `AT_WORD` or a `VARIABLE` (milestone 5: a variable may be
@@ -1130,12 +1131,23 @@ The schema names it as the concept `config text` ([schema/api.json](schema/api.j
   statement's or value's `text` is plain text; pass it on with `text (...)`).
 - At run time the check is unchanged: given anything that is not text (a number, a boolean, a list, a null), each
   member above, `quote` and `text` MUST raise an `argument type error` before it changes anything, whose message
-  names the member and the parameter and points to `quote ()` and `text ()`. The exact wording per binding is in
-  [schema/api.json](schema/api.json) (`argument type error message`): in Python, `statement.set(2400)` raises
-  `TypeError: set() argument 'text' must be str, not int; ...` and never fails inside the library. A plain string
+  names the member and the parameter and points to `quote ()` and `text ()`. Its placeholders and rule are in
+  [schema/api.json](schema/api.json) (`argument type error message`); each binding's exact sentence is its
+  emitter's (`LANGUAGE.argument_type_message`), shown in the generated table below. The error is raised before the
+  library does anything with the value, so it never fails inside the library. A plain string
   passes at run time (neither language can tell it from config text then); the type checker refuses it. Absent is
   allowed only where the member says so (`set override`'s text, which removes the override).
 - A binding's docs show `quote ()` and `text ()` beside the first edit they teach.
+
+Each binding's argument type error message, from its emitter (`{member}`, `{parameter}` and `{got}` are filled in at
+the raise):
+
+<!-- generated: argument type messages (tools/gen-api.py docs) -->
+| Binding | Message |
+|---|---|
+| TypeScript | `{member}(): argument "{parameter}" must be a string, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, String() a number first` |
+| Python | `{member}() argument '{parameter}' must be str, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, str() a number first` |
+<!-- end generated -->
 
 Costs: every literal a program writes into an edit needs `text (...)` (`statement.set(text("8080"))`), and a value's
 `text` read from one line must be wrapped to be written into another. A cast (`as ConfigText`, `cast(ConfigText,

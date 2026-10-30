@@ -5,9 +5,20 @@
     py/src/villanelle/_api/limits.py     the rules: limits, reserved words, patterns
     py/src/villanelle/_api/errors.py     the error class tree and argument_type_message()
     py/src/villanelle/_api/<layer>.py    a Protocol per handle, port and interface, a frozen slotted dataclass per plain
-                                         record, union and callback aliases, and the layer's <Layer>Functions Protocol
-    py/src/villanelle/_api/names.py      every public name per module, each error class's group, each class's match args
-    py/conformance/shapes.py             the adapter protocol's message TypedDicts and the spec-name spellings
+                                         record, callback aliases, and union aliases over generated records: one module
+                                         per layer api.json lists
+    py/conformance/shapes.py             the adapter protocol's message TypedDicts, the spec-name spellings and each
+                                         error class's group
+    py/tests/api_contract.py             what the binding's tests check it against: every public name per module, each
+                                         class's match args, each public union's variants, each module's
+                                         <Module>Functions and each constructed class's <Class>Constructor Protocol, and
+                                         the assignments that make mypy check the binding against all of them
+
+The public types and the generated types are one (spec/codegen.md section 4): every annotation that names a concept the
+binding implements by hand names the binding's public class (``villanelle.rendered.Directive``), imported for the type
+checker only; a concept the generator writes whole (a record, a callback or named type, a union of records) is named by
+its generated class, which the binding re-exports. So a program annotating with the public classes type-checks against
+every generated record, callback and Protocol, and nothing outside the package imports ``villanelle._api``.
 
 Idiom lives here and only here: properties, tuples for results, Sequence and Mapping for parameters, positional-only
 parameters, keyword-only options, __str__ / __iter__ / __len__ / __getitem__ / a generator walk / a context manager for
@@ -20,9 +31,23 @@ import json
 import textwrap
 from typing import Dict, List, Optional, Set, Tuple
 
-from .loader import HEADER, PLACEHOLDER, Concept, Language, Member, Model, Param, SchemaError, Type, pascal, snake, upper_snake
+from .loader import (
+    HEADER,
+    PLACEHOLDER,
+    Concept,
+    Language,
+    Member,
+    Model,
+    Param,
+    SchemaError,
+    Type,
+    pascal,
+    pattern_body,
+    sentence,
+    snake,
+    upper_snake,
+)
 
-LAYER_FILES = ("shared", "syntax", "io", "written", "rendered")
 WIDTH = 120
 
 
@@ -39,8 +64,43 @@ def _trait_names(model: Model) -> List[Tuple[str, str, str]]:
             for c in model.concepts if "py" in c.languages and any(m.trait == "collect" for m in c.members)]
 
 
-LANGUAGE = Language("py", ".", snake, ("Exception", "ReferenceError", "TypeError", "ValueError", "IndexError"), _public_kind,
-                    _trait_names)
+def _omit(name: str, nature: str) -> bool:
+    """Python passes options as keyword arguments (no options records) and walks with a generator (no walk control)."""
+    return nature == "options" or name == "walk control"
+
+
+def _omitted_as(name: str, nature: str) -> str:
+    return "keyword arguments" if nature == "options" else "none"
+
+
+# Python's own facts (the schema names no language; spec/codegen.md section 10).
+LANGUAGE = Language(
+    key="py",
+    name="Python",
+    sep=".",
+    function_case=snake,
+    code_case=upper_snake,
+    public_kind=_public_kind,
+    enum_form="`StrEnum`",
+    generic=lambda name, params: f"{name}[{', '.join(params)}]",
+    construct=lambda name: f"{name}(...)",
+    extends_word="subclass of",
+    cause_field="__cause__",
+    error_roots={
+        "villanelle error": {"base": "Exception"},
+        "detached error": {"base": "ReferenceError"},
+        "argument type error": {"builtin": "TypeError"},
+        "misuse error": {"builtin": "ValueError"},
+        "index out of range": {"builtin": "IndexError"},
+    },
+    argument_type_message=("{member}() argument '{parameter}' must be str, not {got}; villanelle edits take config text: "
+                           "quote() a program string, text() one already written as villanelle text, str() a number "
+                           "first"),  # {got}: type(value).__name__
+    modules={"files": "files", "include": "include"},  # no fetch adapter
+    omit=_omit,
+    omitted_as=_omitted_as,
+    trait_names=_trait_names,
+)
 
 
 def s(text: str) -> str:
@@ -51,10 +111,25 @@ def s(text: str) -> str:
     return '"' + body + '"'
 
 
-def docstring(text: str, indent: str) -> List[str]:
-    text = text.replace("\\", "\\\\").replace('"""', '\\"\\"\\"').strip()
-    if not text:
+def _escape(text: str) -> str:
+    return text.replace("\\", "\\\\").replace('"""', '\\"\\"\\"').strip()
+
+
+def docstring(text: str, indent: str, sections: Optional[List[Tuple[str, List[Tuple[str, str]]]]] = None) -> List[str]:
+    """A docstring: the text wrapped, then each Google-style section (``Args:``, ``Raises:``) with one entry a name."""
+    text = _escape(text)
+    sections = [(title, [(n, _escape(d)) for n, d in entries]) for title, entries in (sections or []) if entries]
+    if not text and not sections:
         return []
+    if sections:
+        lines = textwrap.wrap(text, WIDTH - len(indent) - 3) if text else []
+        for title, entries in sections:
+            lines += ([""] if lines else []) + [f"{title}:"]
+            for name, d in entries:
+                lines += textwrap.wrap(f"{name}: {d}", WIDTH - len(indent) - 4, initial_indent="    ", subsequent_indent="        ")
+        if not text:  # sections only: they start on the line after the quotes, so ruff keeps their indentation
+            return [f'{indent}"""', *(f"{indent}{line}" if line else "" for line in lines), f'{indent}"""']
+        return [f'{indent}"""{lines[0]}', *(f"{indent}{line}" if line else "" for line in lines[1:]), f'{indent}"""']
     if text.endswith('"'):
         text += " "
     lines = textwrap.wrap(text, WIDTH - len(indent) - 3)
@@ -63,6 +138,21 @@ def docstring(text: str, indent: str) -> List[str]:
     if len(lines) == 1:
         return [f'{indent}"""{lines[0]}"""']
     return [f'{indent}"""{lines[0]}', *(f"{indent}{line}" for line in lines[1:]), f'{indent}"""']
+
+
+def error_class(model: Model, group: str) -> str:
+    g = model.group[group]
+    return g.builtin("py") or pascal(g.name)
+
+
+def member_docstring(model: Model, text: str, params: List[Param], errors: List[str], order: str, indent: str) -> List[str]:
+    """A member's docstring: its doc and order, an ``Args`` section for its documented parameters, and a ``Raises``
+    section for the error groups it raises (as TypeScript writes ``@param`` and ``@throws``)."""
+    if order:
+        text = f"{text} Order: {order}.".strip()
+    args = [(snake(p.name), p.doc) for p in params if p.doc]
+    raises = [(error_class(model, e), model.group[e].raised_when) for e in errors]
+    return docstring(text, indent, [("Args", args), ("Raises", raises)])
 
 
 def tuple_literal(items: List[str]) -> str:
@@ -95,6 +185,11 @@ class Imports:
     def __init__(self) -> None:
         self.runtime: Dict[str, Set[str]] = {}
         self.typing_only: Dict[str, Set[str]] = {}
+        self.modules: Set[str] = set()  # `import villanelle.rendered`, for the type checker only
+
+    def module(self, module: str) -> str:
+        self.modules.add(module)
+        return module
 
     def add(self, module: str, name: str, runtime: bool = True) -> str:
         (self.runtime if runtime else self.typing_only).setdefault(module, set()).add(name)
@@ -108,11 +203,13 @@ class Imports:
             return (1, name)
         return (2, name)
 
-    def _lines(self, mods: Dict[str, Set[str]], indent: str) -> List[str]:
+    def _lines(self, mods: Dict[str, Set[str]], indent: str, plain: Set[str] = frozenset()) -> List[str]:  # type: ignore[assignment]
         out = []
         std = sorted(m for m in mods if not m.startswith("villanelle"))
         first = sorted(m for m in mods if m.startswith("villanelle"))
         for group in (std, first):
+            if group is first:
+                out += [f"{indent}import {m}" for m in sorted(plain)]  # isort: plain imports before from-imports
             for m in group:
                 names = sorted(mods[m], key=self._key)
                 line = f"{indent}from {m} import {', '.join(names)}"
@@ -120,7 +217,7 @@ class Imports:
                     out.append(line)
                 else:
                     out += [f"{indent}from {m} import (", *(f"{indent}    {n}," for n in names), f"{indent})"]
-            if group and group is std and first:
+            if group and group is std and (first or plain):
                 out.append("")
         return out
 
@@ -128,34 +225,59 @@ class Imports:
         typing_only = {m: n - self.runtime.get(m, set()) for m, n in self.typing_only.items()}
         typing_only = {m: n for m, n in typing_only.items() if n}
         rt = {m: set(n) for m, n in self.runtime.items()}
-        if typing_only:
+        if typing_only or self.modules:
             rt.setdefault("typing", set()).add("TYPE_CHECKING")
         out = ["from __future__ import annotations", ""] + self._lines(rt, "")
-        if typing_only:
-            out += ["", "if TYPE_CHECKING:", *self._lines(typing_only, "    ")]
+        if typing_only or self.modules:
+            out += ["", "if TYPE_CHECKING:", *self._lines(typing_only, "    ", self.modules)]
         return out
 
 
+def generated_public(model: Model, c: Concept) -> bool:
+    """The generator writes the concept whole and the binding re-exports it as its public name: a plain record, a named
+    type, a callback, or a union whose variants are all such records. Every other concept is a Protocol the binding
+    implements with its own public class (spec/codegen.md section 4)."""
+    if c.is_union:
+        return all(generated_public(model, model.concept[v]) for v in c.variants)
+    return c.nature in ("named type", "callback") or is_record(model, c)
+
+
 class Ctx:
-    def __init__(self, model: Model, here: str, imports: Imports, type_params: Dict[str, str]) -> None:
+    def __init__(self, model: Model, here: str, imports: Imports, type_params: Dict[str, str], public: bool = False) -> None:
         self.model, self.here, self.imports, self.type_params = model, here, imports, type_params
+        self.public = public  # outside the package (api_contract.py): every name through its public module
+
+    def qualified(self, module: str, name: str) -> str:
+        self.imports.module(module)
+        return f"{module}.{name}"
 
     def ref(self, name: str, runtime: bool = False) -> str:
+        """A name as this module writes it. ``runtime``: evaluated when the module runs (a base class), so it must be
+        the generated class itself; otherwise an annotation, where a concept the binding implements by hand is its
+        public class (``villanelle.rendered.Directive``), imported for the type checker only."""
         m = self.model
         if name in self.type_params:
             return self.type_params[name]
         if name in m.kind:
+            if self.public:
+                return self.qualified(m.module(m.kind[name].layer, "."), pascal(name))
             return self.imports.add("villanelle._api.kinds", pascal(name), runtime)
         if name == "diagnostic code":
+            if self.public:
+                return self.qualified(m.package, "DiagnosticCode")
             return self.imports.add("villanelle._api.codes", "DiagnosticCode", runtime)
         if name in m.group:
             g = m.group[name]
             if g.builtin("py"):
                 return g.builtin("py") or ""
+            if self.public:
+                return self.qualified(m.package, pascal(name))
             return self.imports.add("villanelle._api.errors", pascal(name), runtime)
         c = m.concept[name]
         if c.is_ == "native":
-            raise SchemaError(f"native type {name!r}: Python has none (give the concept languages without py)")
+            raise SchemaError(f"native type {name!r}: Python has none (leave its module out of LANGUAGE.modules, or omit it)")
+        if self.public or not runtime and not generated_public(m, c):
+            return self.qualified(m.concept_module(c, "py"), pascal(name))
         if c.layer == self.here and self.here != "errors":
             return pascal(name)
         return self.imports.add(f"villanelle._api.{c.layer}", pascal(name), runtime)
@@ -201,10 +323,14 @@ def signature(indent: str, name: str, params: List[str], result: str, body: str 
     if len(one) <= WIDTH:
         return [one]
     hug = f"{indent}    {', '.join(params)}"
-    if len(hug) <= WIDTH and not params[-1].endswith(","):
-        tail = f"{indent}) -> {result}:{body}"
+    tail = f"{indent}) -> {result}:{body}"
+    if len(hug) <= WIDTH and not params[-1].endswith(",") and len(tail) <= WIDTH:
         return [f"{indent}def {name}(", hug, tail]
-    return [f"{indent}def {name}(", *(f"{indent}    {p}," for p in params), f"{indent}) -> {result}:{body}"]
+    exploded = [f"{indent}def {name}(", *(f"{indent}    {p}," for p in params)]
+    if len(tail) <= WIDTH:
+        return exploded + [tail]
+    # A return annotation too long for its line: ruff format puts it in parentheses on a line of its own.
+    return exploded + [f"{indent}) -> (", f"{indent}    {result}", f"{indent}):{body}"]
 
 
 def param_list(m_params: List[Param], ctx: Ctx, self_: bool = True) -> List[str]:
@@ -224,15 +350,15 @@ def param_list(m_params: List[Param], ctx: Ctx, self_: bool = True) -> List[str]
     return out
 
 
-def documented(indent: str, name: str, params: List[str], result: str, note: str) -> List[str]:
-    """A Protocol member's signature, with the schema's note as its docstring (as TypeScript writes it as JSDoc)."""
+def documented(indent: str, name: str, params: List[str], result: str, note: List[str]) -> List[str]:
+    """A Protocol member's signature, with its docstring lines (``member_docstring``) as its body."""
     if not note:
         return signature(indent, name, params, result)
-    return signature(indent, name, params, result, "") + docstring(note, indent + "    ")
+    return signature(indent, name, params, result, "") + note
 
 
 def member_lines(model: Model, c: Concept, m: Member, ctx: Ctx, indent: str = "    ") -> List[str]:
-    note = m.note
+    note = member_docstring(model, m.doc, m.params, m.errors, m.order, indent + "    ")
     if m.trait == "people form":
         return documented(indent, "__str__", ["self"], "str", note)
     if m.trait == "iterate":
@@ -308,20 +434,22 @@ def record_lines(model: Model, c: Concept, ctx: Ctx, tvs: Dict[str, str]) -> Lis
     if out[0] == "@final":
         ctx.imports.add("typing", "final")
     out.append(f"class {name}({', '.join(bases)}):" if bases else f"class {name}:")
-    out += docstring(c.note or f"The spec's {c.name}.", "    ")
+    out += docstring(c.doc, "    ")
     if explicit:
-        out += ["", match_args_line(c, ctx)]
-    if fields:
+        out += ["", match_args_line(c, ctx)] if c.doc else [match_args_line(c, ctx)]
+    if fields and (c.doc or explicit):
         out.append("")
     for m in fields:
         out.append(f"    {snake(m.name)}: {py_type(m.type, ctx)}")
-        out += docstring(m.note, "    ")
+        out += member_docstring(model, m.doc, [], [], m.order, "    ")
     if c.kind is not None:
         list_name = model.kind_list_of(c)
         kind_type = ctx.ref(list_name, runtime=True)
         member = kind_member(model, list_name, c.kind)
         ctx.imports.add("typing", "Literal", False)
         out += ["", "    @property", f"    def kind(self) -> Literal[{kind_type}.{member}]:", f"        return {kind_type}.{member}"]
+    if len(out) == 1 + out.index(next(line for line in out if line.startswith("class "))):
+        out.append("    pass")  # a record with no doc, no field and no kind
     return out
 
 
@@ -345,23 +473,25 @@ def concept_lines(model: Model, c: Concept, ctx: Ctx) -> Tuple[List[str], List[s
     if c.nature == "named type":
         if c.brand:
             ctx.imports.add("typing", "NewType")
-            return [f'{name} = NewType("{name}", str)', *docstring(c.note, "")], []
+            return [f'{name} = NewType("{name}", str)', *docstring(c.doc, "")], []
         ctx.imports.add("typing", "TypeAlias")
-        return [], [f"{name}: TypeAlias = str", *docstring(c.note, "")]
+        return [], [f"{name}: TypeAlias = str", *docstring(c.doc, "")]
     if c.nature == "callback":
         assert c.callback is not None
         ctx.imports.add("typing", "TypeAlias")
         *params, result = c.callback.args
         rt = py_type(result, ctx)
         callable_ = ctx.imports.add("collections.abc", "Callable")
-        args = ", ".join(py_type(p, ctx) for p in params)
-        return [], [f'{name}: TypeAlias = {callable_}[[{args}], "{rt}"]', *docstring(c.note, "")]
+        args = ", ".join(f'"{py_type(p, ctx)}"' for p in params)  # evaluated at run time: each name stays a string
+        return [], [f'{name}: TypeAlias = {callable_}[[{args}], "{rt}"]', *docstring(c.doc, "")]
     if c.is_union:
+        if not generated_public(model, c):
+            return [], []  # a union over the binding's own classes is the binding's (api_contract.UNIONS checks it)
         ctx.imports.add("typing", "TypeAlias")
         line = f"{name}: TypeAlias = {' | '.join(pascal(v) for v in c.variants)}"
         if len(line) > WIDTH:
             line = f"{name}: TypeAlias = (\n    " + "\n    | ".join(pascal(v) for v in c.variants) + "\n)"
-        return [], [line, *docstring(c.note, "")]
+        return [], [line, *docstring(c.doc, "")]
     covariant = c.nature == "shape"
     tvs = type_vars(c.type_parameters, covariant and True)
     cctx = Ctx(model, ctx.here, ctx.imports, tvs)
@@ -374,16 +504,19 @@ def concept_lines(model: Model, c: Concept, ctx: Ctx) -> Tuple[List[str], List[s
         bases.append(f"{ctx.ref(c.extends.name, runtime=True)}[{args}]")
     bases.append(f"{proto}[{', '.join(tvs.values())}]" if tvs else proto)
     out = [f"class {name}({', '.join(bases)}):"]
-    out += docstring(c.note or f"The spec's {c.name}.", "    ")
+    out += docstring(c.doc, "    ")
     if c.match_args:
         # A class that implements the Protocol inherits it, so `case SetLine(variable, values):` binds the spec's fields.
-        out += ["", match_args_line(c, ctx)]
+        out += ["", match_args_line(c, ctx)] if c.doc else [match_args_line(c, ctx)]
     members = list(c.members)
     if c.variant_of:
         members = list(model.concept[c.variant_of].members) + members
     for m in members:
-        out.append("")
+        if len(out) > 1:
+            out.append("")
         out += member_lines(model, c, m, cctx)
+    if len(out) == 1:
+        out.append("    pass")  # a Protocol with no doc and no member
     return out, []
 
 
@@ -395,7 +528,8 @@ def functions_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
             continue
         lines = by_module.setdefault(mod, [])
         lines.append("")
-        lines += signature("    ", snake(f.name), param_list(f.params, ctx), py_type(f.returns, ctx))
+        lines += documented("    ", snake(f.name), param_list(f.params, ctx), py_type(f.returns, ctx),
+                            member_docstring(model, f.doc, f.params, f.errors, "", "        "))
     out: List[str] = []
     for mod, lines in sorted(by_module.items()):
         suffix = mod.split(".", 1)[1] if "." in mod else layer
@@ -410,7 +544,8 @@ def functions_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
         proto = ctx.imports.add("typing", "Protocol")
         out += ["", "", f"class {pascal(of)}Constructor({proto}):",
                 *docstring(f"The {of} class's constructor ({f.name}): mypy checks the class against it (`_: X = {pascal(of)}`).", "    "),
-                "", *signature("    ", "__call__", param_list(f.params, ctx), ctx.ref(of))]
+                "", *documented("    ", "__call__", param_list(f.params, ctx), ctx.ref(of),
+                                member_docstring(model, f.doc, f.params, f.errors, "", "        "))]
     return out
 
 
@@ -440,7 +575,6 @@ def layer_module(model: Model, layer: str) -> str:
                     if line not in tvars:
                         imports.add("typing", "TypeVar")
                         tvars.append(line)
-    funcs = functions_lines(model, layer, ctx)
     body: List[str] = []
     if tvars:
         body += ["", *tvars]
@@ -448,7 +582,6 @@ def layer_module(model: Model, layer: str) -> str:
         body += ["", "", *block]
     for block in aliases:
         body += ["", *block] if body and body[-1].startswith(tuple(pascal(c.name) for c in model.concepts)) else ["", "", *block]
-    body += funcs
     head = [f'"""{HEADER}', "", f'Source: spec/schema/api.json, the {layer} layer."""', ""]
     out = head + imports.render() + body
     return "\n".join(out).rstrip("\n") + "\n"
@@ -464,7 +597,8 @@ def kinds_module(model: Model) -> str:
         if "py" not in k.languages:
             continue
         members = "\n".join(f"    {kind_member(model, k.name, v)} = {s(v)}" for v in k.values)
-        blocks.append(f'class {pascal(k.name)}(StrEnum):\n    """The spec\'s {k.name} list (spec 2.10): compare members, never strings."""\n\n{members}')
+        doc = "\n".join(docstring(f"The spec's {k.name} list (spec 2.10): compare members, never strings. {k.doc}", "    "))
+        blocks.append(f"class {pascal(k.name)}(StrEnum):\n{doc}\n\n{members}")
     kw = "\n".join(f"    {upper_snake(w)} = {s(w)}" for w, _ in model.keywords)
     blocks.append(f'class Keyword(StrEnum):\n    """The language statements\' keywords, written after \'@\' (spec 2.5): the one keyword list."""\n\n{kw}')
     table = "\n".join(f"        Keyword.{upper_snake(w)}: StatementKind.{upper_snake(sk)}," for w, sk in model.keywords)
@@ -548,7 +682,11 @@ def limits_module(model: Model) -> str:
         elif c.sort == "words":
             out += [f"{name}: Final = frozenset({{{', '.join(s(w) for w in c.value)}}})"]  # type: ignore[union-attr]
         else:
-            regex = str(c.value)[:-1] + "\\Z"  # Python's $ also matches before a final newline; \Z is the text's end
+            body = pattern_body(str(c.value), _regex_char)
+            if "\\p" in body or "\\P" in body:
+                raise SchemaError(f"pattern {c.about!r}: Python's re has no \\p{{..}}: write the class out")
+            # Python's $ also matches before a final newline; \Z is the text's end. In a raw string \" is a quote.
+            regex = "^" + body.replace('"', '\\"') + "\\Z"
             line = f'{name}: Final = re.compile(r"{regex}")'
             if len(line) <= WIDTH:
                 out += [line]
@@ -567,6 +705,10 @@ def limits_module(model: Model) -> str:
     return "\n".join(out) + "\n"
 
 
+def _regex_char(cp: int) -> str:
+    return f"\\u{cp:04x}" if cp <= 0xFFFF else f"\\U{cp:08x}"
+
+
 def errors_module(model: Model) -> str:
     imports = Imports()
     ctx = Ctx(model, "errors", imports, {})
@@ -578,7 +720,7 @@ def errors_module(model: Model) -> str:
         parent = model.group[g.parent] if g.parent else None
         base = pascal(parent.name) if parent else g.base["py"]["base"]
         body += ["", "", f"class {name}({base}):"]
-        body += docstring(f"{g.raised_when[0].upper()}{g.raised_when[1:]}. Spec 2.8: {g.sort}.", "    ")
+        body += docstring(f"{sentence(g.raised_when)} Spec 2.8: {g.sort}. {sentence(g.doc)}", "    ")
         own = [(f, t) for f, t in g.fields if not (parent and any(pf == f for pf, _ in parent.fields))]
         if not g.fields:
             continue
@@ -634,32 +776,99 @@ def template(message: Dict[str, object], fields: List[Tuple[str, Type]]) -> str:
     return "f" + s("".join(parts))
 
 
-def names_module(model: Model) -> str:
+def frozen_map(name: str, kind: str, entries: List[str], what: str) -> List[str]:
+    """A read-only module constant, one entry a line, as ruff format writes it."""
+    return [f"{name}: Final[Mapping[{kind}]] = MappingProxyType(", "    {", *entries, "    }", ")", f'"""{what}"""']
+
+
+def contract_module(model: Model) -> str:
+    """py/tests/api_contract.py: the generated half of the binding's public-name test. It lives beside the tests, not in
+    the package, and names every type through its public module, so the tests import nothing private."""
+    imports = Imports()
+    for name in ("Final", "Protocol"):
+        imports.add("typing", name)
+    imports.add("collections.abc", "Mapping")
+    imports.add("types", "MappingProxyType")
     by_mod: Dict[str, List[str]] = {}
     for mod, name, _ in model.public("py"):
         by_mod.setdefault(mod, []).append(name)
-    out = [f'"""{HEADER}', "", 'Source: spec/schema/api.json: every public name, derived by the casing rule."""', "",
-           "from collections.abc import Mapping", "from types import MappingProxyType", "from typing import Final", "",
-           "PUBLIC_NAMES: Final[Mapping[str, frozenset[str]]] = MappingProxyType(", "    {"]
+    names = []
     for mod in sorted(by_mod):
-        names = ", ".join(s(n) for n in sorted(by_mod[mod]))
-        line = f"        {s(mod)}: frozenset({{{names}}}),"
+        line = f"        {s(mod)}: frozenset({{{', '.join(s(n) for n in sorted(by_mod[mod]))}}}),"
         if len(line) <= WIDTH:
-            out.append(line)
+            names.append(line)
         else:
-            out += [f"        {s(mod)}: frozenset(", "            {", *(f"                {s(n)}," for n in sorted(by_mod[mod])),
-                    "            }", "        ),"]
-    out += ["    }", ")", '"""Every public name by module: each module\'s __all__ must equal its set (the name test)."""', "",
-            "ERROR_GROUP_OF_CLASS: Final[Mapping[str, str]] = MappingProxyType(", "    {"]
-    for g in model.groups:
-        out.append(f"        {s(g.builtin('py') or pascal(g.name))}: {s(g.name)},")
-    out += ["    }", ")", '"""Each error group\'s class (or the language\'s own, for a builtin group) to its spec name."""', "",
-            "MATCH_ARGS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(", "    {"]
+            names += [f"        {s(mod)}: frozenset(", "            {", *(f"                {s(n)}," for n in sorted(by_mod[mod])),
+                      "            }", "        ),"]
+    matches = [f"        {s(pascal(c.name))}: {tuple_literal([s(snake(a)) for a in c.match_args])},"
+               for c in model.concepts if c.match_args and "py" in c.languages]
+    unions = []
     for c in model.concepts:
-        if c.match_args:
-            out.append(f"        {s(pascal(c.name))}: {tuple_literal([s(snake(a)) for a in c.match_args])},")
-    out += ["    }", ")", '"""Each class\'s __match_args__, in the same field order in every layer (spec 2.10)."""']
-    return "\n".join(out) + "\n"
+        if c.is_union and "py" in c.languages:
+            line = f"        {s(pascal(c.name))}: {tuple_literal([s(pascal(v)) for v in c.variants])},"
+            if len(line) > WIDTH:
+                line = f"        {s(pascal(c.name))}: (\n" + "".join(f"            {s(pascal(v))},\n" for v in c.variants) + "        ),"
+            unions.append(line)
+    body = ["", *frozen_map("PUBLIC_NAMES", "str, frozenset[str]", names,
+                            "Every public name by module: each module's __all__ must equal its set (the name test)."),
+            "", "", *frozen_map("MATCH_ARGS", "str, tuple[str, ...]", matches,
+                                "Each class's __match_args__, in the same field order in every layer (spec 2.10)."),
+            "", "", *frozen_map("UNIONS", "str, tuple[str, ...]", unions,
+                                "Each public union's variant classes: the binding's union must hold exactly these.")]
+    ctx = Ctx(model, "contract", imports, {}, public=True)
+    for layer in model.layers:
+        body += functions_lines(model, layer.name, ctx)
+    body += contract_checks(model, ctx)
+    head = [f'"""{HEADER}', "", "Source: spec/schema/api.json: what the binding's tests check it against (spec/codegen.md section 4).",
+            "Every type is named through its public module; only the type checker's block at the end names the generated",
+            'Protocols, to check the public classes against them."""', ""]
+    return "\n".join(head + imports.render() + body) + "\n"
+
+
+def checked_by_protocol(model: Model, c: Concept) -> bool:
+    """A concept whose public class the binding writes by hand against its generated Protocol (a handle, or a snapshot
+    or record with methods). A port or interface is the generated Protocol itself, re-exported, so there is no second
+    class to check; a shape's class is abstract (each concrete block, which extends it, is checked); a union is checked
+    by ``UNIONS``."""
+    return ("py" in c.languages and not c.is_union and c.nature in ("handle", "snapshot", "record")
+            and not generated_public(model, c))
+
+
+def contract_checks(model: Model, ctx: Ctx) -> List[str]:
+    """Assignments mypy checks and nothing runs: each public module against its ``<Module>Functions`` Protocol (PEP
+    544's modules as protocols), each constructed class against its ``<Class>Constructor``, and each hand-written public
+    class against its concept's generated Protocol, structurally (so a class that forgets to subclass it is still
+    checked). The list comes from the schema, so a new module, factory or concept is checked with no hand edit."""
+    lines: List[str] = []
+
+    def assign(var: str, annotation: str, value: str) -> None:
+        line = f"    {var}: {annotation} = {value}"
+        lines.extend([line] if len(line) <= WIDTH else [f"    {var}: {annotation} = (", f"        {value}", "    )"])
+
+    seen: Set[str] = set()
+    for f in model.functions:
+        mod = model.function_module(f, "py")
+        if mod is None:
+            continue
+        if (f.factory or {}).get("py") == "constructor":
+            of = f.factory["of"]  # type: ignore[index]
+            assign(f"_{snake(of)}_constructor", f"{pascal(of)}Constructor", ctx.ref(of))
+            continue
+        suffix = mod.split(".", 1)[1] if "." in mod else f.layer
+        proto = f"{pascal(suffix)}Functions"
+        if proto not in seen:
+            seen.add(proto)
+            assign(f"_{snake(suffix)}_functions", proto, ctx.imports.module(mod))
+    for c in model.concepts:
+        if checked_by_protocol(model, c):
+            api_mod = ctx.imports.module(f"{model.package}._api.{c.layer}")
+            args = ""
+            if c.type_parameters:
+                args = f"[{', '.join(ctx.imports.add('typing', 'Any', False) for _ in c.type_parameters)}]"
+            assign(f"_{snake(c.name)}", f"type[{api_mod}.{pascal(c.name)}{args}]", ctx.ref(c.name))
+    if not lines:
+        return []
+    return ["", "", "if TYPE_CHECKING:", *lines]
 
 
 # --- the adapter protocol --------------------------------------------------------------------------------------------
@@ -738,6 +947,9 @@ def shapes_module(model: Model) -> str:
     imports.add("typing", "Final")
     body += ["", "", "SPELLING: Final[Mapping[str, str]] = {", *(f"    {s(k)}: {s(v)}," for k, v in sorted(spell.items())), "}",
              '"""Each spec name the driver sends (a member, a reader) to this binding\'s spelling: the casing rule, once."""']
+    groups = [f"    {s(g.builtin('py') or pascal(g.name))}: {s(g.name)}," for g in model.groups]
+    body += ["", "", "ERROR_GROUP_OF_CLASS: Final[Mapping[str, str]] = {", *groups, "}",
+             '"""Each error group\'s class (or the language\'s own, for a builtin group) to its spec name (spec 2.8)."""']
     head = [f'"""{HEADER}', "", 'Source: spec/schema/protocol.json (spec/conformance.md 4): the adapter\'s message types."""', ""]
     return "\n".join(head + imports.render() + body) + "\n"
 
@@ -749,15 +961,18 @@ def render(model: Model) -> Dict[str, str]:
         "codes.py": codes_module(model),
         "limits.py": limits_module(model),
         "errors.py": errors_module(model),
-        "names.py": names_module(model),
         # The folder is generated and never committed: ignore it from inside, as tools/gen.sh's own output is ignored.
         ".gitignore": f"# {HEADER}\n*\n",
     }
-    for layer in LAYER_FILES:
-        files[f"{layer}.py"] = layer_module(model, layer)
+    for layer in model.layers:
+        files[f"{layer.name}.py"] = layer_module(model, layer.name)
     return files
 
 
 def render_shapes(model: Model) -> Dict[str, str]:
     return {"shapes.py": shapes_module(model)}
+
+
+def render_contract(model: Model) -> Dict[str, str]:
+    return {"api_contract.py": contract_module(model)}
 

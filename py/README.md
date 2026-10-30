@@ -19,9 +19,15 @@ Every public signature is generated from [`spec/schema/api.json`](../spec/schema
 `src/villanelle/_api/` (spec/codegen.md): the records (`SourceSpan`, `Token`, `Copy`, `Expansion`,
 `SliceValue`, `Added` ... as frozen dataclasses), the kind lists (`StrEnum`s), the diagnostic codes, the error
 tree, the rules module (`MAX_NESTING`, `RESERVED`, `VARIABLE_NAME` ...) and a `Protocol` for every handle, which
-each hand-written class here subclasses, so mypy checks each member against the schema. Each module's `__all__`
-equals the generated `PUBLIC_NAMES` (tests/test_api_names.py). Inside the package a `kind`, `reason` or `code` is
-compared with an enum member, never a string (tests/test_kind_lint.py runs `tools/lint/kind_lint.py`).
+each hand-written class here subclasses, so mypy checks each member against the schema. Every generated annotation
+names the public classes (`villanelle.LocatedDiagnostic`, `rendered.Directive`, `written.Statement` ...), so a
+program annotates with what it imports: `def key(d: rendered.Directive) -> str | None` is a `rendered.KeyRule`.
+`_api` is private; nothing outside `src/` imports it but the generated contract's type checker's block. Each
+module's `__all__` equals the generated `PUBLIC_NAMES` and each public union holds the generated `UNIONS` variant
+classes (tests/test_api_names.py); mypy checks each module against its generated `<Module>Functions` Protocol, each
+constructed class against its `<Class>Constructor` and each hand class against its generated Protocol, all from the
+generated `tests/api_contract.py`. Inside the
+package a `kind`, `reason` or `code` is compared with an enum member, never a string (tests/test_kind_lint.py runs `tools/lint/kind_lint.py`).
 
 One namespace per layer (binding guide rule 9):
 
@@ -142,8 +148,9 @@ python3 ../conformance/driver/run.py -- uv run --locked python conformance/adapt
 whether the claimed level holds.
 
 `tests/conftest.py` first runs `bash ../tools/gen.sh py`, which regenerates the parser into
-`src/villanelle/_gen/` and the API declarations (records, Protocols, kind lists, codes, errors, rules, names,
-from `spec/schema/`) into `src/villanelle/_api/`, and the adapter's message shapes into `conformance/shapes.py`
-(all ignored by git, never committed). That needs Java 11+; the ANTLR jar is
+`src/villanelle/_gen/` and the API declarations (records, Protocols, kind lists, codes, errors, rules, from
+`spec/schema/`) into `src/villanelle/_api/`, the adapter's message shapes and error groups into
+`conformance/shapes.py`, and the names, match fields, unions and module Protocols the tests check against into
+`tests/api_contract.py` (all ignored by git, never committed). That needs Java 11+; the ANTLR jar is
 cached in `$ANTLR_JAR_DIR` (default `~/.cache/antlr`). Run `gen.sh` before `uv build` too:
 `pyproject.toml` forces the ignored `_gen/` and `_api/` files into the wheel and sdist, so they must exist.

@@ -6,9 +6,10 @@
     ts/src/gen/api/limits.ts     the rules: limits, reserved words, patterns
     ts/src/gen/api/errors.ts     the error class tree and argumentTypeMessage()
     ts/src/gen/api/<layer>.ts    one interface per concept, union and callback types, options objects, and the layer's
-                                 <Layer>Functions interface (shared, syntax, io, written, rendered)
-    ts/src/gen/api/names.ts      every public name per import path, and each error class's group
-    ts/conformance/shapes.ts     the adapter protocol's message types and the spec-name spellings an adapter needs
+                                 <Layer>Functions interface: one module per layer api.json lists
+    ts/conformance/shapes.ts     the adapter protocol's message types, the spec-name spellings an adapter needs and each
+                                 error class's group
+    ts/test/api-contract.ts      what the binding's tests check it against: every public name per import path
 
 Idiom lives here and only here: readonly properties, readonly arrays, ReadonlyMap results, Readonly<Record> parameters,
 options objects, Promise for I/O, toString / Symbol.iterator / length / at / a callback walk for the traits.
@@ -30,16 +31,13 @@ from .loader import (
     Member,
     Model,
     Param,
-    SchemaError,
     Type,
     camel,
     pascal,
+    pattern_body,
+    sentence,
     upper_snake,
 )
-
-LAYER_FILES = ("shared", "syntax", "io", "written", "rendered")
-# The platform's own type for each native named type (a native type is the language's, never declared here).
-NATIVE = {"platform fetch": "typeof globalThis.fetch"}
 
 
 def _public_kind(model: Model, c: Optional[Concept]) -> str:
@@ -47,21 +45,66 @@ def _public_kind(model: Model, c: Optional[Concept]) -> str:
     return "both" if c is None or model.constructed(c, "ts") else "type"
 
 
-LANGUAGE = Language("ts", "/", camel, ("Error", "ReferenceError", "TypeError", "RangeError"), _public_kind)
+# TypeScript's own facts (the schema names no language; spec/codegen.md section 10).
+LANGUAGE = Language(
+    key="ts",
+    name="TypeScript",
+    sep="/",
+    function_case=camel,
+    code_case=pascal,
+    public_kind=_public_kind,
+    enum_form="as-const object and type",
+    generic=lambda name, params: f"{name}<{', '.join(params)}>",
+    construct=lambda name: f"new {name}(...)",
+    extends_word="extends",
+    cause_field="cause",
+    error_roots={
+        "villanelle error": {"base": "Error"},
+        "detached error": {"base": "ReferenceError"},
+        "argument type error": {"builtin": "TypeError"},
+        "misuse error": {"base": "Error"},
+        "index out of range": {"builtin": "RangeError"},
+    },
+    argument_type_message=('{member}(): argument "{parameter}" must be a string, not {got}; villanelle edits take config '
+                           "text: quote() a program string, text() one already written as villanelle text, String() a "
+                           "number first"),  # {got}: null, array or typeof
+    modules={"files": "node", "fetch": "browser", "include": "include"},
+    factory_forms={"processor": "package function"},  # villanelle({ source }); every other factory is a class
+    native={"platform fetch": "typeof globalThis.fetch"},  # a native type is the platform's, never declared here
+)
 
 
 def s(text: str) -> str:
     return json.dumps(text, ensure_ascii=False)
 
 
-def doc(text: str, indent: str = "") -> List[str]:
-    text = text.replace("*/", "*\\/").strip()
-    if not text:
+def doc(text: str, indent: str = "", tags: Optional[List[str]] = None) -> List[str]:
+    """A JSDoc comment: the text wrapped, then each tag (``@param``, ``@throws``) on lines of its own."""
+    blocks = [b.replace("*/", "*\\/").strip() for b in [text, *(tags or [])]]
+    body, tag_lines = blocks[0], [b for b in blocks[1:] if b]
+    if not body and not tag_lines:
         return []
-    lines = textwrap.wrap(text, 114 - len(indent))
-    if len(lines) == 1:
+    width = 114 - len(indent)
+    lines = textwrap.wrap(body, width) if body else []
+    if len(lines) == 1 and not tag_lines:
         return [f"{indent}/** {lines[0]} */"]
+    for tag in tag_lines:
+        lines += textwrap.wrap(tag, width, subsequent_indent="  ")
     return [f"{indent}/**", *(f"{indent} * {line}" for line in lines), f"{indent} */"]
+
+
+def error_class(model: Model, group: str) -> str:
+    g = model.group[group]
+    return g.builtin("ts") or pascal(g.name)
+
+
+def member_doc(model: Model, text: str, params: List[Param], errors: List[str], order: str, indent: str) -> List[str]:
+    """A member's or free function's JSDoc: its doc and order, each documented parameter, each error group it raises."""
+    if order:
+        text = f"{text} Order: {order}.".strip()
+    tags = [f"@param {'options.' if p.passed == 'option' else ''}{camel(p.name)} {p.doc}" for p in params if p.doc]
+    tags += [f"@throws {{{error_class(model, e)}}} {model.group[e].raised_when}" for e in errors]
+    return doc(text, indent, tags)
 
 
 def head(source: str) -> List[str]:
@@ -96,9 +139,7 @@ class Ctx:
             return self.use("errors", pascal(name))
         c = m.concept[name]
         if c.is_ == "native":
-            if name not in NATIVE:
-                raise SchemaError(f"native type {name!r}: emit_ts.NATIVE has no TypeScript type for it")
-            return NATIVE[name]
+            return LANGUAGE.native[name]  # the loader checks every native type the binding keeps has one
         return self.use(c.layer, pascal(name))
 
 
@@ -159,7 +200,7 @@ def method_params(model: Model, m_params: List[Param], options: Optional[str], c
 
 
 def member_lines(model: Model, c: Concept, m: Member, ctx: Ctx) -> List[str]:
-    out = doc(m.note, "  ")
+    out = member_doc(model, m.doc, m.params, m.errors, m.order, "  ")
     if m.trait == "people form":
         return out + ["  toString(): string;"]
     if m.trait == "iterate":
@@ -189,7 +230,7 @@ def member_lines(model: Model, c: Concept, m: Member, ctx: Ctx) -> List[str]:
 
 def concept_lines(model: Model, c: Concept, ctx: Ctx) -> List[str]:
     name = pascal(c.name)
-    out = doc(c.note)
+    out = doc(c.doc)
     if c.nature == "named type":
         if c.brand:
             return out + [f"export type {name} = string & {{ readonly [{camel(c.name)}Brand]: true }};"]
@@ -247,7 +288,7 @@ def function_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
         if fac == "constructor":
             continue  # constructor_lines
         name = model.package if fac == "package function" else camel(f.name)
-        lines = doc(f.note, "  ")
+        lines = member_doc(model, f.doc, f.params, f.errors, "", "  ")
         lines.append(f"  {name}({method_params(model, f.params, f.options, ctx)}): {ts_type(f.returns, ctx)};")
         by_module.setdefault(mod, []).extend(lines)
     out: List[str] = []
@@ -265,7 +306,8 @@ def constructor_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
         if f.layer != layer or (f.factory or {}).get("ts") != "constructor" or model.function_module(f, "ts") is None:
             continue
         of = pascal(f.factory["of"])  # type: ignore[index]
-        out += doc(f"The {f.factory['of']} class's constructor ({f.name}): `const _: {of}Constructor = {of}` checks it.")  # type: ignore[index]
+        out += member_doc(model, f"The {f.factory['of']} class's constructor ({f.name}): `const _: {of}Constructor = {of}` checks it. {f.doc}",  # type: ignore[index]
+                          f.params, f.errors, "", "")
         out += [f"export interface {of}Constructor {{", f"  new ({method_params(model, f.params, f.options, ctx)}): {ctx.ref(f.factory['of'])};",  # type: ignore[index]
                 "}", ""]
     return out
@@ -300,7 +342,8 @@ def kinds_module(model: Model) -> str:
         if "ts" not in k.languages:
             continue
         name = pascal(k.name)
-        out += doc(f"The spec's {k.name} list (spec 2.10): compare with a member (`{name}.{kind_key(model, k.name, k.values[0])}`), never a string literal.")
+        out += doc(f"The spec's {k.name} list (spec 2.10): compare with a member (`{name}.{kind_key(model, k.name, k.values[0])}`), "
+                   f"never a string literal. {k.doc}")
         out.append(f"export const {name} = {{")
         out += [f"  {kind_key(model, k.name, v)}: {s(v)}," for v in k.values]
         out += ["} as const;", f"export type {name} = (typeof {name})[keyof typeof {name}];", ""]
@@ -386,7 +429,8 @@ def limits_module(model: Model) -> str:
         elif c.sort == "words":
             out.append(f"export const {name}: ReadonlySet<string> = new Set([{', '.join(map(s, c.value))}]);")  # type: ignore[arg-type]
         else:
-            out.append(f"export const {name} = /{str(c.value).replace('/', chr(92) + '/')}/u;")
+            body = pattern_body(str(c.value), lambda cp: f"\\u{cp:04x}" if cp <= 0xFFFF else f"\\u{{{cp:x}}}")
+            out.append(f"export const {name} = /^{body.replace('/', chr(92) + '/')}$/u;")
         out.append("")
     return "\n".join(out)
 
@@ -423,14 +467,14 @@ def errors_module(model: Model) -> str:
             if chained and (parent.cause == "chained" or parent.sort == "base"):
                 sup_args.append("options")
             sup = f"super({', '.join(sup_args)});"
-        out += doc(f"{g.raised_when[0].upper()}{g.raised_when[1:]}. Spec 2.8: {g.sort}.")
+        out += doc(f"{sentence(g.raised_when)} Spec 2.8: {g.sort}. {sentence(g.doc)}")
         out.append(f"export class {name} extends {base} {{")
         out.append(f"  constructor({', '.join(params)}) {{")
         out.append(f"    {sup}")
         out.append(f"    this.name = {s(name)};")
         out += ["  }", "}", ""]
-    out += doc("The argument type error's message (spec 2.8; api.json \"argument type error message\"): the one helper every "
-               "member that takes text calls before it changes anything.")
+    out += doc("The argument type error's message (spec 2.8): the one helper every member that takes text calls before it "
+               "changes anything.")
     tmpl = model.argument_type_message["ts"]
     parts, pos = [], 0
     for m in PLACEHOLDER.finditer(tmpl):
@@ -466,7 +510,8 @@ def template_expr(message: Dict[str, object], fields: List[Tuple[str, Type]]) ->
     return "`" + "".join(parts) + "`"
 
 
-def names_module(model: Model) -> str:
+def contract_module(model: Model) -> str:
+    """ts/test/api-contract.ts: what the binding's tests check it against, outside src/ so the package never ships it."""
     out = head("spec/schema/api.json: every public name, derived by the casing rule (spec/binding-guide.md rules 1 and 2)")
     by_mod: Dict[str, Dict[str, List[str]]] = {}
     for mod, name, what in model.public("ts"):
@@ -485,12 +530,6 @@ def names_module(model: Model) -> str:
         out.append(f"    types: [{', '.join(map(s, d['types']))}],")
         out.append("  },")
     out += ["} as const;", ""]
-    out += doc("Each error group's class, or the language's own class for a builtin group (spec 2.8), to its spec name.")
-    out.append("export const ERROR_GROUP_OF_CLASS: Readonly<Record<string, string>> = {")
-    for g in model.groups:
-        cls = g.builtin("ts") or pascal(g.name)
-        out.append(f"  {cls}: {s(g.name)},")
-    out += ["};", ""]
     return "\n".join(out)
 
 
@@ -524,7 +563,7 @@ def shapes_module(model: Model) -> str:
             "/** The protocol version an adapter's hello answers. */", f"export const PROTOCOL = {p.version};", ""]
     for sh in p.shapes:
         name = pascal(sh.name) + ("" if sh.name == "position" else "Dump")
-        out += doc(sh.note)
+        out += doc(sh.doc)
         if sh.tuple_ is not None:
             out.append(f"export type {name} = readonly [{', '.join(shape_type(t) for t in sh.tuple_)}];")
         elif sh.one_of:
@@ -565,6 +604,10 @@ def shapes_module(model: Model) -> str:
     out.append("export const SPELLING: Readonly<Record<string, string>> = {")
     out += [f"  {s(k)}: {s(v)}," for k, v in sorted(spell.items())]
     out += ["};", ""]
+    out += doc("Each error group's class, or the language's own class for a builtin group (spec 2.8), to its spec name.")
+    out.append("export const ERROR_GROUP_OF_CLASS: Readonly<Record<string, string>> = {")
+    out += [f"  {error_class(model, g.name)}: {s(g.name)}," for g in model.groups]
+    out += ["};", ""]
     return "\n".join(out)
 
 
@@ -574,13 +617,16 @@ def render(model: Model) -> Dict[str, str]:
         "codes.ts": codes_module(model),
         "limits.ts": limits_module(model),
         "errors.ts": errors_module(model),
-        "names.ts": names_module(model),
     }
-    for layer in LAYER_FILES:
-        files[f"{layer}.ts"] = layer_module(model, layer)
+    for layer in model.layers:
+        files[f"{layer.name}.ts"] = layer_module(model, layer.name)
     return files
 
 
 def render_shapes(model: Model) -> Dict[str, str]:
     return {"shapes.ts": shapes_module(model)}
+
+
+def render_contract(model: Model) -> Dict[str, str]:
+    return {"api-contract.ts": contract_module(model)}
 
