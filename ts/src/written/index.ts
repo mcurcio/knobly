@@ -1,7 +1,7 @@
 /**
  * The low level's public API (spec 6; import path "villanelle/written"): the config as written, editable, saved back.
  * The rendered layer reaches the low level only through this module (spec 7.0; checked by ts/eslint.config.js). Its
- * types are generated (gen/api/written.ts), but for `LoadOptions` and `Processor` (processor.ts says why).
+ * types are generated (gen/api/written.ts).
  */
 
 export { StatementKind, UnreadableReason, ValueKind, VariableKind } from "../gen/api/kinds.js";
@@ -26,8 +26,10 @@ export type {
   Index,
   IndexValue,
   List,
+  LoadOptions,
   OverrideVariable,
   Parameter,
+  Processor,
   ProcessorOptions,
   Reference,
   ReferenceResolution,
@@ -49,4 +51,4 @@ export type {
   WrittenValue,
 } from "../gen/api/written.js";
 export { formatDiagnostic } from "./format.js";
-export { type LoadOptions, type Processor, villanelle } from "./processor.js";
+export { villanelle } from "./processor.js";

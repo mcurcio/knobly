@@ -13,7 +13,7 @@
     "prose": {"type": "string", "minLength": 1},
     "type": {"type": "string", "pattern": "^[a-z0-9 ()\\[\\]-]+$", "description": "a type in the closed type grammar (spec/codegen.md section 2)"},
     "wireType": {"type": "string", "pattern": "^[a-z0-9 ()\\[\\]\"-]+$", "description": "a type in the protocol grammar (spec/codegen.md section 5)"},
-    "layerName": {"enum": ["shared", "syntax", "io", "written", "rendered"]},
+    "layerName": {"$ref": "#/$defs/specName", "description": "a layer api.json lists under 'layers' (tools/api/loader.py checks it: one home)"},
     "languages": {"type": "array", "items": {"enum": ["ts", "py"]}, "minItems": 1, "uniqueItems": true},
     "errorName": {"$ref": "#/$defs/specName"},
 
@@ -74,6 +74,7 @@
         "is": {"enum": ["text", "native"]},
         "brand": {"type": "boolean"},
         "pattern": {"$ref": "#/$defs/specName"},
+        "template": {"type": "string", "pattern": "^([^{}]|\\{text\\})+$", "description": "a named type's form where a type system can state it: '{text}' is any text, the rest literal"},
         "type": {"$ref": "#/$defs/type"},
         "note": {"$ref": "#/$defs/prose"}
       }
@@ -222,6 +223,7 @@
         "fields": {"type": "object", "additionalProperties": {"$ref": "#/$defs/wireType"}},
         "optional": {"type": "array", "items": {"type": "string"}},
         "by kind": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/$defs/wireType"}}},
+        "other kinds": {"type": "array", "items": {"$ref": "#/$defs/specName"}, "uniqueItems": true, "description": "the kinds with no fields of their own beside 'by kind': together they are every kind the shape takes"},
         "tuple": {"type": "array", "items": {"$ref": "#/$defs/wireType"}, "minItems": 1},
         "one of": {"type": "object", "additionalProperties": {"$ref": "#/$defs/wireType"}, "minProperties": 1},
         "note": {"$ref": "#/$defs/prose"}

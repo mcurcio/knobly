@@ -553,3 +553,31 @@
   `villanelle.report`, `villanelle.source`, `villanelle.diagnostics`, `villanelle.syntax.cst`,
   `villanelle.written.model` ...), so a public class is still importable from a second path. frozen-m6.md does not
   ask to rename them.
+
+## Milestone 6 review fixes (one fix agent, 2026-10-29)
+
+- **spec/codegen.md section 10 was wrong**: a new binding was "one emitter registered in gen-api.py plus gen.sh",
+  but the language set was closed in the loader (`LANGUAGES`, `ERROR_BASES`, `public()`'s per-language rules) and
+  in the meta-schema and `api.json` (per-language keys). Now the loader takes a `Language` descriptor from each
+  emitter and knows no language; section 10 lists the schema keys a new binding still adds. Moving the
+  per-language schema data (each root error's base, factory forms, adapter modules, the argument type sentence)
+  into the emitters is not done: an owner's call.
+- **Behaviour change: `PROGRAM_CODE`'s whitespace.** The schema regex was `^[^/\s]+/\S+$`, which JavaScript and
+  Python read differently (JS `\s` holds U+FEFF, Python's holds U+001C-U+001F). It is now the Unicode White_Space
+  set written out, the same in both: TypeScript now accepts U+FEFF and refuses U+0085 in a program code; Python
+  now accepts U+001C-U+001F. The loader refuses `\s \S \w \W \d \D \b \B` and `"` in any schema regex.
+- **Renamed in the schema, not public:** `fetch function` is now `platform fetch` (a type name may hold no word of
+  the type grammar; it is native, so no binding exports it). `collecting` is no longer a concept: Python's
+  `Collecting` is the collect trait's public class (`emit_py._trait_names`). `index out of range` keeps its name and
+  is simply not a type name (it holds `of`).
+- **Behaviour change (widening): Python `Processor(extensions=None)` and `Diagnostics(None)`** are accepted, as the
+  generated constructor Protocols say (an optional parameter is `X | None = None` in every generated signature).
+- **Not done, for the owner:** schema `note`s still carry history, quotes, bead ids and other-language advice, and
+  now reach Python docstrings as well as TypeScript JSDoc (the Python emitter emits member notes). Splitting each
+  into a user-facing `doc` and an unemitted `rationale` (or moving history to schema-history.json) is an editorial
+  pass over about 35 notes. Also not done: a typed `checks text` flag per parameter in place of the argument type
+  error's `member` / `parameter` prose; the per-binding "public class" mapping for Python records (above, "Needs a
+  decision above the lanes").
+- The Python implementation modules are now private (`villanelle._origin`, `_report`, `_source`, `_diagnostics`,
+  `syntax._cst`, `syntax._parse`, `written._model`, `_value`, `_processor`, `_format`), closing the item above;
+  tests/test_api_names.py fails on any non-underscore module that is not a public path.

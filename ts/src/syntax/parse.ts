@@ -9,8 +9,8 @@ import { makeDiagnostic } from "../diagnostics.js";
 import VillanelleLexer from "../gen/VillanelleLexer.js";
 import VillanelleParser from "../gen/VillanelleParser.js";
 import { spanOf } from "./cst.js";
-import { type IRawDiagnostic, installRecovery, nestingOverflow } from "./recovery.js";
-import { type IAntlrToken, type IAntlrTree, toCst, toEntryCst } from "./walk.js";
+import { type RawDiagnostic, installRecovery, nestingOverflow } from "./recovery.js";
+import { type AntlrToken, type AntlrTree, toCst, toEntryCst } from "./walk.js";
 import type { Diagnostic, SourcePosition } from "../gen/api/shared.js";
 import type { Node, Syntax, Token } from "../gen/api/syntax.js";
 import { DiagnosticCode, describe } from "../gen/api/codes.js";
@@ -29,20 +29,20 @@ const KIND_BY_TYPE: ReadonlyMap<number, TokenKind> = (() => {
 })();
 
 /** The parts of antlr4's CommonTokenStream the adapter reads (its typings do not make it a TokenStream). */
-interface IAntlrTokenStream {
-  readonly tokens: readonly IAntlrToken[];
+interface AntlrTokenStream {
+  readonly tokens: readonly AntlrToken[];
   fill(): void;
 }
 
 /** The recognizer surface the adapter uses; the lexer's and parser's inherited typings are incomplete. */
-interface IAntlrRecognizer {
+interface AntlrRecognizer {
   removeErrorListeners(): void;
 }
 
 /** The grammar's entry rules (spec 2.8, 3.3): a text a program hands to an edit or an override, parsed on its own. */
 export type EntryRule = "statementsText" | "valuesText" | "valueText" | "itemsText" | "boundText" | "sliceNameText" | "nameText";
 
-type IAntlrParser = IAntlrRecognizer & Record<"document" | EntryRule, () => IAntlrTree>;
+type AntlrParser = AntlrRecognizer & Record<"document" | EntryRule, () => AntlrTree>;
 
 const EOF = -1;
 const ORIGIN: SourcePosition = { offset: 0, line: 0, column: 0 };
@@ -57,7 +57,7 @@ function advance(position: SourcePosition, text: string): SourcePosition {
 }
 
 /** Our tokens, with positions computed from the token texts (ANTLR's columns count code points, not UTF-16). */
-function toTokens(antlrTokens: readonly IAntlrToken[]): Token[] {
+function toTokens(antlrTokens: readonly AntlrToken[]): Token[] {
   const tokens: Token[] = [];
   let at = ORIGIN;
   for (const token of antlrTokens) {
@@ -72,27 +72,27 @@ function toTokens(antlrTokens: readonly IAntlrToken[]): Token[] {
 }
 
 /** The tokens of one text, and a parser over them with per-statement recovery reporting into `raw`. */
-function prepare(text: string): { tokens: Token[]; parser: IAntlrParser; raw: IRawDiagnostic[] } {
+function prepare(text: string): { tokens: Token[]; parser: AntlrParser; raw: RawDiagnostic[] } {
   // antlr4's typings do not line up with the generated classes' parameter types: cast at the call.
   const input = CharStreams.fromString(text) as unknown as ConstructorParameters<typeof VillanelleLexer>[0];
   const lexer = new VillanelleLexer(input);
   // The lexer is total by construction (BAD_CHAR matches every character no other token can start with), so it
   // never reports an error; its default listener would print to the console.
-  (lexer as unknown as IAntlrRecognizer).removeErrorListeners();
+  (lexer as unknown as AntlrRecognizer).removeErrorListeners();
   const stream = new CommonTokenStream(lexer);
-  const antlrStream = stream as unknown as IAntlrTokenStream;
+  const antlrStream = stream as unknown as AntlrTokenStream;
   antlrStream.fill();
   const tokens = toTokens(antlrStream.tokens);
   const parser = new VillanelleParser(stream as unknown as ConstructorParameters<typeof VillanelleParser>[0]);
-  const raw: IRawDiagnostic[] = [];
+  const raw: RawDiagnostic[] = [];
   // With recovery installed the parser reports nothing to listeners; drop the default console listener anyway.
-  (parser as unknown as IAntlrRecognizer).removeErrorListeners();
+  (parser as unknown as AntlrRecognizer).removeErrorListeners();
   installRecovery(parser, (diagnostic) => raw.push(diagnostic));
-  return { tokens, parser: parser as unknown as IAntlrParser, raw };
+  return { tokens, parser: parser as unknown as AntlrParser, raw };
 }
 
 /** The diagnostic of nesting deeper than MAX_NESTING, or undefined (run first: it would overflow the stack). */
-function tooDeep(tokens: readonly Token[]): IRawDiagnostic | undefined {
+function tooDeep(tokens: readonly Token[]): RawDiagnostic | undefined {
   const at = nestingOverflow(tokens.map((t) => t.kind));
   if (at === undefined) return undefined;
   const code = DiagnosticCode.NestingTooDeep;
@@ -125,7 +125,7 @@ export function parseEntry(text: string, rule: EntryRule): Syntax {
   const n = tokens.length;
   const deep = tooDeep(tokens);
   if (deep !== undefined) return located(tokens, { kind: "document", start: 0, end: n, children: [] }, [deep]);
-  let tree: IAntlrTree;
+  let tree: AntlrTree;
   try {
     tree = parser[rule]();
   } catch (error) {
@@ -138,7 +138,7 @@ export function parseEntry(text: string, rule: EntryRule): Syntax {
 }
 
 /** The syntax result, with each token-range diagnostic turned into a source span (the one place that does). */
-function located(tokens: readonly Token[], root: Node, raw: readonly IRawDiagnostic[]): Syntax {
+function located(tokens: readonly Token[], root: Node, raw: readonly RawDiagnostic[]): Syntax {
   const unlocated: Syntax = { tokens, root, diagnostics: [] };
   const diagnostics: Diagnostic[] = raw.map((d) => makeDiagnostic(d.code, d.message, spanOf(unlocated, d.range)));
   return { tokens, root, diagnostics };

@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import * as browserModule from "./browser.js";
 import type { BrowserFunctions, IoFunctions, NodeFunctions } from "./gen/api/io.js";
 import type { RenderedFunctions } from "./gen/api/rendered.js";
-import type { SharedFunctions } from "./gen/api/shared.js";
+import type { DiagnosticsConstructor, SharedFunctions } from "./gen/api/shared.js";
 import type { SyntaxFunctions } from "./gen/api/syntax.js";
 import type { IncludeFunctions, WrittenFunctions } from "./gen/api/written.js";
 import * as includeModule from "./include.js";
@@ -57,17 +57,18 @@ assertType<Equal<string extends ConfigText ? true : false, false>>();
 assertType<Equal<ReturnType<typeof quote>, ConfigText>>();
 assertType<Equal<ReturnType<typeof text>, ConfigText>>();
 
-// Each import path's free functions have the generated signatures (spec/codegen.md section 4: `<Module>Functions`).
-// `villanelle` is left out: its `LoadOptions` is written by hand until the generated one takes a record (errata).
+// Each import path's free functions have the generated signatures (spec/codegen.md section 4: `<Module>Functions`),
+// and each class a program constructs has its constructor's (`<Class>Constructor`).
 const FREE_FUNCTIONS: readonly [
   SharedFunctions & IoFunctions,
   SyntaxFunctions,
-  Omit<WrittenFunctions, "villanelle">,
+  WrittenFunctions,
   RenderedFunctions,
   BrowserFunctions,
   NodeFunctions,
   IncludeFunctions,
 ] = [rootModule, syntaxModule, writtenModule, renderedModule, browserModule, nodeModule, includeModule];
+const CONSTRUCTORS: readonly [DiagnosticsConstructor] = [rootModule.Diagnostics];
 
 const MAIN = `@set $n 3;
 @snippet s $p {
@@ -95,6 +96,7 @@ function kindOf<K extends Statement["kind"]>(statements: readonly Statement[], k
 describe("each import path's free functions (spec/codegen.md section 4)", () => {
   it("match the generated interfaces (checked at compile time by FREE_FUNCTIONS' declared type)", () => {
     expect(FREE_FUNCTIONS).toHaveLength(7);
+    expect(CONSTRUCTORS).toHaveLength(1);
   });
 });
 

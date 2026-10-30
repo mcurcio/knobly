@@ -24,6 +24,7 @@ from villanelle._api.io import DocumentSource, DocumentWriter, FileWrite, LoadCo
 from villanelle._api.kinds import PlaceKind, StepKind
 from villanelle._api.limits import PROGRAM_CODE
 from villanelle._api.shared import (
+    Block,
     ConfigText,
     DirectiveOrigin,
     Locatable,
@@ -32,15 +33,16 @@ from villanelle._api.shared import (
     SourcePosition,
     SourceSpan,
 )
+from villanelle._diagnostics import Diagnostic
+from villanelle._origin import Override, Place, Step
+from villanelle._report import Collecting, Diagnostics, LocatedDiagnostic
+from villanelle._source import check_lost_updates, memory_source, memory_writer
 from villanelle._text import quote, text
-from villanelle.diagnostics import Diagnostic
-from villanelle.origin import Override, Place, Step
-from villanelle.report import Collecting, Diagnostics, LocatedDiagnostic
-from villanelle.source import check_lost_updates, memory_source, memory_writer
 
 __all__ = [
     "PROGRAM_CODE",
     "BadTextError",
+    "Block",
     "Collecting",
     "ConfigText",
     "DetachedError",

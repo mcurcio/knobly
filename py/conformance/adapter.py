@@ -125,29 +125,76 @@ def resolution(r: written.ReferenceResolution) -> ResolutionDump:
 
 
 def value(v: api.WrittenValue) -> WrittenValueDump:
-    out: WrittenValueDump = {"id": ref(v), "kind": str(v.kind), "place": file_place(v.place), "text": v.text}
-    if isinstance(v, written.List):
-        out["items"] = [value(i) for i in v.items]
-    elif isinstance(v, written.Slice):
-        out["name"] = value(v.name)
-        out["start"] = None if v.start is None else value(v.start)
-        out["end"] = None if v.end is None else value(v.end)
-    elif isinstance(v, written.Index):
-        out["name"] = value(v.name)
-        out["index"] = value(v.index)
-    elif isinstance(v, written.Reference):
-        out["declaration"] = None if v.declaration is None else variable(v.declaration)
-        out["resolutions"] = [resolution(r) for r in v.resolutions()]
-    return out
+    """The dump of one value: a discriminated union on the wire's kind, so each kind's own fields are checked."""
+    i, at, text = ref(v), file_place(v.place), v.text
+    match v:
+        case written.List():
+            return {"id": i, "kind": "list", "place": at, "text": text, "items": [value(x) for x in v.items]}
+        case written.Slice():
+            start = None if v.start is None else value(v.start)
+            end = None if v.end is None else value(v.end)
+            return {
+                "id": i,
+                "kind": "slice",
+                "place": at,
+                "text": text,
+                "name": value(v.name),
+                "start": start,
+                "end": end,
+            }
+        case written.Index():
+            return {"id": i, "kind": "index", "place": at, "text": text, "name": value(v.name), "index": value(v.index)}
+        case written.Reference():
+            declaration = None if v.declaration is None else variable(v.declaration)
+            resolutions = [resolution(r) for r in v.resolutions()]
+            return {
+                "id": i,
+                "kind": "reference",
+                "place": at,
+                "text": text,
+                "declaration": declaration,
+                "resolutions": resolutions,
+            }
+        case written.Word():
+            return {"id": i, "kind": "word", "place": at, "text": text}
+        case _:
+            return {"id": i, "kind": "string", "place": at, "text": text}
 
 
 def statement(s: api.Statement) -> StatementDump:
-    out: StatementDump = {"id": ref(s), "kind": str(s.kind), "place": file_place(s.place), "text": s.text}
-    if isinstance(s, written.WrittenDirective | written.ExtensionLine | written.SetLine | written.UseLine):
-        out["values"] = [value(v) for v in s.values]
-    if isinstance(s, written.WrittenDirective | written.ExtensionLine | written.SnippetLine):
-        out["block"] = None if s.block is None else block(s.block)
-    return out
+    """The dump of one statement, one alternative per kind (as value above)."""
+    i, at, text = ref(s), file_place(s.place), s.text
+
+    def inner(b: api.WrittenBlock | None) -> BlockDump | None:
+        return None if b is None else block(b)
+
+    match s:
+        case written.WrittenDirective():
+            return {
+                "id": i,
+                "kind": "directive",
+                "place": at,
+                "text": text,
+                "values": [value(v) for v in s.values],
+                "block": inner(s.block),
+            }
+        case written.ExtensionLine():
+            return {
+                "id": i,
+                "kind": "extension",
+                "place": at,
+                "text": text,
+                "values": [value(v) for v in s.values],
+                "block": inner(s.block),
+            }
+        case written.SetLine():
+            return {"id": i, "kind": "set", "place": at, "text": text, "values": [value(v) for v in s.values]}
+        case written.UseLine():
+            return {"id": i, "kind": "use", "place": at, "text": text, "values": [value(v) for v in s.values]}
+        case written.SnippetLine():
+            return {"id": i, "kind": "snippet", "place": at, "text": text, "block": inner(s.block)}
+        case _:
+            return {"id": i, "kind": "unreadable", "place": at, "text": text}
 
 
 def block(b: api.WrittenBlock) -> BlockDump:

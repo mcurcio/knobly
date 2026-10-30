@@ -1,7 +1,8 @@
 """The layer check (spec 5, "Layer direction"; owner, 2026-10-29: "The low level shouldn't "depend on" the middle
-layer"): no module of the package but the rendered layer itself and the package entry point imports
-``villanelle.rendered``, in any form, ``if TYPE_CHECKING:`` blocks included. An allow-list over every module, so an
-indirect import through a shared module is caught too (prior art: import-linter's layers contract)."""
+layer"): no module of the package but the rendered layer itself imports ``villanelle.rendered``, in any form,
+``if TYPE_CHECKING:`` blocks included. The package entry point is no exception: it holds only the shared and io
+layers, which sit below the rendered one (binding guide rule 9). An allow-list over every module, so an indirect
+import through a shared module is caught too (prior art: import-linter's layers contract)."""
 
 from __future__ import annotations
 
@@ -44,18 +45,14 @@ def forbidden_imports(source: str, module: str, *, package: bool) -> list[str]:
 
 
 def governed() -> list[Path]:
-    """Every module but the rendered layer and the package entry point (``_api/`` and ``_gen/`` included)."""
-    return [
-        path
-        for path in sorted(PACKAGE.rglob("*.py"))
-        if not module_name(path).startswith(RENDERED) and path != PACKAGE / "__init__.py"
-    ]
+    """Every module but the rendered layer's (the package entry point, ``_api/`` and ``_gen/`` included)."""
+    return [path for path in sorted(PACKAGE.rglob("*.py")) if not module_name(path).startswith(RENDERED)]
 
 
 def test_the_check_covers_the_low_level_the_shared_modules_and_the_generated_ones() -> None:
     names = {module_name(path) for path in governed()}
-    assert {"villanelle.written.model", "villanelle.written.processor", "villanelle.written.value"} <= names
-    assert {"villanelle._api.kinds", "villanelle.include"} <= names
+    assert {"villanelle.written._model", "villanelle.written._processor", "villanelle.written._value"} <= names
+    assert {"villanelle", "villanelle._api.kinds", "villanelle.include"} <= names
     assert not any(name.startswith(RENDERED) for name in names)
 
 
@@ -80,12 +77,14 @@ def test_no_module_below_the_rendered_layer_imports_it(path: Path) -> None:
     ],
 )
 def test_the_check_bites_on_a_planted_import(line: str) -> None:
-    assert forbidden_imports(line, "villanelle.written.model", package=False) != []
+    assert forbidden_imports(line, "villanelle.written._model", package=False) != []
 
 
 def test_the_check_passes_imports_of_other_layers() -> None:
-    source = "from villanelle import origin\nfrom . import _bind\nfrom ..origin import Place\nimport villanelle.written"
-    assert forbidden_imports(source, "villanelle.written.model", package=False) == []
+    source = (
+        "from villanelle import _origin\nfrom . import _bind\nfrom .._origin import Place\nimport villanelle.written"
+    )
+    assert forbidden_imports(source, "villanelle.written._model", package=False) == []
 
 
 # --- The second check: the rendered layer builds only on the low level's public API (vil-9fy; spec 7.0) -----------
@@ -169,14 +168,14 @@ def test_the_rendered_layer_reaches_the_low_level_only_through_its_public_api(pa
         "from villanelle.written import _document, _graph",
         "from villanelle.written import NotAPublicName",
         "from villanelle.written._bind import BoundItem",
-        "from villanelle.written.model import DocumentGraph",
+        "from villanelle.written._model import DocumentGraph",
         "import villanelle.written._graph",
         "import villanelle.written",
         "from villanelle import written",
         "from ..written import _bind",
         "from ..written.model import Statement",
         "from .. import written",
-        "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from villanelle.written.model import Statement",
+        "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from villanelle.written._model import Statement",
         "doc = statement._doc",
         "x = after._block",
         "directive._freeze()",

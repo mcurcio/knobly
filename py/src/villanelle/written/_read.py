@@ -13,7 +13,7 @@ from villanelle._api.io import DocumentSource, LoadContext
 from villanelle._api.shared import ConfigText
 from villanelle._text import port_text, port_texts
 from villanelle.written import _bind, _graph
-from villanelle.written.model import DocumentGraph
+from villanelle.written._model import DocumentGraph
 
 if TYPE_CHECKING:
     from villanelle._api.written import Extension

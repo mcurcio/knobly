@@ -20,7 +20,7 @@ import { DiagnosticCode, describe } from "../gen/api/codes.js";
 import { TokenKind } from "../gen/api/kinds.js";
 
 /** A diagnostic located by token range; parse.ts turns the range into a source span. */
-export interface IRawDiagnostic {
+export interface RawDiagnostic {
   readonly code: DiagnosticCode;
   /** The offending token's range, or the empty range at tokens.length for the end of input. */
   readonly range: TokenRange;
@@ -97,62 +97,62 @@ const P = VillanelleParser;
 const EOF = -1;
 
 /** The parts of an ANTLR rule context the strategy reads (antlr4's typings are incomplete). */
-interface IContext {
+interface Context {
   readonly ruleIndex: number;
-  readonly parentCtx: IContext | null;
-  readonly children: readonly IContext[] | null;
+  readonly parentCtx: Context | null;
+  readonly children: readonly Context[] | null;
   readonly start: { readonly tokenIndex: number };
 }
 
-interface IStreamToken {
+interface StreamToken {
   readonly type: number;
   readonly tokenIndex: number;
   readonly text: string;
 }
 
 /** The parts of the generated parser and its runtime the strategy reads or calls. */
-interface IParser {
-  readonly _ctx: IContext;
+interface Parser {
+  readonly _ctx: Context;
   readonly _input: {
     readonly index: number;
-    readonly tokens: readonly IStreamToken[];
+    readonly tokens: readonly StreamToken[];
     LA(i: number): number;
   };
   _errHandler: unknown;
   readonly _interp: { getSynValidOrSemInvalidAltThatFinishedDecisionEntryRule: () => number };
-  getCurrentToken(): IStreamToken;
+  getCurrentToken(): StreamToken;
   consume(): void;
   match(type: number): void;
   statements(): { readonly exception: unknown };
 }
 
 /** The parts of ANTLR's DefaultErrorStrategy the strategy overrides or calls. */
-interface IErrorStrategy {
-  inErrorRecoveryMode(recognizer: IParser): boolean;
-  beginErrorCondition(recognizer: IParser): void;
-  endErrorCondition(recognizer: IParser): void;
-  sync(recognizer: IParser): void;
-  recoverInline(recognizer: IParser): unknown;
-  reportError(recognizer: IParser, e: IRecognitionException): void;
-  recover(recognizer: IParser, e: IRecognitionException): void;
+interface ErrorStrategy {
+  inErrorRecoveryMode(recognizer: Parser): boolean;
+  beginErrorCondition(recognizer: Parser): void;
+  endErrorCondition(recognizer: Parser): void;
+  sync(recognizer: Parser): void;
+  recoverInline(recognizer: Parser): unknown;
+  reportError(recognizer: Parser, e: RecognitionException): void;
+  recover(recognizer: Parser, e: RecognitionException): void;
 }
 
 /** ANTLR's RecognitionException (an Error). */
-interface IRecognitionException extends Error {
-  readonly offendingToken: IStreamToken | null;
+interface RecognitionException extends Error {
+  readonly offendingToken: StreamToken | null;
 }
 
 /** antlr4 4.13.2 exports these at runtime, but its typings do not re-export the error classes. */
 const { DefaultErrorStrategy, InputMismatchException } = antlr4 as unknown as {
-  readonly DefaultErrorStrategy: new () => IErrorStrategy;
-  readonly InputMismatchException: new (recognizer: IParser) => IRecognitionException;
+  readonly DefaultErrorStrategy: new () => ErrorStrategy;
+  readonly InputMismatchException: new (recognizer: Parser) => RecognitionException;
 };
 
-const isStatements = (c: IContext | null | undefined): boolean => c?.ruleIndex === P.RULE_statements;
+const isStatements = (c: Context | null | undefined): boolean => c?.ruleIndex === P.RULE_statements;
 
 /** The statements context the parser is in, and whether it sits inside a block. */
-function scope(p: IParser): { statements: IContext | undefined; inBlock: boolean } {
-  let c: IContext | null = p._ctx;
+function scope(p: Parser): { statements: Context | undefined; inBlock: boolean } {
+  let c: Context | null = p._ctx;
   if (c.ruleIndex === P.RULE_block || c.ruleIndex === P.RULE_document) {
     return { statements: [...(c.children ?? [])].reverse().find(isStatements), inBlock: c.ruleIndex === P.RULE_block };
   }
@@ -166,7 +166,7 @@ function scope(p: IParser): { statements: IContext | undefined; inBlock: boolean
  * The first token index of the statement being parsed in `statements` (or `current` before any); 0 outside any
  * statements, in an entry rule, whose statement is the whole text (spec 2.8).
  */
-function statementStart(statements: IContext | undefined, current: number): number {
+function statementStart(statements: Context | undefined, current: number): number {
   if (statements === undefined) return 0;
   const kids = (statements.children ?? []).filter((k) => k.ruleIndex === P.RULE_directive);
   return kids.at(-1)?.start.tokenIndex ?? current;
@@ -175,7 +175,7 @@ function statementStart(statements: IContext | undefined, current: number): numb
 class Recovery extends DefaultErrorStrategy {
   private kinds: TokenKind[] | undefined;
 
-  constructor(private readonly report: (diagnostic: IRawDiagnostic) => void) {
+  constructor(private readonly report: (diagnostic: RawDiagnostic) => void) {
     super();
   }
 
@@ -183,11 +183,11 @@ class Recovery extends DefaultErrorStrategy {
   override sync(): void {}
 
   /** Never conjure or delete a token: unwind to the statement-level recovery instead. */
-  override recoverInline(recognizer: IParser): never {
+  override recoverInline(recognizer: Parser): never {
     throw new InputMismatchException(recognizer);
   }
 
-  override reportError(p: IParser, e: IRecognitionException): void {
+  override reportError(p: Parser, e: RecognitionException): void {
     if (this.inErrorRecoveryMode(p)) return;
     this.beginErrorCondition(p);
     const kinds = this.kindsOf(p);
@@ -205,7 +205,7 @@ class Recovery extends DefaultErrorStrategy {
    * block it opened; never a line break. Stop before the `}` that closes the enclosing block, or at the end of
    * input; at the top level a stray `}` is consumed and ends the statement.
    */
-  private skip(p: IParser): void {
+  private skip(p: Parser): void {
     const { statements, inBlock } = scope(p);
     const current = p._input.index;
     const kinds = this.kindsOf(p);
@@ -243,11 +243,11 @@ class Recovery extends DefaultErrorStrategy {
   }
 
   /** statements() can return early at a bad token without throwing: report it (a no-op while recovering). */
-  private junk(p: IParser): void {
+  private junk(p: Parser): void {
     this.reportError(p, new InputMismatchException(p));
   }
 
-  override recover(p: IParser, e: IRecognitionException): void {
+  override recover(p: Parser, e: RecognitionException): void {
     const la = (): number => p._input.LA(1);
     const rule = p._ctx.ruleIndex;
     if (isStatements(p._ctx)) {
@@ -276,7 +276,7 @@ class Recovery extends DefaultErrorStrategy {
   }
 
   /** Our token kinds for the parser's (filled) token stream, without EOF; computed once. */
-  private kindsOf(p: IParser): TokenKind[] {
+  private kindsOf(p: Parser): TokenKind[] {
     this.kinds ??= p._input.tokens.filter((t) => t.type !== EOF).map((t) => P.symbolicNames[t.type] as TokenKind);
     return this.kinds;
   }
@@ -286,8 +286,8 @@ class Recovery extends DefaultErrorStrategy {
  * Install per-statement recovery on a parser whose token stream is already filled. Each error is passed to
  * `report` once, in the order found.
  */
-export function installRecovery(parser: VillanelleParser, report: (diagnostic: IRawDiagnostic) => void): void {
-  const p = parser as unknown as IParser;
+export function installRecovery(parser: VillanelleParser, report: (diagnostic: RawDiagnostic) => void): void {
+  const p = parser as unknown as Parser;
   p._errHandler = new Recovery(report);
   // Report a failed prediction where it fails, not after ANTLR's guess at an alternative that ends the rule.
   p._interp.getSynValidOrSemInvalidAltThatFinishedDecisionEntryRule = () => 0;

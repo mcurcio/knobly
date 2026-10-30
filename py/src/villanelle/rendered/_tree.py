@@ -19,7 +19,7 @@ from villanelle._api.rendered import AddressStep
 from villanelle._api.shared import DirectiveOrigin
 from villanelle._api.written import ExpandedValue, WrittenDirective
 from villanelle._block import BlockBase
-from villanelle.report import LocatedDiagnostic, check_program_code
+from villanelle._report import LocatedDiagnostic, check_program_code
 from villanelle.written import DirectiveExpansion, UnreadableExpansion
 
 

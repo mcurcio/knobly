@@ -2,20 +2,19 @@
 
 One model, TypeScript's (``ts/src/written/model.ts``): a live tree with named edit methods, snake_case and
 synchronous. Fields are read-only properties; a block reads as a ``Sequence``; every variant is its own class with a
-``kind`` of its generated list and ``__match_args__``, so ``match`` narrows (``case SetLine(variable, values):``), and
-an operation exists only on the variants where it can succeed (spec 6.5, 6.7); a handle is the same object each time
-(``is``) for the graph's life and follows its tokens across other edits. A detached handle raises ``DetachedError``
-from every member but ``kind``. Copies, edges, resolutions and expansions are snapshots of one derivation of the
-current texts (design rule 1), not handles.
+``kind`` of its generated list and the ``__match_args__`` its generated Protocol carries, so ``match`` narrows
+(``case SetLine(variable, values):``), and an operation exists only on the variants where it can succeed (spec 6.5,
+6.7); a handle is the same object each time (``is``) for the graph's life and follows its tokens across other edits.
+A detached handle raises ``DetachedError`` from every member but ``kind``. Copies, edges, resolutions and expansions
+are snapshots of one derivation of the current texts (design rule 1), not handles.
 
-The classes hold their state; the algorithms live in the private modules beside this one: ``_document`` (the
-handle tree, splices and edit checks), ``_graph`` (the read ledger, the overrides and the binding cache), ``_bind``
-(the binding) and ``_expand`` (the expansion ``expand()`` returns).
+The classes hold their state; the algorithms live in the private modules beside this one: ``_document`` (the handle
+tree, splices and edit checks), ``_graph`` (the read ledger, the overrides and the binding cache), ``_bind`` (the
+binding) and ``_expand`` (the expansion ``expand()`` returns).
 
 Every edit that takes new values takes config text only, as ``text`` (``ConfigText``, spec 6.9): made by
-``villanelle.quote`` from a program string or by ``villanelle.text`` from a text already written as villanelle text, so
-a type checker refuses a plain str; at run time anything but a str raises TypeError before anything changes.
-"""
+``villanelle.quote`` from a program string or by ``villanelle.text`` from a text already written as villanelle text,
+so a type checker refuses a plain str; at run time anything but a str raises TypeError before anything changes."""
 
 from __future__ import annotations
 
@@ -32,9 +31,9 @@ from villanelle._api.shared import ConfigText
 from villanelle._api.syntax import Node, Syntax
 from villanelle._api.written import Copy, DirectiveExpansion, DocumentEdge, Expansion, ReferenceResolution, Resolution
 from villanelle._block import BlockBase
+from villanelle._origin import Place
 from villanelle._text import require_text
-from villanelle.origin import Place
-from villanelle.syntax.cst import ValueRef
+from villanelle.syntax._cst import ValueRef
 
 if TYPE_CHECKING:
     from villanelle._api.io import DocumentSource, DocumentWriter
@@ -408,7 +407,6 @@ class WrittenDirective(_NamedLine, api.WrittenDirective):
     """A directive as written (``port 8080;``, ``node { ... }``, ``use epoll;``): a statement headed by a word, whatever
     its text; ``@set``, ``@snippet``, ``@use`` and extension lines are headed by ``@`` (spec 2.5)."""
 
-    __match_args__ = ("name", "values", "block")
     __slots__ = ()
 
     @property
@@ -430,7 +428,6 @@ class ExtensionLine(_NamedLine, api.ExtensionLine):
     """A line headed by ``@`` and a registered extension's name (``@include "sink.conf";``): its values are the
     extension's, its block holds ``@set`` lines. No ``rename``: a new name would change its kind."""
 
-    __match_args__ = ("name", "values", "block")
     __slots__ = ()
 
     @property
@@ -447,7 +444,6 @@ class ExtensionLine(_NamedLine, api.ExtensionLine):
 class SetLine(_Statement, api.SetLine):
     """``@set $name values;``."""
 
-    __match_args__ = ("variable", "values")
     __slots__ = ("_variable",)
 
     _variable: SetVariable
@@ -484,7 +480,6 @@ class SetLine(_Statement, api.SetLine):
 class SnippetLine(_Statement, api.SnippetLine):
     """``@snippet name $param... { body }``."""
 
-    __match_args__ = ("name", "parameters", "block")
     __slots__ = ("_parameters",)
 
     _parameters: list[Parameter]
@@ -520,7 +515,6 @@ class SnippetLine(_Statement, api.SnippetLine):
 class UseLine(_Statement, api.UseLine):
     """``@use name values;``."""
 
-    __match_args__ = ("snippet_name", "values")
     __slots__ = ()
 
     @property
@@ -567,7 +561,6 @@ class UnreadableLine(_Statement, api.UnreadableLine):
     """A statement that cannot be read by its text alone: a syntax error, a malformed ``@set``, ``@snippet`` or
     ``@use`` line, or an ``@name`` no extension owns (E3008)."""
 
-    __match_args__ = ("text",)
     __slots__ = ()
 
     @property
@@ -763,7 +756,6 @@ class _Value:
 
 @final
 class Word(_Value, api.Word):
-    __match_args__ = ("text",)
     __slots__ = ()
 
     @property
@@ -773,7 +765,6 @@ class Word(_Value, api.Word):
 
 @final
 class String(_Value, api.String):
-    __match_args__ = ("text",)
     __slots__ = ()
 
     @property
@@ -783,7 +774,6 @@ class String(_Value, api.String):
 
 @final
 class List(_Value, api.List):
-    __match_args__ = ("items",)
     __slots__ = ()
 
     @property
@@ -800,7 +790,6 @@ class List(_Value, api.List):
 class Slice(_Value, api.Slice):
     """``name[start~end]``: its name and bounds are written values (a word or a ``$name`` each)."""
 
-    __match_args__ = ("name", "start", "end")
     __slots__ = ()
 
     @property
@@ -829,7 +818,6 @@ class Slice(_Value, api.Slice):
 class Index(_Value, api.Index):
     """``name[index]``: its name and bound are written values (a word or a ``$name`` each)."""
 
-    __match_args__ = ("name", "index")
     __slots__ = ()
 
     @property
@@ -854,7 +842,6 @@ class Index(_Value, api.Index):
 class Reference(_Value, api.Reference):
     """One ``$name`` written as a value."""
 
-    __match_args__ = ("name",)
     __slots__ = ()
 
     @property
@@ -927,7 +914,6 @@ class _Variable:
 class SetVariable(_Variable, api.SetVariable):
     """A ``set`` line's ``$name``. It detaches with its line."""
 
-    __match_args__ = ("name",)
     __slots__ = ("_line",)
 
     _line: SetLine
@@ -992,7 +978,6 @@ class SetVariable(_Variable, api.SetVariable):
 class Parameter(_Variable, api.Parameter):
     """A snippet line's ``$param``: no ``set`` (edit a use line's values instead)."""
 
-    __match_args__ = ("name",)
     __slots__ = ("_detached", "_line", "_token")
 
     _line: SnippetLine
@@ -1056,7 +1041,6 @@ class OverrideVariable(_Variable, api.OverrideVariable):
     """An override as a variable: no place, no line, no ``rename``, no ``set`` (``DocumentGraph.set_override``
     changes it). One per name for the graph's life; never detached."""
 
-    __match_args__ = ("name",)
     __slots__ = ("_graph", "_name")
 
     _graph: DocumentGraph

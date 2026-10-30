@@ -8,10 +8,10 @@ from collections.abc import Sequence
 
 from villanelle._api.shared import DirectiveOrigin
 from villanelle._api.written import DirectiveExpansion, Expansion, UnreadableExpansion
-from villanelle.origin import Place
+from villanelle._origin import Place
 from villanelle.written import _document, _graph
 from villanelle.written._bind import Binding, BoundDirective, BoundItem
-from villanelle.written.model import DocumentGraph, ExpansionBlock, WrittenDirective, own
+from villanelle.written._model import DocumentGraph, ExpansionBlock, WrittenDirective, own
 
 
 def expand(graph: DocumentGraph) -> Expansion:

@@ -578,7 +578,8 @@ them renamed too edits each of `variable.references()`:
 
 ```ts
     const graph = await villanelle({ source: memorySource({ "main.conf": "@set $a 1;\n@snippet s $p { x $p; }\ny $a;\n" }) }).load("main.conf");
-    const [set, snippet] = [...graph.root.block] as [SetLine, SnippetLine];
+    const [set, snippet] = [...graph.root.block];
+    if (set?.kind !== StatementKind.Set || snippet?.kind !== StatementKind.Snippet) throw new Error("unexpected body");
     const variable = set.variable;
     const [parameter] = snippet.parameters;
     variable.rename("b");
@@ -600,7 +601,8 @@ the same text, at its new place.
 ```ts
     const graph = await load({ "main.conf": "@set $a 1;\nb 2 3;\nc { d 4; }\n" });
     const body = graph.root.block;
-    const [set, b, c] = [...body] as [SetLine, WrittenDirective, WrittenDirective];
+    const [set, b, c] = [...body];
+    if (set?.kind !== StatementKind.Set || b?.kind !== StatementKind.Directive || c?.kind !== StatementKind.Directive) throw new Error("unexpected body");
     const [two, three] = b.values;
     const d = c.block?.at(0);
     set.set(text("100 200"));
@@ -717,8 +719,7 @@ The core does no input or output: the **writer** is the program's. It has one me
 TypeScript, a plain call in Python), given the batch. Each file in it has `resolvedPath`, `text` (what to write)
 and `savedText` (what was read or last saved, to compare with the disk). If the writer fails, `save` throws
 `SaveError` with the `paths` and the writer's error as its cause, and no `savedText` changes. The writer and the
-file write are I/O ports, beside the document source (`villanelle` exports them; Python defines them in
-`villanelle.source`).
+file write are I/O ports, beside the document source (`villanelle` exports them in both languages).
 
 | Writer | TypeScript | Python |
 |---|---|---|

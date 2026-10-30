@@ -77,8 +77,8 @@ class Diagnostics(shared.Diagnostics):
 
     __slots__ = ("_items",)
 
-    def __init__(self, initial: Iterable[shared.LocatedDiagnostic] = (), /) -> None:
-        self._items: list[shared.LocatedDiagnostic] = list(initial)
+    def __init__(self, initial: Iterable[shared.LocatedDiagnostic] | None = None, /) -> None:
+        self._items: list[shared.LocatedDiagnostic] = list(initial or ())
 
     def __len__(self) -> int:
         return len(self._items)

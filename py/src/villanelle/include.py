@@ -7,8 +7,8 @@ from __future__ import annotations
 from villanelle._api.codes import DiagnosticCode, describe
 from villanelle._api.errors import DiagnosticError
 from villanelle._api.written import Extension, ExtensionUse
-from villanelle.report import LocatedDiagnostic
-from villanelle.written.value import ExpandedString, value_error
+from villanelle._report import LocatedDiagnostic
+from villanelle.written._value import ExpandedString, value_error
 
 
 def include() -> Extension:

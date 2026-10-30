@@ -7,7 +7,7 @@
 import { anatomyOf } from "../anatomy.js";
 import { textOf } from "../syntax/cst.js";
 import { requireText } from "../text.js";
-import type { IBinding } from "./bind.js";
+import type { Binding } from "./bind.js";
 import type { Block, Document } from "./document.js";
 import { detached } from "./document.js";
 import type { ValueHandle } from "./values.js";
@@ -234,7 +234,7 @@ export class UnreadableLine extends StatementHandle implements api.UnreadableLin
 
 /** What `wins()` and `shadowedAt()` share. */
 abstract class VariableBase {
-  protected abstract graphBinding(): IBinding;
+  protected abstract graphBinding(): Binding;
 
   wins(): readonly ReferenceResolution[] {
     return this.graphBinding()
@@ -272,7 +272,7 @@ export class SetVariable extends VariableBase implements api.SetVariable {
     return this.setLine.live();
   }
 
-  protected graphBinding(): IBinding {
+  protected graphBinding(): Binding {
     return this.setLine.live().doc.host.binding();
   }
 
@@ -321,7 +321,7 @@ export class ParameterVariable extends VariableBase implements Parameter {
     return this.alive();
   }
 
-  protected graphBinding(): IBinding {
+  protected graphBinding(): Binding {
     return this.alive().doc.host.binding();
   }
 
@@ -342,12 +342,12 @@ export class OverrideVariable extends VariableBase implements api.OverrideVariab
 
   constructor(
     readonly name: string,
-    private readonly binding: () => IBinding,
+    private readonly binding: () => Binding,
   ) {
     super();
   }
 
-  protected graphBinding(): IBinding {
+  protected graphBinding(): Binding {
     return this.binding();
   }
 

@@ -6,7 +6,7 @@
  */
 
 import { isWordKind } from "../syntax/tokens.js";
-import { anatomyOf, type IDirectiveAnatomy } from "../anatomy.js";
+import { anatomyOf, type DirectiveAnatomy } from "../anatomy.js";
 import type { SourceSpan } from "../gen/api/shared.js";
 import type { Node, Token } from "../gen/api/syntax.js";
 import { DiagnosticCode } from "../gen/api/codes.js";
@@ -16,7 +16,7 @@ import { NodeKind, StatementKind, statementOfKeyword, TokenKind } from "../gen/a
 export type ShapeKind = StatementKind;
 
 /** One problem of a line's text alone. */
-export interface IShapeFault {
+export interface ShapeFault {
   readonly code: DiagnosticCode;
   readonly span: SourceSpan;
   /** The detail PR 3's message carried (`$a`, a snippet name), if any. */
@@ -24,19 +24,19 @@ export interface IShapeFault {
 }
 
 /** What a directive or error node is, by its text alone, before any per-block rule. */
-export interface IShape {
+export interface Shape {
   readonly kind: ShapeKind;
   /**
  * Why a `@set`, `@snippet` or `@use` line, or an `@name` no extension owns, is unreadable; undefined otherwise (and
  * for a syntax error node).
  */
-  readonly fault: IShapeFault | undefined;
+  readonly fault: ShapeFault | undefined;
   /** A `set`'s variable name, or a snippet's name (for the one-per-block rules). */
   readonly claims: string | undefined;
 }
 
 /** The shape of one node of a block, ignoring the one-per-block rules (E5002, E5005). */
-export function shapeOf(tokens: readonly Token[], node: Node, extensions: ReadonlySet<string>): IShape {
+export function shapeOf(tokens: readonly Token[], node: Node, extensions: ReadonlySet<string>): Shape {
   if (node.kind !== NodeKind.Directive) return { kind: "unreadable", fault: undefined, claims: undefined };
   return shapeOfAnatomy(tokens, anatomyOf(tokens, node), extensions);
 }
@@ -47,7 +47,7 @@ export function shapeOf(tokens: readonly Token[], node: Node, extensions: Readon
  * `@use`, an extension line (`@` and a registered extension's name), or else an unreadable line (E3008, which is no
  * text-alone rule: it depends on the registered extensions, so `isTextAlone` leaves it out).
  */
-export function shapeOfAnatomy(tokens: readonly Token[], anatomy: IDirectiveAnatomy, extensions: ReadonlySet<string>): IShape {
+export function shapeOfAnatomy(tokens: readonly Token[], anatomy: DirectiveAnatomy, extensions: ReadonlySet<string>): Shape {
   const name = tokens[anatomy.name];
   if (name === undefined) throw new Error("a directive node has no name token");
   if (name.kind !== TokenKind.AT_WORD) return { kind: "directive", fault: undefined, claims: undefined };
@@ -83,7 +83,7 @@ export function shapeOfAnatomy(tokens: readonly Token[], anatomy: IDirectiveAnat
 }
 
 /** Whether a fault is one of the text-alone rules an edit refuses (E5002, E5005, E5009 to E5011; spec 2.8). */
-export function isTextAlone(fault: IShapeFault): boolean {
+export function isTextAlone(fault: ShapeFault): boolean {
   return fault.code !== DiagnosticCode.UnknownExtension;
 }
 
@@ -103,7 +103,7 @@ export function blockShapes(
   nodes: readonly Node[],
   extensions: ReadonlySet<string>,
   claimed: Iterable<string> = [],
-): IShape[] {
+): Shape[] {
   const sets = new Set(claimed);
   const snippets = new Set<string>();
   return nodes.map((node) => {

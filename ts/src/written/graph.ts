@@ -7,8 +7,8 @@
 
 import { makeLocated } from "../report.js";
 import { typeNameOf } from "../text.js";
-import { bind, type IBindingWithNeeds, type IOverrideInput, type IOverrideValues, type IReadLedger } from "./bind.js";
-import { Document, type IDocumentHost } from "./document.js";
+import { bind, type BindingWithNeeds, type OverrideInput, type OverrideValues, type ReadLedger } from "./bind.js";
+import { Document, type DocumentHost } from "./document.js";
 import { expansionOf } from "./expansion.js";
 import { checkOverride, checkOverrideName } from "./override.js";
 import { readUnread } from "./read.js";
@@ -19,11 +19,11 @@ import type { ConfigText, LocatedDiagnostic } from "../gen/api/shared.js";
 import type { DocumentEdge, Expansion, Extension, Variable } from "../gen/api/written.js";
 import type * as api from "../gen/api/written.js";
 
-export class DocumentGraph implements api.DocumentGraph, IDocumentHost, IReadLedger {
+export class DocumentGraph implements api.DocumentGraph, DocumentHost, ReadLedger {
   readonly documents = new Map<string, Document>();
   readonly extensionNames: ReadonlySet<string>;
   private readonly overrideTexts = new Map<string, ConfigText>();
-  private readonly overrideValues = new Map<string, IOverrideValues>();
+  private readonly overrideValues = new Map<string, OverrideValues>();
   private readonly overrideVariables = new Map<string, OverrideVariable>();
   /** Per `JSON.stringify([parentPath, spec])`: the paths or the rejection. */
   private readonly resolutions = new Map<string, readonly string[] | Error>();
@@ -31,7 +31,7 @@ export class DocumentGraph implements api.DocumentGraph, IDocumentHost, IReadLed
   private readonly failedReads = new Map<string, Error>();
   private version = 0;
   private cache:
-    | { readonly version: number; readonly binding: IBindingWithNeeds; diagnostics?: readonly LocatedDiagnostic[]; expansion?: Expansion }
+    | { readonly version: number; readonly binding: BindingWithNeeds; diagnostics?: readonly LocatedDiagnostic[]; expansion?: Expansion }
     | undefined;
   private rootDocument: Document | undefined;
 
@@ -76,7 +76,7 @@ export class DocumentGraph implements api.DocumentGraph, IDocumentHost, IReadLed
   }
 
   /** A changed name keeps its place in `overrides`; a new one (or one removed before) goes at the end (6.2). */
-  private putOverride(name: string, text: ConfigText, values: IOverrideValues): void {
+  private putOverride(name: string, text: ConfigText, values: OverrideValues): void {
     this.overrideTexts.set(name, text);
     this.overrideValues.set(name, values);
     if (!this.overrideVariables.has(name)) this.overrideVariables.set(name, new OverrideVariable(name, () => this.binding()));
@@ -155,11 +155,11 @@ export class DocumentGraph implements api.DocumentGraph, IDocumentHost, IReadLed
     );
   }
 
-  // --- IDocumentHost ---
+  // --- DocumentHost ---
 
-  binding(): IBindingWithNeeds {
+  binding(): BindingWithNeeds {
     if (this.cache?.version !== this.version) {
-      const overrides = new Map<string, IOverrideInput>();
+      const overrides = new Map<string, OverrideInput>();
       for (const [name, values] of this.overrideValues) {
         const variable = this.overrideVariables.get(name);
         if (variable !== undefined) overrides.set(name, { variable, ...values });
@@ -177,7 +177,7 @@ export class DocumentGraph implements api.DocumentGraph, IDocumentHost, IReadLed
     this.version++;
   }
 
-  // --- IReadLedger, and what the read loop records ---
+  // --- ReadLedger, and what the read loop records ---
 
   resolved(parentPath: string, spec: string): readonly string[] | Error | undefined {
     return this.resolutions.get(JSON.stringify([parentPath, spec]));

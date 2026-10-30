@@ -47,7 +47,7 @@ in lowercase words; the TypeScript and Python spellings follow from the casing r
 
 | Word | Means | Replaces (before milestone 1) |
 |---|---|---|
-| `block` | the statements inside `{ }`, and a file's top level, in every layer. The word is shared; the shape is not: the low level's `written block` is an object (`statements`, `directives (name)`, `insert statements`, `add statements`), while a rendered `block` is a plain read-only sequence of directives (filter it by `name`, or `walk`) | `body` (document, rendered directive, rendered tree) |
+| `block` | the statements inside `{ }`, and a file's top level, in every layer, with one shape in every layer (spec 2.11): iterated and indexed in order, `directives (name)`, and a depth-first `walk`. The written block holds statements (and adds the edits `insert statements`, `add statements`), the expansion block directive expansions, the rendered block directives | `body` (document, rendered directive, rendered tree) |
 | `values` | a line's values, in every layer | `args` (rendered directive, extension use) |
 | `written` | the link from an expanded or rendered thing to the low-level handle behind it, on **the same line**: a directive expansion's (and so a rendered directive's) line, an unreadable expansion's statement, an expanded value's same-line value (the `$name` it came through, or the value itself). The one name of that link in every family (milestone 4) | a rendered value's `written`, which used to be the end of its chain; `statement` on a directive or unreadable expansion (before milestone 4) |
 | `definition` | the written value at the end of a variable chain (the value in the `set` line) | the old rendered value `written` |
@@ -111,81 +111,140 @@ Python `X: TypeAlias = A | B | ...` over classes (so `isinstance(x, X)` works). 
 
 ### Shared
 
+<!-- generated: names: shared (tools/gen-api.py docs) -->
 | Spec name | TypeScript | Python |
 |---|---|---|
+| `config text` | `ConfigText` | `ConfigText` |
 | `source position` | `SourcePosition` | `SourcePosition` |
 | `source span` | `SourceSpan` | `SourceSpan` |
-| `place` (kind `file`) | `Place` | `Place` |
-| `override` (kind `override`, as an origin's place) | `Override` | `Override` |
-| `place kind` | `PlaceKind` | `PlaceKind` |
-| `step`, `step kind` | `Step`, `StepKind` | `Step`, `StepKind` |
+| `place` | `Place` | `Place` |
+| `override` | `Override` | `Override` |
+| `step` | `Step` | `Step` |
 | `origin` | `Origin` | `Origin` |
 | `directive origin` | `DirectiveOrigin` | `DirectiveOrigin` |
 | `diagnostic` | `Diagnostic` | `Diagnostic` |
+| `program code` | `ProgramCode` | `ProgramCode` |
 | `located diagnostic` | `LocatedDiagnostic` | `LocatedDiagnostic` |
-| `program code` | `ProgramCode` (a template literal type) | `str` (checked at run time) |
-| `diagnostic code` | `DiagnosticCode` (constant object and type) | `DiagnosticCode` (`StrEnum`) |
-| `diagnostics` (the sink) | `Diagnostics` | `Diagnostics` |
-| `locatable` | `Locatable` | `Locatable` (`Protocol`) |
-| `expanded value` | `ExpandedValue` (union) | `ExpandedValue` (union) |
-| `expanded word`, `expanded string`, `expanded list`, `expanded slice`, `expanded index` | `ExpandedWord`, `ExpandedString`, `ExpandedList`, `ExpandedSlice`, `ExpandedIndex` | `ExpandedWord`, `ExpandedString`, `ExpandedList`, `ExpandedSlice`, `ExpandedIndex` |
-| `value kind` | `ValueKind` | `ValueKind` |
-| `slice value`, `index value` | `SliceValue`, `IndexValue` | `SliceValue`, `IndexValue` |
-| `quote` (free function: a plain string as villanelle text) | `quote`, in `ts/src/text.ts` | `quote`, in `villanelle/_text.py`, exported from `villanelle` |
-| `text` (free function: plain text taken as config text, milestone 5) | `text`, in `ts/src/text.ts` | `text`, in `villanelle/_text.py`, exported from `villanelle` |
-| `config text` (milestone 5) | `ConfigText`, a branded string, in `ts/src/text.ts` | `ConfigText`, a `NewType` of `str`, in `villanelle/_text.py`, exported from `villanelle` |
-| errors (contract 4) | `VillanelleError`, `DiagnosticError`, `ReadError`, `SaveError`, `LostUpdateError`, `BadTextError`; outside the base `DetachedError`, `MisuseError` | the same, and `ValueError` for misuse |
-| `check lost updates` (free function, the io layer) | `checkLostUpdates` | `check_lost_updates` |
+| `locatable` | `Locatable` | `Locatable` |
+| `diagnostics` | `Diagnostics` | `Diagnostics` |
+| `block` | `Block<Item, Directive>` | `Block[Item, Directive]` |
+| `step kind` (kind list) | `StepKind` (as-const object and type) | `StepKind` (`StrEnum`) |
+| `place kind` (kind list) | `PlaceKind` (as-const object and type) | `PlaceKind` (`StrEnum`) |
+| `walk control` (kind list) | `WalkControl` (as-const object and type) | `WalkControl` (`StrEnum`) |
+| `diagnostic code` | `DiagnosticCode` (as-const object and type) | `DiagnosticCode` (`StrEnum`) |
+| `villanelle error` (error group) | `VillanelleError` | `VillanelleError` |
+| `diagnostic error` (error group) | `DiagnosticError` | `DiagnosticError` |
+| `read error` (error group) | `ReadError` | `ReadError` |
+| `bad text error` (error group) | `BadTextError` | `BadTextError` |
+| `save error` (error group) | `SaveError` | `SaveError` |
+| `lost update error` (error group) | `LostUpdateError` | `LostUpdateError` |
+| `detached error` (error group) | `DetachedError` | `DetachedError` |
+| `argument type error` (error group) | `TypeError` | `TypeError` |
+| `misuse error` (error group) | `MisuseError` | `ValueError` |
+| `index out of range` (error group) | `RangeError` | `IndexError` |
+| `quote` (free function) | `quote` | `quote` |
+| `text` (free function) | `text` | `text` |
+| `make diagnostics` (free function) | `new Diagnostics(...)` | `Diagnostics(...)` |
+| `program code` (constant) | `PROGRAM_CODE` | `PROGRAM_CODE` |
+<!-- end generated -->
 
 ### Syntax layer
 
+<!-- generated: names: syntax (tools/gen-api.py docs) -->
 | Spec name | TypeScript | Python |
 |---|---|---|
-| `syntax` | `Syntax` | `Syntax` |
+| `token range` | `TokenRange` | `TokenRange` |
 | `token` | `Token` | `Token` |
 | `node` | `Node` | `Node` |
-| `token range` | `TokenRange` | `TokenRange` |
-| `token kind`, `node kind` | `TokenKind`, `NodeKind` | `TokenKind`, `NodeKind` |
+| `syntax` | `Syntax` | `Syntax` |
+| `token kind` (kind list) | `TokenKind` (as-const object and type) | `TokenKind` (`StrEnum`) |
+| `node kind` (kind list) | `NodeKind` (as-const object and type) | `NodeKind` (`StrEnum`) |
+| `parse` (free function) | `parse` | `parse` |
+| `span of` (free function) | `spanOf` | `span_of` |
+| `text of` (free function) | `textOf` | `text_of` |
+| `max nesting` (constant) | `MAX_NESTING` | `MAX_NESTING` |
+<!-- end generated -->
 
 ### Ports and extensions
 
+<!-- generated: names: io (tools/gen-api.py docs) -->
 | Spec name | TypeScript | Python |
 |---|---|---|
-| `document source` | `DocumentSource` | `DocumentSource` (`Protocol`) |
 | `load context` | `LoadContext` | `LoadContext` |
-| `document writer` | `DocumentWriter` | `DocumentWriter` (`Protocol`) |
+| `document source` | `DocumentSource` | `DocumentSource` |
 | `file write` | `FileWrite` | `FileWrite` |
-| `memory source`, `memory writer` | `memorySource`, `memoryWriter` | `memory_source`, `memory_writer` |
-| `file source`, `file writer` | `fileSource`, `fileWriter` (`villanelle/node`) | `file_source`, `file_writer` (`villanelle.files`) |
-| `fetch source`, `fetch writer` | `fetchSource`, `fetchWriter` (`villanelle/browser`) | none |
-| `extension` | `Extension` | `Extension` (`Protocol`) |
-| `extension use` | `ExtensionUse` | `ExtensionUse` |
+| `document writer` | `DocumentWriter` | `DocumentWriter` |
+| `fetch writer options` | `FetchWriterOptions` (`villanelle/browser`) | keyword arguments |
+| `platform fetch` | the platform's own | none |
+| `memory source` (free function) | `memorySource` | `memory_source` |
+| `memory writer` (free function) | `memoryWriter` | `memory_writer` |
+| `file source` (free function) | `fileSource` (`villanelle/node`) | `file_source` (`villanelle.files`) |
+| `file writer` (free function) | `fileWriter` (`villanelle/node`) | `file_writer` (`villanelle.files`) |
+| `fetch source` (free function) | `fetchSource` (`villanelle/browser`) | none |
+| `fetch writer` (free function) | `fetchWriter` (`villanelle/browser`) | none |
+| `check lost updates` (free function) | `checkLostUpdates` | `check_lost_updates` |
+<!-- end generated -->
 
 ### Low level (written)
 
+<!-- generated: names: written (tools/gen-api.py docs) -->
 | Spec name | TypeScript | Python |
 |---|---|---|
-| `processor` | `Processor` (made by `villanelle(...)`) | `Processor` |
-| load options | `LoadOptions` (`overrides`) | keyword `overrides=` |
+| `extension` | `Extension` | `Extension` |
+| `extension use` | `ExtensionUse` | `ExtensionUse` |
+| `load options` | `LoadOptions` | keyword arguments |
+| `processor options` | `ProcessorOptions` | keyword arguments |
+| `processor` | `Processor` | `Processor` |
 | `document graph` | `DocumentGraph` | `DocumentGraph` |
 | `document` | `Document` | `Document` |
 | `document edge` | `DocumentEdge` | `DocumentEdge` |
 | `copy` | `Copy` | `Copy` |
-| `statement`, `statement kind` | `Statement` (union), `StatementKind` | `Statement` (union), `StatementKind` |
-| `written directive`, `extension line` | `WrittenDirective`, `ExtensionLine` | `WrittenDirective`, `ExtensionLine` |
-| `set line`, `snippet line`, `use line`, `unreadable line` | `SetLine`, `SnippetLine`, `UseLine`, `UnreadableLine` | `SetLine`, `SnippetLine`, `UseLine`, `UnreadableLine` |
+| `statement` | `Statement` (union) | `Statement` (union) |
+| `written directive` | `WrittenDirective` | `WrittenDirective` |
+| `extension line` | `ExtensionLine` | `ExtensionLine` |
+| `set line` | `SetLine` | `SetLine` |
+| `snippet line` | `SnippetLine` | `SnippetLine` |
+| `use line` | `UseLine` | `UseLine` |
+| `unreadable line` | `UnreadableLine` | `UnreadableLine` |
 | `written block` | `WrittenBlock` | `WrittenBlock` |
-| `expansion block` (milestone 6) | `ExpansionBlock` | `ExpansionBlock` |
 | `written value` | `WrittenValue` (union) | `WrittenValue` (union) |
-| `word`, `string`, `list`, `slice`, `index`, `reference` | `Word`, `String`, `List`, `Slice`, `Index`, `Reference` | `Word`, `String`, `List`, `Slice`, `Index`, `Reference`, from `villanelle.written` only |
-| `variable`, `variable kind` | `Variable` (union), `VariableKind` | `Variable` (union), `VariableKind` |
-| `set variable`, `parameter`, `override variable` | `SetVariable`, `Parameter`, `OverrideVariable` | `SetVariable`, `Parameter`, `OverrideVariable` |
+| `word` | `Word` | `Word` |
+| `string` | `String` | `String` |
+| `list` | `List` | `List` |
+| `slice` | `Slice` | `Slice` |
+| `index` | `Index` | `Index` |
+| `reference` | `Reference` | `Reference` |
+| `variable` | `Variable` (union) | `Variable` (union) |
+| `set variable` | `SetVariable` | `SetVariable` |
+| `parameter` | `Parameter` | `Parameter` |
+| `override variable` | `OverrideVariable` | `OverrideVariable` |
 | `resolution` | `Resolution<T>` | `Resolution[T]` |
 | `reference resolution` | `ReferenceResolution` | `ReferenceResolution` |
 | `expansion` | `Expansion` | `Expansion` |
-| `directive expansion`, `unreadable expansion` | `DirectiveExpansion`, `UnreadableExpansion` | `DirectiveExpansion`, `UnreadableExpansion` |
-| `expanded value` and its variants, `extension`, `extension use` (the low level since milestone 4) | as above | as above |
-| `format diagnostic` (free function; reads the source line from a graph) | `formatDiagnostic`, in `ts/src/written/format.ts` | `format_diagnostic`, in `villanelle/written/format.py` |
+| `expansion block` | `ExpansionBlock` | `ExpansionBlock` |
+| `directive expansion` | `DirectiveExpansion` | `DirectiveExpansion` |
+| `unreadable expansion` | `UnreadableExpansion` | `UnreadableExpansion` |
+| `slice value` | `SliceValue` | `SliceValue` |
+| `index value` | `IndexValue` | `IndexValue` |
+| `expanded value` | `ExpandedValue` (union) | `ExpandedValue` (union) |
+| `expanded word` | `ExpandedWord` | `ExpandedWord` |
+| `expanded string` | `ExpandedString` | `ExpandedString` |
+| `expanded list` | `ExpandedList` | `ExpandedList` |
+| `expanded slice` | `ExpandedSlice` | `ExpandedSlice` |
+| `expanded index` | `ExpandedIndex` | `ExpandedIndex` |
+| `statement kind` (kind list) | `StatementKind` (as-const object and type) | `StatementKind` (`StrEnum`) |
+| `value kind` (kind list) | `ValueKind` (as-const object and type) | `ValueKind` (`StrEnum`) |
+| `variable kind` (kind list) | `VariableKind` (as-const object and type) | `VariableKind` (`StrEnum`) |
+| `unreadable reason` (kind list) | `UnreadableReason` (as-const object and type) | `UnreadableReason` (`StrEnum`) |
+| `format diagnostic` (free function) | `formatDiagnostic` | `format_diagnostic` |
+| `make processor` (free function) | `villanelle(...)` | `Processor(...)` |
+| `include` (free function) | `include` (`villanelle/include`) | `include` (`villanelle.include`) |
+| `max depth` (constant) | `MAX_DEPTH` | `MAX_DEPTH` |
+| `max directives` (constant) | `MAX_DIRECTIVES` | `MAX_DIRECTIVES` |
+| `max safe integer` (constant) | `MAX_SAFE_INTEGER` | `MAX_SAFE_INTEGER` |
+| `reserved` (constant) | `RESERVED` | `RESERVED` |
+| `variable name` (constant) | `VARIABLE_NAME` | `VARIABLE_NAME` |
+<!-- end generated -->
 
 The low level's public entry is one module in each binding: `ts/src/written/index.ts` (new) and the package
 `villanelle.written` (its `__all__`). The rendered layer imports the low level from there and nowhere else
@@ -193,18 +252,24 @@ The low level's public entry is one module in each binding: `ts/src/written/inde
 
 ### Rendered tree
 
+<!-- generated: names: rendered (tools/gen-api.py docs) -->
 | Spec name | TypeScript | Python |
 |---|---|---|
-| `render (graph)` (entry point) | `render(graph)` in `ts/src/rendered/`, re-exported by `"villanelle"` | `render(graph)` in `villanelle.rendered`, re-exported as `villanelle.render` |
 | `rendered` | `Rendered` | `Rendered` |
 | `directive` | `Directive` | `Directive` |
-| `rendered block` (milestone 6) | `RenderedBlock` | `RenderedBlock` |
-| `unreadable reason` | `UnreadableReason` | `UnreadableReason` (`StrEnum`) |
-| `address`, `address step` | `Address`, `AddressStep` | `Address`, `AddressStep` |
+| `rendered block` | `RenderedBlock` | `RenderedBlock` |
 | `key rule` | `KeyRule` | `KeyRule` |
-| key options | `KeyOptions` (`key`) | keyword `key=` |
-| `change` | `Change` (union of `Added`, `Removed`, `Changed`, `Unknown`) | `Change` (union of `Added`, `Removed`, `Changed`, `Unknown`) |
-| `change kind` | `ChangeKind` | `ChangeKind` |
+| `key options` | `KeyOptions` | keyword arguments |
+| `address step` | `AddressStep` | `AddressStep` |
+| `address` | `Address` | `Address` |
+| `change` | `Change` (union) | `Change` (union) |
+| `added` | `Added` | `Added` |
+| `removed` | `Removed` | `Removed` |
+| `changed` | `Changed` | `Changed` |
+| `unknown` | `Unknown` | `Unknown` |
+| `change kind` (kind list) | `ChangeKind` (as-const object and type) | `ChangeKind` (`StrEnum`) |
+| `render` (free function) | `render` | `render` |
+<!-- end generated -->
 
 ## New terms in milestone 1
 

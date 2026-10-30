@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from villanelle._api.limits import VARIABLE_NAME
 from villanelle._text import require_text
-from villanelle.syntax.parse import parse_entry
+from villanelle.syntax._parse import parse_entry
 
 
 def variable_name(name: object, *, member: str) -> str:

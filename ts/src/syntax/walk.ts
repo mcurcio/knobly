@@ -9,21 +9,21 @@ import { NodeKind } from "../gen/api/kinds.js";
 
 
 /** The parts of an ANTLR token the walk reads (antlr4's typings are incomplete; the cast lives in parse.ts). */
-export interface IAntlrToken {
+export interface AntlrToken {
   readonly type: number;
   readonly tokenIndex: number;
   readonly text: string;
 }
 
 /** The parts of an ANTLR parse-tree node the walk reads: a rule context or a terminal (error) node. */
-export interface IAntlrTree {
+export interface AntlrTree {
   /** Set on terminal nodes only. */
-  readonly symbol?: IAntlrToken;
+  readonly symbol?: AntlrToken;
   readonly ruleIndex?: number;
-  readonly children?: readonly IAntlrTree[] | null;
+  readonly children?: readonly AntlrTree[] | null;
   readonly parentCtx?: unknown;
   /** Set on rule contexts: the first token the rule saw. */
-  readonly start?: IAntlrToken;
+  readonly start?: AntlrToken;
   /** Set on rule contexts: the recognition error the rule ended with, or null. */
   readonly exception?: unknown;
   /** Present (and true) on error nodes only; antlr4's plain terminal nodes do not define it. */
@@ -60,11 +60,11 @@ type Item =
 const BLOCK_RULE = VillanelleParser.ruleNames.indexOf("block");
 
 /** EOF (type -1) and tokens conjured by error recovery (tokenIndex < 0) are not source tokens. */
-function isSourceToken(token: IAntlrToken): boolean {
+function isSourceToken(token: AntlrToken): boolean {
   return token.type !== -1 && token.tokenIndex >= 0;
 }
 
-function items(tree: IAntlrTree): Item[] {
+function items(tree: AntlrTree): Item[] {
   if (tree.symbol !== undefined) {
     if (!isSourceToken(tree.symbol)) return [];
     const index = tree.symbol.tokenIndex;
@@ -81,7 +81,7 @@ function items(tree: IAntlrTree): Item[] {
   return broken ? [{ tag: "error", start: node.start, end: node.end, parent: tree.parentCtx }] : [{ tag: "node", node }];
 }
 
-function makeNode(kind: NodeKind, kids: readonly Item[], ctx: IAntlrTree): Node {
+function makeNode(kind: NodeKind, kids: readonly Item[], ctx: AntlrTree): Node {
   const children: Node[] = [];
   let lo = Infinity;
   let hi = -Infinity;
@@ -112,14 +112,14 @@ function makeNode(kind: NodeKind, kids: readonly Item[], ctx: IAntlrTree): Node 
 }
 
 /** The CST of a `document` parse tree. */
-export function toCst(document: IAntlrTree): Node {
+export function toCst(document: AntlrTree): Node {
   const [root] = items(document);
   if (root?.tag !== "node" || root.node.kind !== NodeKind.Document) throw new Error("parse tree root is not a document");
   return root.node;
 }
 
 /** The CST of an entry rule's parse tree: a `document` node over all `count` tokens, its concept nodes as children. */
-export function toEntryCst(tree: IAntlrTree, count: number): Node {
+export function toEntryCst(tree: AntlrTree, count: number): Node {
   const children = items(tree).flatMap((item) => (item.tag === "node" ? [item.node] : []));
   return { kind: "document", start: 0, end: count, children };
 }

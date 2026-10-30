@@ -10,7 +10,7 @@ import { include } from "../include.js";
 import { render } from "../rendered/render.js";
 import { countingSource } from "../rendered/testing.js";
 import { BadTextError, DetachedError, DiagnosticError, type FileWrite, memorySource, MisuseError, ReadError, text, VillanelleError } from "../index.js";
-import { type DocumentGraph, type ExtensionLine, type SetLine, type SnippetLine, VariableKind, villanelle, type WrittenDirective } from "./index.js";
+import { type DocumentGraph, type ExtensionLine, StatementKind, VariableKind, villanelle, type WrittenDirective } from "./index.js";
 
 const MAIN = "a;\n";
 
@@ -96,7 +96,7 @@ describe("load's root failure", () => {
   });
 });
 
-describe("IDocument.replaceWithText (B4)", () => {
+describe("Document.replaceWithText (B4)", () => {
   it("keeps source, detaches every handle, and save writes the new text", async () => {
     const graph = await villanelle({ source: memorySource({ "main.conf": "a 1;\n" }) }).load("main.conf");
     const [a] = [...graph.root.block] as [WrittenDirective];
@@ -205,7 +205,8 @@ describe("rename", () => {
 
   it("renames a set line's and a parameter's $name only, keeping the variable", async () => {
     const graph = await villanelle({ source: memorySource({ "main.conf": "@set $a 1;\n@snippet s $p { x $p; }\ny $a;\n" }) }).load("main.conf");
-    const [set, snippet] = [...graph.root.block] as [SetLine, SnippetLine];
+    const [set, snippet] = [...graph.root.block];
+    if (set?.kind !== StatementKind.Set || snippet?.kind !== StatementKind.Snippet) throw new Error("unexpected body");
     const variable = set.variable;
     const [parameter] = snippet.parameters;
     variable.rename("b");

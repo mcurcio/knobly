@@ -262,8 +262,8 @@
     "program code": {
       "constant": "program code",
       "layer": "shared",
-      "regex": "^[^/\\s]+/\\S+$",
-      "means": "<namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace; villanelle's codes start with E"
+      "regex": "^[^/\\t\\n\\u000b\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]+/[^\\t\\n\\u000b\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]+$",
+      "means": "<namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out so JavaScript and Python agree); villanelle's codes start with E"
     }
   },
   "error groups": [
@@ -511,7 +511,7 @@
         }
       ],
       "returns": "rendered",
-      "note": "the rendered layer's entry point: going up a layer is a free function of the upper layer (owner, 2026-10-29). Pure: reads no file. Builds only on the low level's public members (document graph expand (), spec 7.0). Exported by the rendered module and re-exported at each binding's top level. Given anything without a callable expand it raises the argument type error first (milestone 5)",
+      "note": "the rendered layer's entry point: going up a layer is a free function of the upper layer (owner, 2026-10-29). Pure: reads no file. Builds only on the low level's public members (document graph expand (), spec 7.0). Exported only by the rendered layer's namespace (binding guide rule 9). Given anything without a callable expand it raises the argument type error first (milestone 5)",
       "errors": [
         "argument type error"
       ]
@@ -629,7 +629,7 @@
       "params": [
         {
           "name": "fetch",
-          "type": "fetch function"
+          "type": "platform fetch"
         }
       ],
       "module": {
@@ -643,7 +643,7 @@
       "params": [
         {
           "name": "fetch",
-          "type": "fetch function"
+          "type": "platform fetch"
         },
         {
           "name": "options",
@@ -904,6 +904,7 @@
       "nature": "named type",
       "is": "text",
       "pattern": "program code",
+      "template": "{text}/{text}",
       "note": "a program's own diagnostic code, '<namespace>/<name>' (the program code pattern). TypeScript checks the '/' in the type ('${string}/${string}'); Python has no such type, so it is text there, checked at run time",
       "members": []
     },
@@ -1039,16 +1040,6 @@
           ]
         }
       ]
-    },
-    {
-      "name": "collecting",
-      "layer": "shared",
-      "nature": "handle",
-      "languages": [
-        "py"
-      ],
-      "note": "Python's context manager for the diagnostics sink's collect (with diagnostics.collecting(): ...)",
-      "members": []
     },
     {
       "name": "block",
@@ -1307,7 +1298,7 @@
       ]
     },
     {
-      "name": "fetch function",
+      "name": "platform fetch",
       "layer": "io",
       "nature": "named type",
       "is": "native",

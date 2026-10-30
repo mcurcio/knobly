@@ -11,7 +11,8 @@ the code. Generated code is never committed (owner, 2026-10-23: "Don't commit th
 
 The work is split as a compiler is: tools/api/loader.py reads and checks the schema into one language-neutral model;
 one emitter per language renders it (tools/api/emit_ts.py, emit_py.py), and emit_docs.py renders the Markdown tables.
-A new binding adds one emitter and one adapter (spec/binding-guide.md section 5). Python 3.9+ standard library only.
+Each emitter hands the loader its Language (EMITTERS below); spec/codegen.md section 10 lists what else a new binding
+touches. Python 3.9+ standard library only.
 """
 
 from __future__ import annotations
@@ -26,17 +27,29 @@ from typing import Dict, List
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from api import emit_docs, emit_py, emit_ts  # noqa: E402
-from api.loader import REPO, Model, SchemaError, planted, read_schema  # noqa: E402
+from api.loader import META, REPO, Model, SchemaError, planted, read_schema  # noqa: E402
 
 OUT = {
     "ts": (REPO / "ts" / "src" / "gen" / "api", REPO / "ts" / "conformance"),
     "py": (REPO / "py" / "src" / "villanelle" / "_api", REPO / "py" / "conformance"),
 }
 EMITTERS = {"ts": emit_ts, "py": emit_py}
+LANGUAGES = [e.LANGUAGE for e in EMITTERS.values()]
 
 
-def write(files: Dict[str, str], out: Path) -> None:
-    """Write into a temp dir inside `out`, then move each file into place: no reader sees a half-written file."""
+def check_meta_bases() -> None:
+    """The meta-schema's error-base enums are exactly the bases the emitters allow (each emitter is their home)."""
+    base = META["$defs"]["languageBase"]["properties"]
+    allowed = sorted(set(base["base"]["enum"]) | set(base["builtin"]["enum"]))
+    emitted = sorted({b for lang in LANGUAGES for b in lang.error_bases})
+    if allowed != emitted:
+        raise SchemaError(f"api.schema.json languageBase allows {allowed}, the emitters {emitted}")
+
+
+def write(files: Dict[str, str], out: Path, owned: bool = True) -> None:
+    """Write into a temp dir inside `out`, then move each file into place: no reader sees a half-written file. When
+    `owned` (the folder is all generated), a file the emitter no longer writes is removed, so a dropped module cannot
+    linger and keep stale imports compiling."""
     out.mkdir(parents=True, exist_ok=True)
     tmp = Path(tempfile.mkdtemp(prefix=".tmp.", dir=out))
     try:
@@ -44,6 +57,10 @@ def write(files: Dict[str, str], out: Path) -> None:
             (tmp / name).write_text(text, encoding="utf-8")
         for name in files:
             os.replace(tmp / name, out / name)
+        if owned:
+            for old in out.iterdir():
+                if old.is_file() and old.name not in files and old.name != ".gitignore":
+                    old.unlink()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -54,9 +71,10 @@ def main(argv: List[str]) -> int:
         return 2
     try:
         schema = read_schema()
-        model = Model(*schema)
+        model = Model(*schema, LANGUAGES)
         if argv[0] == "--check":
-            caught = planted(*schema)
+            check_meta_bases()
+            caught = planted(*schema, LANGUAGES)
             with tempfile.TemporaryDirectory() as tmp:
                 for lang, emitter in EMITTERS.items():
                     write(emitter.render(model), Path(tmp) / lang)
@@ -74,8 +92,8 @@ def main(argv: List[str]) -> int:
         api_out, shapes_out = OUT[argv[0]]
         emitter = EMITTERS[argv[0]]
         write(emitter.render(model), api_out)
-        write(emitter.render_shapes(model), shapes_out)
-    except (SchemaError, KeyError, TypeError, ValueError) as e:
+        write(emitter.render_shapes(model), shapes_out, owned=False)  # conformance/ holds the hand-written adapter too
+    except (SchemaError, KeyError, TypeError, ValueError, OSError) as e:
         print(f"gen-api.py: {type(e).__name__}: {e}", file=sys.stderr)
         return 1
     return 0

@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { include } from "../include.js";
 import { configTexts } from "../rendered/testing.js";
 import { BadTextError, DetachedError, type DocumentWriter, type FileWrite, memorySource, MisuseError, quote, SaveError, text } from "../index.js";
-import { type DocumentGraph, type Extension, type SetLine, villanelle, type WrittenDirective } from "./index.js";
+import { type DocumentGraph, type Extension, StatementKind, villanelle, type WrittenDirective } from "./index.js";
 
 async function load(files: Record<string, string>, overrides?: Record<string, string>): Promise<DocumentGraph> {
   const processor = villanelle({ source: memorySource(files), extensions: [include()] });
@@ -31,7 +31,8 @@ describe("documents and handles", () => {
   it("keeps one handle per statement and value across an edit elsewhere in the file (===)", async () => {
     const graph = await load({ "main.conf": "@set $a 1;\nb 2 3;\nc { d 4; }\n" });
     const body = graph.root.block;
-    const [set, b, c] = [...body] as [SetLine, WrittenDirective, WrittenDirective];
+    const [set, b, c] = [...body];
+    if (set?.kind !== StatementKind.Set || b?.kind !== StatementKind.Directive || c?.kind !== StatementKind.Directive) throw new Error("unexpected body");
     const [two, three] = b.values;
     const d = c.block?.at(0);
     set.set(text("100 200"));

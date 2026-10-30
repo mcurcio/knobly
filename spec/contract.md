@@ -137,23 +137,45 @@ error` keeps `diagnostic`; `bad text error` keeps `diagnostics` and builds its m
 
 ### 4.2 The class tree in each binding
 
+Generated from `error groups` in [schema/api.json](schema/api.json): each class with the fields it keeps.
+
+<!-- generated: class tree (tools/gen-api.py docs) -->
+TypeScript:
+
 ```text
-TypeScript                                 Python
-Error                                      Exception
-└─ VillanelleError     (expected outcomes) └─ VillanelleError     (expected outcomes)
-   ├─ DiagnosticError  (diagnostic)           ├─ DiagnosticError  (diagnostic)
-   ├─ ReadError        (paths, cause)         ├─ ReadError        (paths, __cause__)
-   ├─ BadTextError     (diagnostics)          ├─ BadTextError     (diagnostics)
-   └─ SaveError        (paths, cause)         └─ SaveError        (paths, __cause__)
-      └─ LostUpdateError (paths)                 └─ LostUpdateError (paths)
+Error
+└─ VillanelleError  (expected outcomes)
+   ├─ DiagnosticError  (diagnostic)
+   ├─ ReadError  (paths, cause)
+   ├─ BadTextError  (diagnostics)
+   └─ SaveError  (paths, cause)
+      └─ LostUpdateError  (paths)
 
 program bugs, not under VillanelleError:
-TypeError                  argument type   TypeError                  argument type error
-MisuseError extends Error  misuse error    ValueError                 misuse error
-RangeError                 index out of    IndexError                 index out of range
-DetachedError extends      detached error  DetachedError(ReferenceError) detached error
-  ReferenceError
+DetachedError extends ReferenceError  (detached error)
+TypeError  (argument type error)
+MisuseError extends Error  (misuse error)
+RangeError  (index out of range)
 ```
+
+Python:
+
+```text
+Exception
+└─ VillanelleError  (expected outcomes)
+   ├─ DiagnosticError  (diagnostic)
+   ├─ ReadError  (paths, __cause__)
+   ├─ BadTextError  (diagnostics)
+   └─ SaveError  (paths, __cause__)
+      └─ LostUpdateError  (paths)
+
+program bugs, not under VillanelleError:
+DetachedError subclass of ReferenceError  (detached error)
+TypeError  (argument type error)
+ValueError  (misuse error)
+IndexError  (index out of range)
+```
+<!-- end generated -->
 
 - There is no `EditError` (milestone 4): it was never raised, so `BadTextError` sits directly under the base.
   Python's `BadTextError` is no longer a `ValueError`: `except ValueError` now catches only misuse, a bug.

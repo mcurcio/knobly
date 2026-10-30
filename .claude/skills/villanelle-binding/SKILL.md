@@ -54,8 +54,13 @@ first-hour program approved, then:
 2. **Write an emitter**: `tools/api/emit_<lang>.py`, rendering the loader's model (`tools/api/loader.py`) in your
    language's idiom: kind lists, codes, rules, the error tree, one declaration per concept with each trait of
    `spec/codegen.md` section 3 in your form, the names table, the adapter's message shapes and spelling table. Start
-   from `emit_ts.py` or `emit_py.py`; register it in `tools/gen-api.py` and point `tools/gen.sh` at its output. Your
-   classes implement what it generates; you write no signature, list or name by hand.
+   from `emit_ts.py` or `emit_py.py`; give it a `LANGUAGE` (the loader's `Language` descriptor: the loader knows no
+   language), register it in `tools/gen-api.py` and point `tools/gen.sh` at its output. Then add your language's key
+   to `spec/schema/api.schema.json` (`languages`, `languageBase`, the `factory`, `module` and `argument type error
+   message` objects) and its data to `api.json`: `spec/codegen.md` section 10 lists each. Your classes implement what
+   it generates; you write no signature, list or name by hand. Traps: a schema regex uses no `\s` `\w` `\d` `\b`
+   (they differ between engines, and the loader refuses them); in Python the emitter writes what the pinned ruff
+   writes, so a new construct needs `ruff format --check` on fresh output.
 3. **Write the adapter**: one small program answering the driver's requests through your public API
    (`spec/conformance.md` section 6), typed by your generated shapes, spelling members with the generated
    `SPELLING` and naming error groups with `ERROR_GROUP_OF_CLASS`. Start a new one from the TypeScript or Python

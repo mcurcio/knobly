@@ -55,7 +55,7 @@ const renderedLayer = await load<typeof Rendered>("rendered/index.js");
 const { include } = await load<typeof Include>("include.js");
 const { ERROR_GROUP_OF_CLASS } = await load<typeof Names>("gen/api/names.js");
 const { PlaceKind } = vl;
-const { ValueKind, VariableKind } = written;
+const { StatementKind, ValueKind, VariableKind } = written;
 
 const handles: unknown[] = [];
 const ref = (o: unknown): string => String(handles.push(o) - 1);
@@ -89,30 +89,36 @@ const resolution = (r: Written.ReferenceResolution): ResolutionDump => ({
 });
 
 function value(v: Written.WrittenValue): WrittenValueDump {
-  const base = { id: ref(v), kind: v.kind, place: filePlace(v.place), text: v.text };
+  const base = { id: ref(v), place: filePlace(v.place), text: v.text };
   switch (v.kind) {
     case ValueKind.List:
-      return { ...base, items: v.items.map(value) };
+      return { ...base, kind: v.kind, items: v.items.map(value) };
     case ValueKind.Slice:
-      return { ...base, name: value(v.name), start: v.start === undefined ? null : value(v.start), end: v.end === undefined ? null : value(v.end) };
+      return { ...base, kind: v.kind, name: value(v.name), start: v.start === undefined ? null : value(v.start), end: v.end === undefined ? null : value(v.end) };
     case ValueKind.Index:
-      return { ...base, name: value(v.name), index: value(v.index) };
+      return { ...base, kind: v.kind, name: value(v.name), index: value(v.index) };
     case ValueKind.Reference:
-      return { ...base, declaration: variable(v.declaration), resolutions: v.resolutions().map(resolution) };
+      return { ...base, kind: v.kind, declaration: variable(v.declaration), resolutions: v.resolutions().map(resolution) };
     default:
-      return base;
+      return { ...base, kind: v.kind };
   }
 }
 
 function statement(s: Written.Statement): StatementDump {
-  return {
-    id: ref(s),
-    kind: s.kind,
-    place: filePlace(s.place),
-    text: s.text,
-    ...("values" in s ? { values: s.values.map(value) } : {}),
-    ...("block" in s ? { block: s.block === undefined ? null : block(s.block) } : {}),
-  };
+  const base = { id: ref(s), place: filePlace(s.place), text: s.text };
+  const inner = (b: Written.WrittenBlock | undefined): BlockDump | null => (b === undefined ? null : block(b));
+  switch (s.kind) {
+    case StatementKind.Directive:
+    case StatementKind.Extension:
+      return { ...base, kind: s.kind, values: s.values.map(value), block: inner(s.block) };
+    case StatementKind.Set:
+    case StatementKind.Use:
+      return { ...base, kind: s.kind, values: s.values.map(value) };
+    case StatementKind.Snippet:
+      return { ...base, kind: s.kind, block: inner(s.block) };
+    default:
+      return { ...base, kind: s.kind };
+  }
 }
 const block = (b: Written.WrittenBlock): BlockDump => ({ id: ref(b), statements: [...b].map(statement) });
 const copy = (c: Written.Copy): CopyDump => ({ place: filePlace(c.statement.place), via: steps(c.via) });

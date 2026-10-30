@@ -12,10 +12,10 @@ from typing import TYPE_CHECKING
 from villanelle._api import shared
 from villanelle._api.errors import BadTextError
 from villanelle._api.shared import ConfigText
+from villanelle._report import LocatedDiagnostic
 from villanelle._text import require_text
-from villanelle.report import LocatedDiagnostic
 from villanelle.written import _bind, _document, _names
-from villanelle.written.model import Document, DocumentGraph, OverrideVariable
+from villanelle.written._model import Document, DocumentGraph, OverrideVariable
 
 if TYPE_CHECKING:
     from villanelle._api.io import DocumentSource

@@ -216,22 +216,27 @@ layer owns each code.
 
 ### 2.5 Limits and reserved names
 
-A copy of `limits`, `keywords` and `reserved names` in [schema/api.json](schema/api.json). Each binding exports them
-from the layer that owns them, generated as the **rules module** (milestone 6, bead vil-umh.10; codegen.md): the
-syntax layer `MAX_NESTING`; the written layer `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED` and
-`VARIABLE_NAME`; the package root `PROGRAM_CODE`. The keywords are one generated list (`Keyword`) with one dispatch
-table from keyword to statement kind (`STATEMENT_OF_KEYWORD`), which every binding's statement classification reads;
-no binding compares a keyword's text by hand.
+`limits`, `keywords`, `reserved names` and `patterns` in [schema/api.json](schema/api.json) are their one home.
+Each binding exports them from the layer that owns them, generated as the **rules module** (milestone 6, bead
+vil-umh.10; codegen.md); the list below is generated from the schema too. The keywords are one generated list
+(`Keyword`) with one dispatch table from keyword to statement kind (`STATEMENT_OF_KEYWORD`), which every binding's
+statement classification reads; no binding compares a keyword's text by hand.
 
-- Nesting of blocks and lists: at most 100 levels (E2010).
-- Nesting of `use` and extension lines: at most 16 (E5007).
-- Directives after expansion: at most 100,000 (E5008).
+<!-- generated: limits (tools/gen-api.py docs) -->
+- `MAX_NESTING` (nesting depth; the syntax layer): 100, blocks and lists nested at most this deep (E2010).
+- `MAX_DEPTH` (expansion depth; the written layer): 16, use and extension lines nested at most this deep (E5007).
+- `MAX_DIRECTIVES` (directives; the written layer): 100,000, directives after expansion, at most (E5008).
+- `MAX_SAFE_INTEGER` (integer range; the written layer): 9,007,199,254,740,991, integer words and slice or index bounds lie within plus or minus this (2^53-1) (E4005).
+- `RESERVED` (reserved names; the written layer): `set`, `snippet`, `use`: the language statements' names, written @set, @snippet and @use: no extension may take one (spec 2.5, 5). Milestone 5: no directive name is reserved any more; a directive's name is a WORD, which never starts with @.
+- `VARIABLE_NAME` (variable name pattern; the written layer): `^[A-Za-z0-9_]+$`, a $name without its $, an override name, a variable rename.
+- `PROGRAM_CODE` (program code pattern; the shared layer): `^[^/\t\n\u000b\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$`, <namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out so JavaScript and Python agree); villanelle's codes start with E.
+<!-- end generated -->
+
 - **No directive name is reserved** (milestone 5; owner, 2026-10-29, bead vil-umh.14: "yes" to language
   statements behind one sigil). A statement written `@name` is a language statement (`@set`, `@snippet`, `@use`) or
   an extension statement (`@include`); a directive's name is a `WORD` token, which never starts with `@` (3.1). So
   `events { use epoll; }` is a plain directive `use`.
-- Reserved names: `set`, `snippet` and `use`, the language statements' names. No extension may take one (5); an
-  extension's name is otherwise any word the `nameText` entry rule takes.
+- An extension's name is any word the `nameText` entry rule takes that is not in `RESERVED` (5).
 
 ### 2.6 Diagnostic error
 
@@ -268,19 +273,23 @@ The groups fall into **two sorts**, decided here once (round 15, vil-umh.7):
 - **A program bug**: the program could have checked first. These raise the language's own classes, or a package
   class outside the base; never a `villanelle error`.
 
+Problems in the config text are no group: they are never raised, only reported as diagnostics. The table is
+generated from the schema:
+
+<!-- generated: error groups (tools/gen-api.py docs) -->
 | Group | Sort | Raised when | TypeScript | Python |
 |---|---|---|---|---|
-| problems in the config text | | never raised: reported as diagnostics | | |
-| `villanelle error` (base) | base | never by itself: the parent of every expected-outcome class | `VillanelleError` | `VillanelleError` |
-| `diagnostic error` | outcome | 2.6 | `DiagnosticError` | `DiagnosticError` |
-| `read error` | outcome | `load` cannot resolve the root to exactly one file, or cannot read it; `paths`, the source's failure as the cause; no diagnostic, no code | `ReadError` | `ReadError` |
-| `bad text error` | outcome | the text given to an edit, or an override's text (6.3), is not what it takes (below) | `BadTextError` | `BadTextError` |
-| `save error` | outcome | the writer rejected; `paths`, the writer's failure as the cause | `SaveError` | `SaveError` |
-| `lost update error` | outcome, a `save error` | a file the save would write changed since it was read or last saved (4.2); `paths`, only the conflicting files | `LostUpdateError` | `LostUpdateError` |
-| `detached error` | bug | a member of a detached handle was used | `DetachedError`, extends `ReferenceError` | `DetachedError`, subclass of `ReferenceError` |
-| `argument type error` | bug | an argument of the wrong type: an edit, `quote`, `text`, `set override` or a `load` override given anything but text (6.9); `save` given something that is not a document writer; `render` given something that is not a document graph (7.0); a key rule that returns anything but text or absent (7.4) | `TypeError` | `TypeError` |
-| misuse error | bug | a bad argument value a program could have checked: **every bad name** (below), a program code without `/`, a reserved or repeated extension name | `MisuseError`, extends `Error` | `ValueError` |
-| index out of range | bug | an insert index outside a block; a token range outside a parse (3.3) | `RangeError` | `IndexError` |
+| `villanelle error` | base | never by itself: the base class of every expected-outcome class (spec 2.8), so one except or catch clause catches every outcome the input or the outside world decides, and no program bug | `VillanelleError`, extends `Error` | `VillanelleError`, subclass of `Exception` |
+| `diagnostic error` | expected outcome, under `villanelle error` | a reader is given a value of the wrong kind or spelling, or a program's error(...); carries one located diagnostic as 'diagnostic' | `DiagnosticError` | `DiagnosticError` |
+| `read error` | expected outcome, under `villanelle error` | load cannot resolve the root path to exactly one file, or cannot read it. No diagnostic and no code | `ReadError` | `ReadError` |
+| `bad text error` | expected outcome, under `villanelle error` | the text given to an edit, or an override's text, is not what its entry rule (spec 2.8) and the text-alone rules take; 'diagnostics' are located in that text, in the binding's string unit; its message is built from them (spec 2.8) | `BadTextError` | `BadTextError` |
+| `save error` | expected outcome, under `villanelle error` | the writer failed | `SaveError` | `SaveError` |
+| `lost update error` | expected outcome, under `save error` | a file the save would write changed since it was read or last saved: its current text differs from its saved text (spec 4.2). Raised by check lost updates inside every writer; save raises it as is | `LostUpdateError` | `LostUpdateError` |
+| `detached error` | program bug | any member but kind of a detached handle is used | `DetachedError`, extends `ReferenceError` | `DetachedError`, subclass of `ReferenceError` |
+| `argument type error` | program bug | an argument of the wrong type: anything but text where config text or a name is taken (an extension's name at make processor included), and to quote and text (spec 6.9), a writer that is not a document writer, a render given something that is not a document graph (no callable expand; spec 7.0, milestone 5), a key rule that returns anything but text or absent (spec 7.4) | `TypeError` | `TypeError` |
+| `misuse error` | program bug | a bad argument value a program could have checked: every bad name (a variable or override name not matching the variable name pattern; a directive rename, or an extension's name at make processor, that the nameText entry rule refuses), a program code without '/', a reserved (set, snippet, use) or repeated extension name | `MisuseError`, extends `Error` | `ValueError` |
+| `index out of range` | program bug | an insert index outside a block; a token range outside a parse | `RangeError` | `IndexError` |
+<!-- end generated -->
 
 There is no `edit error` (milestone 4: it was never raised; `bad text error` is the only refusal of an edit) and no
 `no set line error` (`set` and `rename` exist only on the variable kinds where they succeed, 6.7). Each group has
@@ -484,7 +493,7 @@ spelling. No binding spells a list any other way: no Python `Literal` aliases, n
 `kind`. `DiagnosticCode` has the same two forms (an `as const` object keyed by each code's name in PascalCase, and
 the union of the `E` codes).
 
-A list is one of two sorts (the schema's `kind rule`):
+A list is one of two sorts (the schema's `sort`):
 
 - **A variant set**, whose members have different members or operations: `statement kind`, `value kind`, `variable
   kind`, `place kind`, `change kind`. **Every variant is its own type** (a member of a TypeScript discriminated
@@ -509,7 +518,7 @@ The variant types, per layer:
 **Python matching.** Every variant class has `__match_args__`, and a concept found in two layers keeps **the same
 field order in every layer**, so `match` works on the low level as on the rendered tree: a written directive and a
 rendered directive are both `("name", "values", "block")`; a written `list` and an `expanded list` are both
-`("items",)`. Each section gives its order; the schema (`py match args`) holds them all.
+`("items",)`. Each section gives its order; the schema (`match args`) holds them all.
 
 **TypeScript narrowing.** A union narrows on `kind`; a program never casts (`as SetLine`). A filter narrows too,
 since TypeScript infers the predicate: `[...block].filter((s) => s.kind === StatementKind.Set)` is `SetLine[]`.
@@ -1221,8 +1230,8 @@ that has the document graph's public members. Given anything without a callable 
 a number), `render` MUST raise the `argument type error` (2.8) before any other work, whose message names `render`,
 the parameter `graph` and what it takes (milestone 5, the milestone 4 leftover: TypeScript failed with a native
 `TypeError` from inside the render and Python with an `AttributeError`; case `render-not-a-graph`). The work is still done once: `expand ()` is the low level's one
-working-out of the binding, and no low-level module calls into the rendered layer. A binding exports `render` from
-its rendered module and MAY re-export it at its top level.
+working-out of the binding, and no low-level module calls into the rendered layer. A binding exports `render` only from
+its rendered layer's namespace (binding guide rule 9: a name is never exported under a second path).
 
 ### 7.1 Rendered
 

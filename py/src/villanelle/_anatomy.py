@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from villanelle._api.kinds import NodeKind, TokenKind
 from villanelle._api.syntax import Node, Token
-from villanelle.syntax.cst import ValueRef
+from villanelle.syntax._cst import ValueRef
 
 _VALUE_TOKENS = frozenset(
     {TokenKind.WORD, TokenKind.AT_WORD, TokenKind.INTEGER, TokenKind.DIGIT_WORD, TokenKind.STRING, TokenKind.VARIABLE}

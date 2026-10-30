@@ -18,12 +18,12 @@ from villanelle._api.errors import DiagnosticError
 from villanelle._api.kinds import PlaceKind, ValueKind
 from villanelle._api.shared import Origin
 from villanelle._api.written import IndexValue, SliceValue
-from villanelle.origin import Step
-from villanelle.report import LocatedDiagnostic, check_program_code
+from villanelle._origin import Step
+from villanelle._report import LocatedDiagnostic, check_program_code
 
 if TYPE_CHECKING:
     from villanelle._api.written import ReferenceResolution
-    from villanelle.written.model import WrittenValue
+    from villanelle.written._model import WrittenValue
 
 
 class _Expanded:
@@ -190,7 +190,6 @@ class _Expanded:
 class ExpandedWord(_Expanded, api.ExpandedWord):
     """A bare word. Match it: ``case ExpandedWord("true"):``."""
 
-    __match_args__ = ("text",)
     __slots__ = ()
 
     @property
@@ -211,7 +210,6 @@ class ExpandedWord(_Expanded, api.ExpandedWord):
 class ExpandedString(_Expanded, api.ExpandedString):
     """A quoted string: ``text`` is its canonical quoted text, ``string()`` the decoded text."""
 
-    __match_args__ = ("text",)
     __slots__ = ("_value",)
 
     _value: str
@@ -245,7 +243,6 @@ class ExpandedString(_Expanded, api.ExpandedString):
 class ExpandedList(_Expanded, api.ExpandedList):
     """A list: ``items`` are its values, each with its own origin and links."""
 
-    __match_args__ = ("items",)
     __slots__ = ("_items",)
 
     _items: tuple[ExpandedValue, ...]
@@ -284,7 +281,6 @@ class ExpandedSlice(_Expanded, api.ExpandedSlice):
     """``name[start~end]``; an absent side is None. ``name`` is the word it slices (a ``$name`` written as the slice
     name is expanded to the one word it holds)."""
 
-    __match_args__ = ("name", "start", "end")
     __slots__ = ("_end", "_name", "_start")
 
     _name: str
@@ -335,7 +331,6 @@ class ExpandedSlice(_Expanded, api.ExpandedSlice):
 class ExpandedIndex(_Expanded, api.ExpandedIndex):
     """``name[index]``: one element."""
 
-    __match_args__ = ("name", "index")
     __slots__ = ("_index", "_name")
 
     _name: str

@@ -13,13 +13,13 @@ export function configTexts(texts: Readonly<Record<string, string>>): Record<str
   return Object.fromEntries(Object.entries(texts).map(([name, given]) => [name, text(given)]));
 }
 
-export interface ITestOptions {
+export interface TestOptions {
   readonly overrides?: Readonly<Record<string, string>>;
   readonly extensions?: readonly Extension[];
 }
 
 /** A processor over these files. */
-export function processorOf(files: Readonly<Record<string, string>>, options: ITestOptions = {}): Processor {
+export function processorOf(files: Readonly<Record<string, string>>, options: TestOptions = {}): Processor {
   return villanelle({
     source: memorySource(files),
     ...(options.extensions === undefined ? {} : { extensions: options.extensions }),
@@ -32,13 +32,13 @@ export async function rendered(processor: Processor, path: string, options?: { r
 }
 
 /** Load `main.conf` (or `root`) from these files, and render it. */
-export async function loadFiles(files: Readonly<Record<string, string>>, options: ITestOptions = {}, root = "main.conf"): Promise<Rendered> {
+export async function loadFiles(files: Readonly<Record<string, string>>, options: TestOptions = {}, root = "main.conf"): Promise<Rendered> {
   const processor = processorOf(files, options);
   return render(await processor.load(root, options.overrides === undefined ? undefined : { overrides: configTexts(options.overrides) }));
 }
 
 /** Load one text as `main.conf`, and render it. */
-export function loadText(text: string, options: ITestOptions = {}): Promise<Rendered> {
+export function loadText(text: string, options: TestOptions = {}): Promise<Rendered> {
   return loadFiles({ "main.conf": text }, options);
 }
 

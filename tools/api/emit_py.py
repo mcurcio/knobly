@@ -18,12 +18,29 @@ from __future__ import annotations
 
 import json
 import textwrap
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
-from .loader import HEADER, PLACEHOLDER, Concept, Member, Model, Param, Type, pascal, snake, upper_snake
+from .loader import HEADER, PLACEHOLDER, Concept, Language, Member, Model, Param, SchemaError, Type, pascal, snake, upper_snake
 
 LAYER_FILES = ("shared", "syntax", "io", "written", "rendered")
 WIDTH = 120
+
+
+def _public_kind(model: Model, c: Optional[Concept]) -> str:
+    """A Python class is a value (an enumeration, an error class, a handle, record, port, interface or shape); a named
+    type or a callback alias is a type."""
+    return "value" if c is None or c.nature in ("handle", "snapshot", "record", "port", "interface", "shape") else "type"
+
+
+def _trait_names(model: Model) -> List[Tuple[str, str, str]]:
+    """The collect trait is a context manager here (``with diagnostics.collecting():``): its class is public beside the
+    concept that has the trait."""
+    return [(model.concept_module(c, "py"), pascal("collecting"), "value")
+            for c in model.concepts if "py" in c.languages and any(m.trait == "collect" for m in c.members)]
+
+
+LANGUAGE = Language("py", ".", snake, ("Exception", "ReferenceError", "TypeError", "ValueError", "IndexError"), _public_kind,
+                    _trait_names)
 
 
 def s(text: str) -> str:
@@ -41,6 +58,8 @@ def docstring(text: str, indent: str) -> List[str]:
     if text.endswith('"'):
         text += " "
     lines = textwrap.wrap(text, WIDTH - len(indent) - 3)
+    if len(lines) == 1 and len(indent) + len(lines[0]) + 6 > WIDTH:
+        lines = textwrap.wrap(text, WIDTH - len(indent) - 6)  # one line would not fit its quotes: ruff joins a lone line
     if len(lines) == 1:
         return [f'{indent}"""{lines[0]}"""']
     return [f'{indent}"""{lines[0]}', *(f"{indent}{line}" for line in lines[1:]), f'{indent}"""']
@@ -135,6 +154,8 @@ class Ctx:
                 return g.builtin("py") or ""
             return self.imports.add("villanelle._api.errors", pascal(name), runtime)
         c = m.concept[name]
+        if c.is_ == "native":
+            raise SchemaError(f"native type {name!r}: Python has none (give the concept languages without py)")
         if c.layer == self.here and self.here != "errors":
             return pascal(name)
         return self.imports.add(f"villanelle._api.{c.layer}", pascal(name), runtime)
@@ -203,33 +224,56 @@ def param_list(m_params: List[Param], ctx: Ctx, self_: bool = True) -> List[str]
     return out
 
 
+def documented(indent: str, name: str, params: List[str], result: str, note: str) -> List[str]:
+    """A Protocol member's signature, with the schema's note as its docstring (as TypeScript writes it as JSDoc)."""
+    if not note:
+        return signature(indent, name, params, result)
+    return signature(indent, name, params, result, "") + docstring(note, indent + "    ")
+
+
 def member_lines(model: Model, c: Concept, m: Member, ctx: Ctx, indent: str = "    ") -> List[str]:
+    note = m.note
     if m.trait == "people form":
-        return signature(indent, "__str__", ["self"], "str")
+        return documented(indent, "__str__", ["self"], "str", note)
     if m.trait == "iterate":
-        return signature(indent, "__iter__", ["self"], f"{ctx.abc('Iterator')}[{py_type(m.type.item, ctx)}]")
+        return documented(indent, "__iter__", ["self"], f"{ctx.abc('Iterator')}[{py_type(m.type.item, ctx)}]", note)
     if m.trait == "count":
-        return signature(indent, "__len__", ["self"], "int")
+        return documented(indent, "__len__", ["self"], "int", note)
     if m.trait == "index":
-        return signature(indent, "__getitem__", ["self", "index: int", "/"], py_type(m.type, ctx))
+        return sequence_lines(m, ctx, indent)
     if m.trait == "walk":
         item = py_type(m.type.item, ctx)
-        return signature(indent, "walk", ["self", "*", f"descend: {ctx.abc('Callable')}[[{item}], bool] | None = None"],
-                         f"{ctx.abc('Iterator')}[{item}]")
+        return documented(indent, "walk", ["self", "*", f"descend: {ctx.abc('Callable')}[[{item}], bool] | None = None"],
+                          f"{ctx.abc('Iterator')}[{item}]", note)
     if m.trait == "collect":
         cm = ctx.imports.add("contextlib", "AbstractContextManager", False)
-        return signature(indent, "collecting", ["self"], f"{cm}[None]")
+        return documented(indent, "collecting", ["self"], f"{cm}[None]", note)
     if m.member == "property":
         if m.name == "kind" and c.kind is not None:
-            lst = next(t for t in [m.type] if t.form == "name").name
+            lst = m.type.name
             t = f"Literal[{ctx.ref(lst)}.{kind_member(model, lst, c.kind)}]"
             ctx.imports.add("typing", "Literal", False)
         else:
             t = py_type(m.type, ctx)
-        return [f"{indent}@property", *signature(indent, snake(m.name), ["self"], t)]
+        return [f"{indent}@property", *documented(indent, snake(m.name), ["self"], t, note)]
     tvs = type_vars(m.type_parameters, False)
     mctx = Ctx(model, ctx.here, ctx.imports, {**ctx.type_params, **tvs})
-    return signature(indent, snake(m.name), param_list(m.params, mctx), py_type(m.type, mctx))
+    return documented(indent, snake(m.name), param_list(m.params, mctx), py_type(m.type, mctx), note)
+
+
+def sequence_lines(m: Member, ctx: Ctx, indent: str) -> List[str]:
+    """The index trait in Python: the read side of ``collections.abc.Sequence`` (a Protocol cannot extend the ABC, so
+    it states the methods; with the count and iterate traits a program can index, slice, ``reversed()``, ``in``,
+    ``.index()`` and ``.count()`` a value typed by it, as spec 2.11 says of a block)."""
+    item = py_type(m.type, ctx)
+    overload = ctx.imports.add("typing", "overload")
+    it = ctx.abc("Iterator")
+    return [f"{indent}@{overload}", *signature(indent, "__getitem__", ["self", "index: int", "/"], item), "",
+            f"{indent}@{overload}", *signature(indent, "__getitem__", ["self", "index: slice", "/"], f"tuple[{item}, ...]"), "",
+            *signature(indent, "__contains__", ["self", "value: object", "/"], "bool"), "",
+            *signature(indent, "__reversed__", ["self"], f"{it}[{item}]"), "",
+            *signature(indent, "index", ["self", "value: object", "start: int = 0", f"stop: int = {ctx.imports.add('sys', 'maxsize')}", "/"], "int"), "",
+            *signature(indent, "count", ["self", "value: object", "/"], "int")]
 
 
 def is_record(model: Model, c: Concept) -> bool:
@@ -250,22 +294,28 @@ def record_lines(model: Model, c: Concept, ctx: Ctx, tvs: Dict[str, str]) -> Lis
         bases.append(f"{base}[{args}]" if args else base)
     if tvs:
         bases.append(f"{ctx.imports.add('typing', 'Generic')}[{', '.join(tvs.values())}]")
-    out = ["@final", f"@dataclass(frozen=True, slots=True{eq})"] if not any(
-        o.extends is not None and o.extends.name == c.name for o in model.concepts) else [f"@dataclass(frozen=True, slots=True{eq})"]
-    if out[0] == "@final":
-        ctx.imports.add("typing", "final")
-    out.append(f"class {name}({', '.join(bases)}):" if bases else f"class {name}:")
-    out += docstring(c.note or f"The spec's {c.name}.", "    ")
     own = [m for m in c.members]
     if c.variant_of:
         own = [m for m in model.concept[c.variant_of].members if m.name != "kind"] + own
     fields = [m for m in own if not (m.name == "kind" and c.kind is not None)]
     order = {a: i for i, a in enumerate(c.match_args)}
     fields.sort(key=lambda m: order.get(m.name, len(order)))
-    if c.match_args or fields:
+    # A dataclass matches on every field unless told otherwise; the spec's match args may be fewer (spec 2.10).
+    explicit = bool(c.match_args) and [m.name for m in fields] != list(c.match_args)
+    flags = f"frozen=True, slots=True{eq}{', match_args=False' if explicit else ''}"
+    out = ["@final", f"@dataclass({flags})"] if not any(
+        o.extends is not None and o.extends.name == c.name for o in model.concepts) else [f"@dataclass({flags})"]
+    if out[0] == "@final":
+        ctx.imports.add("typing", "final")
+    out.append(f"class {name}({', '.join(bases)}):" if bases else f"class {name}:")
+    out += docstring(c.note or f"The spec's {c.name}.", "    ")
+    if explicit:
+        out += ["", match_args_line(c, ctx)]
+    if fields:
         out.append("")
     for m in fields:
         out.append(f"    {snake(m.name)}: {py_type(m.type, ctx)}")
+        out += docstring(m.note, "    ")
     if c.kind is not None:
         list_name = model.kind_list_of(c)
         kind_type = ctx.ref(list_name, runtime=True)
@@ -273,6 +323,20 @@ def record_lines(model: Model, c: Concept, ctx: Ctx, tvs: Dict[str, str]) -> Lis
         ctx.imports.add("typing", "Literal", False)
         out += ["", "    @property", f"    def kind(self) -> Literal[{kind_type}.{member}]:", f"        return {kind_type}.{member}"]
     return out
+
+
+def match_args_line(c: Concept, ctx: Ctx) -> str:
+    """``__match_args__`` typed by its literal names (mypy narrows positional patterns by them; a Protocol member must
+    be typed, and a Protocol member cannot be Final)."""
+    names = [s(snake(a)) for a in c.match_args]
+    lit = ctx.imports.add("typing", "Literal", False)
+    cv = ctx.imports.add("typing", "ClassVar")  # at run time: dataclasses read the annotation to skip the field
+    head = f"    __match_args__: {cv}[tuple[{', '.join(f'{lit}[{n}]' for n in names)}]] = "
+    if len(head) + len(tuple_literal(names)) <= WIDTH:
+        return head + tuple_literal(names)
+    if len(head) + 1 > WIDTH:
+        raise SchemaError(f"concept {c.name!r}: its match args annotation is longer than {WIDTH} (teach emit_py to wrap it)")
+    return head + "(\n" + "".join(f"        {n},\n" for n in names) + "    )"  # ruff explodes a tuple one item a line
 
 
 def concept_lines(model: Model, c: Concept, ctx: Ctx) -> Tuple[List[str], List[str]]:
@@ -288,7 +352,7 @@ def concept_lines(model: Model, c: Concept, ctx: Ctx) -> Tuple[List[str], List[s
         assert c.callback is not None
         ctx.imports.add("typing", "TypeAlias")
         *params, result = c.callback.args
-        rt = py_type(result, ctx).replace(" | ", " | ")
+        rt = py_type(result, ctx)
         callable_ = ctx.imports.add("collections.abc", "Callable")
         args = ", ".join(py_type(p, ctx) for p in params)
         return [], [f'{name}: TypeAlias = {callable_}[[{args}], "{rt}"]', *docstring(c.note, "")]
@@ -296,7 +360,6 @@ def concept_lines(model: Model, c: Concept, ctx: Ctx) -> Tuple[List[str], List[s
         ctx.imports.add("typing", "TypeAlias")
         line = f"{name}: TypeAlias = {' | '.join(pascal(v) for v in c.variants)}"
         if len(line) > WIDTH:
-            line = f"{name}: TypeAlias = (\n" + "".join(f"    {pascal(v)}\n    | " for v in c.variants)[:-7] + "\n)"
             line = f"{name}: TypeAlias = (\n    " + "\n    | ".join(pascal(v) for v in c.variants) + "\n)"
         return [], [line, *docstring(c.note, "")]
     covariant = c.nature == "shape"
@@ -312,11 +375,12 @@ def concept_lines(model: Model, c: Concept, ctx: Ctx) -> Tuple[List[str], List[s
     bases.append(f"{proto}[{', '.join(tvs.values())}]" if tvs else proto)
     out = [f"class {name}({', '.join(bases)}):"]
     out += docstring(c.note or f"The spec's {c.name}.", "    ")
+    if c.match_args:
+        # A class that implements the Protocol inherits it, so `case SetLine(variable, values):` binds the spec's fields.
+        out += ["", match_args_line(c, ctx)]
     members = list(c.members)
     if c.variant_of:
         members = list(model.concept[c.variant_of].members) + members
-    if not members:
-        return out, []
     for m in members:
         out.append("")
         out += member_lines(model, c, m, cctx)
@@ -339,6 +403,14 @@ def functions_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
         out += ["", "", f"class {pascal(suffix)}Functions({proto}):",
                 *docstring(f"The free functions {mod} exports: mypy checks the module against it (`_: X = module`).", "    "),
                 *lines]
+    for f in model.functions:
+        if f.layer != layer or (f.factory or {}).get("py") != "constructor" or model.function_module(f, "py") is None:
+            continue
+        of = f.factory["of"]  # type: ignore[index]
+        proto = ctx.imports.add("typing", "Protocol")
+        out += ["", "", f"class {pascal(of)}Constructor({proto}):",
+                *docstring(f"The {of} class's constructor ({f.name}): mypy checks the class against it (`_: X = {pascal(of)}`).", "    "),
+                "", *signature("    ", "__call__", param_list(f.params, ctx), ctx.ref(of))]
     return out
 
 
@@ -348,7 +420,7 @@ def layer_module(model: Model, layer: str) -> str:
     classes: List[List[str]] = []
     aliases: List[List[str]] = []
     for c in model.concepts:
-        if c.layer != layer or "py" not in c.languages or c.is_ == "native" or c.nature == "options" or c.name == "collecting":
+        if c.layer != layer or "py" not in c.languages or c.is_ == "native" or c.nature == "options":
             continue
         cls, alias = concept_lines(model, c, ctx)
         if cls:
@@ -429,7 +501,6 @@ def codes_module(model: Model) -> str:
         members += docstring(c.meaning.replace("`", ""), "    ")
         messages.append(f"        DiagnosticCode.{upper_snake(c.name)}: {message_expr(model, c.message, imports)},")
         reason = "None" if c.reason is None else f"UnreadableReason.{upper_snake(c.reason)}"
-        found = ", ".join(s(f) for f in c.found_by)
         found = tuple_literal([s(f) for f in c.found_by])
         fact = f"        DiagnosticCode.{upper_snake(c.name)}: CodeFacts({s(c.name)}, {s(c.layer)}, {found}, {reason}),"
         if len(fact) > WIDTH:
@@ -478,7 +549,18 @@ def limits_module(model: Model) -> str:
             out += [f"{name}: Final = frozenset({{{', '.join(s(w) for w in c.value)}}})"]  # type: ignore[union-attr]
         else:
             regex = str(c.value)[:-1] + "\\Z"  # Python's $ also matches before a final newline; \Z is the text's end
-            out += [f'{name}: Final = re.compile(r"{regex}")']
+            line = f'{name}: Final = re.compile(r"{regex}")'
+            if len(line) <= WIDTH:
+                out += [line]
+            else:  # implicitly joined raw strings, each line in the width (no part may end on a backslash)
+                parts, room = [], WIDTH - 8
+                while regex:
+                    cut = min(room, len(regex))
+                    while regex[:cut].endswith("\\") and cut > 1:
+                        cut -= 1
+                    parts.append(regex[:cut])
+                    regex = regex[cut:]
+                out += [f"{name}: Final = re.compile(", *(f'    r"{part}"' for part in parts), ")"]
         out += docstring(f"{c.about}: {c.means}.", "") + [""]
     while out[-1] == "":
         out.pop()
@@ -501,12 +583,12 @@ def errors_module(model: Model) -> str:
         if not g.fields:
             continue
         for f, t in own:
-            body += ["", f"    {snake(f)}: {py_type(model.parse(t, g.name), ctx)}"]
+            body += ["", f"    {snake(f)}: {py_type(t, ctx)}"]
         params = ["self"]
         if g.message.get("given"):
             params.append("message: str")
         for f, t in g.fields:
-            params.append(f"{snake(f)}: {py_type(model.parse(t, g.name), ctx, True)}")
+            params.append(f"{snake(f)}: {py_type(t, ctx, True)}")
         if g.message.get("given"):
             msg = "message"
         else:
@@ -518,7 +600,7 @@ def errors_module(model: Model) -> str:
             args = ([msg] if parent.message.get("given") else []) + [snake(f) for f, _ in parent.fields]
             body.append(f"        super().__init__({', '.join(args)})")
         for f, t in own:
-            conv = f"tuple({snake(f)})" if t.endswith("[]") else snake(f)
+            conv = f"tuple({snake(f)})" if t.form == "list" else snake(f)
             body.append(f"        self.{snake(f)} = {conv}")
     tmpl = model.argument_type_message["py"]
     parts, pos = [], 0
@@ -534,7 +616,7 @@ def errors_module(model: Model) -> str:
     return "\n".join(head + imports.render() + body) + "\n"
 
 
-def template(message: Dict[str, object], fields: List[Tuple[str, str]]) -> str:
+def template(message: Dict[str, object], fields: List[Tuple[str, Type]]) -> str:
     text = str(message["template"])
     sep = str(message.get("separator", ", "))
     parts, pos = [], 0
@@ -543,7 +625,7 @@ def template(message: Dict[str, object], fields: List[Tuple[str, str]]) -> str:
         ph = m.group(1)
         if ph.endswith(" message"):
             parts.append("{" + snake(ph[: -len(" message")]) + ".message}")
-        elif dict(fields)[ph] == "text[]":
+        elif dict(fields)[ph].item == Type("name", name="text"):  # the loader refuses a placeholder on a non-list
             parts.append("{" + s(sep).replace('"', "'") + ".join(" + snake(ph) + ")}")
         else:
             parts.append("{" + s(sep).replace('"', "'") + ".join(str(d) for d in " + snake(ph) + ")}")
@@ -633,15 +715,19 @@ def shapes_module(model: Model) -> str:
                 alts.append(f"{name}{pascal(k)}")
                 body += td(f"{name}{pascal(k)}", {k: t}, [])
             body += ["", "", f"{name}: TypeAlias = (", *(f"    {'| ' if i else ''}{a}" for i, a in enumerate(alts)), ")"]
+        elif sh.by_kind:
+            # A discriminated union: one TypedDict per kind with that kind's own fields required (Other: the kinds with
+            # none of their own).
+            alts = []
+            for kind, extra in [*sh.by_kind.items(), ("other", {})]:
+                kinds = sh.other_kinds if kind == "other" else [kind]
+                literal = Type("union", args=tuple(Type("literal", name=k) for k in kinds)) if len(kinds) > 1 else Type("literal", name=kinds[0])
+                fields = {k: (literal if k == "kind" else t) for k, t in sh.fields.items()}
+                alts.append(f"{name}{pascal(kind)}")
+                body += td(alts[-1], {**fields, **extra}, list(sh.optional))
+            body += ["", "", f"{name}: TypeAlias = (", *(f"    {'| ' if i else ''}{a}" for i, a in enumerate(alts)), ")"]
         else:
-            fields = dict(sh.fields)
-            optional = list(sh.optional)
-            for extra in sh.by_kind.values():
-                for k, t in extra.items():
-                    if k not in fields:
-                        fields[k] = t
-                        optional.append(k)
-            body += td(name, fields, optional)
+            body += td(name, dict(sh.fields), list(sh.optional))
     spell: Dict[str, str] = {}
     for c in model.concepts:
         for m in c.members:

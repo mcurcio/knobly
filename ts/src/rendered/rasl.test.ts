@@ -17,13 +17,13 @@ import type { Directive, KeyRule, Rendered } from "./index.js";
 
 const FIXTURES = new URL("../../../fixtures/rasl/", import.meta.url);
 
-interface IExpected {
+interface Expected {
   readonly nodes: readonly string[];
   readonly diagnostics: readonly unknown[];
   readonly changes: readonly (readonly [string, string])[];
 }
 
-const EXPECTED = JSON.parse(readFileSync(new URL("expected.json", FIXTURES), "utf8")) as Record<string, IExpected>;
+const EXPECTED = JSON.parse(readFileSync(new URL("expected.json", FIXTURES), "utf8")) as Record<string, Expected>;
 
 /** The "rasl" key rule of conformance/keys.json. */
 const RASL_KEY: KeyRule = (d) => {
@@ -63,7 +63,7 @@ const OVERRIDES = { leds_host: text('"10.0.70.1"') };
 
 describe("rasl's configs", () => {
   it.each(Object.keys(EXPECTED))("%s loads with the expected nodes and reload changes", async (name) => {
-    const expected = EXPECTED[name] as IExpected;
+    const expected = EXPECTED[name] as Expected;
     const { source: files, edit } = source();
     const processor = villanelle({ source: files, extensions: [include()] });
     const path = fileURLToPath(new URL(name, FIXTURES));

@@ -16,9 +16,9 @@ from villanelle._api.errors import DiagnosticError
 from villanelle._api.rendered import Added, AddressStep, Change, Changed, Removed, Unknown
 from villanelle._api.shared import DirectiveOrigin, SourcePosition, SourceSpan
 from villanelle._api.written import DocumentGraph
-from villanelle.origin import Place
+from villanelle._origin import Place
+from villanelle._report import LocatedDiagnostic, check_program_code
 from villanelle.rendered._tree import Address, Directive, RenderedBlock
-from villanelle.report import LocatedDiagnostic, check_program_code
 from villanelle.written import UnreadableExpansion
 
 _START = SourcePosition(0, 0, 0)

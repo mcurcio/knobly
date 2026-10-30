@@ -16,7 +16,7 @@ from villanelle._api.shared import ConfigText
 from villanelle._api.written import Extension
 from villanelle._text import require_text
 from villanelle.written import _names
-from villanelle.written.model import DocumentGraph
+from villanelle.written._model import DocumentGraph
 
 
 @final
@@ -25,13 +25,13 @@ class Processor(api.Processor):
 
     __slots__ = ("_extensions", "_source")
 
-    def __init__(self, *, source: DocumentSource, extensions: Sequence[Extension] = ()) -> None:
+    def __init__(self, *, source: DocumentSource, extensions: Sequence[Extension] | None = None) -> None:
         """Raises TypeError for an extension whose name is not a str; then ValueError (misuse) for one whose name the
         ``nameText`` entry rule refuses (it is written ``@`` and its name, one AT_WORD), then for one named ``set``,
         ``snippet`` or ``use`` (the language statements), or two extensions with one name (one name has one owner)."""
         self._source = source
         self._extensions: dict[str, Extension] = {}
-        for extension in extensions:
+        for extension in extensions or ():
             given = require_text(extension.directive, member="Processor", parameter="directive")
             name = _names.directive_name(given, member="Processor")
             if name in RESERVED or name in self._extensions:

@@ -11,9 +11,9 @@ import { makePlace } from "../origin.js";
 import { spanOf, type ValueRef } from "../syntax/cst.js";
 import { parse, parseEntry } from "../syntax/parse.js";
 import { requireText } from "../text.js";
-import type { IBinding } from "./bind.js";
+import type { Binding } from "./bind.js";
 import { checkDirectiveName, checkVariableName } from "./names.js";
-import { blockShapes, type IShape, isTextAlone, parameterTokens, type ShapeKind, statementNodes } from "./shape.js";
+import { blockShapes, type Shape, isTextAlone, parameterTokens, type ShapeKind, statementNodes } from "./shape.js";
 import {
   ExtensionLine,
   ParameterVariable,
@@ -34,11 +34,11 @@ import type * as api from "../gen/api/written.js";
 import { NodeKind, StatementKind, TokenKind, ValueKind } from "../gen/api/kinds.js";
 
 /** What a document needs from the graph that holds it. */
-export interface IDocumentHost {
+export interface DocumentHost {
   /** The registered extensions' names: a line headed `@` and one of them is kind "extension". */
   readonly extensionNames: ReadonlySet<string>;
   /** The current derivation (cached per graph version). */
-  binding(): IBinding;
+  binding(): Binding;
   /** Every document of the graph, in `documents` order. */
   allDocuments(): readonly Document[];
   /** Called after every change to a text: the binding is stale. */
@@ -49,7 +49,7 @@ export interface IDocumentHost {
 type Handle = StatementHandle | ValueHandle | ParameterVariable;
 
 /** A handle's old token range, in offsets of the text before an edit. */
-interface IOldEntry {
+interface OldEntry {
   readonly handle: Handle;
   readonly start: number;
   readonly end: number;
@@ -73,7 +73,7 @@ class Reconcile {
   readonly created: Handle[] = [];
 
   constructor(
-    private readonly old: Map<string, IOldEntry>,
+    private readonly old: Map<string, OldEntry>,
     /** The replaced range in old offsets, and the length of what replaced it; undefined: keep nothing. */
     private readonly range: { readonly start: number; readonly end: number; readonly inserted: number } | undefined,
     /** The handle an edit keeps although the replaced range starts at its first token (`rename`, 2.1). */
@@ -198,7 +198,7 @@ export class Document implements api.Document {
   private valuesByToken = new Map<number, ValueHandle>();
 
   constructor(
-    readonly host: IDocumentHost,
+    readonly host: DocumentHost,
     readonly resolvedPath: string,
     text: string,
   ) {
@@ -302,8 +302,8 @@ export class Document implements api.Document {
   }
 
   /** The handles currently in the tree, by reconcile key. */
-  private entries(): Map<string, IOldEntry> {
-    const entries = new Map<string, IOldEntry>();
+  private entries(): Map<string, OldEntry> {
+    const entries = new Map<string, OldEntry>();
     const add = (key: string, handle: Handle, range: { start: number; end: number }): void => {
       const { start, end } = this.offsets(range);
       entries.set(`${key}@${String(start)}`, { handle, start, end });
@@ -341,10 +341,10 @@ export class Document implements api.Document {
   private buildBlock(container: Node, owner: StatementHandle | undefined, claimed: readonly string[], reconcile: Reconcile): StatementHandle[] {
     const nodes = statementNodes(container);
     const shapes = blockShapes(this.parsed.tokens, nodes, this.host.extensionNames, claimed);
-    return nodes.map((node, i) => this.buildStatement(node, shapes[i] as IShape, owner, reconcile));
+    return nodes.map((node, i) => this.buildStatement(node, shapes[i] as Shape, owner, reconcile));
   }
 
-  private buildStatement(node: Node, shape: IShape, owner: StatementHandle | undefined, reconcile: Reconcile): StatementHandle {
+  private buildStatement(node: Node, shape: Shape, owner: StatementHandle | undefined, reconcile: Reconcile): StatementHandle {
     const { tokens } = this.parsed;
     const start = tokens[node.start]?.span.start.offset ?? 0;
     const kept = reconcile.take(`s:${shape.kind}`, start);
@@ -454,7 +454,7 @@ export class Document implements api.Document {
    * (it returns diagnostics located in the given text). Then re-parse, reconcile, and tell the host.
    * @returns the handles made for the inserted text. @throws BadTextError, changing nothing.
    */
-  splice(start: number, end: number, insert: string | IInsert, given: readonly Diagnostic[], keep?: Handle): Handle[] {
+  splice(start: number, end: number, insert: string | Insert, given: readonly Diagnostic[], keep?: Handle): Handle[] {
     if (given.length > 0) throw new BadTextError(given);
     const spliced = typeof insert === "string" ? insertOf(insert, [[0, insert.length]]) : insert;
     const text = this.current.slice(0, start) + spliced.text + this.current.slice(end);
@@ -874,13 +874,13 @@ function at(given: string, offset: number, code: DiagnosticCode): Diagnostic {
 type Piece = string | readonly [number, number];
 
 /** What an edit splices in: its text, the caller's text, and for each UTF-16 unit its offset there (-1: added). */
-interface IInsert {
+interface Insert {
   readonly text: string;
   readonly given: string;
   readonly origin: readonly number[];
 }
 
-function insertOf(given: string, pieces: readonly Piece[]): IInsert {
+function insertOf(given: string, pieces: readonly Piece[]): Insert {
   let text = "";
   const origin: number[] = [];
   for (const piece of pieces) {
@@ -900,7 +900,7 @@ function insertOf(given: string, pieces: readonly Piece[]): IInsert {
  * touches (a `set` claiming a name of a snippet parameter the splice touches counts too): located in the caller's
  * text when the problem lies in what it gave (2.3), else at 0:0.
  */
-function ruleProblems(syntax: Syntax, extensions: ReadonlySet<string>, from: number, insert: IInsert): Diagnostic[] {
+function ruleProblems(syntax: Syntax, extensions: ReadonlySet<string>, from: number, insert: Insert): Diagnostic[] {
   const out: Diagnostic[] = [];
   const { tokens } = syntax;
   const to = from + insert.text.length;
@@ -918,7 +918,7 @@ function ruleProblems(syntax: Syntax, extensions: ReadonlySet<string>, from: num
     const nodes = statementNodes(container);
     const shapes = blockShapes(tokens, nodes, extensions, claimed);
     nodes.forEach((node, i) => {
-      const shape = shapes[i] as IShape;
+      const shape = shapes[i] as Shape;
       if (shape.fault !== undefined && isTextAlone(shape.fault)) {
         const code = shape.fault.code;
         let involved = touches(node);
@@ -926,7 +926,7 @@ function ruleProblems(syntax: Syntax, extensions: ReadonlySet<string>, from: num
           const name = shape.fault.detail?.replace(/^\$/u, "") ?? "";
           involved =
             (code === DiagnosticCode.VariableSetTwice && touchedClaims.has(name)) ||
-            nodes.slice(0, i).some((other, j) => touches(other) && (shapes[j] as IShape).claims === name);
+            nodes.slice(0, i).some((other, j) => touches(other) && (shapes[j] as Shape).claims === name);
         }
         if (involved) report(shape.fault);
       }

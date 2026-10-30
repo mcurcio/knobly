@@ -7,7 +7,7 @@ import { type ValueRef } from "./syntax/cst.js";
 import type { Node, Token } from "./gen/api/syntax.js";
 import { NodeKind } from "./gen/api/kinds.js";
 
-export interface IDirectiveAnatomy {
+export interface DirectiveAnatomy {
   /** Index of the name token (`node.start`, a WORD or an AT_WORD). */
   readonly name: number;
   /** In source order: each word (WORD, AT_WORD, INTEGER, DIGIT_WORD), STRING or VARIABLE token directly in the directive's range, and each slice or list child. */
@@ -23,7 +23,7 @@ const VALUE_NODES: ReadonlySet<string> = new Set(["slice", "list"]);
  * Split a directive node. Tokens after the name that no child covers are values when they are words, STRING or VARIABLE;
  * spaces, comments, separators and punctuation are not. Error children are never values.
  */
-export function anatomyOf(tokens: readonly Token[], node: Node): IDirectiveAnatomy {
+export function anatomyOf(tokens: readonly Token[], node: Node): DirectiveAnatomy {
   const { values, block } = split(tokens, node, node.start + 1);
   return { name: node.start, values, block };
 }

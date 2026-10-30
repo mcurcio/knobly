@@ -130,6 +130,7 @@
         "place": "place",
         "text": "text"
       },
+      "other kinds": ["word", "string"],
       "by kind": {
         "list": {
           "items": "written value[]"
@@ -158,6 +159,7 @@
         "place": "place",
         "text": "text"
       },
+      "other kinds": ["unreadable"],
       "by kind": {
         "directive": {
           "values": "written value[]",

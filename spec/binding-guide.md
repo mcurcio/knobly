@@ -80,8 +80,9 @@ where TypeScript or Python break one, section 4 says so.
    casing rule; the generator does it once for every binding (codegen.md section 3), so no binding stores a
    spelling.
 3. **One factory convention per binding, the language's own constructor idiom** (proposed). TypeScript:
-   lowercase nouns, no `create` (`fileSource()`, `include()`). Python: public classes
-   (`FileSource()`, `Include()`), as jinja2's `FileSystemLoader`. Go: `New` plus the concept
+   lowercase nouns, no `create` (`fileSource()`, `include()`). Python: lowercase functions for the ports and
+   extensions (`file_source()`, `memory_source()`, `include()`), and the class itself where the schema marks a
+   factory a `constructor` (`Processor(...)`, `Diagnostics(...)`), as jinja2's `Environment(...)`. Go: `New` plus the concept
    (`NewMemorySource`, `NewProcessor`), since a Go type and function cannot share a name. Rust:
    `Type::new`. Java: constructors or a static `of`. A spec name that starts with `make` (`make
    processor`, `make diagnostics`) names the factory of the concept after it.
@@ -89,7 +90,7 @@ where TypeScript or Python break one, section 4 says so.
    2 is his). Each binding names its model in its README:
    - TypeScript: discriminated unions narrowed on `kind`, one interface per variant, kind lists as `as const`
      objects with the string-literal union derived from them (milestone 6, spec 2.10), read-only objects, options
-     objects, blocks iterable with `for...of` and indexed with `at` (generators for `walk`: proposed, spec 7.5).
+     objects, blocks iterable with `for...of` and indexed with `at`, `walk` with a callback (spec 2.11).
    - Python: the standard `ast` style: a class per variant with `kind` and `__match_args__` in the same field
      order in every layer, unions as `TypeAlias`, kind lists as `StrEnum`s, frozen slotted records, keyword-only
      options, tuples for results (a `MutableMapping` where the user edits a map: proposed).
@@ -133,22 +134,22 @@ where TypeScript or Python break one, section 4 says so.
    checks the direction mechanically, so a wrong import fails the build:
    - **TypeScript.** The rendered layer lives in `ts/src/rendered/`. ESLint's core
      `no-restricted-imports` rule, in `ts/eslint.config.js`, forbids importing `**/rendered/**`
-     from every file under `ts/src/` except `ts/src/rendered/**`, the package entry `ts/src/index.ts`
-     and tests (`*.test.ts`). The rule covers `import type` too, so even a type name cannot leak.
+     from every file under `ts/src/` except `ts/src/rendered/**` and tests (`*.test.ts`). The package entry
+     `ts/src/index.ts` is no exception: it holds only the shared and io layers (rule 9). The rule covers `import
+     type` too, so even a type name cannot leak.
    - **Python.** The rendered layer is the package `villanelle.rendered`. A test
      (`py/tests/test_layers.py`) reads every module under `src/villanelle/` with `ast` and fails when
-     one outside `villanelle/rendered/` and the top-level `villanelle/__init__.py` imports
+     one outside `villanelle/rendered/` (the top-level `villanelle/__init__.py` included) imports
      `villanelle.rendered` or anything in it, absolute or relative, `if TYPE_CHECKING:` imports
-     included. (Importing `villanelle.written` still runs `villanelle/__init__.py`, which loads the
-     rendered package; the rule is about what the low level's code depends on, not what Python
-     loads.)
+     included. Importing `villanelle.written` runs `villanelle/__init__.py`, which loads only the shared
+     and io layers.
    - **Go, Rust:** one package or crate per layer; the compiler then refuses a cycle.
 
    **The second check: the rendered layer builds on the public low level only** (owner, 2026-10-29, "Yes"; spec
    6.10, 7.0). `render(graph)` reads the graph through `expand ()` and the public types, never a package-internal
    module, member, accessor or class check, so a third party could write it.
    - **TypeScript.** `ts/src/written/index.ts` (new) is the low level's public entry: it re-exports exactly the
-     written layer's public names, and `ts/src/index.ts` re-exports from it. In `ts/eslint.config.js`, a block for
+     written layer's public names (`ts/src/index.ts` holds only the shared and io layers, rule 9). In `ts/eslint.config.js`, a block for
      `files: ["src/rendered/**/*.ts"]`, `ignores: ["src/**/*.test.ts"]`: `no-restricted-imports` with the pattern
      group `["**/written/*", "!**/written/index.js"]`, and `no-restricted-syntax` refusing a cast through `unknown`
      (`TSAsExpression[typeAnnotation.type="TSUnknownKeyword"]` and `TSAsExpression > TSAsExpression`), the one way
@@ -210,7 +211,7 @@ where TypeScript or Python break one, section 4 says so.
 | People form | `toString()` | `__str__` | the language's to-text conversion (contract 2) |
 | Positions | UTF-16 code units | code points | the language's string unit (contract 1); conformance stays UTF-16 |
 | Chained errors | `cause` | `__cause__` | the language's mechanism |
-| A block (rule 5, spec 2.11) | `Iterable` (`for...of`, `[...block]`), `length`, `at(i)` (absent out of range) | a `Sequence` (`for s in block`, `len(block)`, `block[i]`, `IndexError` out of range) | each language's read-only sequence; a live written block cannot be a frozen array |
+| A block (rule 5, spec 2.11) | `Iterable` (`for...of`, `[...block]`), `length`, `at(i)` (absent out of range) | a `Sequence` (`for s in block`, `len(block)`, `block[i]`, slices, `in`, `reversed()`, `IndexError` out of range; the generated Protocol states the `Sequence` read methods, as a Protocol cannot extend the ABC) | each language's read-only sequence; a live written block cannot be a frozen array |
 
 **Must not differ:**
 
@@ -336,7 +337,7 @@ Work in this order. Each step ends with shared cases passing, so progress is mea
    building the layers.
 3. **Generate the parser.** Add your target to `tools/gen.sh` (ANTLR 4.13.2) and keep generated code
    out of git. Wrap the generated parser in an adapter so its types never cross into your API, as
-   `ts/src/syntax/parse.ts` and `py/src/villanelle/syntax/parse.py` do. ANTLR 4.13.2 has official targets for Go,
+   `ts/src/syntax/parse.ts` and `py/src/villanelle/syntax/_parse.py` do. ANTLR 4.13.2 has official targets for Go,
    Java, C#, C++, Swift, PHP, Dart, JavaScript, TypeScript and Python, but not Rust (`antlr4rust` is a third-party
    runtime and lags the official releases). How a binding without an official target gets its parser (a
    third-party runtime, a parser written by hand and held to the syntax corpus, or another generator checked

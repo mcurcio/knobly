@@ -27,8 +27,8 @@ from villanelle._api.written import (
     SliceValue,
     UnreadableExpansion,
 )
-from villanelle.written.format import format_diagnostic
-from villanelle.written.model import (
+from villanelle.written._format import format_diagnostic
+from villanelle.written._model import (
     Document,
     DocumentGraph,
     ExpansionBlock,
@@ -52,8 +52,8 @@ from villanelle.written.model import (
     WrittenDirective,
     WrittenValue,
 )
-from villanelle.written.processor import Processor
-from villanelle.written.value import (
+from villanelle.written._processor import Processor
+from villanelle.written._value import (
     ExpandedIndex,
     ExpandedList,
     ExpandedSlice,

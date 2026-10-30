@@ -12,12 +12,12 @@ from villanelle._api.codes import DiagnosticCode, describe
 from villanelle._api.kinds import NodeKind, TokenKind
 from villanelle._api.shared import SourcePosition, SourceSpan
 from villanelle._api.syntax import Node, Syntax, Token, TokenRange
+from villanelle._diagnostics import Diagnostic
 from villanelle._gen.VillanelleLexer import VillanelleLexer
 from villanelle._gen.VillanelleParser import VillanelleParser
-from villanelle.diagnostics import Diagnostic
+from villanelle.syntax._cst import span_of
 from villanelle.syntax._recovery import RawDiagnostic, install_recovery, nesting_overflow
 from villanelle.syntax._walk import to_cst, to_entry_cst
-from villanelle.syntax.cst import span_of
 
 _EOF = -1
 _ORIGIN = SourcePosition(offset=0, line=0, column=0)

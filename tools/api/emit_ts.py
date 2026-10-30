@@ -20,9 +20,34 @@ import json
 import textwrap
 from typing import Dict, List, Optional, Set, Tuple
 
-from .loader import HEADER, PLACEHOLDER, Concept, Member, Model, Param, Type, camel, pascal, upper_snake
+from .loader import (
+    CODE_LAYERS,
+    FOUND_BY,
+    HEADER,
+    PLACEHOLDER,
+    Concept,
+    Language,
+    Member,
+    Model,
+    Param,
+    SchemaError,
+    Type,
+    camel,
+    pascal,
+    upper_snake,
+)
 
 LAYER_FILES = ("shared", "syntax", "io", "written", "rendered")
+# The platform's own type for each native named type (a native type is the language's, never declared here).
+NATIVE = {"platform fetch": "typeof globalThis.fetch"}
+
+
+def _public_kind(model: Model, c: Optional[Concept]) -> str:
+    """A TypeScript name is a type, or a value too when it is a class or an as-const list (``c`` None)."""
+    return "both" if c is None or model.constructed(c, "ts") else "type"
+
+
+LANGUAGE = Language("ts", "/", camel, ("Error", "ReferenceError", "TypeError", "RangeError"), _public_kind)
 
 
 def s(text: str) -> str:
@@ -71,7 +96,9 @@ class Ctx:
             return self.use("errors", pascal(name))
         c = m.concept[name]
         if c.is_ == "native":
-            return "typeof globalThis.fetch" if name == "fetch function" else "never"
+            if name not in NATIVE:
+                raise SchemaError(f"native type {name!r}: emit_ts.NATIVE has no TypeScript type for it")
+            return NATIVE[name]
         return self.use(c.layer, pascal(name))
 
 
@@ -99,7 +126,9 @@ def ts_type(t: Type, ctx: Ctx, param: bool = False) -> str:
         return f"ReadonlyMap<{ts_type(key, ctx)}, {v}>"
     if t.form == "function":
         *params, result = t.args
-        ps = ", ".join(f"{camel(p.name) if p.form == 'name' and p.name not in ctx.type_params else 'value'}: {ts_type(p, ctx)}" for p in params)
+        names = [camel(p.name) if p.form == "name" and p.name not in ctx.type_params else "value" for p in params]
+        names = [f"{n}{names[:i].count(n) + 1}" if names.count(n) > 1 else n for i, n in enumerate(names)]
+        ps = ", ".join(f"{n}: {ts_type(p, ctx)}" for n, p in zip(names, params))
         return f"({ps}) => {ts_type(result, ctx)}"
     raise AssertionError(t)
 
@@ -147,7 +176,8 @@ def member_lines(model: Model, c: Concept, m: Member, ctx: Ctx) -> List[str]:
             return out + [f"  readonly kind: {s(c.kind)};"]
         opt = "?" if m.optional else ""
         t = m.type.without_absent() if m.optional else m.type
-        return out + [f"  readonly {camel(m.name)}{opt}: {ts_type(t, ctx)};"]
+        # An options record is passed in: its maps are a parameter's (Readonly<Record>), as spec/codegen.md section 3 says.
+        return out + [f"  readonly {camel(m.name)}{opt}: {ts_type(t, ctx, c.nature == 'options')};"]
     gen, names = generic(m.type_parameters)
     ctx2 = Ctx(model, ctx.here, {**ctx.type_params, **names})
     ctx2.imports = ctx.imports
@@ -163,38 +193,47 @@ def concept_lines(model: Model, c: Concept, ctx: Ctx) -> List[str]:
     if c.nature == "named type":
         if c.brand:
             return out + [f"export type {name} = string & {{ readonly [{camel(c.name)}Brand]: true }};"]
-        if c.pattern == "program code":
-            return out + [f"export type {name} = `${{string}}/${{string}}`;"]
+        if c.template is not None:
+            literal = c.template.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${").replace("{text}", "${string}")
+            return out + [f"export type {name} = `{literal}`;"]
         return out + [f"export type {name} = string;"]
     if c.nature == "callback":
         assert c.callback is not None
         return out + [f"export type {name} = {ts_type(c.callback, ctx)};"]
-    if c.is_union:
-        alts = " | ".join(pascal(v) for v in c.variants)
-        return out + [f"export type {name} = {alts};"]
     gen, names = generic(c.type_parameters)
     cctx = Ctx(model, ctx.here, names)
     cctx.imports = ctx.imports
-    ext = ""
-    members = list(c.members)
+    if c.is_union:
+        # The members every variant has go once, on <Union>Common, which each variant extends.
+        alts = " | ".join(pascal(v) for v in c.variants)
+        common = [f"export interface {common_name(c)} {{"]
+        for m in c.members:
+            common += member_lines(model, c, m, cctx)
+        return out + common + ["}", "", f"export type {name} = {alts};"]
+    bases = []
     if c.variant_of:
-        members = [m for m in model.concept[c.variant_of].members] + members
-        if not any(m.name == "kind" for m in c.members):
-            pass
+        bases.append(common_name(model.concept[c.variant_of]))
     if c.extends is not None:
-        ext = f" extends {ts_type(c.extends, cctx)}"
+        bases.append(ts_type(c.extends, cctx))
+    members = list(c.members)
     if c.nature == "shape":
-        ext = f" extends Iterable<{names['item']}>"
-    lines = [f"export interface {name}{gen}{ext} {{"]
+        iterate = next(m for m in members if m.trait == "iterate")
+        bases.append(f"Iterable<{ts_type(iterate.type.item, cctx)}>")  # Iterable gives the iterate trait
+        members = [m for m in members if m is not iterate]
+    lines: List[str] = []
+    if c.kind is not None and c.variant_of:
+        lines.append(f"  readonly kind: {s(c.kind)};")
     for m in members:
-        if m.trait == "iterate" and c.nature == "shape":
-            continue  # Iterable gives it
-        if m.name == "kind" and c.variant_of:
-            lines += [f"  readonly kind: {s(str(c.kind))};"]
-            continue
-        lines += member_lines(model, c, m, cctx)
-    lines.append("}")
-    return out + lines
+        if not (m.name == "kind" and c.variant_of):
+            lines += member_lines(model, c, m, cctx)
+    if not lines and len(bases) == 1:
+        return out + [f"export type {name}{gen} = {bases[0]};"]  # adds nothing: an alias, not an empty interface
+    ext = f" extends {', '.join(bases)}" if bases else ""
+    return out + [f"export interface {name}{gen}{ext} {{", *lines, "}"]
+
+
+def common_name(union: Concept) -> str:
+    return pascal(union.name) + "Common"
 
 
 def function_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
@@ -206,7 +245,7 @@ def function_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
             continue
         fac = (f.factory or {}).get("ts")
         if fac == "constructor":
-            continue
+            continue  # constructor_lines
         name = model.package if fac == "package function" else camel(f.name)
         lines = doc(f.note, "  ")
         lines.append(f"  {name}({method_params(model, f.params, f.options, ctx)}): {ts_type(f.returns, ctx)};")
@@ -216,6 +255,19 @@ def function_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
         suffix = mod.split("/", 1)[1] if "/" in mod else layer
         out += doc(f"The free functions {s(mod)} exports: a module object is checked against it (`const _: X = module`).")
         out += [f"export interface {pascal(suffix.replace('-', ' '))}Functions {{", *lines, "}", ""]
+    return out + constructor_lines(model, layer, ctx)
+
+
+def constructor_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
+    """A constructor factory's signature as a construct signature: the class is checked against it (`const _: X = Class`)."""
+    out: List[str] = []
+    for f in model.functions:
+        if f.layer != layer or (f.factory or {}).get("ts") != "constructor" or model.function_module(f, "ts") is None:
+            continue
+        of = pascal(f.factory["of"])  # type: ignore[index]
+        out += doc(f"The {f.factory['of']} class's constructor ({f.name}): `const _: {of}Constructor = {of}` checks it.")  # type: ignore[index]
+        out += [f"export interface {of}Constructor {{", f"  new ({method_params(model, f.params, f.options, ctx)}): {ctx.ref(f.factory['of'])};",  # type: ignore[index]
+                "}", ""]
     return out
 
 
@@ -304,8 +356,8 @@ def codes_module(model: Model) -> str:
             "/** What the registry says of one code: its spec name, owning layer, who finds it, the reason it gives. */",
             "export interface CodeFacts {",
             "  readonly name: string;",
-            "  readonly layer: \"syntax\" | \"written\" | \"include\";",
-            "  readonly foundBy: readonly string[];",
+            f"  readonly layer: {' | '.join(map(s, CODE_LAYERS))};",
+            f"  readonly foundBy: readonly ({' | '.join(map(s, FOUND_BY))})[];",
             "  readonly reason: UnreadableReason | null;",
             "}", "",
             "/** Each code's facts (spec 2.4), typed so `CODE_FACTS[code].reason` is that code's own reason. */",
@@ -353,8 +405,7 @@ def errors_module(model: Model) -> str:
         if g.message.get("given"):
             params.append("message: string")
         for f, t in g.fields:
-            ty = ts_type(model.parse(t, g.name), ctx, True)
-            params.append(f"{'readonly ' if (f, t) in own_fields else ''}{camel(f)}: {ty}")
+            params.append(f"{'readonly ' if (f, t) in own_fields else ''}{camel(f)}: {ts_type(t, ctx, True)}")
         chained = g.cause == "chained" or (g.parent is None and g.sort == "base")
         if chained:
             params.append("options?: ErrorOptions")
@@ -395,7 +446,7 @@ def errors_module(model: Model) -> str:
     return "\n".join(head('spec/schema/api.json "error groups"') + imports + [""] + out)
 
 
-def template_expr(message: Dict[str, object], fields: List[Tuple[str, str]]) -> str:
+def template_expr(message: Dict[str, object], fields: List[Tuple[str, Type]]) -> str:
     template = str(message["template"])
     sep = str(message.get("separator", ", "))
     parts, pos = [], 0
@@ -405,8 +456,8 @@ def template_expr(message: Dict[str, object], fields: List[Tuple[str, str]]) -> 
         if ph.endswith(" message"):
             parts.append("${" + camel(ph[: -len(" message")]) + ".message}")
         else:
-            ftype = dict(fields)[ph]
-            if ftype == "text[]":
+            item = dict(fields)[ph].item  # the loader refuses a placeholder on anything but a list
+            if item.form == "name" and item.name == "text":
                 parts.append("${" + camel(ph) + ".join(" + s(sep) + ")}")
             else:
                 parts.append("${" + camel(ph) + ".map(String).join(" + s(sep) + ")}")
@@ -483,14 +534,14 @@ def shapes_module(model: Model) -> str:
             def fields(fs: Dict[str, Type], optional: List[str]) -> str:
                 return " ".join(f"readonly {k}{'?' if k in optional else ''}: {shape_type(t)};" for k, t in fs.items())
             if sh.by_kind:
-                merged: Dict[str, List[str]] = {}
-                for extra in sh.by_kind.values():
-                    for k, t in extra.items():
-                        alts = merged.setdefault(k, [])
-                        if shape_type(t) not in alts:
-                            alts.append(shape_type(t))
-                extras = " ".join(f"readonly {k}?: {' | '.join(v)};" for k, v in merged.items())
-                out.append(f"export type {name} = {{ {fields(sh.fields, sh.optional)} {extras} }};")
+                # A discriminated union: one alternative per kind, with that kind's own fields required.
+                common = {k: t for k, t in sh.fields.items() if k != "kind"}
+                alts = [f"({{ readonly kind: {s(kind)}; {fields(common, sh.optional)} {fields(extra, [])} }})"
+                        for kind, extra in sh.by_kind.items()]
+                alts.append(f"({{ readonly kind: {' | '.join(map(s, sh.other_kinds))}; {fields(common, sh.optional)} }})")
+                out.append(f"export type {name} =")
+                out += [f"  | {a.replace('  ', ' ')}" for a in alts]
+                out[-1] += ";"
             else:
                 out.append(f"export type {name} = {{ {fields(sh.fields, sh.optional)} }};")
         out.append("")

@@ -11,7 +11,7 @@ from collections.abc import Sequence
 
 from villanelle._api.io import DocumentSource, DocumentWriter, FileWrite, LoadContext
 from villanelle._glob import glob_pattern, has_glob
-from villanelle.source import check_lost_updates
+from villanelle._source import check_lost_updates
 
 
 def file_source() -> DocumentSource:

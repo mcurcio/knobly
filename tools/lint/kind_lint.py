@@ -11,7 +11,7 @@ Refused, in every module given:
     python3 tools/lint/kind_lint.py PATH...   # exits 1 and prints file:line for each, 0 when clean
     python3 tools/lint/kind_lint.py --self-test
 
-Its TypeScript twin is tools/lint/kind-rule.js. Python 3.9 standard library only (``match`` is read only on 3.10+).
+Its TypeScript twin is tools/lint/kind-rule.mjs. Python 3.9 standard library only (``match`` is read only on 3.10+).
 """
 
 from __future__ import annotations

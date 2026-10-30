@@ -35,13 +35,12 @@ from villanelle._api.limits import MAX_DEPTH, MAX_DIRECTIVES
 from villanelle._api.shared import DirectiveOrigin, Origin, SourceSpan
 from villanelle._api.syntax import Node, Syntax, Token, TokenRange
 from villanelle._api.written import Copy, DocumentEdge, ExtensionUse, ReferenceResolution, Resolution
+from villanelle._origin import Override, Place, Step
+from villanelle._report import LocatedDiagnostic
 from villanelle._text import port_texts
-from villanelle.origin import Override, Place, Step
-from villanelle.report import LocatedDiagnostic
-from villanelle.syntax.cst import ValueRef, span_of
-from villanelle.syntax.parse import parse_entry
-from villanelle.written._shape import shape_of_anatomy
-from villanelle.written.model import (
+from villanelle.syntax._cst import ValueRef, span_of
+from villanelle.syntax._parse import parse_entry
+from villanelle.written._model import (
     Document,
     Index,
     Reference,
@@ -54,7 +53,8 @@ from villanelle.written.model import (
     WrittenValue,
     own,
 )
-from villanelle.written.value import (
+from villanelle.written._shape import shape_of_anatomy
+from villanelle.written._value import (
     ExpandedIndex,
     ExpandedList,
     ExpandedSlice,

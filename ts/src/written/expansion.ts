@@ -7,20 +7,20 @@
 
 import { SnapshotBlock } from "../block.js";
 import { makePlace } from "../origin.js";
-import type { BoundItem, IBinding } from "./bind.js";
+import type { BoundItem, Binding } from "./bind.js";
 import type { StatementHandle } from "./statements.js";
 import { ExpandedRecord } from "./value.js";
 import type { LocatedDiagnostic } from "../gen/api/shared.js";
 import type { DirectiveExpansion, Expansion, ExpansionBlock, UnreadableExpansion, WrittenDirective } from "../gen/api/written.js";
 
-interface IContainer {
+interface Container {
   readonly block: DirectiveExpansion[];
   readonly unreadable: UnreadableExpansion[];
 }
 
 /** The expansion of one binding, with the graph's one diagnostics list. */
-export function expansionOf(binding: IBinding, diagnostics: readonly LocatedDiagnostic[]): Expansion {
-  const top: IContainer = { block: [], unreadable: [] };
+export function expansionOf(binding: Binding, diagnostics: readonly LocatedDiagnostic[]): Expansion {
+  const top: Container = { block: [], unreadable: [] };
   fill(binding, binding.items, top);
   return { block: expansionBlock(top.block), unreadable: top.unreadable, diagnostics };
 }
@@ -30,7 +30,7 @@ function expansionBlock(items: readonly DirectiveExpansion[]): ExpansionBlock {
   return new SnapshotBlock(items, (item) => item.written.name);
 }
 
-function fill(binding: IBinding, items: readonly BoundItem[], into: IContainer): void {
+function fill(binding: Binding, items: readonly BoundItem[], into: Container): void {
   for (const item of items) {
     const statement = item.copy.statement as unknown as StatementHandle;
     const { doc } = statement;
@@ -43,7 +43,7 @@ function fill(binding: IBinding, items: readonly BoundItem[], into: IContainer):
     if (nameToken === undefined) throw new Error("a directive node has no name token");
     const written = item.copy.statement as WrittenDirective;
     const values = written.values.flatMap((value) => binding.valuesAt(value, item.copy).map((record) => ExpandedRecord.asValue(record)));
-    const inner: IContainer | undefined = item.children === undefined ? undefined : { block: [], unreadable: [] };
+    const inner: Container | undefined = item.children === undefined ? undefined : { block: [], unreadable: [] };
     if (item.children !== undefined && inner !== undefined) fill(binding, item.children, inner);
     into.block.push({
       written,

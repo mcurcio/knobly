@@ -19,13 +19,12 @@ from villanelle._api.errors import BadTextError
 from villanelle._api.kinds import NodeKind, StatementKind, TokenKind
 from villanelle._api.shared import SourcePosition, SourceSpan
 from villanelle._api.syntax import Node, Syntax, TokenRange
-from villanelle.diagnostics import Diagnostic
-from villanelle.origin import Place
-from villanelle.syntax.cst import ValueRef, span_of
-from villanelle.syntax.parse import EntryRule, parse, parse_entry
+from villanelle._diagnostics import Diagnostic
+from villanelle._origin import Place
+from villanelle.syntax._cst import ValueRef, span_of
+from villanelle.syntax._parse import EntryRule, parse, parse_entry
 from villanelle.written import _names
-from villanelle.written._shape import Shape, ShapeKind, block_shapes, parameter_tokens, statement_nodes
-from villanelle.written.model import (
+from villanelle.written._model import (
     Document,
     ExtensionLine,
     Index,
@@ -47,6 +46,7 @@ from villanelle.written.model import (
     WrittenDirective,
     WrittenValue,
 )
+from villanelle.written._shape import Shape, ShapeKind, block_shapes, parameter_tokens, statement_nodes
 
 Handle: TypeAlias = "Statement | WrittenValue | Parameter"
 """Anything a reconcile keeps or detaches."""
@@ -304,22 +304,6 @@ def _build_block(
     return [_build_statement(doc, node, shape, owner, reconcile) for node, shape in zip(nodes, shapes, strict=True)]
 
 
-def _new_statement(doc: Document, kind: ShapeKind) -> Statement:
-    match kind:
-        case StatementKind.DIRECTIVE:
-            return WrittenDirective(doc)
-        case StatementKind.EXTENSION:
-            return ExtensionLine(doc)
-        case StatementKind.SET:
-            return SetLine(doc)
-        case StatementKind.SNIPPET:
-            return SnippetLine(doc)
-        case StatementKind.USE:
-            return UseLine(doc)
-        case StatementKind.UNREADABLE:
-            return UnreadableLine(doc)
-
-
 _STATEMENT_CLASS: dict[
     ShapeKind, type[WrittenDirective | ExtensionLine | SetLine | SnippetLine | UseLine | UnreadableLine]
 ] = {
@@ -341,7 +325,7 @@ def _build_statement(
     if isinstance(kept, _STATEMENT_CLASS[shape.kind]):
         handle = kept
     else:
-        handle = _new_statement(doc, shape.kind)
+        handle = _STATEMENT_CLASS[shape.kind](doc)
         reconcile.created.append(handle)
     handle._node = node
     handle._parent = owner

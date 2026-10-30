@@ -6,13 +6,13 @@
 
 import type { SourceSpan } from "./gen/api/shared.js";
 
-interface IPlaceLike {
+interface PlaceLike {
   readonly resolvedPath: string;
   readonly span: SourceSpan;
 }
 
 /** `path:line:col`, at the span's start: `sink.conf:4:5`. */
-export function placeForm(place: IPlaceLike): string {
+export function placeForm(place: PlaceLike): string {
   return `${place.resolvedPath}:${String(place.span.start.line + 1)}:${String(place.span.start.column + 1)}`;
 }
 
@@ -22,12 +22,12 @@ export function overrideForm(override: { readonly variable: string }): string {
 }
 
 /** `<kind> <name> at <place>`: `variable pixels at main.conf:7:15`. */
-export function stepForm(step: { readonly kind: string; readonly name: string; readonly place: IPlaceLike }): string {
+export function stepForm(step: { readonly kind: string; readonly name: string; readonly place: PlaceLike }): string {
   return `${step.kind} ${step.name} at ${placeForm(step.place)}`;
 }
 
 /** `<place>: <code>: <message>`: `main.conf:7:15: E5001: unknown variable: $pixels`. */
-export function locatedForm(diagnostic: { readonly code: string; readonly message: string; readonly place: IPlaceLike }): string {
+export function locatedForm(diagnostic: { readonly code: string; readonly message: string; readonly place: PlaceLike }): string {
   return `${placeForm(diagnostic.place)}: ${diagnostic.code}: ${diagnostic.message}`;
 }
 

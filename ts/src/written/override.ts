@@ -7,14 +7,14 @@
 import { makeDiagnostic } from "../diagnostics.js";
 import { parseEntry } from "../syntax/parse.js";
 import { requireText } from "../text.js";
-import { type IOverrideValues, readOverride } from "./bind.js";
+import { type OverrideValues, readOverride } from "./bind.js";
 import { checkVariableName } from "./names.js";
 import { DiagnosticCode, describe } from "../gen/api/codes.js";
 import { BadTextError } from "../gen/api/errors.js";
 import { TokenKind } from "../gen/api/kinds.js";
 
 /** How the caller named what it was given, for the argument type error: `setOverride` / `text`, `load` / `overrides["port"]`. */
-export interface IOverrideCaller {
+export interface OverrideCaller {
   readonly member: string;
   readonly textParameter: string;
 }
@@ -31,7 +31,7 @@ export function checkOverrideName(name: unknown, member: string): asserts name i
  * a `$name`, or at 0:0 when it holds no value. Every diagnostic is located in `text`.
  * @throws MisuseError for a bad name; TypeError for a text that is not a string; BadTextError for text the check refuses
  */
-export function checkOverride(name: unknown, text: unknown, caller: IOverrideCaller): IOverrideValues {
+export function checkOverride(name: unknown, text: unknown, caller: OverrideCaller): OverrideValues {
   checkOverrideName(name, caller.member);
   requireText(text, caller.member, caller.textParameter);
   const syntax = parseEntry(text, "valuesText");

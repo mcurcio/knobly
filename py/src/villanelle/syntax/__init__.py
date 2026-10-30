@@ -6,8 +6,8 @@ spec/schema/api.json (``villanelle._api``); ANTLR types never leave the adapter 
 from villanelle._api.kinds import NodeKind, TokenKind
 from villanelle._api.limits import MAX_NESTING
 from villanelle._api.syntax import Node, Syntax, Token, TokenRange
-from villanelle.syntax.cst import span_of, text_of
-from villanelle.syntax.parse import parse
+from villanelle.syntax._cst import span_of, text_of
+from villanelle.syntax._parse import parse
 
 __all__ = [
     "MAX_NESTING",

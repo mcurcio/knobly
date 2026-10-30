@@ -1,6 +1,6 @@
 /**
  * The layer checks bite (frozen-m1.md section 4, frozen-m2.md section 4.3). Down: ts/eslint.config.js applies the
- * core rule no-restricted-imports to every module but the rendered layer, the package entry and tests, and that rule
+ * core rule no-restricted-imports to every module but the rendered layer and tests (the package entry included), and that rule
  * refuses a planted type-only import of the rendered layer from the low level. Public: in the rendered layer it
  * refuses an import of a low-level module other than written/index.js, and no-restricted-syntax refuses a cast
  * through unknown and a double cast. Kinds (spec 2.10): no-restricted-syntax refuses a `.kind`, `.reason` or `.code`
@@ -27,11 +27,10 @@ function lint(code: string, rule: Linter.RuleEntry, path = "src/written/planted.
 const PLANTED = 'import type { Rendered } from "../rendered/tree.js";\nexport type Leak = Rendered;\n';
 
 describe("layer direction (spec 5)", () => {
-  it("applies the rule to the low level and shared modules, not to the rendered layer or the entry", async () => {
-    for (const path of ["src/written/graph.ts", "src/value.ts", "src/include.ts", "src/written/planted.ts"]) {
+  it("applies the rule to the low level, the shared modules and the package entry, not to the rendered layer", async () => {
+    for (const path of ["src/written/graph.ts", "src/value.ts", "src/include.ts", "src/written/planted.ts", "src/index.ts"]) {
       expect(await ruleFor(path), path).toBeDefined();
     }
-    expect(await ruleFor("src/index.ts")).toBeUndefined();
     // The rendered layer has its own import rule (below), which does not refuse the rendered layer itself.
     expect(JSON.stringify(await ruleFor("src/rendered/render.ts"))).not.toContain("**/rendered");
   });
