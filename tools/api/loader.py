@@ -575,6 +575,7 @@ class Concept:
     callback: Optional[Type] = None
     doc: str = ""
     template: Optional[str] = None  # named type: its form, '{text}' standing for any text
+    equal_by: Optional[str] = None  # the member whose values decide equality; None: a handle's identity, a record's members
 
     @property
     def is_union(self) -> bool:
@@ -847,7 +848,8 @@ class Model:
             c.get("kind list"), list(c.get("except", [])),
             self.parse(c["extends"], f"{where} extends") if "extends" in c else None, tps, list(c.get("match args", [])),
             have, module, c.get("is"), bool(c.get("brand")), c.get("pattern"),
-            self.parse(c["type"], f"{where} type") if "type" in c else None, c.get("doc", ""), c.get("template"))
+            self.parse(c["type"], f"{where} type") if "type" in c else None, c.get("doc", ""), c.get("template"),
+            c.get("equal by"))
 
     def _group(self, g: dict) -> ErrorGroup:
         words(g["name"])  # a group whose name holds a grammar word ('index out of range') is no type name: see _known
@@ -915,6 +917,8 @@ class Model:
             if c.module is not None and c.layer != self.adapter_layer:
                 raise SchemaError(f"{where}: only the {self.adapter_layer} layer has adapter modules")
             self._members_distinct(c)
+            if c.equal_by is not None and c.equal_by not in {m.name for m in c.members}:
+                raise SchemaError(f"{where}: 'equal by' {c.equal_by!r} is none of its members")
             if c.is_union:
                 lst = self.kind.get(c.kind_list or "")
                 if lst is None:

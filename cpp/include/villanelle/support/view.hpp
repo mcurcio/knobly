@@ -62,20 +62,14 @@ class view {
 public:
     view() noexcept = default;
     explicit view(node* target) noexcept : node_(target) { retain(node_); }  // takes one count
+    // No move members: a move copies (one count more), so a moved-from handle still shows its node and no handle is
+    // ever null (design.md 2.3: a dangling view is impossible, not documented).
     view(const view& other) noexcept : node_(other.node_) { retain(node_); }
-    view(view&& other) noexcept : node_(std::exchange(other.node_, nullptr)) {}
     view& operator=(const view& other) noexcept {
         if (this != &other) {
             retain(other.node_);
             release(node_);
             node_ = other.node_;
-        }
-        return *this;
-    }
-    view& operator=(view&& other) noexcept {
-        if (this != &other) {
-            release(node_);
-            node_ = std::exchange(other.node_, nullptr);
         }
         return *this;
     }
@@ -109,6 +103,9 @@ struct access {
 ///         using directive = written::written_directive;  // the block's Directive
 ///         // Its items in written order: one snapshot, taken when asked (design.md 2.3, edits during iteration).
 ///         VILLANELLE_API static sequence<written::statement> items(const view& block);
+///         // How many items it holds now, and the one at index (below that count), without taking a snapshot.
+///         VILLANELLE_API static std::size_t size(const view& block);
+///         VILLANELLE_API static written::statement at(const view& block, std::size_t index);
 ///         // The item as one of the block's directives, of `name` when given; empty otherwise.
 ///         VILLANELLE_API static std::optional<directive> as_directive(const written::statement& item,
 ///                                                                     std::optional<std::string_view> name);

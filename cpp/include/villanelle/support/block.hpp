@@ -23,8 +23,9 @@
 VILLANELLE_NAMESPACE_BEGIN
 
 /// Holds a shared reference to its graph or render, never to a block object. Iteration reads one snapshot of the
-/// items, taken at begin(): an edit during a loop never invalidates it (design.md 2.3); size(), at() and directives()
-/// each read a fresh one.
+/// items, taken at begin(): an edit during a loop never invalidates it (design.md 2.3); end() holds no snapshot (an
+/// iterator is at an end once its own snapshot is exhausted), and size() and at() read the live block without taking
+/// one, so an index loop or an iterator loop that calls end() each time is linear; directives() reads a fresh one.
 template <class Item, class Directive>
 class block {
 public:
@@ -88,19 +89,16 @@ public:
 
     /// One snapshot of the items, which the iterator holds.
     iterator begin() const { return iterator(traits::items(view_), 0); }
-    iterator end() const {
-        sequence<Item> items = traits::items(view_);
-        const auto size = static_cast<std::ptrdiff_t>(items.size());
-        return iterator(std::move(items), size);
-    }
-    std::size_t size() const { return traits::items(view_).size(); }
+    /// An end of every snapshot (it holds none).
+    iterator end() const noexcept { return iterator(); }
+    std::size_t size() const { return traits::size(view_); }
     /// @throws villanelle::index_out_of_range when index is not below size()
     Item at(std::size_t index) const {
-        const sequence<Item> items = traits::items(view_);
-        if (index >= items.size()) {
-            ::villanelle::detail::raise_index_out_of_range(index, items.size());
+        const std::size_t size = traits::size(view_);
+        if (index >= size) {
+            ::villanelle::detail::raise_index_out_of_range(index, size);
         }
-        return items.at(index);
+        return traits::at(view_, index);
     }
     /// Its directives, in written order.
     sequence<Directive> directives() const { return filtered(std::nullopt); }

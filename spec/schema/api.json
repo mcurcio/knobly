@@ -3200,7 +3200,8 @@
         "expanded index"
       ],
       "doc": "a union: one value after expansion ($name replaced) with its links to the lines it came through. The low level owns it: an extension use holds it, a directive expansion's values are it, and a rendered directive's values are the same objects. The readers stay on every variant: a value of the wrong kind is a problem in the config text, reported as E4002. Two expanded values are equal exactly when their texts are equal",
-      "rationale": "milestone 4 collapsed value expansion and the rendered argument family into it; equality is Python's =="
+      "rationale": "milestone 4 collapsed value expansion and the rendered argument family into it; equality is Python's ==",
+      "equal by": "text"
     },
     {
       "name": "expanded word",

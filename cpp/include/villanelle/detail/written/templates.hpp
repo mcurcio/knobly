@@ -54,6 +54,8 @@ template <>
 struct block_traits<::villanelle::written::statement> {
     using directive = ::villanelle::written::written_directive;
     VILLANELLE_API static ::villanelle::sequence<::villanelle::written::statement> items(const view& block);
+    VILLANELLE_API static std::size_t size(const view& block);
+    VILLANELLE_API static ::villanelle::written::statement at(const view& block, std::size_t index);
     VILLANELLE_API static std::optional<directive> as_directive(const ::villanelle::written::statement& item,
                                                                 std::optional<std::string_view> name);
     VILLANELLE_API static std::optional<view> block_of(const ::villanelle::written::statement& item);
@@ -64,6 +66,8 @@ template <>
 struct block_traits<::villanelle::written::directive_expansion> {
     using directive = ::villanelle::written::directive_expansion;
     VILLANELLE_API static ::villanelle::sequence<::villanelle::written::directive_expansion> items(const view& block);
+    VILLANELLE_API static std::size_t size(const view& block);
+    VILLANELLE_API static ::villanelle::written::directive_expansion at(const view& block, std::size_t index);
     VILLANELLE_API static std::optional<directive> as_directive(const ::villanelle::written::directive_expansion& item,
                                                                 std::optional<std::string_view> name);
     VILLANELLE_API static std::optional<view> block_of(const ::villanelle::written::directive_expansion& item);

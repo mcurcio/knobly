@@ -118,11 +118,6 @@ VILLANELLE_API ::villanelle::written::expansion document_graph::expand() const {
     return detail::make_handle<::villanelle::written::expansion>(detail::expansion_of(detail::graph_of(*this)));
 }
 
-VILLANELLE_API bool operator==(const ::villanelle::written::document_graph& a,
-                               const ::villanelle::written::document_graph& b) {
-    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
-}
-
 }  // namespace written
 
 VILLANELLE_NAMESPACE_END

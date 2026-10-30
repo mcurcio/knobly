@@ -3,11 +3,14 @@
 #ifndef VILLANELLE_SUPPORT_ORDERED_MAP_HPP
 #define VILLANELLE_SUPPORT_ORDERED_MAP_HPP
 
+#include <concepts>
 #include <cstddef>
+#include <functional>
 #include <initializer_list>
 #include <iterator>
 #include <memory>
 #include <optional>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -16,12 +19,26 @@
 
 VILLANELLE_NAMESPACE_BEGIN
 
+namespace detail {
+/// A key with a std::hash. Asked only inside ordered_map's member bodies, which are instantiated where they are used,
+/// after a generated header has specialized std::hash for its view classes.
+template <class Key>
+concept hashable = requires(const Key& key) {
+    { std::hash<Key>{}(key) } -> std::convertible_to<std::size_t>;
+};
+}  // namespace detail
+
 /// Insertion-ordered, lookup by key (its ==, so a handle key compares by identity), shared until changed (copy on
 /// write): copying one is one pointer, and an iterator keeps the storage it walks, so a later change never
-/// invalidates it.
+/// invalidates it. A key with a std::hash (text, every view class) is found through a hash index, so lookup and
+/// insert take constant time on average; any other key is found by a linear search.
 template <class Key, class Value>
 class ordered_map {
-    using storage = std::vector<std::pair<Key, Value>>;
+    /// The pairs in insertion order, and (for a hashed key) each key's hash to its positions.
+    struct storage {
+        std::vector<std::pair<Key, Value>> items;
+        std::unordered_multimap<std::size_t, std::size_t> index;
+    };
 
 public:
     using value_type = std::pair<Key, Value>;
@@ -35,7 +52,7 @@ public:
         using iterator_category = std::input_iterator_tag;  // *it is no reference
 
         iterator() = default;
-        value_type operator*() const { return (*items_)[at_]; }
+        value_type operator*() const { return items_->items[at_]; }
         iterator& operator++() noexcept {
             ++at_;
             return *this;
@@ -64,7 +81,7 @@ public:
 
     iterator begin() const noexcept { return iterator(items_, 0); }
     iterator end() const noexcept { return iterator(items_, size()); }
-    std::size_t size() const noexcept { return items_ ? items_->size() : 0; }
+    std::size_t size() const noexcept { return items_ ? items_->items.size() : 0; }
     bool empty() const noexcept { return size() == 0; }
     bool contains(const Key& key) const { return position(key) != npos; }
     /// @throws villanelle::index_out_of_range when the key is absent
@@ -73,7 +90,7 @@ public:
         if (at == npos) {
             ::villanelle::detail::raise_missing_key();
         }
-        return (*items_)[at].second;
+        return items_->items[at].second;
     }
     /// The value, or nullopt when the key is absent.
     std::optional<Value> find(const Key& key) const {
@@ -81,18 +98,20 @@ public:
         if (at == npos) {
             return std::nullopt;
         }
-        return (*items_)[at].second;
+        return items_->items[at].second;
     }
     /// A key already there keeps its place and takes the new value; a new one goes at the end.
     void insert_or_assign(Key key, Value value) {
-        storage& items = own();
-        for (value_type& item : items) {
-            if (item.first == key) {
-                item.second = std::move(value);
-                return;
-            }
+        const std::size_t at = position(key);
+        storage& table = own();
+        if (at != npos) {
+            table.items[at].second = std::move(value);
+            return;
         }
-        items.emplace_back(std::move(key), std::move(value));
+        if constexpr (detail::hashable<Key>) {
+            table.index.emplace(hash_of(key), table.items.size());
+        }
+        table.items.emplace_back(std::move(key), std::move(value));
     }
     /// Whether the key was there.
     bool erase(const Key& key) {
@@ -100,8 +119,14 @@ public:
         if (at == npos) {
             return false;
         }
-        storage& items = own();
-        items.erase(items.begin() + static_cast<std::ptrdiff_t>(at));
+        storage& table = own();
+        table.items.erase(table.items.begin() + static_cast<std::ptrdiff_t>(at));
+        if constexpr (detail::hashable<Key>) {  // every later position moved down by one
+            table.index.clear();
+            for (std::size_t i = 0; i < table.items.size(); ++i) {
+                table.index.emplace(hash_of(table.items[i].first), i);
+            }
+        }
         return true;
     }
     /// The same pairs in the same order.
@@ -110,7 +135,9 @@ public:
             return false;
         }
         for (std::size_t i = 0; i < a.size(); ++i) {
-            if (!((*a.items_)[i].first == (*b.items_)[i].first) || !((*a.items_)[i].second == (*b.items_)[i].second)) {
+            const value_type& x = a.items_->items[i];
+            const value_type& y = b.items_->items[i];
+            if (!(x.first == y.first) || !(x.second == y.second)) {
                 return false;
             }
         }
@@ -119,11 +146,24 @@ public:
 
 private:
     static constexpr std::size_t npos = static_cast<std::size_t>(-1);
+    static std::size_t hash_of(const Key& key) { return std::hash<Key>{}(key); }
 
     std::size_t position(const Key& key) const {
-        for (std::size_t i = 0; i < size(); ++i) {
-            if ((*items_)[i].first == key) {
-                return i;
+        if (!items_) {
+            return npos;
+        }
+        if constexpr (detail::hashable<Key>) {
+            const auto [first, last] = items_->index.equal_range(hash_of(key));
+            for (auto it = first; it != last; ++it) {
+                if (items_->items[it->second].first == key) {
+                    return it->second;
+                }
+            }
+        } else {
+            for (std::size_t i = 0; i < items_->items.size(); ++i) {
+                if (items_->items[i].first == key) {
+                    return i;
+                }
             }
         }
         return npos;

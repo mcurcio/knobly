@@ -104,10 +104,6 @@ VILLANELLE_API ::villanelle::sequence<::villanelle::written::statement> statemen
         detail::insert_statements(block, static_cast<std::size_t>(at + 1), text.view()));
 }
 
-VILLANELLE_API bool operator==(const ::villanelle::written::statement& a, const ::villanelle::written::statement& b) {
-    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
-}
-
 // ---- a directive and an extension line: a name, values and an optional block
 
 VILLANELLE_API std::string written_directive::name() const { return detail::name_text(detail::live_statement(*this)); }

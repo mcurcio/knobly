@@ -17,6 +17,8 @@ the header-only C++ binding's public headers.
     cpp/conformance/shapes.hpp              the adapter protocol's version, spellings and error_group_of
     cpp/tests/generated/api_contract_<header>.cpp  odr-uses every hand-defined function and member of one header
     cpp/tests/generated/layers_<header>.cpp   the layer-direction check of one public header, from "may import"
+    cpp/tests/generated/layers_<header>_definitions.cpp   the layer-boundary check of one header's definitions: they
+                                              compile with every other header's definitions left out (spec 7.0)
 
 Idiom lives here and only here (design.md 1.3; frozen-m1.md section 4): snake_case names, every type spelled fully
 qualified from ``::villanelle``, ``std::string_view`` in and ``std::string`` out, ``villanelle::sequence`` for lists,
@@ -546,12 +548,14 @@ def view_class(model: Model, c: Concept, out: Out) -> List[str]:
         body += doc(f"Calls f with this {c.name} as its exact variant class, and returns what f returns.")
         body += ["template <class F>", "decltype(auto) visit(F&& f) const;"]
     if not c.variant_of and c.extends is None:
-        body += doc(f"Whether two views show one {c.name}.")
-        if template:  # a class template's friend is defined in it (a declared one is no template)
-            body.append(f"friend bool operator==(const {cls}& a, const {cls}& b) noexcept {{ return a.view_ == b.view_; }}")
+        if c.equal_by is not None:
+            by = member_name(c, next(m for m in c.members if m.name == c.equal_by))
+            body += doc(f"Whether two {c.name}s are equal: exactly when their {c.equal_by}s are, whatever else differs "
+                        "(std::hash agrees).")
+            body.append(f"friend bool operator==(const {cls}& a, const {cls}& b) {{ return a.{by}() == b.{by}(); }}")
         else:
-            body.append(f"friend {API} bool operator==(const {cls}& a, const {cls}& b);")
-            out.hand.append(Hand("bool", [f"const {cls}&"], "self == a0", cls))
+            body += doc(f"Whether two views show one {c.name} (std::hash agrees).")
+            body.append(f"friend bool operator==(const {cls}& a, const {cls}& b) noexcept {{ return a.view_ == b.view_; }}")
     if c.variant_of:
         ctor = f"explicit {name}({VIEW} view) noexcept : {qual(model, c.variant_of)}(std::move(view)) {{}}"
     elif extends_shape(model, c):
@@ -746,6 +750,41 @@ def named_type(model: Model, c: Concept, out: Out) -> List[str]:
             "private:", "std::shared_ptr<const std::string> owned_;  // empty for a literal", "std::string_view view_;",
             "};"]
     return [*doc(c.doc), f"using {name} = std::string;"]
+
+
+def equality_root(model: Model, c: Concept) -> Optional[Concept]:
+    """The view class whose operator== a view class compares by (its union, or the class it extends), when it is one
+    that defines its own; None for a class with no generated operator== (one extending the block shape)."""
+    while c.variant_of or c.extends is not None:
+        if c.variant_of:
+            c = model.concept[c.variant_of]
+        else:
+            assert c.extends is not None
+            base = model.concept.get(c.extends.name)
+            if base is None or not is_view_class(base):
+                return None
+            c = base
+    return c if is_view_class(c) else None
+
+
+def hash_lines(model: Model, c: Concept) -> List[str]:
+    """std::hash for a view class, agreeing with its operator== (design.md 1.3, 2.3): the node it shows, or the
+    values of the member its root is equal by (spec 2.9's expanded value: its text)."""
+    root = equality_root(model, c)
+    if is_alias(model, c) or not is_view_class(c) or root is None:
+        return []
+    cls = qual(model, c.name)
+    template = ""
+    if c.type_parameters:
+        template = ", ".join(f"class {template_param(p)}" for p in c.type_parameters)
+        cls = f"{cls}<{', '.join(template_param(p) for p in c.type_parameters)}>"
+    if root.equal_by is not None:
+        by = member_name(root, next(m for m in root.members if m.name == root.equal_by))
+        call, noexcept = f"std::hash<std::string>{{}}(value.{by}())", ""
+    else:
+        call, noexcept = f"std::hash<const void*>{{}}({ACCESS}::view_of(value).get())", " noexcept"
+    return [f"template <{template}>", f"struct hash<{cls}> {{",
+            f"std::size_t operator()(const {cls}& value) const{noexcept} {{ return {call}; }}", "};"]
 
 
 def is_alias(model: Model, c: Concept) -> bool:
@@ -1509,6 +1548,10 @@ def layer_header(model: Model, name: str, layers: List[str], module: Optional[st
     if ns:
         body += ["", f"}}  // namespace {ns}"]
     body += ["", "VILLANELLE_NAMESPACE_END"]
+    hashes = [line for c in concepts for line in ["", *hash_lines(model, c)] if hash_lines(model, c)]
+    if hashes:
+        body += ["", "// Each view class hashes as it compares, so it can key an unordered container (design.md 2.3).",
+                 "namespace std {", *hashes, "", "}  // namespace std"]
     tail = ["#include <villanelle/errors.hpp>  // after the records its classes hold", ""] if package else []
     tail += [*(f"#include <villanelle/detail/{d}/templates.hpp>  // templates and block traits: both modes"
                for d in template_layers(model, concepts)), ""]
@@ -1661,4 +1704,12 @@ def render_contract(model: Model) -> Dict[str, str]:
             "// so an include of one leaves its names undeclared and this file fails to compile.",
             *(f"#define {guard(f)}" for f in forbidden), "",
             f"#include <villanelle/{name}>", ""])
+        files[f"layers_{stem}_definitions.cpp"] = "\n".join([
+            *head(f"spec/schema/api.json, the definitions of <villanelle/{name}>"),
+            "// The layer-boundary check (spec 7.0: render builds on the written layer's public objects only; the",
+            "// binding guide's second check): this header's definitions compiled in compiled mode, where no public",
+            "// header includes its layer's definitions, so every other layer's detail types are undeclared and a",
+            "// definition here that reaches into one fails to compile. Compiled, never linked.",
+            "#define VILLANELLE_HEADER_ONLY 0", "",
+            *(f"#include <villanelle/detail/{d}/definitions.hpp>" for d in detail_dirs(layers, module)), ""])
     return files

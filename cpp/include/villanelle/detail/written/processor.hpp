@@ -74,10 +74,6 @@ VILLANELLE_API ::villanelle::written::document_graph processor::load(
     return graph;
 }
 
-VILLANELLE_API bool operator==(const ::villanelle::written::processor& a, const ::villanelle::written::processor& b) {
-    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
-}
-
 }  // namespace written
 
 VILLANELLE_NAMESPACE_END

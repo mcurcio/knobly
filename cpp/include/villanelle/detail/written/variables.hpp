@@ -102,10 +102,6 @@ VILLANELLE_API ::villanelle::sequence<::villanelle::written::reference_resolutio
     return detail::handles_of<::villanelle::written::reference_resolution>(out);
 }
 
-VILLANELLE_API bool operator==(const ::villanelle::written::variable& a, const ::villanelle::written::variable& b) {
-    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
-}
-
 VILLANELLE_API ::villanelle::place set_variable::place() const {
     return detail::variable_place(detail::live_variable(*this));
 }

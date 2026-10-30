@@ -81,6 +81,7 @@
         "is": {"enum": ["text", "native"]},
         "brand": {"type": "boolean"},
         "pattern": {"$ref": "#/$defs/specName"},
+        "equal by": {"$ref": "#/$defs/specName", "description": "the member whose values decide equality, in a binding whose type defines an equality operator; without it a handle compares by identity"},
         "template": {"type": "string", "pattern": "^([^{}]|\\{text\\})+$", "description": "a named type's form where a type system can state it: '{text}' is any text, the rest literal"},
         "type": {"$ref": "#/$defs/type"},
         "doc": {"$ref": "#/$defs/doc"},

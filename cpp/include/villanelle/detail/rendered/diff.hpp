@@ -132,10 +132,6 @@ VILLANELLE_API ::villanelle::change_kind change::kind() const noexcept { return 
 
 VILLANELLE_API ::villanelle::rendered::address change::address() const { return detail::change_of(*this)->address; }
 
-VILLANELLE_API bool operator==(const ::villanelle::rendered::change& a, const ::villanelle::rendered::change& b) {
-    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
-}
-
 VILLANELLE_API ::villanelle::rendered::directive added::after() const { return *detail::change_of(*this)->after; }
 
 VILLANELLE_API ::villanelle::rendered::directive removed::before() const { return *detail::change_of(*this)->before; }

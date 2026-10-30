@@ -94,10 +94,6 @@ VILLANELLE_API ::villanelle::sequence<::villanelle::located_diagnostic> expansio
     return detail::node_of<detail::expansion_node>(*this)->diagnostics;
 }
 
-VILLANELLE_API bool operator==(const ::villanelle::written::expansion& a, const ::villanelle::written::expansion& b) {
-    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
-}
-
 VILLANELLE_API ::villanelle::written::written_directive directive_expansion::written() const {
     return detail::make_handle<::villanelle::written::written_directive>(
         detail::node_of<detail::directive_expansion_node>(*this)->written);
@@ -126,11 +122,6 @@ VILLANELLE_API ::villanelle::sequence<::villanelle::written::unreadable_expansio
         detail::node_of<detail::directive_expansion_node>(*this)->unreadable);
 }
 
-VILLANELLE_API bool operator==(const ::villanelle::written::directive_expansion& a,
-                               const ::villanelle::written::directive_expansion& b) {
-    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
-}
-
 VILLANELLE_API ::villanelle::written::statement unreadable_expansion::written() const {
     return detail::make_handle<::villanelle::written::statement>(
         detail::node_of<detail::unreadable_node>(*this)->written);
@@ -142,11 +133,6 @@ VILLANELLE_API ::villanelle::unreadable_reason unreadable_expansion::reason() co
 
 VILLANELLE_API ::villanelle::directive_origin unreadable_expansion::origin() const {
     return detail::node_of<detail::unreadable_node>(*this)->origin;
-}
-
-VILLANELLE_API bool operator==(const ::villanelle::written::unreadable_expansion& a,
-                               const ::villanelle::written::unreadable_expansion& b) {
-    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
 }
 
 // ---- the expanded value
@@ -254,11 +240,6 @@ VILLANELLE_API ::villanelle::diagnostic_error expanded_value::error(std::string_
     return detail::program_error(detail::expanded_of(*this)->origin, message, code);
 }
 
-VILLANELLE_API bool operator==(const ::villanelle::written::expanded_value& a,
-                               const ::villanelle::written::expanded_value& b) {
-    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
-}
-
 VILLANELLE_API ::villanelle::sequence<::villanelle::written::expanded_value> expanded_list::items() const {
     return detail::handles_of<::villanelle::written::expanded_value>(
         detail::of_kind(detail::expanded_of(*this), ::villanelle::value_kind::list, "items")->items);
@@ -292,6 +273,16 @@ VILLANELLE_API ::villanelle::sequence<::villanelle::written::directive_expansion
 block_traits<::villanelle::written::directive_expansion>::items(const view& block) {
     return ::villanelle::written::detail::handles_of<::villanelle::written::directive_expansion>(
         static_cast<::villanelle::written::detail::expansion_block_node*>(block.get())->items);
+}
+
+VILLANELLE_API std::size_t block_traits<::villanelle::written::directive_expansion>::size(const view& block) {
+    return static_cast<::villanelle::written::detail::expansion_block_node*>(block.get())->items.size();
+}
+
+VILLANELLE_API ::villanelle::written::directive_expansion block_traits<::villanelle::written::directive_expansion>::at(
+    const view& block, std::size_t index) {
+    return make_handle<::villanelle::written::directive_expansion>(
+        static_cast<::villanelle::written::detail::expansion_block_node*>(block.get())->items[index]);
 }
 
 /// Every item is a directive; of `name` when its written directive is so named.

@@ -36,11 +36,6 @@ inline block_node* build(render_core* render, const ::villanelle::written::expan
 }  // namespace detail
 
 VILLANELLE_API ::villanelle::rendered::rendered render(const ::villanelle::written::document_graph& graph) {
-    // The one graph a C++ program can pass that has no callable expand: a handle moved from.
-    if (::villanelle::detail::access::view_of(graph).get() == nullptr) {
-        ::villanelle::detail::raise(::villanelle::argument_type_error(
-            ::villanelle::detail::argument_type_message("render", "graph", "an empty document graph")));
-    }
     const ::villanelle::written::expansion expansion = graph.expand();
     const ::villanelle::source_position start(0, 0, 0);
     ::villanelle::directive_origin origin(

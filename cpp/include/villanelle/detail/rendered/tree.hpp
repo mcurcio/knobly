@@ -186,10 +186,6 @@ rendered::addresses(::villanelle::rendered::key_options options) const {
     return out;
 }
 
-VILLANELLE_API bool operator==(const ::villanelle::rendered::rendered& a, const ::villanelle::rendered::rendered& b) {
-    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
-}
-
 // ---- its directives
 
 VILLANELLE_API std::string directive::name() const { return detail::directive_of(*this)->name; }
@@ -239,10 +235,6 @@ VILLANELLE_API ::villanelle::diagnostic_error directive::error(std::string_view 
     return detail::program_error(detail::directive_of(*this)->origin, message, code);
 }
 
-VILLANELLE_API bool operator==(const ::villanelle::rendered::directive& a, const ::villanelle::rendered::directive& b) {
-    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
-}
-
 // ---- addresses
 
 VILLANELLE_API std::string to_string(const ::villanelle::rendered::address& value) {
@@ -273,6 +265,16 @@ VILLANELLE_API ::villanelle::sequence<::villanelle::rendered::directive>
 block_traits<::villanelle::rendered::directive>::items(const view& block) {
     return ::villanelle::rendered::detail::directives_of(
         static_cast<const ::villanelle::rendered::detail::block_node*>(block.get()));
+}
+
+VILLANELLE_API std::size_t block_traits<::villanelle::rendered::directive>::size(const view& block) {
+    return static_cast<const ::villanelle::rendered::detail::block_node*>(block.get())->items.size();
+}
+
+VILLANELLE_API ::villanelle::rendered::directive block_traits<::villanelle::rendered::directive>::at(const view& block,
+                                                                                                     std::size_t index) {
+    return make_handle<::villanelle::rendered::directive>(
+        static_cast<const ::villanelle::rendered::detail::block_node*>(block.get())->items[index]);
 }
 
 /// Every item is a directive; of `name` when it is so named.

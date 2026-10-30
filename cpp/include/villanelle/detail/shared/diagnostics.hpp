@@ -41,18 +41,14 @@ VILLANELLE_API std::size_t diagnostics::size() const { return ::villanelle::deta
 
 VILLANELLE_API bool diagnostics::empty() const { return ::villanelle::detail::items_of(view_).empty(); }
 
-/// A snapshot of the list, so an add during a loop never invalidates it.
+/// One snapshot of the list, which the iterator holds, so an add during a loop never invalidates it.
 VILLANELLE_API ::villanelle::sequence<::villanelle::located_diagnostic>::iterator diagnostics::begin() const {
     return ::villanelle::sequence<::villanelle::located_diagnostic>(::villanelle::detail::items_of(view_)).begin();
 }
 
-/// The end of the same list as begin(), counted from the snapshot it takes.
+/// An end of every snapshot: it holds none, so a loop that calls end() each time copies nothing.
 VILLANELLE_API ::villanelle::sequence<::villanelle::located_diagnostic>::iterator diagnostics::end() const {
-    return ::villanelle::sequence<::villanelle::located_diagnostic>(::villanelle::detail::items_of(view_)).end();
-}
-
-VILLANELLE_API bool operator==(const ::villanelle::diagnostics& a, const ::villanelle::diagnostics& b) {
-    return a.view_ == b.view_;
+    return {};
 }
 
 VILLANELLE_NAMESPACE_END

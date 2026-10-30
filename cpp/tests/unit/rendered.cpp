@@ -145,10 +145,11 @@ TEST_CASE("a directive keeps its render and graph alive after every other handle
     CHECK(kept->origin().place().resolved_path() == "main.conf");
 }
 
-TEST_CASE("render of a moved-from graph is an argument type error", "[rendered][errors]") {
+TEST_CASE("a moved-from graph is still the graph: a handle is never null", "[rendered][lifetime]") {
     vw::document_graph graph = fixture::load("a 1;\n");
     const vw::document_graph moved = std::move(graph);
-    CHECK_THROWS_AS(vr::render(graph), vl::argument_type_error);  // NOLINT(bugprone-use-after-move)
+    CHECK(graph == moved);                              // NOLINT(bugprone-use-after-move)
+    CHECK(vr::render(graph).block().size() == 1);       // NOLINT(bugprone-use-after-move)
     CHECK(vr::render(moved).block().size() == 1);
 }
 

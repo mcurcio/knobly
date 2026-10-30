@@ -22,7 +22,9 @@ class sequence {
     using storage = std::shared_ptr<const std::vector<T>>;
 
 public:
-    /// A random-access iterator that shares the list it walks; *it is a T (a prvalue).
+    /// A random-access iterator that shares the list it walks; *it is a T (a prvalue). Positions count from its own
+    /// list's end, as block's iterator does, so a default-constructed iterator is an end of every list: a type whose
+    /// begin() takes a fresh snapshot each call (diagnostics) ends a loop with one that holds none.
     class iterator {
     public:
         using value_type = T;
@@ -62,15 +64,20 @@ public:
         friend iterator operator+(iterator it, difference_type n) noexcept { return it += n; }
         friend iterator operator+(difference_type n, iterator it) noexcept { return it += n; }
         friend iterator operator-(iterator it, difference_type n) noexcept { return it -= n; }
-        friend difference_type operator-(const iterator& a, const iterator& b) noexcept { return a.at_ - b.at_; }
-        friend bool operator==(const iterator& a, const iterator& b) noexcept { return a.at_ == b.at_; }
+        friend difference_type operator-(const iterator& a, const iterator& b) noexcept {
+            return b.remaining() - a.remaining();
+        }
+        friend bool operator==(const iterator& a, const iterator& b) noexcept { return a.remaining() == b.remaining(); }
         friend std::strong_ordering operator<=>(const iterator& a, const iterator& b) noexcept {
-            return a.at_ <=> b.at_;
+            return b.remaining() <=> a.remaining();
         }
 
     private:
         friend class sequence;
         iterator(storage items, difference_type at) noexcept : items_(std::move(items)), at_(at) {}
+        difference_type remaining() const noexcept {
+            return (items_ ? static_cast<difference_type>(items_->size()) : 0) - at_;
+        }
         storage items_;
         difference_type at_ = 0;
     };

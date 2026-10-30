@@ -71,10 +71,6 @@ VILLANELLE_API void document::replace_with_text(::villanelle::config_text text) 
     detail::replace_document(detail::node_of<detail::document_node>(*this), text.view());
 }
 
-VILLANELLE_API bool operator==(const ::villanelle::written::document& a, const ::villanelle::written::document& b) {
-    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
-}
-
 VILLANELLE_API ::villanelle::written::copy document_edge::copy() const {
     return detail::make_handle<::villanelle::written::copy>(detail::node_of<detail::edge_node>(*this)->copy);
 }
@@ -87,21 +83,12 @@ VILLANELLE_API ::villanelle::sequence<std::string> document_edge::targets() cons
     return detail::node_of<detail::edge_node>(*this)->targets;
 }
 
-VILLANELLE_API bool operator==(const ::villanelle::written::document_edge& a,
-                               const ::villanelle::written::document_edge& b) {
-    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
-}
-
 VILLANELLE_API ::villanelle::written::statement copy::statement() const {
     return detail::make_handle<::villanelle::written::statement>(detail::node_of<detail::copy_node>(*this)->statement);
 }
 
 VILLANELLE_API ::villanelle::sequence<::villanelle::step> copy::via() const {
     return detail::node_of<detail::copy_node>(*this)->via;
-}
-
-VILLANELLE_API bool operator==(const ::villanelle::written::copy& a, const ::villanelle::written::copy& b) {
-    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
 }
 
 /// @throws villanelle::index_out_of_range for an index outside 0..size()
@@ -140,6 +127,23 @@ block_traits<::villanelle::written::statement>::items(const view& block) {
         ::villanelle::written::detail::live(node->owner);
     }
     return ::villanelle::written::detail::handles_of<::villanelle::written::statement>(node->handles);
+}
+
+VILLANELLE_API std::size_t block_traits<::villanelle::written::statement>::size(const view& block) {
+    auto* node = static_cast<::villanelle::written::detail::block_node*>(block.get());
+    if (node->owner != nullptr) {
+        ::villanelle::written::detail::live(node->owner);
+    }
+    return node->handles.size();
+}
+
+VILLANELLE_API ::villanelle::written::statement block_traits<::villanelle::written::statement>::at(const view& block,
+                                                                                                   std::size_t index) {
+    auto* node = static_cast<::villanelle::written::detail::block_node*>(block.get());
+    if (node->owner != nullptr) {
+        ::villanelle::written::detail::live(node->owner);
+    }
+    return make_handle<::villanelle::written::statement>(node->handles[index]);
 }
 
 VILLANELLE_API std::optional<block_traits<::villanelle::written::statement>::directive>

@@ -81,11 +81,6 @@ VILLANELLE_API ::villanelle::sequence<::villanelle::written::written_value> writ
 
 VILLANELLE_API void written_value::remove() const { detail::remove_value(detail::live_value(*this)); }
 
-VILLANELLE_API bool operator==(const ::villanelle::written::written_value& a,
-                               const ::villanelle::written::written_value& b) {
-    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
-}
-
 VILLANELLE_API ::villanelle::sequence<::villanelle::written::written_value> list::items() const {
     return detail::handles_of<::villanelle::written::written_value>(
         detail::live_kind(*this, ::villanelle::value_kind::list, "items")->items);
