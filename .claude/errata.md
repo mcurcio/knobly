@@ -840,3 +840,20 @@
   the generated record constructor takes four (`via` too, no default), so the call as written does not compile. The
   `report_written_statement` compile-fail control passes `{}` for `via`. Whether records get defaulted trailing
   fields is a generator question for every binding's record constructors (follow-up), not changed here.
+
+## 2026-10-30, C++ binding milestone 3, Slice D (generated per-language documentation tables)
+
+- **D1. frozen-m3.md 3.3's row shape could not spell every hand table, so it grew** (additions only; spec/codegen.md
+  section 6 documents the result): a row may carry `receiver` (`graph.read()`), `names` (README's entry points list
+  their exports after the path) and a list `ref` (`kind`, `name` in one row); a bare `ref` naming two things
+  (`include` is a module and a free function; `rendered`, `syntax` are layers and concepts) fails, and `layer: X` /
+  `module: X` pick one. `Language` gained `property_form` (C++ reads a property through an accessor, `root()`) and
+  `call_params` (each binding's optional and options parameters) beside 3.3's `trait_forms`.
+- **D2. section 3's trait table had rows 3.3 has no ref for** (factory, native, module, what a binding leaves out, a
+  trait's own names, the root error classes, the argument type sentence): `trait: factory|native|module|omit|names|
+  error roots|argument type message` are computed from the facts each `Language` already holds, instead of hand cells;
+  `trait_forms` also covers the typed fields the table lists (`io`, `passed: keyword|option`, `brand`, `template`,
+  `list`, `map`), which the loader requires beside every trait the schema uses.
+- **D3. C++'s `trait_names` puts a description where `Model.public` expects `type`, `value` or `both`**
+  (`emit_cpp.LANGUAGE.trait_names`: "the list type form"; Python gives `value`). Not changed (it would change C++'s
+  generated contract, which P builds against); follow-up for the emitter's owner.
