@@ -12,6 +12,8 @@ the header-only C++ binding's public headers.
                                             (villanelle::is_program_code, written::is_variable_name)
     cpp/include/villanelle/<module>.hpp     one header per adapter module (files, extensions)
     cpp/include/villanelle/implementation.hpp   compiled mode: every layer's definitions, compiled once
+    cpp/include/villanelle/format.hpp       opt-in: a std::formatter and an operator<< for every type with a to_string
+                                            (each people form, each kind list, diagnostic_code), written whole
     cpp/conformance/shapes.hpp              the adapter protocol's version, spellings and error_group_of
     cpp/tests/generated/api_contract_<header>.cpp  odr-uses every hand-defined function and member of one header
     cpp/tests/generated/layers_<header>.cpp   the layer-direction check of one public header, from "may import"
@@ -1485,6 +1487,41 @@ def implementation_header(model: Model, specs: Sequence[str] = ()) -> str:
                    *(f"#include <villanelle/detail/{d}/definitions.hpp>" for d in every), *instantiated])
 
 
+def format_header(model: Model) -> str:
+    """The opt-in formatting header (design.md 3.5): for every type with a to_string (each concept's people form, each
+    kind list, diagnostic_code), a std::formatter (width, fill and alignment as for a string) and an operator<< found
+    by argument-dependent lookup, both calling that to_string. Written whole: which types have one is a schema fact."""
+    by_ns: Dict[str, List[str]] = {}
+    includes: Dict[str, None] = {}
+    for c in model.concepts:
+        if KEY in c.languages and c.module is None and any(m.trait == "people form" for m in c.members):
+            by_ns.setdefault(namespace(model, c), []).append(qual(model, c.name))
+            includes[f"<villanelle/{header_of_layer(model, c.layer)}>"] = None
+    for k in model.kinds:
+        if KEY in k.languages:
+            by_ns.setdefault("::" + model.kind_module(k, KEY), []).append(qual(model, k.name))
+    by_ns.setdefault(f"::{model.package}", []).append(qual(model, "diagnostic code"))
+    every = [t for types in by_ns.values() for t in types]
+    body = ["VILLANELLE_NAMESPACE_BEGIN", "namespace detail {", "",
+            *doc("A formatter that formats a value's to_string as a string (width, fill and alignment included)."),
+            "template <class T>", "struct people_formatter : std::formatter<std::string_view, char> {",
+            "template <class Context>", "auto format(const T& value, Context& context) const {",
+            "const auto text = to_string(value);",
+            "return std::formatter<std::string_view, char>::format(std::string_view(text), context);", "}", "};", "",
+            "}  // namespace detail", "VILLANELLE_NAMESPACE_END", ""]
+    for ns, types in by_ns.items():
+        inner = ns[len(f"::{model.package}"):].lstrip(":")
+        body += ["VILLANELLE_NAMESPACE_BEGIN", *([f"namespace {inner} {{"] if inner else []), ""]
+        for t in types:
+            body += [*doc("Writes `to_string(value)`."),
+                     f"inline std::ostream& operator<<(std::ostream& out, const {t}& value) {{ return out << to_string(value); }}", ""]
+        body += [*([f"}}  // namespace {inner}"] if inner else []), "VILLANELLE_NAMESPACE_END", ""]
+    body += [f"template <> struct std::formatter<{t}, char> : ::villanelle::detail::people_formatter<{t}> {{}};" for t in every]
+    return header("format.hpp", "spec/schema/api.json (every people form, kind list and diagnostic_code)",
+                  ["<format>", "<ostream>", "<string_view>", "", f"<villanelle/{model.package}.hpp>",
+                   *(i for i in includes if i != f"<villanelle/{model.package}.hpp>")], body)
+
+
 def render_with_hands(model: Model) -> Tuple[Dict[str, str], Dict[str, List[Hand]]]:
     files = {"kinds.hpp": kinds_header(model), "codes.hpp": codes_header(model), "limits.hpp": limits_header(model),
              "errors.hpp": errors_header(model)}
@@ -1495,6 +1532,7 @@ def render_with_hands(model: Model) -> Tuple[Dict[str, str], Dict[str, List[Hand
         files[name] = layer_header(model, name, layers, module, out, seen)
         hands[name] = out.hand
     files["implementation.hpp"] = implementation_header(model, seen)
+    files["format.hpp"] = format_header(model)
     return files, hands
 
 
