@@ -894,3 +894,12 @@
   sample table is not wrong; the fix that matches the other two is passing the extension's directive as `detail`
   in Python's `_unread` (not in py-samples' owned paths). `py/examples/include_read.py` is written and kept on
   branch `wip/py-samples` until then; the other sixteen Python samples print their expected files.
+
+## 2026-10-30, packaging, slice packaging (PR 8, overnight)
+
+- **P1. frozen-docs.md section 6, packaging step 5: the grep `find_package\|cmake --install\|VILLANELLE_INSTALL`
+  cannot find nothing.** `cpp/CMakeLists.txt` keeps `find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)`
+  inside `if(VILLANELLE_BUILD_TESTS)`: the conformance test runs the shared driver under Python. It is a test-only
+  tool, off in every consumer route, not villanelle's own package. Followed the intent: no `find_package(villanelle`,
+  no `cmake --install`, no `VILLANELLE_INSTALL` remain outside `.claude/design/` and `.beads/`; the one hit left is
+  that Python line.
