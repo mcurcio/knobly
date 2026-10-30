@@ -98,7 +98,7 @@ No release has been made yet, so each tab also says how to build the same file f
 
 A file, `hello.conf`:
 
-```conf
+```knobly
 --8<-- "examples/fixtures/hello/hello.conf"
 ```
 
@@ -133,7 +133,7 @@ It prints:
 
 `app.conf` sets a variable and uses it in a `server` block:
 
-```conf
+```knobly
 --8<-- "examples/fixtures/quickstart/app.conf"
 ```
 

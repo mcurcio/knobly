@@ -112,6 +112,10 @@ character.
 - Tables between `<!-- generated: ... -->` markers are generated from the API schema. Don't edit them by hand:
   run `python3 tools/gen-api.py docs`.
 - The logo is drawn by [`tools/logo.py`](tools/logo.py); change it there and run `python3 tools/logo.py`.
+- knobly code goes in ` ```knobly ` blocks. They are highlighted by
+  [`docs/site/lexer/`](docs/site/lexer/src/knobly_pygments/__init__.py), which lexes with the token rules of
+  `grammar/Knobly.g4` itself; it only says how each token kind looks. A new token kind needs a style there, and a
+  block the grammar cannot lex fails the docs build.
 
 ## Landing a change
 

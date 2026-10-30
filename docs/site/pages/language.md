@@ -14,7 +14,7 @@ A directive is a name, then values, then either `;` or a block in `{ }`. A block
 break is a space like any other (as in nginx), so a long directive may wrap over several lines, and `;` is required
 even on the last line of a file or block. `#` starts a comment that runs to the end of the line.
 
-```conf
+```knobly
 rescale r {
   range 0.0627
         0.922;
@@ -31,7 +31,7 @@ wrapped number can never become a directive of its own (`0.922;` alone is E2001,
 statement that starts with `@` is one of the language's own statements (`@set`, `@snippet`, `@use`) or an
 extension's (`@include`); every other name is yours, `set`, `use` and `include` included (below).
 
-```conf
+```knobly
 graph {
     # Sawtooth wave for uniform hue cycling (rainbow effect)
     # Unlike sine, sawtooth gives equal time to each hue
@@ -83,11 +83,11 @@ reads them, and nothing reads them on its own (there is no reader that guesses a
 
 `@set $name value...;` gives a name to one or more values. `$name` written as a value is replaced by all of them.
 
-```conf
+```knobly
 @set $pixels 2284;
 ```
 
-```conf
+```knobly
     node DdpSink leds {
         target "10.0.60.30";
         fps 20hz;
@@ -127,7 +127,7 @@ The rules (the exact ones, with the one precedence table, are [`spec/expansion.m
   name is a word (cases `var-in-string`, `var-lone-dollar`, `var-as-name`).
 - Any other form of `@set` (no `$name`, no value, a block) is E5009 at `@set`.
 
-```conf
+```knobly
 @set $pixels 2284;
 @set $leds_host "10.0.60.30";
 ```
@@ -141,7 +141,7 @@ sink file over two places, each with its own include-block values and the overri
 
 A snippet is a named block of directives with parameters. `@use` puts a copy of its body where the `use` line is.
 
-```conf
+```knobly
 @snippet twinkle $source {
     seed 11337;
     mode brightness;
@@ -154,11 +154,11 @@ A snippet is a named block of directives with parameters. `@use` puts a copy of 
 }
 ```
 
-```conf
+```knobly
     node TwinkleEffect twinkle { @use twinkle rgb_150; }
 ```
 
-```conf
+```knobly
     node TwinkleEffect white_twinkle { @use twinkle white_150; }
 ```
 
@@ -196,7 +196,7 @@ order of their paths. Without the extension, `@include` is E3008 (no extension f
 `load-unknown-extension`), and `include "x.conf";` without `@` is always an ordinary directive named `include`
 (`load-include-is-a-directive`).
 
-```conf
+```knobly
     @include "sink.conf" {
         @set $name leds;
         @set $host $leds_host;
@@ -210,7 +210,7 @@ order of their paths. Without the extension, `@include` is E3008 (no extension f
 
 Excerpt of [`fixtures/rasl/split/main.conf`](https://github.com/mcurcio/knobly/blob/main/fixtures/rasl/split/main.conf). It includes one file at two places.
 
-```conf
+```knobly
 node DdpSink $name {
     target $host;
     fps 20hz;

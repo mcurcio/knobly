@@ -51,6 +51,8 @@ markdown_extensions:
 # Fails the build unless every sample of examples/samples.json is included from all three languages' files.
 hooks:
   - hooks/samples.py
+  # Fails the build unless ```knobly blocks are highlighted by the grammar's own lexer (lexer/) and lex cleanly.
+  - hooks/knobly.py
 
 nav:
   - Quickstart: index.md

@@ -7,13 +7,13 @@ The samples read [`fixtures/rasl/split`](https://github.com/mcurcio/knobly/tree/
 config of rasl, the light controller knobly was built for. `main.conf` sets two variables and includes
 `sink.conf` twice, at lines 19 and 24, each time with its own `$name` and `$host`:
 
-```conf
+```knobly
 --8<-- "fixtures/rasl/split/main.conf"
 ```
 
 `sink.conf` is one sink:
 
-```conf
+```knobly
 --8<-- "fixtures/rasl/split/sink.conf"
 ```
 
@@ -67,7 +67,7 @@ A directive has a `name`, its `values`, and its `block` (the directives inside i
 block). Each value has a `kind` (word, string, list, slice or index), a canonical `text`, an `origin`, and
 **readers**, one per type a program wants. A file of one directive per kind:
 
-```conf
+```knobly
 --8<-- "examples/fixtures/values/values.conf"
 ```
 
@@ -162,11 +162,11 @@ problems, files in the order they were first read, then the load's problems in t
 
 `main.conf` has a missing `;`, an unknown variable, and includes `part.conf`, which has another:
 
-```conf title="main.conf"
+```knobly title="main.conf"
 --8<-- "examples/fixtures/broken/main.conf"
 ```
 
-```conf title="part.conf"
+```knobly title="part.conf"
 --8<-- "examples/fixtures/broken/part.conf"
 ```
 
@@ -215,7 +215,7 @@ two sorts ([`spec/spec.md`](https://github.com/mcurcio/knobly/blob/main/spec/spe
 
 `missing.conf` does not exist; `main.conf` holds `fps fast;`:
 
-```conf
+```knobly
 --8<-- "examples/fixtures/errors/main.conf"
 ```
 

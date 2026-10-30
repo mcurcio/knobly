@@ -8,7 +8,12 @@ dependencies = [
     "mkdocs==1.6.1",
     "mkdocs-material==9.7.7",
     "pymdown-extensions==12.2",
+    "knobly-pygments",
 ]
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+# The ```knobly lexer, run by grammar/Knobly.g4 (lexer/src/knobly_pygments).
+knobly-pygments = { path = "lexer", editable = true }

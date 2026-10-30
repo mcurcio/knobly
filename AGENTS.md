@@ -45,6 +45,8 @@ build, docs, releases), and this file adds what agents need on top.
   when one is stale.
 - The logo (`docs/site/pages/assets/logo.svg`, `logo-dark.svg`, `icon.svg`) is drawn by
   `tools/logo.py`; edit the script and rerun it, never the SVGs.
+- knobly samples use ` ```knobly ` fences, highlighted by `docs/site/lexer/` from the grammar's own
+  token rules. Adding a token kind to `Knobly.g4` needs a style in its `STYLE` table, or the docs build fails.
 - When you change behaviour or an API, update the guide page and the package README that describe
   it in the same change.
 

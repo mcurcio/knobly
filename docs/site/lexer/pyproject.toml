@@ -1,0 +1,14 @@
+# The user guide's Pygments lexer for knobly code blocks (```knobly). A build-time tool of the guide only, installed
+# editable by docs/site/pyproject.toml, so it reads grammar/Knobly.g4 from this checkout.
+[project]
+name = "knobly-pygments"
+version = "0"
+requires-python = ">=3.11"
+dependencies = ["pygments"]
+
+[project.entry-points."pygments.lexers"]
+knobly = "knobly_pygments:KnoblyLexer"
+
+[build-system]
+requires = ["uv_build>=0.8.18,<0.9"]
+build-backend = "uv_build"
