@@ -974,3 +974,12 @@
   states what all three bindings and the corpus (`nest-skipped-list`, `nest-recovered-100`) already do: an open `[`
   gives E2004, else an open block E2003, else E2001; E2003 once, however many blocks are open; none after a
   statement whose error node runs to the end. E2001's and E2003's meanings in diagnostics.json say the same.
+- **W2 applied.** `design/RECORD.md`'s three links to the deleted pages (and its error-codes link) now point at the
+  guide: `docs/site/pages/language.md`, `editing.md`, `walking.md` and `diagnostics.md#error-codes`. Its history
+  lines (82-83) still name the old pages as history.
+- **C1 is tracked in `kno-bzv.5`** (protocol surface to reach E3004 and E3006): the design choice stays open there.
+- **F5 (spec 4.2, how a file writer replaces a file) is still open, with no bead:** which binding's behaviour
+  becomes the rule is a choice for the owner, not made here.
+- **N9. Stale lists.** `spec/codegen.md`'s `limits.ts` row now names `MAX_EXPANDED_NESTING`; RECORD's 5xxx band is
+  E5001-E5013 and its owner-answers table holds the three 2026-10-30 nesting rows (two answers, one proposal); spec
+  9's load and written rows name 2.5 after expansion.
