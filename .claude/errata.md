@@ -673,3 +673,20 @@
   formatter (Prettier from `ts/node_modules`, ruff through `uv`), the one exception spec/codegen.md sections 4 and 11
   record. The comparison in spec/conformance.md is left as written (not an owned path); it reads true of imports
   only.
+
+## 2026-10-30, C++ binding milestone 1 skeleton (.claude/design/cpp/frozen-m1.md)
+
+- **C++ 1. Two error groups had no `message`, so a binding that makes them its own classes could not load.**
+  `argument type error` and `index out of range` carried no `message` in spec/schema/api.json because TypeScript and
+  Python both map them to built-in classes (`TypeError`, `RangeError`, `IndexError`); the loader requires `message`
+  for any group some binding makes a class of, and C++ makes both (`villanelle::argument_type_error`,
+  `villanelle::index_out_of_range`, design.md 2.2). Both now say `"message": {"given": true}`. TypeScript, Python and
+  docs output are byte-identical with and without it (rendered both schemas and compared).
+- **C++ 2. spec/codegen.md section 10 says a new binding needs no loader edit, but the loader spells type names in
+  PascalCase.** `Model.public` uses `pascal(c.name)` and tools/gen-api.py's `check_layers` looks for `"Widget"`, so a
+  binding whose types are snake_case (C++, design.md 1.2) fails both. Lane A adds a `type_case` hook (frozen-m1.md
+  4.1), beside design finding F2's `member_spelling`; section 10 should then name the hooks.
+- **C++ 3. `Formatter.suffix` held one suffix**; C++ formats `.hpp` and `.cpp`. It now takes one suffix or a tuple
+  (`str.endswith` takes either); TypeScript and Python unchanged.
+- **C++ 4. spec/README.md and spec/binding-guide.md step 3 name ANTLR as the only way to get a parser** (design finding
+  F18). Slice T rewrites both to name villanelle's own generator as the second route.

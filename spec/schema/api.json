@@ -372,7 +372,8 @@
     {
       "name": "argument type error",
       "sort": "program bug",
-      "raised when": "an argument of the wrong type: anything but text where config text or a name is taken (an extension's name when the processor is made included), and to quote and text; a writer that is not a document writer; a render given something that is not a document graph (no callable expand); a key rule that returns anything but text or absent"
+      "raised when": "an argument of the wrong type: anything but text where config text or a name is taken (an extension's name when the processor is made included), and to quote and text; a writer that is not a document writer; a render given something that is not a document graph (no callable expand); a key rule that returns anything but text or absent",
+      "message": {"given": true}
     },
     {
       "name": "misuse error",
@@ -385,7 +386,8 @@
     {
       "name": "index out of range",
       "sort": "program bug",
-      "raised when": "an insert index outside a block; a token range outside a parse"
+      "raised when": "an insert index outside a block; a token range outside a parse",
+      "message": {"given": true}
     }
   ],
   "argument type error message": {

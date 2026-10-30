@@ -31,7 +31,7 @@ import json
 import re
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 REPO = Path(__file__).resolve().parent.parent.parent
 SCHEMA = REPO / "spec" / "schema"
@@ -463,11 +463,11 @@ HISTORY = re.compile(r"\bmilestone [0-9]|\bowner, [0-9]{4}-")
 @dataclass(frozen=True)
 class Formatter:
     """A language's standard formatter, pinned to an exact version where the binding pins its tools, run on every
-    generated file whose name ends in ``suffix`` (spec/codegen.md section 4): the emitters write plain, deterministic
+    generated file whose name ends in ``suffix`` (one suffix, or a tuple of them; spec/codegen.md section 4): the emitters write plain, deterministic
     code and leave its layout to the formatter. Each command runs from the repository root with the files' paths
     appended, in order (tools/api/formatter.py)."""
 
-    suffix: str
+    suffix: Union[str, Tuple[str, ...]]
     commands: Tuple[Tuple[str, ...], ...]
 
 

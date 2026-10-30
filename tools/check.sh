@@ -11,6 +11,8 @@
 #   6. The kind lint's own test (tools/lint/kind_lint.py, under py's pinned Python so `match` is checked too; its
 #      TypeScript twin tools/lint/kind-rule.mjs runs in ts lint).
 #   7. The shared conformance driver's own test (conformance/driver/test_driver.py; spec/conformance.md).
+#   8. villanelle's own parser generator (tools/parser/gen.py --check): it accepts grammar/Villanelle.g4, refuses each
+#      planted grammar in tools/planted-parser/, and the .g4's tree annotations match the .ebnf's.
 # The public-name check runs in each package's tests against its generated test contract (spec/codegen.md section 4).
 # Needs: python3, bison, uv (for interegular and jsonschema).
 set -u
@@ -47,4 +49,6 @@ if uv run -q --project py --locked python tools/lint/kind_lint.py --self-test > 
 else echo "FAIL $(cat "$tmp/lint")"; fail=1; fi
 if python3 conformance/driver/test_driver.py > "$tmp/driver" 2>&1; then echo "ok   conformance driver: self-test"
 else echo "FAIL conformance driver: $(cat "$tmp/driver")"; fail=1; fi
+if python3 tools/parser/gen.py --check > "$tmp/parser" 2>&1; then echo "ok   parser generator: $(cat "$tmp/parser")"
+else echo "FAIL parser generator: $(cat "$tmp/parser")"; fail=1; fi
 exit $fail

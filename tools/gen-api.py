@@ -4,6 +4,8 @@
                                          formatted by ts's pinned Prettier (run pnpm install in ts/ first)
     python3 tools/gen-api.py py       -> py/src/villanelle/_api/*.py, py/conformance/shapes.py and py/tests/api_contract.py,
                                          formatted by py's pinned ruff (through uv)
+    python3 tools/gen-api.py cpp      -> cpp/include/villanelle/*.hpp, cpp/conformance/shapes.hpp and
+                                         cpp/tests/generated/*.cpp, formatted by the pinned clang-format (through uv)
     python3 tools/gen-api.py docs     -> rewrites the generated tables in spec/ (committed: they are read on GitHub)
     python3 tools/gen-api.py --check  -> checks the schema and every emitter's Language (and that each check bites),
                                          renders both bindings into a temp dir, renders a schema copy with one more
@@ -36,7 +38,7 @@ from typing import Dict, List
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from api import emit_docs, emit_py, emit_ts, stub  # noqa: E402
+from api import emit_cpp, emit_docs, emit_py, emit_ts, stub  # noqa: E402
 from api.formatter import FormatterError, format_files  # noqa: E402
 from api.loader import REPO, Model, SchemaError, planted, read_schema  # noqa: E402
 
@@ -45,8 +47,12 @@ from api.loader import REPO, Model, SchemaError, planted, read_schema  # noqa: E
 OUT = {
     "ts": (REPO / "ts" / "src" / "gen" / "api", {"shapes": REPO / "ts" / "conformance", "contract": REPO / "ts" / "test"}),
     "py": (REPO / "py" / "src" / "villanelle" / "_api", {"shapes": REPO / "py" / "conformance", "contract": REPO / "py" / "tests"}),
+    "cpp": (REPO / "cpp" / "include" / "villanelle", {"shapes": REPO / "cpp" / "conformance", "contract": REPO / "cpp" / "tests" / "generated"}),
 }
 EMITTERS = {"ts": emit_ts, "py": emit_py}
+# The bindings `gen-api.py <lang>` builds. C++ joins EMITTERS (so --check and the docs tables) when its emitter renders
+# every layer (.claude/design/cpp/frozen-m1.md section 4, Lane A); until then it builds but is not checked.
+TARGETS = {**EMITTERS, "cpp": emit_cpp}
 LANGUAGES = [e.LANGUAGE for e in EMITTERS.values()]
 
 
@@ -105,8 +111,8 @@ def write(files: Dict[str, str], out: Path, owned: bool = True) -> None:
 
 
 def main(argv: List[str]) -> int:
-    if len(argv) != 1 or argv[0] not in ("ts", "py", "docs", "--check"):
-        print("usage: tools/gen-api.py <ts|py|docs|--check>", file=sys.stderr)
+    if len(argv) != 1 or argv[0] not in (*TARGETS, "docs", "--check"):
+        print(f"usage: tools/gen-api.py <{'|'.join(TARGETS)}|docs|--check>", file=sys.stderr)
         return 2
     # Only the schema's own refusals and a missing file are reported in one line; any other exception is a generator
     # bug and keeps its traceback.
@@ -136,7 +142,7 @@ def main(argv: List[str]) -> int:
                 print(f"wrote {path.relative_to(REPO)}")
             return 0
         api_out, beside = OUT[argv[0]]
-        emitter = EMITTERS[argv[0]]
+        emitter = TARGETS[argv[0]]
         model = Model(*schema, [emitter.LANGUAGE])
         # Every output is formatted in one run of each formatter command (a name in a folder per OUT key).
         files = dict(emitter.render(model))
