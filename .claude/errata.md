@@ -690,3 +690,54 @@
   (`str.endswith` takes either); TypeScript and Python unchanged.
 - **C++ 4. spec/README.md and spec/binding-guide.md step 3 name ANTLR as the only way to get a parser** (design finding
   F18). Slice T rewrites both to name villanelle's own generator as the second route.
+
+## 2026-10-30, C++ binding milestone 1, Lane A (the C++ API emitter)
+
+- **A1. Two loader hooks beyond frozen-m1.md 4.1's four.** `constant_case` (C++ spells a limit `max_nesting`;
+  `Model.public` and the glossary spelled every constant UPPER_SNAKE) and `kinds_in_package` (frozen 3.2 puts
+  `token_kind` and `node_kind` in `::villanelle`, the one `kinds.hpp` the generated parser includes, while
+  `Model.public` put each kind list in its layer's namespace). Both default to what TypeScript and Python spell; their
+  generated code is byte-identical. `emit_docs.py` now spells types and constants through `type_case`,
+  `constant_case` and `pattern_form` (the C++ column needs it). spec/codegen.md section 10 names all five hooks.
+- **A2. Lane A's owned paths leave out `docs/rendered-tree.md`**, which `tools/gen-api.py docs` also rewrites (the
+  error codes table, one column per binding); `--check` fails until it has the C++ column, so Lane A commits it with
+  the other generated tables.
+- **A3. Templates have no home for their definitions in compiled mode.** frozen 4.3 sends every hand definition to
+  `detail/<layer>/definitions.hpp`, which a public header includes only in header-only mode. The template members
+  (`diagnostics::collect`, `diagnostics::report`, each union's `as<V>()` and `visit(f)`) and the class template
+  `written::resolution<Definition>` cannot be compiled once: slice 2 needs a header every mode includes (say
+  `detail/<layer>/templates.hpp`) or explicit instantiation with `extern template` (design.md 2.5, point 2).
+- **A4. The skeleton's compile check builds every `tests/generated/*.cpp` under `-Werror`**, but a contract for a
+  layer with no definitions yet odr-uses inline functions that are declared and never defined. The generated
+  contract turns off clang's `-Wundefined-inline` before its include (a missing definition is the linker's to report,
+  which is the contract's point); GCC's equivalent warning ("used but never defined") has no flag, so on the gcc leg
+  Slice T should compile and link only the contracts of implemented layers (M1: `api_contract_syntax.cpp`).
+- **A5. The skeleton's compile check stays red until Slice T defines three M1 items** the generated code uses inline:
+  `detail::decode_utf8` (every pattern matcher, so `program_code`'s compile-time check), `to_string(const
+  diagnostic&)` (`bad_text_error`'s message) and `sequence<T>::iterator` (`diagnostics::begin()` in the shared
+  contract). Lane A proved the build green with stand-ins for exactly those three, defined by a test overlay outside
+  the repo.
+- **A6. The contract takes each address, it does not call each free function** (frozen 4.2 says "calls each free
+  function through a volatile function pointer"): a call needs an argument of every type, which the generator cannot
+  make in general. Each hand-defined function, member, constructor, `operator==` and `to_string` is wrapped in a
+  lambda stored in a volatile function pointer, which odr-uses it, so a missing definition still fails to link.
+- **A7. A record union is a view class, not a record written whole** (frozen 4.3 says records are generated whole;
+  design.md 1.3 lists `change` with the view-class unions). A `sequence<change>` returns `change` by value, which
+  would slice an `added` held by a class hierarchy of plain records; so `change` and its variants hold one
+  `detail::view` and their members are the hand code's.
+- **A8. `memory_source` takes `std::shared_ptr<const ordered_map<std::string, std::string>>`** (design.md 3.1), not
+  the map by value (design.md 1.3's table): its schema doc says it reads the map it is given at each call, and a
+  copy-on-write map copied by value would never see a memory writer's change. The rule the emitter applies: a map a
+  free function takes is shared.
+- **A9. `errors.hpp` and `villanelle.hpp` include each other.** The error classes hold shared records
+  (`diagnostic_error` holds a `located_diagnostic`), so `villanelle.hpp` forward-declares the error classes, declares
+  its records, then includes `errors.hpp` at its end (frozen 4.2 lists it among the includes); `errors.hpp` entered
+  first includes `villanelle.hpp`, which includes it back. Every header compiles alone.
+- **A10. A union's or extended class's view constructor is protected**, not private (frozen 4.3): each variant (and
+  `reference_resolution`, which extends `resolution<variable>`) constructs its base from the view. The view itself
+  stays private, read through `detail::access`.
+- **A11. The layer check is per header, and `villanelle.hpp` holds the shared and io layers together**, so a syntax
+  header that used an io name would pass `layers_syntax.cpp`. A header is allowed when it holds any layer the
+  header's layers may import; every adapter module's header is forbidden to every other header.
+- **A12. The loader's doc check could not catch "C++"**: it searched `\bC\+\+\b`, and no word boundary follows `+`.
+  It now matches a language's name not inside a word, which is the same test for TypeScript and Python.
