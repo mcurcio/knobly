@@ -4,3 +4,4 @@ src/villanelle/_api/
 dist/
 .venv/
 conformance/shapes.py
+tests/api_contract.py

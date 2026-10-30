@@ -47,7 +47,26 @@ def _public_kind(model: Model, c: Optional[Concept]) -> str:
     return "both" if c is None or model.constructed(c, "ts") else "type"
 
 
-LANGUAGE = Language("ts", "/", camel, ("Error", "ReferenceError", "TypeError", "RangeError"), _public_kind)
+# TypeScript's own facts (the schema names no language; spec/codegen.md section 10).
+LANGUAGE = Language(
+    key="ts",
+    name="TypeScript",
+    sep="/",
+    function_case=camel,
+    public_kind=_public_kind,
+    error_roots={
+        "villanelle error": {"base": "Error"},
+        "detached error": {"base": "ReferenceError"},
+        "argument type error": {"builtin": "TypeError"},
+        "misuse error": {"base": "Error"},
+        "index out of range": {"builtin": "RangeError"},
+    },
+    argument_type_message=('{member}(): argument "{parameter}" must be a string, not {got}; villanelle edits take config '
+                           "text: quote() a program string, text() one already written as villanelle text, String() a "
+                           "number first"),  # {got}: null, array or typeof
+    modules={"files": "node", "fetch": "browser", "include": "include"},
+    factory_forms={"processor": "package function"},  # villanelle({ source }); every other factory is a class
+)
 
 
 def s(text: str) -> str:
@@ -159,7 +178,7 @@ def method_params(model: Model, m_params: List[Param], options: Optional[str], c
 
 
 def member_lines(model: Model, c: Concept, m: Member, ctx: Ctx) -> List[str]:
-    out = doc(m.note, "  ")
+    out = doc(m.doc, "  ")
     if m.trait == "people form":
         return out + ["  toString(): string;"]
     if m.trait == "iterate":
@@ -189,7 +208,7 @@ def member_lines(model: Model, c: Concept, m: Member, ctx: Ctx) -> List[str]:
 
 def concept_lines(model: Model, c: Concept, ctx: Ctx) -> List[str]:
     name = pascal(c.name)
-    out = doc(c.note)
+    out = doc(c.doc)
     if c.nature == "named type":
         if c.brand:
             return out + [f"export type {name} = string & {{ readonly [{camel(c.name)}Brand]: true }};"]
@@ -247,7 +266,7 @@ def function_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
         if fac == "constructor":
             continue  # constructor_lines
         name = model.package if fac == "package function" else camel(f.name)
-        lines = doc(f.note, "  ")
+        lines = doc(f.doc, "  ")
         lines.append(f"  {name}({method_params(model, f.params, f.options, ctx)}): {ts_type(f.returns, ctx)};")
         by_module.setdefault(mod, []).extend(lines)
     out: List[str] = []
@@ -429,8 +448,8 @@ def errors_module(model: Model) -> str:
         out.append(f"    {sup}")
         out.append(f"    this.name = {s(name)};")
         out += ["  }", "}", ""]
-    out += doc("The argument type error's message (spec 2.8; api.json \"argument type error message\"): the one helper every "
-               "member that takes text calls before it changes anything.")
+    out += doc("The argument type error's message (spec 2.8): the one helper every member that takes text calls before it "
+               "changes anything.")
     tmpl = model.argument_type_message["ts"]
     parts, pos = [], 0
     for m in PLACEHOLDER.finditer(tmpl):

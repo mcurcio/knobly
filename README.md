@@ -124,8 +124,8 @@ It needs `python3`, `bison` and `uv`.
 
 The generated parsers and API declarations are not committed (owner, 2026-10-23: "Don't commit the generated
 code, just the source"). `tools/gen.sh ts` and `tools/gen.sh py` write them to `ts/src/gen/` (with
-`ts/conformance/shapes.ts`) and `py/src/villanelle/_gen/` and `_api/` (with `py/conformance/shapes.py`), all ignored
-by git, and every build and test runs it first. The generated docs tables are the one committed output
+`ts/conformance/shapes.ts`) and `py/src/villanelle/_gen/` and `_api/` (with `py/conformance/shapes.py` and
+`py/tests/api_contract.py`), all ignored by git, and every build and test runs it first. The generated docs tables are the one committed output
 (`python3 tools/gen-api.py docs`; [spec/codegen.md](spec/codegen.md) section 6). It needs
 Java 11+ and `curl`: it downloads the ANTLR 4.13.2 jar once, checks its sha256, and caches it in
 `$ANTLR_JAR_DIR` (default `~/.cache/antlr`).

@@ -581,3 +581,31 @@
 - The Python implementation modules are now private (`villanelle._origin`, `_report`, `_source`, `_diagnostics`,
   `syntax._cst`, `syntax._parse`, `written._model`, `_value`, `_processor`, `_format`), closing the item above;
   tests/test_api_names.py fails on any non-underscore module that is not a public path.
+
+## 2026-10-29, milestone 7 (codegen leftovers: vil-umh.16, vil-umh.17, vil-umh.18), spec and generator lane
+
+- **The brief's "generated output must compile alongside today's hand code" cannot hold for Python with item A.**
+  Making the generated types name the public classes is a type change the hand code must follow: at this commit
+  `mypy` reports 39 errors in 11 Python files, all in hand code (none in generated code), and the package fails to
+  import because three hand modules import the four union aliases the generator no longer writes (`Statement`,
+  `WrittenValue`, `Variable`, `ExpandedValue` from `villanelle._api.written`). frozen-m7.md section A lists each
+  change the Python lane makes. TypeScript's generated output changed only in doc comments: `pnpm test` (232),
+  `typecheck`, `lint`, `build` and the shared driver (L3) pass unchanged.
+- **spec/codegen.md section 10 said moving the per-language data into the emitters "is not done: it would put facts
+  the owner reads (which base each group has) in code".** vil-umh.17 does it; the facts stay readable in the generated
+  tables of spec 2.8 and contract 4.2, which now read them from the emitters. Section 10 is rewritten.
+- **History removed from emitted text outside the notes.** The doc check covers every text an emitter writes, so
+  three code meanings (E1005, E3008, E4007: "(milestone 5)"), two constants' `means` (`RESERVED`: "Milestone 5: no
+  directive name is reserved any more"; `PROGRAM_CODE`: "so JavaScript and Python agree") and the argument type
+  error's `raised when` ("milestone 5") lost their history clauses. No meaning changed; spec 2.4's and 2.5's
+  generated text changed with them.
+- **`fetch writer options`' note called it "the browser writer's options"**; the schema's name is `fetch writer`.
+  Its doc now says "the fetch writer's options". The adapter module names in the schema are now what each module
+  holds (`files`, `fetch`, `include`); TypeScript maps them to `node`, `browser`, `include` and Python to `files` and
+  `include`, so no import path changed.
+- **`Diagnostics.toArray()` (TypeScript only, in no schema or spec): dropped, not added.** The iterate trait already
+  gives `[...diagnostics]` and `Array.from(diagnostics)`, and Python's idiom is `list(diagnostics)`; a schema member
+  would give Python a `to_array()` no Python reader expects. The TypeScript lane deletes it (`ts/src/report.ts`) and
+  its one use (`ts/src/rendered/report.test.ts`).
+- **The generated files' header quoted the owner** ("Never committed (owner, 2026-10-23)"), in every generated module
+  docstring. It now reads "do not edit, and never commit"; the quote stays in `tools/gen-api.py` and spec/codegen.md.

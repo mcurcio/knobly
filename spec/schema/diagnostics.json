@@ -91,7 +91,7 @@
       ],
       "unreadable reason": "syntax",
       "message": "unknown escape",
-      "meaning": "A closed double-quoted string holding a backslash escape other than the six (the `BAD_ESCAPE` error token), placed on the string. A single-quoted string is raw: it has no escapes (milestone 5).",
+      "meaning": "A closed double-quoted string holding a backslash escape other than the six (the `BAD_ESCAPE` error token), placed on the string. A single-quoted string is raw: it has no escapes.",
       "summary": "a double-quoted string escape other than the six (found by the parser; a single-quoted string is raw)",
       "placed at": "the string"
     },
@@ -247,7 +247,7 @@
       ],
       "unreadable reason": "extension",
       "message": "no extension for this @name",
-      "meaning": "A statement written `@name` where `name` is no language statement (`set`, `snippet`, `use`) and no registered extension's name (milestone 5). Placed on the `@name`; the statement is an `unreadable line`.",
+      "meaning": "A statement written `@name` where `name` is no language statement (`set`, `snippet`, `use`) and no registered extension's name. Placed on the `@name`; the statement is an `unreadable line`.",
       "summary": "an `@name` that is no language statement and no registered extension",
       "placed at": "the `@name`"
     },
@@ -325,7 +325,7 @@
       ],
       "unreadable reason": "value",
       "message": "slice name is not one word",
-      "meaning": "A slice or index whose name is a `$name` that does not hold exactly one `WORD` or `AT_WORD`, the words the grammar's `sliceName` takes (`$src[0~3]` with `$src` a string, a list, two values, or a number-like word such as `5`, `1.5`, `-` or `07:30`); placed as E4001 is (milestone 5).",
+      "meaning": "A slice or index whose name is a `$name` that does not hold exactly one `WORD` or `AT_WORD`, the words the grammar's `sliceName` takes (`$src[0~3]` with `$src` a string, a list, two values, or a number-like word such as `5`, `1.5`, `-` or `07:30`); placed as E4001 is.",
       "summary": "a slice's `$name` that does not hold one word",
       "placed at": "as E4001"
     },

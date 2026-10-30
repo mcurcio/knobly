@@ -345,8 +345,10 @@ Work in this order. Each step ends with shared cases passing, so progress is mea
 4. **Write your emitter** ([codegen.md](codegen.md) section 10): `tools/api/emit_<lang>.py`, rendering the
    loader's model in your language: the kind lists, codes, rules, error tree, one declaration per concept (each
    trait of codegen.md section 3 in your idiom), the names table and the adapter's message shapes. Register it in
-   `tools/gen-api.py` and `tools/gen.sh`, and keep its output out of git. Never type a list, a signature or a name
-   by hand: your classes implement the generated declarations.
+   `tools/gen-api.py` and `tools/gen.sh`, and keep its output out of git. Every fact about your language (each root
+   error group's class, your adapter modules, your factory forms, the argument type error's sentence, what your
+   idiom leaves out) goes in the emitter's `LANGUAGE`, never in `spec/schema/`, which names no language. Never type a
+   list, a signature or a name by hand: your classes implement the generated declarations.
 5. **Write the adapter** ([conformance.md 6](conformance.md#6-what-a-binding-writes)): one small program in your
    language that reads the driver's requests on standard input and answers on standard output, through your public
    API only, typed by your emitter's generated message shapes and spelling table. Start with `hello` (claim L0, name your string unit) and `parse`, then run the driver (the adapter can
