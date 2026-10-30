@@ -7,7 +7,8 @@ from what the schema gives, so a table cannot drift from its source.
 
 Nothing here knows a target language: each binding is a column, in the order of the model's languages, and every cell
 is spelled through that binding's ``Language`` (its casing, ``enum_form``, ``generic``, ``construct``,
-``extends_word``, ``cause_field``, ``omitted_as``, its module paths and its error roots). A new binding is a new
+``extends_word``, ``cause_field``, ``omitted_as``, ``type_case``, its constants' names, its module paths and its error
+roots). A new binding is a new
 column with no edit here.
 """
 
@@ -17,7 +18,7 @@ import re
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple
 
-from .loader import REPO, Concept, Function, Language, Model, SchemaError, Type, pascal, pattern_body, upper_snake
+from .loader import REPO, Concept, Function, Language, Model, SchemaError, Type, constant_name, pascal, pattern_body, upper_snake
 
 BEGIN = "<!-- generated: {name} (tools/gen-api.py docs) -->"
 END = "<!-- end generated -->"
@@ -105,9 +106,9 @@ def error_groups(model: Model) -> str:
             if g.builtin(lang.key):
                 cells.append(f"`{g.builtin(lang.key)}`")
             elif g.parent is None:
-                cells.append(f"`{pascal(g.name)}`, {lang.extends_word} `{g.base[lang.key]['base']}`")
+                cells.append(f"`{lang.type_case(g.name)}`, {lang.extends_word} `{g.base[lang.key]['base']}`")
             else:
-                cells.append(f"`{pascal(g.name)}`")
+                cells.append(f"`{lang.type_case(g.name)}`")
         rows.append(f"| `{g.name}` | {sort} | {g.raised_when} | {' | '.join(cells)} |")
     return "\n".join(rows)
 
@@ -154,6 +155,7 @@ def class_tree(model: Model) -> str:
 
     def tree(language: Language) -> List[str]:
         lang = language.key
+        case = language.type_case
         lines: List[str] = []
 
         def fields(g: object) -> str:
@@ -165,20 +167,20 @@ def class_tree(model: Model) -> str:
         def down(parent: str, depth: int) -> None:
             kids = [g for g in model.groups if g.parent == parent]
             for i, g in enumerate(kids):
-                lines.append("   " * depth + ("└─ " if i == len(kids) - 1 else "├─ ") + pascal(g.name) + fields(g))
+                lines.append("   " * depth + ("└─ " if i == len(kids) - 1 else "├─ ") + case(g.name) + fields(g))
                 down(g.name, depth + 1)
 
         for g in model.groups:
             if g.parent is None and g.sort == "base":
-                lines += [g.base[lang]["base"], f"└─ {pascal(g.name)}  (expected outcomes)"]
+                lines += [g.base[lang]["base"], f"└─ {case(g.name)}  (expected outcomes)"]
                 down(g.name, 1)
-        lines += ["", "program bugs, not under " + pascal(next(g.name for g in model.groups if g.sort == "base")) + ":"]
+        lines += ["", "program bugs, not under " + case(next(g.name for g in model.groups if g.sort == "base")) + ":"]
         for g in model.groups:
             if g.sort == "program bug":
                 if g.builtin(lang):
                     lines.append(f"{g.builtin(lang)}  ({g.name})")
                 else:
-                    lines.append(f"{pascal(g.name)} {language.extends_word} {g.base[lang]['base']}  ({g.name})")
+                    lines.append(f"{case(g.name)} {language.extends_word} {g.base[lang]['base']}  ({g.name})")
         return lines
 
     out = []
@@ -193,7 +195,7 @@ def concept_cell(model: Model, c: Concept, language: Language) -> str:
         return language.omitted_as(c.name, c.nature)
     if c.is_ == "native":
         return "the platform's own"
-    name = pascal(c.name)
+    name = language.type_case(c.name)
     if c.type_parameters:
         tps = ["T"] if len(c.type_parameters) == 1 else [pascal(t) for t in c.type_parameters]
         name = language.generic(name, tps)
@@ -213,7 +215,7 @@ def function_cell(model: Model, f: Function, language: Language, call: bool = Fa
     if fac == "package function":
         name = f"{model.package}(...)"
     elif fac == "constructor":
-        name = language.construct(pascal(f.factory["of"]))  # type: ignore[index]
+        name = language.construct(language.type_case(f.factory["of"]))  # type: ignore[index]
     else:
         name = language.function_case(f.name)
         if call:
@@ -238,17 +240,17 @@ def layer_names(layer: str) -> Callable[[Model], str]:
         for k in model.kinds:
             if k.layer == layer:
                 rows.append(row(f"`{k.name}` (kind list)", lambda lang, k=k: (  # type: ignore[misc]
-                    f"`{pascal(k.name)}` ({lang.enum_form})" if lang.key in k.languages else lang.omitted_as(k.name, "kind list"))))
+                    f"`{lang.type_case(k.name)}` ({lang.enum_form})" if lang.key in k.languages else lang.omitted_as(k.name, "kind list"))))
         if layer == model.registry_layer:
-            rows.append(row("`diagnostic code`", lambda lang: f"`{pascal('diagnostic code')}` ({lang.enum_form})"))
+            rows.append(row("`diagnostic code`", lambda lang: f"`{lang.type_case('diagnostic code')}` ({lang.enum_form})"))
             for g in model.groups:
-                rows.append(row(f"`{g.name}` (error group)", lambda lang, g=g: f"`{g.builtin(lang.key) or pascal(g.name)}`"))  # type: ignore[misc]
+                rows.append(row(f"`{g.name}` (error group)", lambda lang, g=g: f"`{g.builtin(lang.key) or lang.type_case(g.name)}`"))  # type: ignore[misc]
         for f in model.functions:
             if f.layer == layer:
                 rows.append(row(f"`{f.name}` (free function)", lambda lang, f=f: function_cell(model, f, lang)))  # type: ignore[misc]
         for c in model.constants:
             if c.layer == layer:
-                rows.append(row(f"`{c.name}` (constant)", lambda lang, c=c: f"`{upper_snake(c.name)}`"))  # type: ignore[misc]
+                rows.append(row(f"`{c.name}` (constant)", lambda lang, c=c: f"`{constant_name(lang, c)}`"))  # type: ignore[misc]
         return "\n".join(rows)
 
     return make

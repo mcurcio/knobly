@@ -7,3 +7,4 @@ AccessModifierOffset: -4
 DerivePointerAlignment: false
 PointerAlignment: Left
 IncludeBlocks: Preserve
+Standard: c++20

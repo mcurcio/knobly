@@ -249,6 +249,28 @@ written, as ruff's docs order it: its import sorting (`ruff check --select I --f
 | `py/conformance/shapes.py` | the protocol's `TypedDict`s, `PROTOCOL`, `SPELLING` (in snake_case), `ERROR_GROUP_OF_CLASS` |
 | `py/tests/api_contract.py` | what the tests check the binding against, every type named through its public module: `PUBLIC_NAMES` (each module's `__all__`), `MATCH_ARGS`, `UNIONS` (each public union's variant classes); and a type checker's block (`if TYPE_CHECKING:`) that mypy checks and nothing runs: each module assigned to its generated `<Module>Functions`, each constructed class to its `<Class>Constructor`, and each hand-written public class (a handle, or a snapshot or record with methods) to `type[<its generated Protocol>]`, so a member that drifts from the schema fails mypy even in a class that forgot to subclass its Protocol |
 
+**C++** (`cpp/include/villanelle/`, every header directly in it generated and git-ignored; `cpp/conformance/shapes.hpp`
+and `cpp/tests/generated/`, git-ignored). Header-only: every type is spelled fully qualified from `::villanelle`; every
+name follows the standard library's casing (snake_case, template parameters PascalCase); a member that would share
+its class's name, own or inherited, takes a trailing underscore (`written::index::index_()`, `written::list::list_()`).
+What the generator writes whole is inline in the header; every free function and every handle's or snapshot's member
+is declared `VILLANELLE_API` and defined by the hand code in `detail/` (inline in header-only mode; compiled once in
+compiled mode, through `implementation.hpp`). The generated files go through the pinned clang-format with
+`cpp/.clang-format`.
+
+| Header | Holds |
+|---|---|
+| `kinds.hpp` | every kind list as `enum class <name> : std::uint8_t` in namespace `villanelle` (token kinds keep the grammar's names, in grammar order; the others snake_case) and a `constexpr to_string` per list giving the spec's value; the generated parser includes it |
+| `codes.hpp` | `enum class diagnostic_code : std::uint16_t` (each value its code's number), `to_string(code)` (`"E1001"`), `message(code)`, `code_facts` and `facts_of(code)`, `described` and `describe(code)` / `describe(code, detail)` |
+| `limits.hpp` | the limits and the reserved names as `inline constexpr` values, each in its layer's namespace (`villanelle::syntax::max_nesting`, `villanelle::written::reserved`) |
+| `errors.hpp` | the error class tree (spec 2.8): each class under its parent or its root's standard class (`std::runtime_error`, `std::logic_error`, `std::invalid_argument`, `std::out_of_range`), with default visibility, a constructor taking the message (when given) then its fields, a `const` accessor per own field, the message built from the template; `detail::argument_type_message`. The classes hold the shared layer's records, so `villanelle.hpp` includes it after them |
+| `villanelle.hpp` (the package's layers: shared, io), `syntax.hpp`, `written.hpp`, `rendered.hpp` (one per layer with its own namespace) | per layer, in its namespace: an immutable class per record (one constructor taking its fields in Python's dataclass field order, a `const` accessor per property, defaulted `operator==`); a view class per handle and snapshot (one `detail::view`, members declared for the hand code, `const` throughout), a union's view class with `kind()`, `as<V>()` and `visit(f)` and each variant deriving from it (a record union too, so a sequence of it never slices); an abstract class per port, held as `std::shared_ptr`; a C++20 `concept` per interface; an aggregate per options record; `using` aliases for callbacks (`std::function`) and for a block that adds nothing (`block<Item, Directive>`, the hand-written support template); `config_text` (made only by `quote` and `text`) and `program_code` (a literal checked at compile time); each pattern's `constexpr` matcher over code points (`villanelle::is_program_code`, `written::is_variable_name`); each people form as a free `to_string` found by argument-dependent lookup; the free functions, a trailing optional parameter or options record as an overload without it; each layer's `detail/<layer>/definitions.hpp` at the end in header-only mode |
+| `files.hpp`, `extensions.hpp` (one per adapter module the binding has) | the module's free functions in `villanelle::files` and `villanelle::extensions` |
+| `implementation.hpp` | compiled mode's one implementation file: every public header, then every `detail/<x>/definitions.hpp` (the schema's layer list) |
+| `cpp/conformance/shapes.hpp` | `adapter::shapes::protocol`, `spelling(spec_name)` (snake_case), `error_group_of(exception)` (the most specific group first) |
+| `cpp/tests/generated/api_contract_<header>.cpp` | a `main` that odr-uses every hand-defined function and member of one header through volatile function pointers, so a declaration without a definition fails to link |
+| `cpp/tests/generated/layers_<header>.cpp` | the layer-direction check: the include guards of every header the header's layers may not import (and of every adapter module's header) defined first, so a forbidden include leaves its names undeclared and the file fails to compile |
+
 How a binding uses them (frozen-m6.md has the per-file list):
 
 - **TypeScript:** each layer's public entry (`villanelle/syntax`, `villanelle/written`, `villanelle/rendered`, and
@@ -297,7 +319,7 @@ is byte-identical between runs, and a formatter upgrade is a generator change:
 |---|---|---|---|
 | TypeScript | Prettier, its defaults with a print width of 120 (`--no-config`: the options are the emitter's, and the hand-written code's editors pick up none) | `ts/package.json` and `ts/pnpm-lock.yaml`, exact | `ts/node_modules/.bin/prettier`, installed by `pnpm install` |
 | Python | ruff (import sorting, then `ruff format`) | `py/pyproject.toml` and `py/uv.lock`, exact | `uv run --project py --locked ruff`, with `--config py/pyproject.toml` |
-| C++ (planned) | clang-format | the C++ emitter's `Language`, as a PyPI wheel version (the `clang-format` package ships the binary, so no system install) | `uv tool run --from clang-format==<version> clang-format -i --style=file:<the binding's .clang-format>` |
+| C++ | clang-format, `cpp/.clang-format` (Google style, a column limit of 120, C++20) | `CLANG_FORMAT` in `tools/api/emit_cpp.py`, as a PyPI wheel version, exact (the `clang-format` package ships the binary, so no system install) | `uv tool run --quiet --from clang-format==<version> clang-format -i --style=file:cpp/.clang-format` |
 
 A new binding adds its formatter the same way: one `Formatter` in its `Language` and nothing in `tools/gen-api.py`.
 `tools/gen-api.py --check` renders without formatting, since it checks the schema and the emitters, not the layout;
@@ -406,7 +428,16 @@ A new binding is **one emitter, one adapter and one name test** (binding guide s
   - `omit` and `omitted_as`: a concept or kind list its idiom has no use for (Python leaves out the options records
     and `walk control`), and what the glossary says stands in for it;
   - how the docs tables spell it: `enum_form`, `generic`, `construct`, `extends_word`, `cause_field`. Every docs
-    table builds one column per `Language`, so the binding is a column with no edit to `emit_docs.py`.
+    table builds one column per `Language`, so the binding is a column with no edit to `emit_docs.py`;
+  - the hooks for a language whose names differ from the default, each defaulting to what TypeScript and Python
+    spell: `type_case` (a type's public name: PascalCase; C++ snake_case), `constant_case` (a limit's or the reserved
+    names': UPPER_SNAKE; C++ snake_case), `pattern_form` (a pattern's public name: the constant's; C++ a matcher,
+    `is_<name>`), `member_spelling` (a member's identifier in a class, given the class's and the member's spec names:
+    none; C++ appends `_` to a member spelled as its class; the loader refuses any member, own or inherited, that a
+    language spells as its class's type name)
+    and `kinds_in_package` (every kind list in the package's namespace rather than its layer's: C++, whose one
+    `kinds.hpp` the generated parser includes). `Model.public`, the name-collision checks and the docs tables spell
+    every name through them.
 - Its regex dialect, in the emitter: a schema pattern is an I-Regexp (section 2); the emitter renders it (the
   loader's `pattern_body` does RFC 9485's mapping given the engine's escape for one character) and refuses a
   construct its engine lacks.

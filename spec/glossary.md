@@ -112,138 +112,138 @@ Python `X: TypeAlias = A | B | ...` over classes (so `isinstance(x, X)` works). 
 ### Shared
 
 <!-- generated: names: shared (tools/gen-api.py docs) -->
-| Spec name | TypeScript | Python |
-|---|---|---|
-| `config text` | `ConfigText` | `ConfigText` |
-| `source position` | `SourcePosition` | `SourcePosition` |
-| `source span` | `SourceSpan` | `SourceSpan` |
-| `place` | `Place` | `Place` |
-| `override` | `Override` | `Override` |
-| `step` | `Step` | `Step` |
-| `origin` | `Origin` | `Origin` |
-| `directive origin` | `DirectiveOrigin` | `DirectiveOrigin` |
-| `diagnostic` | `Diagnostic` | `Diagnostic` |
-| `program code` | `ProgramCode` | `ProgramCode` |
-| `located diagnostic` | `LocatedDiagnostic` | `LocatedDiagnostic` |
-| `locatable` | `Locatable` | `Locatable` |
-| `diagnostics` | `Diagnostics` | `Diagnostics` |
-| `block` | `Block<Item, Directive>` | `Block[Item, Directive]` |
-| `step kind` (kind list) | `StepKind` (as-const object and type) | `StepKind` (`StrEnum`) |
-| `place kind` (kind list) | `PlaceKind` (as-const object and type) | `PlaceKind` (`StrEnum`) |
-| `walk control` (kind list) | `WalkControl` (as-const object and type) | none |
-| `diagnostic code` | `DiagnosticCode` (as-const object and type) | `DiagnosticCode` (`StrEnum`) |
-| `villanelle error` (error group) | `VillanelleError` | `VillanelleError` |
-| `diagnostic error` (error group) | `DiagnosticError` | `DiagnosticError` |
-| `read error` (error group) | `ReadError` | `ReadError` |
-| `bad text error` (error group) | `BadTextError` | `BadTextError` |
-| `save error` (error group) | `SaveError` | `SaveError` |
-| `lost update error` (error group) | `LostUpdateError` | `LostUpdateError` |
-| `detached error` (error group) | `DetachedError` | `DetachedError` |
-| `argument type error` (error group) | `TypeError` | `TypeError` |
-| `misuse error` (error group) | `MisuseError` | `ValueError` |
-| `index out of range` (error group) | `RangeError` | `IndexError` |
-| `quote` (free function) | `quote` | `quote` |
-| `text` (free function) | `text` | `text` |
-| `make diagnostics` (free function) | `new Diagnostics(...)` | `Diagnostics(...)` |
-| `program code` (constant) | `PROGRAM_CODE` | `PROGRAM_CODE` |
+| Spec name | TypeScript | Python | C++ |
+|---|---|---|---|
+| `config text` | `ConfigText` | `ConfigText` | `config_text` |
+| `source position` | `SourcePosition` | `SourcePosition` | `source_position` |
+| `source span` | `SourceSpan` | `SourceSpan` | `source_span` |
+| `place` | `Place` | `Place` | `place` |
+| `override` | `Override` | `Override` | `override` |
+| `step` | `Step` | `Step` | `step` |
+| `origin` | `Origin` | `Origin` | `origin` |
+| `directive origin` | `DirectiveOrigin` | `DirectiveOrigin` | `directive_origin` |
+| `diagnostic` | `Diagnostic` | `Diagnostic` | `diagnostic` |
+| `program code` | `ProgramCode` | `ProgramCode` | `program_code` |
+| `located diagnostic` | `LocatedDiagnostic` | `LocatedDiagnostic` | `located_diagnostic` |
+| `locatable` | `Locatable` | `Locatable` | `locatable` |
+| `diagnostics` | `Diagnostics` | `Diagnostics` | `diagnostics` |
+| `block` | `Block<Item, Directive>` | `Block[Item, Directive]` | `block<Item, Directive>` |
+| `step kind` (kind list) | `StepKind` (as-const object and type) | `StepKind` (`StrEnum`) | `step_kind` (`enum class`) |
+| `place kind` (kind list) | `PlaceKind` (as-const object and type) | `PlaceKind` (`StrEnum`) | `place_kind` (`enum class`) |
+| `walk control` (kind list) | `WalkControl` (as-const object and type) | none | the walk's descend predicate |
+| `diagnostic code` | `DiagnosticCode` (as-const object and type) | `DiagnosticCode` (`StrEnum`) | `diagnostic_code` (`enum class`) |
+| `villanelle error` (error group) | `VillanelleError` | `VillanelleError` | `villanelle_error` |
+| `diagnostic error` (error group) | `DiagnosticError` | `DiagnosticError` | `diagnostic_error` |
+| `read error` (error group) | `ReadError` | `ReadError` | `read_error` |
+| `bad text error` (error group) | `BadTextError` | `BadTextError` | `bad_text_error` |
+| `save error` (error group) | `SaveError` | `SaveError` | `save_error` |
+| `lost update error` (error group) | `LostUpdateError` | `LostUpdateError` | `lost_update_error` |
+| `detached error` (error group) | `DetachedError` | `DetachedError` | `detached_error` |
+| `argument type error` (error group) | `TypeError` | `TypeError` | `argument_type_error` |
+| `misuse error` (error group) | `MisuseError` | `ValueError` | `misuse_error` |
+| `index out of range` (error group) | `RangeError` | `IndexError` | `index_out_of_range` |
+| `quote` (free function) | `quote` | `quote` | `quote` |
+| `text` (free function) | `text` | `text` | `text` |
+| `make diagnostics` (free function) | `new Diagnostics(...)` | `Diagnostics(...)` | `diagnostics(...)` |
+| `program code` (constant) | `PROGRAM_CODE` | `PROGRAM_CODE` | `is_program_code` |
 <!-- end generated -->
 
 ### Syntax layer
 
 <!-- generated: names: syntax (tools/gen-api.py docs) -->
-| Spec name | TypeScript | Python |
-|---|---|---|
-| `token range` | `TokenRange` | `TokenRange` |
-| `token` | `Token` | `Token` |
-| `node` | `Node` | `Node` |
-| `syntax` | `Syntax` | `Syntax` |
-| `token kind` (kind list) | `TokenKind` (as-const object and type) | `TokenKind` (`StrEnum`) |
-| `node kind` (kind list) | `NodeKind` (as-const object and type) | `NodeKind` (`StrEnum`) |
-| `parse` (free function) | `parse` | `parse` |
-| `span of` (free function) | `spanOf` | `span_of` |
-| `text of` (free function) | `textOf` | `text_of` |
-| `max nesting` (constant) | `MAX_NESTING` | `MAX_NESTING` |
+| Spec name | TypeScript | Python | C++ |
+|---|---|---|---|
+| `token range` | `TokenRange` | `TokenRange` | `token_range` |
+| `token` | `Token` | `Token` | `token` |
+| `node` | `Node` | `Node` | `node` |
+| `syntax` | `Syntax` | `Syntax` | `syntax` |
+| `token kind` (kind list) | `TokenKind` (as-const object and type) | `TokenKind` (`StrEnum`) | `token_kind` (`enum class`) |
+| `node kind` (kind list) | `NodeKind` (as-const object and type) | `NodeKind` (`StrEnum`) | `node_kind` (`enum class`) |
+| `parse` (free function) | `parse` | `parse` | `parse` |
+| `span of` (free function) | `spanOf` | `span_of` | `span_of` |
+| `text of` (free function) | `textOf` | `text_of` | `text_of` |
+| `max nesting` (constant) | `MAX_NESTING` | `MAX_NESTING` | `max_nesting` |
 <!-- end generated -->
 
 ### Ports and extensions
 
 <!-- generated: names: io (tools/gen-api.py docs) -->
-| Spec name | TypeScript | Python |
-|---|---|---|
-| `load context` | `LoadContext` | `LoadContext` |
-| `document source` | `DocumentSource` | `DocumentSource` |
-| `file write` | `FileWrite` | `FileWrite` |
-| `document writer` | `DocumentWriter` | `DocumentWriter` |
-| `fetch writer options` | `FetchWriterOptions` (`villanelle/browser`) | keyword arguments |
-| `platform fetch` | the platform's own | none |
-| `memory source` (free function) | `memorySource` | `memory_source` |
-| `memory writer` (free function) | `memoryWriter` | `memory_writer` |
-| `file source` (free function) | `fileSource` (`villanelle/node`) | `file_source` (`villanelle.files`) |
-| `file writer` (free function) | `fileWriter` (`villanelle/node`) | `file_writer` (`villanelle.files`) |
-| `fetch source` (free function) | `fetchSource` (`villanelle/browser`) | none |
-| `fetch writer` (free function) | `fetchWriter` (`villanelle/browser`) | none |
-| `check lost updates` (free function) | `checkLostUpdates` | `check_lost_updates` |
+| Spec name | TypeScript | Python | C++ |
+|---|---|---|---|
+| `load context` | `LoadContext` | `LoadContext` | `load_context` |
+| `document source` | `DocumentSource` | `DocumentSource` | `document_source` |
+| `file write` | `FileWrite` | `FileWrite` | `file_write` |
+| `document writer` | `DocumentWriter` | `DocumentWriter` | `document_writer` |
+| `fetch writer options` | `FetchWriterOptions` (`villanelle/browser`) | keyword arguments | none |
+| `platform fetch` | the platform's own | none | none |
+| `memory source` (free function) | `memorySource` | `memory_source` | `memory_source` |
+| `memory writer` (free function) | `memoryWriter` | `memory_writer` | `memory_writer` |
+| `file source` (free function) | `fileSource` (`villanelle/node`) | `file_source` (`villanelle.files`) | `file_source` (`villanelle::files`) |
+| `file writer` (free function) | `fileWriter` (`villanelle/node`) | `file_writer` (`villanelle.files`) | `file_writer` (`villanelle::files`) |
+| `fetch source` (free function) | `fetchSource` (`villanelle/browser`) | none | none |
+| `fetch writer` (free function) | `fetchWriter` (`villanelle/browser`) | none | none |
+| `check lost updates` (free function) | `checkLostUpdates` | `check_lost_updates` | `check_lost_updates` |
 <!-- end generated -->
 
 ### Low level (written)
 
 <!-- generated: names: written (tools/gen-api.py docs) -->
-| Spec name | TypeScript | Python |
-|---|---|---|
-| `extension` | `Extension` | `Extension` |
-| `extension use` | `ExtensionUse` | `ExtensionUse` |
-| `load options` | `LoadOptions` | keyword arguments |
-| `processor options` | `ProcessorOptions` | keyword arguments |
-| `processor` | `Processor` | `Processor` |
-| `document graph` | `DocumentGraph` | `DocumentGraph` |
-| `document` | `Document` | `Document` |
-| `document edge` | `DocumentEdge` | `DocumentEdge` |
-| `copy` | `Copy` | `Copy` |
-| `statement` | `Statement` (union) | `Statement` (union) |
-| `written directive` | `WrittenDirective` | `WrittenDirective` |
-| `extension line` | `ExtensionLine` | `ExtensionLine` |
-| `set line` | `SetLine` | `SetLine` |
-| `snippet line` | `SnippetLine` | `SnippetLine` |
-| `use line` | `UseLine` | `UseLine` |
-| `unreadable line` | `UnreadableLine` | `UnreadableLine` |
-| `written block` | `WrittenBlock` | `WrittenBlock` |
-| `written value` | `WrittenValue` (union) | `WrittenValue` (union) |
-| `word` | `Word` | `Word` |
-| `string` | `String` | `String` |
-| `list` | `List` | `List` |
-| `slice` | `Slice` | `Slice` |
-| `index` | `Index` | `Index` |
-| `reference` | `Reference` | `Reference` |
-| `variable` | `Variable` (union) | `Variable` (union) |
-| `set variable` | `SetVariable` | `SetVariable` |
-| `parameter` | `Parameter` | `Parameter` |
-| `override variable` | `OverrideVariable` | `OverrideVariable` |
-| `resolution` | `Resolution<T>` | `Resolution[T]` |
-| `reference resolution` | `ReferenceResolution` | `ReferenceResolution` |
-| `expansion` | `Expansion` | `Expansion` |
-| `expansion block` | `ExpansionBlock` | `ExpansionBlock` |
-| `directive expansion` | `DirectiveExpansion` | `DirectiveExpansion` |
-| `unreadable expansion` | `UnreadableExpansion` | `UnreadableExpansion` |
-| `slice value` | `SliceValue` | `SliceValue` |
-| `index value` | `IndexValue` | `IndexValue` |
-| `expanded value` | `ExpandedValue` (union) | `ExpandedValue` (union) |
-| `expanded word` | `ExpandedWord` | `ExpandedWord` |
-| `expanded string` | `ExpandedString` | `ExpandedString` |
-| `expanded list` | `ExpandedList` | `ExpandedList` |
-| `expanded slice` | `ExpandedSlice` | `ExpandedSlice` |
-| `expanded index` | `ExpandedIndex` | `ExpandedIndex` |
-| `statement kind` (kind list) | `StatementKind` (as-const object and type) | `StatementKind` (`StrEnum`) |
-| `value kind` (kind list) | `ValueKind` (as-const object and type) | `ValueKind` (`StrEnum`) |
-| `variable kind` (kind list) | `VariableKind` (as-const object and type) | `VariableKind` (`StrEnum`) |
-| `unreadable reason` (kind list) | `UnreadableReason` (as-const object and type) | `UnreadableReason` (`StrEnum`) |
-| `format diagnostic` (free function) | `formatDiagnostic` | `format_diagnostic` |
-| `make processor` (free function) | `villanelle(...)` | `Processor(...)` |
-| `include` (free function) | `include` (`villanelle/include`) | `include` (`villanelle.include`) |
-| `max depth` (constant) | `MAX_DEPTH` | `MAX_DEPTH` |
-| `max directives` (constant) | `MAX_DIRECTIVES` | `MAX_DIRECTIVES` |
-| `max safe integer` (constant) | `MAX_SAFE_INTEGER` | `MAX_SAFE_INTEGER` |
-| `reserved` (constant) | `RESERVED` | `RESERVED` |
-| `variable name` (constant) | `VARIABLE_NAME` | `VARIABLE_NAME` |
+| Spec name | TypeScript | Python | C++ |
+|---|---|---|---|
+| `extension` | `Extension` | `Extension` | `extension` |
+| `extension use` | `ExtensionUse` | `ExtensionUse` | `extension_use` |
+| `load options` | `LoadOptions` | keyword arguments | `load_options` |
+| `processor options` | `ProcessorOptions` | keyword arguments | `processor_options` |
+| `processor` | `Processor` | `Processor` | `processor` |
+| `document graph` | `DocumentGraph` | `DocumentGraph` | `document_graph` |
+| `document` | `Document` | `Document` | `document` |
+| `document edge` | `DocumentEdge` | `DocumentEdge` | `document_edge` |
+| `copy` | `Copy` | `Copy` | `copy` |
+| `statement` | `Statement` (union) | `Statement` (union) | `statement` (union) |
+| `written directive` | `WrittenDirective` | `WrittenDirective` | `written_directive` |
+| `extension line` | `ExtensionLine` | `ExtensionLine` | `extension_line` |
+| `set line` | `SetLine` | `SetLine` | `set_line` |
+| `snippet line` | `SnippetLine` | `SnippetLine` | `snippet_line` |
+| `use line` | `UseLine` | `UseLine` | `use_line` |
+| `unreadable line` | `UnreadableLine` | `UnreadableLine` | `unreadable_line` |
+| `written block` | `WrittenBlock` | `WrittenBlock` | `written_block` |
+| `written value` | `WrittenValue` (union) | `WrittenValue` (union) | `written_value` (union) |
+| `word` | `Word` | `Word` | `word` |
+| `string` | `String` | `String` | `string` |
+| `list` | `List` | `List` | `list` |
+| `slice` | `Slice` | `Slice` | `slice` |
+| `index` | `Index` | `Index` | `index` |
+| `reference` | `Reference` | `Reference` | `reference` |
+| `variable` | `Variable` (union) | `Variable` (union) | `variable` (union) |
+| `set variable` | `SetVariable` | `SetVariable` | `set_variable` |
+| `parameter` | `Parameter` | `Parameter` | `parameter` |
+| `override variable` | `OverrideVariable` | `OverrideVariable` | `override_variable` |
+| `resolution` | `Resolution<T>` | `Resolution[T]` | `resolution<T>` |
+| `reference resolution` | `ReferenceResolution` | `ReferenceResolution` | `reference_resolution` |
+| `expansion` | `Expansion` | `Expansion` | `expansion` |
+| `expansion block` | `ExpansionBlock` | `ExpansionBlock` | `expansion_block` |
+| `directive expansion` | `DirectiveExpansion` | `DirectiveExpansion` | `directive_expansion` |
+| `unreadable expansion` | `UnreadableExpansion` | `UnreadableExpansion` | `unreadable_expansion` |
+| `slice value` | `SliceValue` | `SliceValue` | `slice_value` |
+| `index value` | `IndexValue` | `IndexValue` | `index_value` |
+| `expanded value` | `ExpandedValue` (union) | `ExpandedValue` (union) | `expanded_value` (union) |
+| `expanded word` | `ExpandedWord` | `ExpandedWord` | `expanded_word` |
+| `expanded string` | `ExpandedString` | `ExpandedString` | `expanded_string` |
+| `expanded list` | `ExpandedList` | `ExpandedList` | `expanded_list` |
+| `expanded slice` | `ExpandedSlice` | `ExpandedSlice` | `expanded_slice` |
+| `expanded index` | `ExpandedIndex` | `ExpandedIndex` | `expanded_index` |
+| `statement kind` (kind list) | `StatementKind` (as-const object and type) | `StatementKind` (`StrEnum`) | `statement_kind` (`enum class`) |
+| `value kind` (kind list) | `ValueKind` (as-const object and type) | `ValueKind` (`StrEnum`) | `value_kind` (`enum class`) |
+| `variable kind` (kind list) | `VariableKind` (as-const object and type) | `VariableKind` (`StrEnum`) | `variable_kind` (`enum class`) |
+| `unreadable reason` (kind list) | `UnreadableReason` (as-const object and type) | `UnreadableReason` (`StrEnum`) | `unreadable_reason` (`enum class`) |
+| `format diagnostic` (free function) | `formatDiagnostic` | `format_diagnostic` | `format_diagnostic` |
+| `make processor` (free function) | `villanelle(...)` | `Processor(...)` | `processor(...)` |
+| `include` (free function) | `include` (`villanelle/include`) | `include` (`villanelle.include`) | `include` (`villanelle::extensions`) |
+| `max depth` (constant) | `MAX_DEPTH` | `MAX_DEPTH` | `max_depth` |
+| `max directives` (constant) | `MAX_DIRECTIVES` | `MAX_DIRECTIVES` | `max_directives` |
+| `max safe integer` (constant) | `MAX_SAFE_INTEGER` | `MAX_SAFE_INTEGER` | `max_safe_integer` |
+| `reserved` (constant) | `RESERVED` | `RESERVED` | `reserved` |
+| `variable name` (constant) | `VARIABLE_NAME` | `VARIABLE_NAME` | `is_variable_name` |
 <!-- end generated -->
 
 The low level's public entry is one module in each binding: `ts/src/written/index.ts` (new) and the package
@@ -253,22 +253,22 @@ The low level's public entry is one module in each binding: `ts/src/written/inde
 ### Rendered tree
 
 <!-- generated: names: rendered (tools/gen-api.py docs) -->
-| Spec name | TypeScript | Python |
-|---|---|---|
-| `rendered` | `Rendered` | `Rendered` |
-| `directive` | `Directive` | `Directive` |
-| `rendered block` | `RenderedBlock` | `RenderedBlock` |
-| `key rule` | `KeyRule` | `KeyRule` |
-| `key options` | `KeyOptions` | keyword arguments |
-| `address step` | `AddressStep` | `AddressStep` |
-| `address` | `Address` | `Address` |
-| `change` | `Change` (union) | `Change` (union) |
-| `added` | `Added` | `Added` |
-| `removed` | `Removed` | `Removed` |
-| `changed` | `Changed` | `Changed` |
-| `unknown` | `Unknown` | `Unknown` |
-| `change kind` (kind list) | `ChangeKind` (as-const object and type) | `ChangeKind` (`StrEnum`) |
-| `render` (free function) | `render` | `render` |
+| Spec name | TypeScript | Python | C++ |
+|---|---|---|---|
+| `rendered` | `Rendered` | `Rendered` | `rendered` |
+| `directive` | `Directive` | `Directive` | `directive` |
+| `rendered block` | `RenderedBlock` | `RenderedBlock` | `rendered_block` |
+| `key rule` | `KeyRule` | `KeyRule` | `key_rule` |
+| `key options` | `KeyOptions` | keyword arguments | `key_options` |
+| `address step` | `AddressStep` | `AddressStep` | `address_step` |
+| `address` | `Address` | `Address` | `address` |
+| `change` | `Change` (union) | `Change` (union) | `change` (union) |
+| `added` | `Added` | `Added` | `added` |
+| `removed` | `Removed` | `Removed` | `removed` |
+| `changed` | `Changed` | `Changed` | `changed` |
+| `unknown` | `Unknown` | `Unknown` | `unknown` |
+| `change kind` (kind list) | `ChangeKind` (as-const object and type) | `ChangeKind` (`StrEnum`) | `change_kind` (`enum class`) |
+| `render` (free function) | `render` | `render` | `render` |
 <!-- end generated -->
 
 ## New terms in milestone 1

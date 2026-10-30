@@ -277,18 +277,18 @@ Problems in the config text are no group: they are never raised, only reported a
 generated from the schema:
 
 <!-- generated: error groups (tools/gen-api.py docs) -->
-| Group | Sort | Raised when | TypeScript | Python |
-|---|---|---|---|---|
-| `villanelle error` | base | never by itself: the base class of every expected-outcome class, so one except or catch clause catches every outcome the input or the outside world decides, and no program bug | `VillanelleError`, extends `Error` | `VillanelleError`, subclass of `Exception` |
-| `diagnostic error` | expected outcome, under `villanelle error` | a reader is given a value of the wrong kind or spelling, or a program's error(...); carries one located diagnostic as 'diagnostic' | `DiagnosticError` | `DiagnosticError` |
-| `read error` | expected outcome, under `villanelle error` | load cannot resolve the root path to exactly one file, or cannot read it. No diagnostic and no code | `ReadError` | `ReadError` |
-| `bad text error` | expected outcome, under `villanelle error` | the text given to an edit, or an override's text, is not what that place takes; 'diagnostics' are located in that text, in the binding's string unit, and its message is built from them | `BadTextError` | `BadTextError` |
-| `save error` | expected outcome, under `villanelle error` | the writer failed | `SaveError` | `SaveError` |
-| `lost update error` | expected outcome, under `save error` | a file the save would write changed since it was read or last saved: its current text differs from its saved text. Check lost updates raises it inside every writer, and save passes it on unchanged | `LostUpdateError` | `LostUpdateError` |
-| `detached error` | program bug | any member but kind of a detached handle is used | `DetachedError`, extends `ReferenceError` | `DetachedError`, subclass of `ReferenceError` |
-| `argument type error` | program bug | an argument of the wrong type: anything but text where config text or a name is taken (an extension's name when the processor is made included), and to quote and text; a writer that is not a document writer; a render given something that is not a document graph (no callable expand); a key rule that returns anything but text or absent | `TypeError` | `TypeError` |
-| `misuse error` | program bug | a bad argument value a program could have checked: every bad name (a variable or override name not matching the variable name pattern; a directive's new name, or an extension's name when the processor is made, that is not one word), a program code without '/', a reserved (set, snippet, use) or repeated extension name, a current list in check lost updates not as long as its files, and removing a slice's or index's name or its only bound | `MisuseError`, extends `Error` | `ValueError` |
-| `index out of range` | program bug | an insert index outside a block; a token range outside a parse | `RangeError` | `IndexError` |
+| Group | Sort | Raised when | TypeScript | Python | C++ |
+|---|---|---|---|---|---|
+| `villanelle error` | base | never by itself: the base class of every expected-outcome class, so one except or catch clause catches every outcome the input or the outside world decides, and no program bug | `VillanelleError`, extends `Error` | `VillanelleError`, subclass of `Exception` | `villanelle_error`, derives from `std::runtime_error` |
+| `diagnostic error` | expected outcome, under `villanelle error` | a reader is given a value of the wrong kind or spelling, or a program's error(...); carries one located diagnostic as 'diagnostic' | `DiagnosticError` | `DiagnosticError` | `diagnostic_error` |
+| `read error` | expected outcome, under `villanelle error` | load cannot resolve the root path to exactly one file, or cannot read it. No diagnostic and no code | `ReadError` | `ReadError` | `read_error` |
+| `bad text error` | expected outcome, under `villanelle error` | the text given to an edit, or an override's text, is not what that place takes; 'diagnostics' are located in that text, in the binding's string unit, and its message is built from them | `BadTextError` | `BadTextError` | `bad_text_error` |
+| `save error` | expected outcome, under `villanelle error` | the writer failed | `SaveError` | `SaveError` | `save_error` |
+| `lost update error` | expected outcome, under `save error` | a file the save would write changed since it was read or last saved: its current text differs from its saved text. Check lost updates raises it inside every writer, and save passes it on unchanged | `LostUpdateError` | `LostUpdateError` | `lost_update_error` |
+| `detached error` | program bug | any member but kind of a detached handle is used | `DetachedError`, extends `ReferenceError` | `DetachedError`, subclass of `ReferenceError` | `detached_error`, derives from `std::logic_error` |
+| `argument type error` | program bug | an argument of the wrong type: anything but text where config text or a name is taken (an extension's name when the processor is made included), and to quote and text; a writer that is not a document writer; a render given something that is not a document graph (no callable expand); a key rule that returns anything but text or absent | `TypeError` | `TypeError` | `argument_type_error`, derives from `std::logic_error` |
+| `misuse error` | program bug | a bad argument value a program could have checked: every bad name (a variable or override name not matching the variable name pattern; a directive's new name, or an extension's name when the processor is made, that is not one word), a program code without '/', a reserved (set, snippet, use) or repeated extension name, a current list in check lost updates not as long as its files, and removing a slice's or index's name or its only bound | `MisuseError`, extends `Error` | `ValueError` | `misuse_error`, derives from `std::invalid_argument` |
+| `index out of range` | program bug | an insert index outside a block; a token range outside a parse | `RangeError` | `IndexError` | `index_out_of_range`, derives from `std::out_of_range` |
 <!-- end generated -->
 
 There is no `edit error` (milestone 4: it was never raised; `bad text error` is the only refusal of an edit) and no
@@ -1147,6 +1147,7 @@ the raise):
 |---|---|
 | TypeScript | `{member}(): argument "{parameter}" must be a string, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, String() a number first` |
 | Python | `{member}() argument '{parameter}' must be str, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, str() a number first` |
+| C++ | `{member}(): argument '{parameter}' must be a live object, not {got}` |
 <!-- end generated -->
 
 Costs: every literal a program writes into an edit needs `text (...)` (`statement.set(text("8080"))`), and a value's

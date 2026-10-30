@@ -175,6 +175,24 @@ TypeError  (argument type error)
 ValueError  (misuse error)
 IndexError  (index out of range)
 ```
+
+C++:
+
+```text
+std::runtime_error
+└─ villanelle_error  (expected outcomes)
+   ├─ diagnostic_error  (diagnostic)
+   ├─ read_error  (paths, std::nested_exception (std::rethrow_if_nested))
+   ├─ bad_text_error  (diagnostics)
+   └─ save_error  (paths, std::nested_exception (std::rethrow_if_nested))
+      └─ lost_update_error  (paths)
+
+program bugs, not under villanelle_error:
+detached_error derives from std::logic_error  (detached error)
+argument_type_error derives from std::logic_error  (argument type error)
+misuse_error derives from std::invalid_argument  (misuse error)
+index_out_of_range derives from std::out_of_range  (index out of range)
+```
 <!-- end generated -->
 
 - There is no `EditError` (milestone 4): it was never raised, so `BadTextError` sits directly under the base.
@@ -211,14 +229,14 @@ The adapters, generated from the schema (each is a free function returning a por
 import paths):
 
 <!-- generated: adapters (tools/gen-api.py docs) -->
-| Spec name | Port | TypeScript | Python |
-|---|---|---|---|
-| `memory source` | document source | `memorySource(files)` from `villanelle` | `memory_source(files)` from `villanelle` |
-| `memory writer` | document writer | `memoryWriter(files)` from `villanelle` | `memory_writer(files)` from `villanelle` |
-| `file source` | document source | `fileSource()` from `villanelle/node` | `file_source()` from `villanelle.files` |
-| `file writer` | document writer | `fileWriter()` from `villanelle/node` | `file_writer()` from `villanelle.files` |
-| `fetch source` | document source | `fetchSource(fetch)` from `villanelle/browser` | none |
-| `fetch writer` | document writer | `fetchWriter(fetch, options)` from `villanelle/browser` | none |
+| Spec name | Port | TypeScript | Python | C++ |
+|---|---|---|---|---|
+| `memory source` | document source | `memorySource(files)` from `villanelle` | `memory_source(files)` from `villanelle` | `memory_source(files)` from `villanelle` |
+| `memory writer` | document writer | `memoryWriter(files)` from `villanelle` | `memory_writer(files)` from `villanelle` | `memory_writer(files)` from `villanelle` |
+| `file source` | document source | `fileSource()` from `villanelle/node` | `file_source()` from `villanelle.files` | `file_source()` from `villanelle::files` |
+| `file writer` | document writer | `fileWriter()` from `villanelle/node` | `file_writer()` from `villanelle.files` | `file_writer()` from `villanelle::files` |
+| `fetch source` | document source | `fetchSource(fetch)` from `villanelle/browser` | none | none |
+| `fetch writer` | document writer | `fetchWriter(fetch, options)` from `villanelle/browser` | none | none |
 <!-- end generated -->
 
 - **The memory pair shares one map.** `memory source (files)` reads the map it is given at every call, never a

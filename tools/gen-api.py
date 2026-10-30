@@ -8,17 +8,18 @@
                                          cpp/tests/generated/*.cpp, formatted by the pinned clang-format (through uv)
     python3 tools/gen-api.py docs     -> rewrites the generated tables in spec/ (committed: they are read on GitHub)
     python3 tools/gen-api.py --check  -> checks the schema and every emitter's Language (and that each check bites),
-                                         renders both bindings into a temp dir, renders a schema copy with one more
+                                         renders every binding into a temp dir, renders a schema copy with one more
                                          layer to prove every layer gets a module, renders a third binding's stub
                                          (tools/api/stub.py) to prove a binding needs no schema edit and is a docs
                                          column, and fails when a committed generated table is stale (it renders
                                          without formatting: it checks the schema and the emitters, not the layout)
 
-tools/gen.sh runs `ts` or `py` after the parser, so every TypeScript package script and py/tests/conftest.py regenerate
+tools/gen.sh runs `ts`, `py` or `cpp` after the parser, so every TypeScript package script and py/tests/conftest.py regenerate
 the code. Generated code is never committed (owner, 2026-10-23: "Don't commit the generated code, just the source").
 
 The work is split as a compiler is: tools/api/loader.py reads and checks the schema into one language-neutral model;
-one emitter per language renders it (tools/api/emit_ts.py, emit_py.py), and emit_docs.py renders the Markdown tables.
+one emitter per language renders it (tools/api/emit_ts.py, emit_py.py, emit_cpp.py), and emit_docs.py renders the
+Markdown tables.
 Each emitter hands the loader its Language (EMITTERS below); spec/codegen.md section 10 lists what else a new binding
 touches. Building one binding loads only its own Language, so a broken fact in one emitter never blocks another
 binding's build; --check and docs load them all. After rendering, each binding's files go through its language's
@@ -49,10 +50,7 @@ OUT = {
     "py": (REPO / "py" / "src" / "villanelle" / "_api", {"shapes": REPO / "py" / "conformance", "contract": REPO / "py" / "tests"}),
     "cpp": (REPO / "cpp" / "include" / "villanelle", {"shapes": REPO / "cpp" / "conformance", "contract": REPO / "cpp" / "tests" / "generated"}),
 }
-EMITTERS = {"ts": emit_ts, "py": emit_py}
-# The bindings `gen-api.py <lang>` builds. C++ joins EMITTERS (so --check and the docs tables) when its emitter renders
-# every layer (.claude/design/cpp/frozen-m1.md section 4, Lane A); until then it builds but is not checked.
-TARGETS = {**EMITTERS, "cpp": emit_cpp}
+EMITTERS = {"ts": emit_ts, "py": emit_py, "cpp": emit_cpp}
 LANGUAGES = [e.LANGUAGE for e in EMITTERS.values()]
 
 
@@ -79,7 +77,8 @@ def check_stub(schema: tuple) -> int:
 
 def check_layers(schema: tuple) -> None:
     """Every layer the schema lists gets a module in every binding: a copy with one more layer, holding one record, must
-    render that record in each emitter and in the stub (a layer list kept by hand in an emitter would drop it)."""
+    render that record, spelled as each language spells a type, in each emitter and in the stub (a layer list kept by
+    hand in an emitter would drop it)."""
     api, diagnostics, protocol = (json.loads(json.dumps(x)) for x in schema)
     api["layers"].append({"name": "planted", "holds": "a planted layer", "may import": [api["registry layer"]], "namespace": "own"})
     api["concepts"].append({"name": "widget", "layer": "planted", "nature": "record", "doc": "a planted record",
@@ -87,7 +86,8 @@ def check_layers(schema: tuple) -> None:
     model = Model(api, diagnostics, protocol, [*LANGUAGES, stub.LANGUAGE])
     for key, emitter in [*EMITTERS.items(), ("stub", stub)]:
         files = emitter.render(model)  # type: ignore[attr-defined]
-        if not any(name.startswith("planted.") and "Widget" in text for name, text in files.items()):
+        widget = emitter.LANGUAGE.type_case("widget")  # type: ignore[attr-defined]
+        if not any(name.startswith("planted.") and widget in text for name, text in files.items()):
             raise SchemaError(f"the {key} emitter rendered no module for a layer added to the schema")
 
 
@@ -111,8 +111,8 @@ def write(files: Dict[str, str], out: Path, owned: bool = True) -> None:
 
 
 def main(argv: List[str]) -> int:
-    if len(argv) != 1 or argv[0] not in (*TARGETS, "docs", "--check"):
-        print(f"usage: tools/gen-api.py <{'|'.join(TARGETS)}|docs|--check>", file=sys.stderr)
+    if len(argv) != 1 or argv[0] not in (*EMITTERS, "docs", "--check"):
+        print(f"usage: tools/gen-api.py <{'|'.join(EMITTERS)}|docs|--check>", file=sys.stderr)
         return 2
     # Only the schema's own refusals and a missing file are reported in one line; any other exception is a generator
     # bug and keeps its traceback.
@@ -133,7 +133,7 @@ def main(argv: List[str]) -> int:
             if stale:
                 print(f"gen-api.py: generated tables are stale (run python3 tools/gen-api.py docs): {', '.join(stale)}", file=sys.stderr)
                 return 1
-            print(f"schema checked; {len(caught)} planted breakages caught; ts and py rendered; a planted layer rendered in "
+            print(f"schema checked; {len(caught)} planted breakages caught; {', '.join(EMITTERS)} rendered; a planted layer rendered in "
                   f"every emitter; a third binding's stub rendered {stub_names} names, every layer and every docs table "
                   "with no schema edit; docs tables current")
             return 0
@@ -142,7 +142,7 @@ def main(argv: List[str]) -> int:
                 print(f"wrote {path.relative_to(REPO)}")
             return 0
         api_out, beside = OUT[argv[0]]
-        emitter = TARGETS[argv[0]]
+        emitter = EMITTERS[argv[0]]
         model = Model(*schema, [emitter.LANGUAGE])
         # Every output is formatted in one run of each formatter command (a name in a folder per OUT key).
         files = dict(emitter.render(model))
