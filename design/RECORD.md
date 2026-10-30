@@ -30,7 +30,7 @@ durable record. Every choice below is current and can be revised.
 | Real rasl configs in the corpus (2026-10-23) | "Neutral here, real ones to rasl (Recommended)" | `kno-m8w.5` |
 | Generated parser code (2026-10-23) | "Don't commit the generated code, just the source": every build and test regenerates it | `kno-g7n.2` |
 | Releases (2026-10-23) | "Key from semantic-release and conventional commit on every PR merge"; "GitHub Release assets only"; "Dry-run until I enable it" (the repository variable `RELEASE_ENABLED`) | `kno-g7n.3` |
-| Skipped brackets and the 100-level limit (2026-10-30) | Answer, to the proposal that brackets error recovery skips not count: "that sounds right" | spec 2.5; errata N1, N6 (in no bead's notes yet) |
+| Skipped brackets and the 100-level limit (2026-10-30) | Answer, to the proposal that brackets error recovery skips not count: "that sounds right" | spec 2.5; errata N1, N6; kno-qa3, kno-bzv.6 |
 | A limit after expansion (2026-10-30) | Answer: "100 seems too low. can we increase it?"; asked which limit: "after expansion"; real configs "likely a few dozen, but i want the headroom". 256 (`MAX_EXPANDED_NESTING`, E5013) is a revisable choice, not his number | `kno-bzv.6` |
 | What one nesting level is (2026-10-30) | Proposal, not objected to (the current rule, revisable): each block and each list a value sits inside is one level; a slice's brackets are none | spec 2.5; errata N3 |
 

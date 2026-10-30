@@ -965,11 +965,12 @@
 ## 2026-10-30, nesting review round (kno-bzv.6), applied
 
 - **N6. N1's wording read the wrong way round.** He answered the proposal that skipped brackets not count ("that
-  sounds right"), not a question whether they should count. Spec 2.5 now says so. That answer is not yet in any bead's
-  notes (kno-bzv.6 holds the after-expansion quotes, now cited in 2.5); recording it there is left to the main session.
+  sounds right"), not a question whether they should count. Spec 2.5 now says so. That answer is recorded in the notes of
+  kno-qa3 and kno-bzv.6 (kno-bzv.6 also holds the after-expansion quotes, cited in 2.5).
 - **N7. Spec 2.5 named only the checks after E5013.** It now also names those before it: the line's shape (E5009 to
   E5011), E5002, E5003 and the codes its values give while they expand; an extension block's `@set` lines come after
-  the extension line's own E5013. The bindings already agreed; `diag-expanded-nesting-*` now pin it.
+  the extension line's own E5013. The bindings already agreed; `diag-expanded-nesting-*` pin the order against the checks before and after,
+  but no case yet pins an extension line's E5013 before its block's `@set` E5013 (a swapped-order mutant survived).
 - **N8. Spec 3.2 did not say which code the end of the text gives inside a block, or how many E2003.** It now
   states what all three bindings and the corpus (`nest-skipped-list`, `nest-recovered-100`) already do: an open `[`
   gives E2004, else an open block E2003, else E2001; E2003 once, however many blocks are open; none after a
@@ -978,7 +979,7 @@
   guide: `docs/site/pages/language.md`, `editing.md`, `walking.md` and `diagnostics.md#error-codes`. Its history
   lines (82-83) still name the old pages as history.
 - **C1 is tracked in `kno-bzv.5`** (protocol surface to reach E3004 and E3006): the design choice stays open there.
-- **F5 (spec 4.2, how a file writer replaces a file) is still open, with no bead:** which binding's behaviour
+- **F5 (spec 4.2, how a file writer replaces a file) is tracked in `kno-epi`:** which binding's behaviour
   becomes the rule is a choice for the owner, not made here.
 - **N9. Stale lists.** `spec/codegen.md`'s `limits.ts` row now names `MAX_EXPANDED_NESTING`; RECORD's 5xxx band is
   E5001-E5013 and its owner-answers table holds the three 2026-10-30 nesting rows (two answers, one proposal); spec
