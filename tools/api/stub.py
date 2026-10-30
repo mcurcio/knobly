@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 
 from . import emit_docs
-from .loader import Concept, Language, Model, Type, pascal, snake, upper_snake
+from .loader import IDIOM_FIELDS, TRAITS, Concept, Language, Model, Type, pascal, snake, upper_snake
 
 
 def _public_kind(model: Model, c: Optional[Concept]) -> str:
@@ -41,6 +41,7 @@ LANGUAGE = Language(
     },
     argument_type_message="{member}: {parameter} wants text, got {got}",
     modules={"files": "disk"},  # no fetch or include adapter: their functions and concepts are left out
+    trait_forms={t: f"toy {t}" for t in (*TRAITS, *IDIOM_FIELDS)},
 )
 
 

@@ -10,20 +10,20 @@
 // statement written '@name' is a language or extension statement, never a directive.
 grammar Villanelle;
 
-document      : BOM? statements EOF ;
+document      : BOM? statements EOF ;   // cst: document
 statements    : filler* (directive filler*)* ;
 filler        : SPACE | COMMENT | NEWLINE | ';' ;
-directive     : header (';' | block) ;
+directive     : header (';' | block) ;   // cst: directive
 header        : (WORD | AT_WORD) rest ;              // an AT_WORD heads a language or extension statement
 rest          : (gap value)* gap? ;
 gap           : (SPACE | NEWLINE | COMMENT NEWLINE)+ ;   // a comment runs to the end of its line
-block         : '{' statements '}' ;
+block         : '{' statements '}' ;   // cst: block
 value         : WORD | AT_WORD | INTEGER | DIGIT_WORD | STRING | VARIABLE | slicedWord | list ;
-slicedWord    : sliceName '[' bounds ']' ;
+slicedWord    : sliceName '[' bounds ']' ;   // cst: slice
 sliceName     : WORD | AT_WORD | VARIABLE ;           // a word, or a variable holding one word
 bounds        : bound '~' bound? | '~' bound | bound ;
 bound         : INTEGER | VARIABLE ;
-list          : '[' gap? items? ']' ;
+list          : '[' gap? items? ']' ;   // cst: list
 items         : value gap? (',' gap? value gap?)* (',' gap?)? ;
 
 // Entry rules (spec 2.8): a text a program hands to an edit or an override, parsed on its own. A binding parses

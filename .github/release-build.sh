@@ -3,10 +3,12 @@
 #   villanelle-<version>.tgz                 npm pack of ts/
 #   villanelle-<version>-py3-none-any.whl    uv build of py/ (wheel)
 #   villanelle-<version>.tar.gz              uv build of py/ (sdist)
+#   villanelle-cpp-<version>.tar.gz          the C++ source archive, generated headers included (.github/release-cpp.sh)
+#   villanelle.hpp                           the C++ single header (.github/release-cpp.sh)
 # The version is stamped into ts/package.json and py/pyproject.toml for the build only; both files get their
 # committed bytes back on exit, so the version is never committed. Run by semantic-release's prepare step
 # (.releaserc.json) and, in dry-run, by the release job in .github/workflows/ci.yml.
-# Needs: Node 24 with corepack, ts/ dependencies installed, Java 11+ (tools/gen.sh), uv.
+# Needs: Node 24 with corepack, ts/ dependencies installed, Java 11+ (tools/gen.sh), uv, python3.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -28,5 +30,7 @@ npm pack ./ts --pack-destination "$out"
 uv version --project py --frozen "$version"
 bash tools/gen.sh py
 uv build --out-dir "$out" py
+
+bash .github/release-cpp.sh "$version" "$out"
 
 ls -l "$out"

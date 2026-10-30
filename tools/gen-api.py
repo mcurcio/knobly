@@ -4,19 +4,23 @@
                                          formatted by ts's pinned Prettier (run pnpm install in ts/ first)
     python3 tools/gen-api.py py       -> py/src/villanelle/_api/*.py, py/conformance/shapes.py and py/tests/api_contract.py,
                                          formatted by py's pinned ruff (through uv)
-    python3 tools/gen-api.py docs     -> rewrites the generated tables in spec/ (committed: they are read on GitHub)
+    python3 tools/gen-api.py cpp      -> cpp/include/villanelle/*.hpp, cpp/conformance/shapes.hpp and
+                                         cpp/tests/generated/*.cpp, formatted by the pinned clang-format (through uv)
+    python3 tools/gen-api.py docs     -> rewrites the generated tables in spec/, docs/ and README.md (committed: they are
+                                         read on GitHub; the members tables' rows are docs/tables.json)
     python3 tools/gen-api.py --check  -> checks the schema and every emitter's Language (and that each check bites),
-                                         renders both bindings into a temp dir, renders a schema copy with one more
+                                         renders every binding into a temp dir, renders a schema copy with one more
                                          layer to prove every layer gets a module, renders a third binding's stub
                                          (tools/api/stub.py) to prove a binding needs no schema edit and is a docs
                                          column, and fails when a committed generated table is stale (it renders
                                          without formatting: it checks the schema and the emitters, not the layout)
 
-tools/gen.sh runs `ts` or `py` after the parser, so every TypeScript package script and py/tests/conftest.py regenerate
+tools/gen.sh runs `ts`, `py` or `cpp` after the parser, so every TypeScript package script and py/tests/conftest.py regenerate
 the code. Generated code is never committed (owner, 2026-10-23: "Don't commit the generated code, just the source").
 
 The work is split as a compiler is: tools/api/loader.py reads and checks the schema into one language-neutral model;
-one emitter per language renders it (tools/api/emit_ts.py, emit_py.py), and emit_docs.py renders the Markdown tables.
+one emitter per language renders it (tools/api/emit_ts.py, emit_py.py, emit_cpp.py), and emit_docs.py renders the
+Markdown tables.
 Each emitter hands the loader its Language (EMITTERS below); spec/codegen.md section 10 lists what else a new binding
 touches. Building one binding loads only its own Language, so a broken fact in one emitter never blocks another
 binding's build; --check and docs load them all. After rendering, each binding's files go through its language's
@@ -36,7 +40,7 @@ from typing import Dict, List
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from api import emit_docs, emit_py, emit_ts, stub  # noqa: E402
+from api import emit_cpp, emit_docs, emit_py, emit_ts, stub  # noqa: E402
 from api.formatter import FormatterError, format_files  # noqa: E402
 from api.loader import REPO, Model, SchemaError, planted, read_schema  # noqa: E402
 
@@ -45,8 +49,9 @@ from api.loader import REPO, Model, SchemaError, planted, read_schema  # noqa: E
 OUT = {
     "ts": (REPO / "ts" / "src" / "gen" / "api", {"shapes": REPO / "ts" / "conformance", "contract": REPO / "ts" / "test"}),
     "py": (REPO / "py" / "src" / "villanelle" / "_api", {"shapes": REPO / "py" / "conformance", "contract": REPO / "py" / "tests"}),
+    "cpp": (REPO / "cpp" / "include" / "villanelle", {"shapes": REPO / "cpp" / "conformance", "contract": REPO / "cpp" / "tests" / "generated"}),
 }
-EMITTERS = {"ts": emit_ts, "py": emit_py}
+EMITTERS = {"ts": emit_ts, "py": emit_py, "cpp": emit_cpp}
 LANGUAGES = [e.LANGUAGE for e in EMITTERS.values()]
 
 
@@ -68,12 +73,17 @@ def check_stub(schema: tuple) -> int:
             raise SchemaError(f"the third-binding stub rendered nothing for the {layer.name} layer")
     if stub.LANGUAGE.name not in files["docs/error groups.md"]:
         raise SchemaError("the docs tables have no column for the third-binding stub")
+    members = [name for name in files if name.startswith("docs/members: ")]
+    lacking = [name for name in members if stub.LANGUAGE.name not in files[name].split("\n", 1)[0]]
+    if not members or lacking:
+        raise SchemaError(f"the docs/tables.json tables have no column for the third-binding stub: {lacking or 'none rendered'}")
     return names.count("\n")
 
 
 def check_layers(schema: tuple) -> None:
     """Every layer the schema lists gets a module in every binding: a copy with one more layer, holding one record, must
-    render that record in each emitter and in the stub (a layer list kept by hand in an emitter would drop it)."""
+    render that record, spelled as each language spells a type, in each emitter and in the stub (a layer list kept by
+    hand in an emitter would drop it)."""
     api, diagnostics, protocol = (json.loads(json.dumps(x)) for x in schema)
     api["layers"].append({"name": "planted", "holds": "a planted layer", "may import": [api["registry layer"]], "namespace": "own"})
     api["concepts"].append({"name": "widget", "layer": "planted", "nature": "record", "doc": "a planted record",
@@ -81,7 +91,8 @@ def check_layers(schema: tuple) -> None:
     model = Model(api, diagnostics, protocol, [*LANGUAGES, stub.LANGUAGE])
     for key, emitter in [*EMITTERS.items(), ("stub", stub)]:
         files = emitter.render(model)  # type: ignore[attr-defined]
-        if not any(name.startswith("planted.") and "Widget" in text for name, text in files.items()):
+        widget = emitter.LANGUAGE.type_case("widget")  # type: ignore[attr-defined]
+        if not any(name.startswith("planted.") and widget in text for name, text in files.items()):
             raise SchemaError(f"the {key} emitter rendered no module for a layer added to the schema")
 
 
@@ -105,8 +116,8 @@ def write(files: Dict[str, str], out: Path, owned: bool = True) -> None:
 
 
 def main(argv: List[str]) -> int:
-    if len(argv) != 1 or argv[0] not in ("ts", "py", "docs", "--check"):
-        print("usage: tools/gen-api.py <ts|py|docs|--check>", file=sys.stderr)
+    if len(argv) != 1 or argv[0] not in (*EMITTERS, "docs", "--check"):
+        print(f"usage: tools/gen-api.py <{'|'.join(EMITTERS)}|docs|--check>", file=sys.stderr)
         return 2
     # Only the schema's own refusals and a missing file are reported in one line; any other exception is a generator
     # bug and keeps its traceback.
@@ -127,7 +138,7 @@ def main(argv: List[str]) -> int:
             if stale:
                 print(f"gen-api.py: generated tables are stale (run python3 tools/gen-api.py docs): {', '.join(stale)}", file=sys.stderr)
                 return 1
-            print(f"schema checked; {len(caught)} planted breakages caught; ts and py rendered; a planted layer rendered in "
+            print(f"schema checked; {len(caught)} planted breakages caught; {', '.join(EMITTERS)} rendered; a planted layer rendered in "
                   f"every emitter; a third binding's stub rendered {stub_names} names, every layer and every docs table "
                   "with no schema edit; docs tables current")
             return 0

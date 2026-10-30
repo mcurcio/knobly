@@ -372,7 +372,8 @@
     {
       "name": "argument type error",
       "sort": "program bug",
-      "raised when": "an argument of the wrong type: anything but text where config text or a name is taken (an extension's name when the processor is made included), and to quote and text; a writer that is not a document writer; a render given something that is not a document graph (no callable expand); a key rule that returns anything but text or absent"
+      "raised when": "an argument of the wrong type: anything but text where config text or a name is taken (an extension's name when the processor is made included), and to quote and text; a writer that is not a document writer; a render given something that is not a document graph (no callable expand); a key rule that returns anything but text or absent",
+      "message": {"given": true}
     },
     {
       "name": "misuse error",
@@ -385,7 +386,8 @@
     {
       "name": "index out of range",
       "sort": "program bug",
-      "raised when": "an insert index outside a block; a token range outside a parse"
+      "raised when": "an insert index outside a block; a token range outside a parse",
+      "message": {"given": true}
     }
   ],
   "argument type error message": {
@@ -3198,7 +3200,8 @@
         "expanded index"
       ],
       "doc": "a union: one value after expansion ($name replaced) with its links to the lines it came through. The low level owns it: an extension use holds it, a directive expansion's values are it, and a rendered directive's values are the same objects. The readers stay on every variant: a value of the wrong kind is a problem in the config text, reported as E4002. Two expanded values are equal exactly when their texts are equal",
-      "rationale": "milestone 4 collapsed value expansion and the rendered argument family into it; equality is Python's =="
+      "rationale": "milestone 4 collapsed value expansion and the rendered argument family into it; equality is Python's ==",
+      "equal by": "text"
     },
     {
       "name": "expanded word",

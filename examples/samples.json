@@ -1,0 +1,23 @@
+{
+  "$comment": "The user guide's samples (.claude/design/cpp/frozen-docs.md, the sample table). Each id has one file per binding (ts/examples/<id>.ts, py/examples/<id>.py, cpp/examples/<id>.cpp) that prints exactly examples/expected/<id>.txt when run in a fresh copy of its fixture folder (null: an empty folder). Each binding's tests run every sample file it has against this table.",
+  "samples": {
+    "hello": {"fixture": "examples/fixtures/hello"},
+    "quickstart": {"fixture": "examples/fixtures/quickstart"},
+    "load_render": {"fixture": "fixtures/rasl/split"},
+    "read_values": {"fixture": "examples/fixtures/values"},
+    "overrides": {"fixture": "fixtures/rasl/split"},
+    "diagnostics": {"fixture": "examples/fixtures/broken"},
+    "errors": {"fixture": "examples/fixtures/errors"},
+    "edit_save": {"fixture": "fixtures/rasl/split"},
+    "edit_statements": {"fixture": null},
+    "lost_update": {"fixture": "examples/fixtures/quickstart"},
+    "variables": {"fixture": "fixtures/rasl/split"},
+    "snippets": {"fixture": null},
+    "include_read": {"fixture": null},
+    "sink": {"fixture": null},
+    "addresses": {"fixture": "fixtures/rasl/split"},
+    "diff_reload": {"fixture": "fixtures/rasl/split"},
+    "custom_source": {"fixture": null},
+    "syntax_tree": {"fixture": null}
+  }
+}

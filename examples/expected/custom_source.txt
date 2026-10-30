@@ -1,0 +1,2 @@
+sinks a, b
+reads main.conf, sink.conf

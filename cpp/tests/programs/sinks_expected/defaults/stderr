@@ -1,0 +1,8 @@
+sink.conf:3:9: E4004: not a number: 20hz
+    fps 20hz;
+        ^^^^
+  via extension include at main.conf:4:5
+sink.conf:3:9: E4004: not a number: 20hz
+    fps 20hz;
+        ^^^^
+  via extension include at main.conf:5:5

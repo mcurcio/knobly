@@ -2,6 +2,8 @@
 (each failure mode reaches the exit status). Python 3.9+ standard library: python3 conformance/driver/test_driver.py"""
 
 import io
+import os
+import subprocess
 import sys
 import unittest
 from contextlib import redirect_stdout
@@ -119,6 +121,20 @@ class Driver(unittest.TestCase):
     def test_a_bad_hello_bails_out(self) -> None:
         status, out = drive("bad-hello")
         self.assertEqual(status, 2, out)
+
+    def test_a_stalled_adapter_times_out_as_a_fault(self) -> None:
+        # The driver runs in its own process with a 1 s request timeout; the test's own guard (20 s) fails it if the
+        # driver blocks instead (vil-p5x).
+        command = [sys.executable, str(HERE / "run.py"), "--corpus", "syntax", "--case", "empty", "--"]
+        command += [sys.executable, str(HERE / "stub_adapter.py"), "stall"]
+        environment = {**os.environ, "VILLANELLE_DRIVER_TIMEOUT": "1"}
+        try:
+            done = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=20)
+        except subprocess.TimeoutExpired:
+            self.fail("the driver blocked on a stalled adapter instead of timing out")
+        self.assertNotEqual(done.returncode, 0, done.stdout)
+        self.assertIn("adapter fault: timed out after 1 s waiting for parse", done.stdout)
+        self.assertIn("not ok 2 - syntax/empty", done.stdout)
 
 
 if __name__ == "__main__":

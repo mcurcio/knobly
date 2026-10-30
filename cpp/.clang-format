@@ -1,0 +1,10 @@
+# The one C++ style: clang-format, pinned in tools/api/emit_cpp.py (CLANG_FORMAT), formats the generated headers
+# (spec/codegen.md section 4) and is the lint for the hand-written ones.
+BasedOnStyle: Google
+ColumnLimit: 120
+IndentWidth: 4
+AccessModifierOffset: -4
+DerivePointerAlignment: false
+PointerAlignment: Left
+IncludeBlocks: Preserve
+Standard: c++20

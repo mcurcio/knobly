@@ -47,6 +47,13 @@ def _public_kind(model: Model, c: Optional[Concept]) -> str:
 
 
 # TypeScript's own facts (the schema names no language; spec/codegen.md section 10).
+def _call_params(params: List[Tuple[str, str, bool]]) -> str:
+    """A call's parameters in the docs tables: an optional one marked ``?``, the options in one object."""
+    plain = [f"{n}?" if optional else n for n, passed, optional in params if passed != "option"]
+    options = [f"{n}?" if optional else n for n, passed, optional in params if passed == "option"]
+    return ", ".join(plain + ([f"{{ {', '.join(options)} }}"] if options else []))
+
+
 LANGUAGE = Language(
     key="ts",
     name="TypeScript",
@@ -76,6 +83,22 @@ LANGUAGE = Language(
     # so the hand-written code's editors do not pick them up) and otherwise its defaults.
     formatter=Formatter(".ts", (("ts/node_modules/.bin/prettier", "--write", "--no-config", "--no-editorconfig",
                                  "--print-width", "120", "--log-level", "warn"),)),
+    trait_forms={
+        "people form": "`toString()`",
+        "iterate": "`[Symbol.iterator]()`",
+        "count": "`length`",
+        "index": "`at(i)`, absent out of range",
+        "walk": "`walk(visit)`, callback returns `WalkControl`",
+        "collect": "`collect(read)`",
+        "io": "returns a `Promise`",
+        "passed: keyword": "positional",
+        "passed: option": "one options object (`load(path, { overrides })`)",
+        "brand": "a branded string",
+        "template": "a template literal type (`${string}/${string}`)",
+        "list": "`readonly T[]`",
+        "map": "`ReadonlyMap` as a result, `Readonly<Record>` as a parameter or an options record's property (`writable`: `Record`)",
+    },
+    call_params=_call_params,
 )
 
 
@@ -603,12 +626,7 @@ def shapes_module(model: Model) -> str:
     for r in p.requests:
         out.append(f"  readonly {s(r.op)}: {shape_type(r.result)};")
     out += ["}", ""]
-    spell: Dict[str, str] = {}
-    for c in model.concepts:
-        for m in c.members:
-            spell[m.name] = camel(m.name)
-    for name in p.edit_members + p.readers:
-        spell[name] = camel(name)
+    spell, _ = model.spellings(LANGUAGE.key)
     out += doc("Each spec name the driver sends (a member, a reader) to this binding's spelling: the casing rule, applied "
                "once here so no adapter writes it again.")
     out.append("export const SPELLING: Readonly<Record<string, string>> = {")

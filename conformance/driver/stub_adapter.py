@@ -1,6 +1,8 @@
 """The smallest adapter, for the driver's own test (test_driver.py): it knows one syntax case, the empty text.
 
-stub_adapter.py ok | crash | bad-hello
+stub_adapter.py ok | crash | bad-hello | stall
+
+stall answers hello and never answers parse: it keeps reading, as a hung binding would.
 """
 
 import json
@@ -15,6 +17,8 @@ for line in sys.stdin:
         ok = {"protocol": 1, "binding": "stub", "unit": unit, "level": 0}
     elif MODE == "crash":
         sys.exit(3)
+    elif MODE == "stall" and request["op"] == "parse":
+        continue
     else:
         ok = EMPTY
     sys.stdout.write(json.dumps({"id": request["id"], "ok": ok}) + "\n")

@@ -31,7 +31,7 @@ import json
 import re
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 REPO = Path(__file__).resolve().parent.parent.parent
 SCHEMA = REPO / "spec" / "schema"
@@ -454,6 +454,9 @@ SORTS = closed("errorGroup", "properties", "sort")
 MODULES = closed("moduleName")
 FACTORY_FORMS = closed("factoryForm")  # how a binding makes a concept a factory function makes
 ROOT_FORMS = closed("rootForm")  # a root error group's class extends the language's class, or is it
+# The typed fields spec/codegen.md section 3's trait table documents beside the traits: each Language.trait_forms
+# gives every one (and every trait the schema uses).
+IDIOM_FIELDS = ("io", *(f"passed: {p}" for p in PASSED if p != "position"), "brand", "template", "list", "map")
 
 # What an emitted doc may not carry (spec/codegen.md section 3, "Docs and rationale"): it goes in 'rationale'.
 BEAD_ID = re.compile(r"\bvil-[a-z0-9]{3}(\.[0-9]+)*\b")  # this repository's beads prefix
@@ -463,11 +466,11 @@ HISTORY = re.compile(r"\bmilestone [0-9]|\bowner, [0-9]{4}-")
 @dataclass(frozen=True)
 class Formatter:
     """A language's standard formatter, pinned to an exact version where the binding pins its tools, run on every
-    generated file whose name ends in ``suffix`` (spec/codegen.md section 4): the emitters write plain, deterministic
+    generated file whose name ends in ``suffix`` (one suffix, or a tuple of them; spec/codegen.md section 4): the emitters write plain, deterministic
     code and leave its layout to the formatter. Each command runs from the repository root with the files' paths
     appended, in order (tools/api/formatter.py)."""
 
-    suffix: str
+    suffix: Union[str, Tuple[str, ...]]
     commands: Tuple[Tuple[str, ...], ...]
 
 
@@ -523,6 +526,31 @@ class Language:
     # The language's standard formatter, run on the generated code after rendering (None: the output is written as
     # rendered, as the third-binding stub's is).
     formatter: Optional[Formatter] = None
+    # How a type's public name is spelled (a concept, kind list, error class, ``diagnostic code``): PascalCase unless
+    # the language's own style differs (C++ follows its standard library: snake_case).
+    type_case: Callable[[str], str] = pascal
+    # How a constant's public name is spelled (a limit, the reserved words).
+    constant_case: Callable[[str], str] = upper_snake
+    # The public name of a pattern constant, given its spec name; None: the constant's own spelling (constant_case).
+    # C++ has no regex constant: each pattern is a matcher function, ``is_<name>``.
+    pattern_form: Optional[Callable[[str], str]] = None
+    # A member's identifier in a class, given (class, member) spec names; None: the language spells members with
+    # function_case and needs no exception. The loader refuses a member, own or inherited, spelled as its class's
+    # type name (C++ reserves that name for the constructor: spec/codegen.md section 10).
+    member_spelling: Optional[Callable[[str, str], str]] = None
+    # Every kind list in the package's own namespace, whatever its layer (C++: one kinds header the generated parser
+    # includes); False: each kind list in its layer's namespace.
+    kinds_in_package: bool = False
+    # The docs tables' facts (tools/api/emit_docs.py, docs/tables.json). ``trait_forms``: the documentation text of each
+    # trait the schema uses and of each typed field in IDIOM_FIELDS, keyed as spec/codegen.md section 3's trait table
+    # names them ("walk", "io", "passed: option"): what this binding does for it. The loader refuses a language missing
+    # one, so a new trait cannot leave a binding's column blank.
+    trait_forms: Dict[str, str] = field(default_factory=dict)
+    # How a table writes a property read, given its identifier (C++ reads every property through an accessor: name()).
+    property_form: Callable[[str], str] = lambda name: name
+    # How a table writes a call's parameters, given each as (identifier, passed, optional): the text between the
+    # parentheses (spec/codegen.md section 3's ``passed`` forms: an options object, keyword arguments, an aggregate).
+    call_params: Callable[[List[Tuple[str, str, bool]]], str] = lambda params: ", ".join(n for n, _, _ in params)
 
 
 @dataclass
@@ -547,6 +575,7 @@ class Concept:
     callback: Optional[Type] = None
     doc: str = ""
     template: Optional[str] = None  # named type: its form, '{text}' standing for any text
+    equal_by: Optional[str] = None  # the member whose values decide equality; None: a handle's identity, a record's members
 
     @property
     def is_union(self) -> bool:
@@ -819,7 +848,8 @@ class Model:
             c.get("kind list"), list(c.get("except", [])),
             self.parse(c["extends"], f"{where} extends") if "extends" in c else None, tps, list(c.get("match args", [])),
             have, module, c.get("is"), bool(c.get("brand")), c.get("pattern"),
-            self.parse(c["type"], f"{where} type") if "type" in c else None, c.get("doc", ""), c.get("template"))
+            self.parse(c["type"], f"{where} type") if "type" in c else None, c.get("doc", ""), c.get("template"),
+            c.get("equal by"))
 
     def _group(self, g: dict) -> ErrorGroup:
         words(g["name"])  # a group whose name holds a grammar word ('index out of range') is no type name: see _known
@@ -887,6 +917,8 @@ class Model:
             if c.module is not None and c.layer != self.adapter_layer:
                 raise SchemaError(f"{where}: only the {self.adapter_layer} layer has adapter modules")
             self._members_distinct(c)
+            if c.equal_by is not None and c.equal_by not in {m.name for m in c.members}:
+                raise SchemaError(f"{where}: 'equal by' {c.equal_by!r} is none of its members")
             if c.is_union:
                 lst = self.kind.get(c.kind_list or "")
                 if lst is None:
@@ -989,6 +1021,13 @@ class Model:
             for of, form in lang.factory_forms.items():
                 if of not in made or form not in FACTORY_FORMS:
                     raise SchemaError(f"{key} emitter: factory form {of!r}: {form!r} (a concept a factory makes, one of {FACTORY_FORMS})")
+            used = {m.trait for c in self.concepts for m in c.members if m.trait is not None}
+            missing = sorted((used | set(IDIOM_FIELDS)) - set(lang.trait_forms))
+            if missing:
+                raise SchemaError(f"{key} emitter: no documentation form for {', '.join(missing)} (Language.trait_forms)")
+            unknown = sorted(set(lang.trait_forms) - set(TRAITS) - set(IDIOM_FIELDS))
+            if unknown:
+                raise SchemaError(f"{key} emitter: trait_forms names {', '.join(unknown)}, no trait or typed field")
             for c in self.concepts:
                 if c.is_ == "native" and key in c.languages and c.name not in lang.native:
                     raise SchemaError(f"{key} emitter: native type {c.name!r} has no platform type (Language.native)")
@@ -1040,7 +1079,7 @@ class Model:
         texts += [(f"protocol request {r.op!r}", f"{r.doc} {r.params_doc}") for r in self.protocol.requests]
         for where, text in texts:
             bad = BEAD_ID.search(text) or HISTORY.search(text)
-            word = next((n for n in names if re.search(rf"\b{re.escape(n)}\b", text)), None)
+            word = next((n for n in names if re.search(rf"(?<!\w){re.escape(n)}(?!\w)", text)), None)  # C++ ends in no word char
             if bad or word:
                 raise SchemaError(f"{where}: its doc names {(bad.group() if bad else word)!r}; move it to 'rationale'")
 
@@ -1084,13 +1123,24 @@ class Model:
                 raise SchemaError(f"{where}: names {n!r} of the {got} layer, which the {layer} layer may not import (layer direction)")
 
     def _spellings(self) -> None:
-        """No two public names derive the same identifier in one namespace (the casing rule must stay one-to-one)."""
-        for lang in self.languages:
+        """No two public names derive the same identifier in one namespace (the casing rule must stay one-to-one), and
+        no member, own or inherited, is spelled as its class's type name where the language spells members per class."""
+        for lang, language in self.languages.items():
             seen: Dict[Tuple[str, str], str] = {}
             for module, name, what in self.public(lang):
                 if (module, name) in seen:
                     raise SchemaError(f"{lang}: two public names both spell {name!r} in {module}")
                 seen[(module, name)] = what
+            spell = language.member_spelling
+            if spell is None:
+                continue
+            for c in self.concepts:
+                if lang not in c.languages:
+                    continue
+                for m in self.all_members(c):
+                    if m.trait is None and spell(c.name, m.name) == language.type_case(c.name):
+                        raise SchemaError(f"{lang}: concept {c.name!r}, member {m.name!r} spells its class's name "
+                                          f"{language.type_case(c.name)!r} (Language.member_spelling)")
 
     @staticmethod
     def _distinct(names: List[str], where: str) -> None:
@@ -1118,6 +1168,25 @@ class Model:
         if c.extends is not None:
             out += self.all_members(self.concept[c.extends.name])
         return out + list(c.members)
+
+    def spellings(self, lang: str) -> Tuple[Dict[str, str], Dict[Tuple[str, str], str]]:
+        """Each spec name a conformance adapter is sent (every concept's members, the protocol's edit members and
+        readers) in ``lang``'s spelling: (by name, the language's function_case; by (concept, member), where the
+        language's member_spelling spells it otherwise in that concept, C++'s written::index::index_()). The one home
+        of the adapters' spelling tables, so no emitter applies a casing rule of its own."""
+        language = self.languages[lang]
+        by_name: Dict[str, str] = {}
+        by_concept: Dict[Tuple[str, str], str] = {}
+        for c in self.concepts:
+            for m in self.all_members(c):
+                by_name[m.name] = language.function_case(m.name)
+                if language.member_spelling is not None and lang in c.languages:
+                    spelled = language.member_spelling(c.name, m.name)
+                    if spelled != by_name[m.name]:
+                        by_concept[(c.name, m.name)] = spelled
+        for name in self.protocol.edit_members + self.protocol.readers:
+            by_name[name] = language.function_case(name)
+        return by_name, by_concept
 
     def kind_list_of(self, c: Concept) -> str:
         """The kind list a concept's kind member is typed by (a variant's, or a fixed-kind record's)."""
@@ -1151,18 +1220,19 @@ class Model:
         language = self.languages[lang]
         sep = language.sep
         out: List[Tuple[str, str, str]] = []
+        case = language.type_case
         for c in self.concepts:
             if lang not in c.languages or c.is_ == "native":
                 continue  # a native type is the language's own
-            out.append((self.concept_module(c, lang), pascal(c.name), language.public_kind(self, c)))
+            out.append((self.concept_module(c, lang), case(c.name), language.public_kind(self, c)))
         enum = language.public_kind(self, None)  # what an enumeration or a class of the generated code is
         for k in self.kinds:
             if lang in k.languages:
-                out.append((self.module(k.layer, sep), pascal(k.name), enum))
-        out.append((self.package, pascal("diagnostic code"), enum))
+                out.append((self.kind_module(k, lang), case(k.name), enum))
+        out.append((self.package, case("diagnostic code"), enum))
         for g in self.groups:
             if not g.builtin(lang):
-                out.append((self.package, pascal(g.name), enum))
+                out.append((self.package, case(g.name), enum))
         for f in self.functions:
             mod = self.function_module(f, lang)
             if mod is None:
@@ -1173,8 +1243,20 @@ class Model:
             name = self.package if fac == "package function" else language.function_case(f.name)
             out.append((mod, name, "value"))
         for c in self.constants:
-            out.append((self.module(c.layer, sep), upper_snake(c.name), "value"))
+            out.append((self.module(c.layer, sep), constant_name(language, c), "value"))
         return sorted(out + language.trait_names(self))
+
+    def kind_module(self, k: KindList, lang: str) -> str:
+        """A kind list's import path in ``lang``: its layer's, or the package's when the language keeps them all there."""
+        language = self.languages[lang]
+        return self.package if language.kinds_in_package else self.module(k.layer, language.sep)
+
+
+def constant_name(language: Language, c: Constant) -> str:
+    """A constant's public name in one language: a pattern's matcher (``pattern_form``) or the constant's spelling."""
+    if c.sort == "pattern" and language.pattern_form is not None:
+        return language.pattern_form(c.name)
+    return language.constant_case(c.name)
 
 
 def grammar_tokens() -> List[str]:
@@ -1364,6 +1446,8 @@ def planted(api: dict, diagnostics: dict, protocol: dict, languages: Sequence[La
         "a root without a class": "must give it one of",
         "a language leaves out a used concept": "still uses",
         "an unknown module": "is not one of",
+        "a member spells its class": "spells its class's name",
+        "a trait without a documentation form": "no documentation form for walk",
     }
     caught = []
     for name, plant in plants.items():
@@ -1383,6 +1467,9 @@ def planted(api: dict, diagnostics: dict, protocol: dict, languages: Sequence[La
         "a root without a class": replace(first, error_roots={k: v for k, v in first.error_roots.items() if k != "misuse error"}),
         "a language leaves out a used concept": replace(first, omit=lambda name, nature: name == "source span"),
         "an unknown module": replace(first, modules={**first.modules, "network": "net"}),
+        # written::list's inherited member 'list' spelled as its class (C++ would read it as the constructor's name).
+        "a member spells its class": replace(first, type_case=snake, member_spelling=lambda cls, member: snake(member)),
+        "a trait without a documentation form": replace(first, trait_forms={k: v for k, v in first.trait_forms.items() if k != "walk"}),
     }
     # A Language that keeps a native type gives its platform type: plant on the first that has one.
     keeps_native = next((lang for lang in languages if lang.native), None)

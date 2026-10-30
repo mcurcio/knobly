@@ -91,7 +91,7 @@ a rendered block (directives) are each a `Sequence` (iterate, `len`, `block[i]`,
   writer calls too. `graph.expand()` gives every copy as read, which the rendered layer builds on, and
   `graph.diagnostics` is the one list a render shows. A variable's `references()` are
   lexical: the `$name`s in its own file that it declares. A use in an included file is resolved per copy, so it is
-  only in `wins()` and `shadowed_at()`. Reference: [docs/low-level-api.md](../docs/low-level-api.md).
+  only in `wins()` and `shadowed_at()`. Guide: [Editing and saving](https://mcurcio.github.io/villanelle/editing/).
 - **The rendered tree.** `render(graph)` builds on the low level: it expands variables, snippets and included
   files into directives (`block`, `tree.block.walk()`). A directive's values are the low level's expanded values,
   the same objects its directive expansion holds, one class per kind (`ExpandedWord`, `ExpandedString`,
@@ -115,10 +115,11 @@ a rendered block (directives) are each a `Sequence` (iterate, `len`, `block[i]`,
               value.written.set(text("2400"))
   ```
 
-  Reference: [docs/rendered-tree.md](../docs/rendered-tree.md).
+  Guide: [Getting started](https://mcurcio.github.io/villanelle/getting-started/).
 
-There is no fetch source and no fetch writer in Python. Every example in the reference pages is copied from a test
-that runs; the language is [docs/language.md](../docs/language.md).
+There is no fetch source and no fetch writer in Python. The user guide, with every sample in TypeScript, Python and
+C++, is [https://mcurcio.github.io/villanelle/](https://mcurcio.github.io/villanelle/) (source: [`docs/site/pages/`](../docs/site/pages/)); every sample is a file `pytest` runs
+(`examples/`). The language is [the language reference](https://mcurcio.github.io/villanelle/language/).
 
 Diagnostic codes are the same as in TypeScript. Offsets and columns count code points, Python's own string unit
 ([spec/contract.md](../spec/contract.md) 1), so `text[span.start.offset:span.end.offset]` is a span's text

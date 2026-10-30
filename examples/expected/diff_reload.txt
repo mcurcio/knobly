@@ -1,0 +1,3 @@
+removed graph > node "hue_ramp"
+changed graph > node "leds" > max_count
+changed graph > node "porch" > max_count

@@ -1,0 +1,6 @@
+by position:
+  graph > node #2 > target = "10.0.60.30"
+  graph > node #3 > target = "10.0.60.31"
+by node id:
+  graph > node "leds" > target = "10.0.60.30"
+  graph > node "porch" > target = "10.0.60.31"

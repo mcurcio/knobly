@@ -1,0 +1,10 @@
+refused: E2001 (line 1, column 2)
+listener {
+    host "10.0.60.31";
+    timeout 30s;
+    # the port
+    port 8080;
+}
+unsaved true
+saved main.conf
+unsaved false

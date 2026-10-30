@@ -2,12 +2,14 @@
 # Generate the parser for one target language from grammar/Villanelle.g4.
 #   bash tools/gen.sh ts   -> ts/src/gen/              (TypeScript, each file prefixed "// @ts-nocheck")
 #   bash tools/gen.sh py   -> py/src/villanelle/_gen/  (Python 3, plus an empty __init__.py)
+#   bash tools/gen.sh cpp  -> cpp/include/villanelle/detail/syntax/parser.gen.hpp, from villanelle's own parser
+#                             generator (tools/parser/gen.py) instead of ANTLR: no Java, no download
 # Then the API declarations from spec/schema/ (tools/gen-api.py): ts/src/gen/api/ and ts/conformance/shapes.ts, or
 # py/src/villanelle/_api/ and py/conformance/shapes.py (spec/codegen.md section 4).
 # Generated code is never committed (owner, 2026-10-23: "Don't commit the generated code, just the source"):
 # build and test run this first, and every run regenerates.
-# Needs: Java 11+, curl, python3 (3.9+), and the binding's pinned formatter (spec/codegen.md section 4): for ts,
-# Prettier from ts/node_modules (pnpm install); for py, ruff through uv. The ANTLR jar is cached in $ANTLR_JAR_DIR (default ${XDG_CACHE_HOME:-$HOME/.cache}/antlr)
+# Needs: Java 11+ and curl (ts and py only), python3 (3.9+), and the binding's pinned formatter (spec/codegen.md section 4): for ts,
+# Prettier from ts/node_modules (pnpm install); for py, ruff through uv; for cpp, clang-format through uv. The ANTLR jar is cached in $ANTLR_JAR_DIR (default ${XDG_CACHE_HOME:-$HOME/.cache}/antlr)
 # and verified against the pinned sha256 on every run.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -22,7 +24,8 @@ die() { echo "gen.sh: $*" >&2; exit 1; }
 case "${1:-}" in
   ts) lang=TypeScript; out=ts/src/gen ;;
   py) lang=Python3; out=py/src/villanelle/_gen ;;
-  *) die "usage: tools/gen.sh <ts|py>" ;;
+  cpp) python3 tools/parser/gen.py cpp && exec python3 tools/gen-api.py cpp ;;
+  *) die "usage: tools/gen.sh <ts|py|cpp>" ;;
 esac
 
 sha256() { if command -v sha256sum > /dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }

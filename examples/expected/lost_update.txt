@@ -1,0 +1,10 @@
+changed on disk: app.conf
+saved app.conf
+# The quickstart's config: one server block, its port from a variable.
+@set $port 8080;
+
+server {
+    host "0.0.0.0";
+    port $port;
+    debug true;
+}

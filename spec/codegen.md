@@ -128,30 +128,33 @@ every emitter, the names module and the adapters' spelling table: types `PascalC
 members `camelCase` / `snake_case`; enum members `PascalCase` / `UPPER_SNAKE_CASE`; constants `UPPER_SNAKE_CASE`.
 
 Where the languages' idioms differ, the schema says what the member **is**, from a closed list, and each emitter
-knows its language's form. Milestone 5's 31 prose `spell` notes are gone.
+knows its language's form. Milestone 5's 31 prose `spell` notes are gone. Each binding's column below is its
+emitter's `trait_forms` and its other `Language` facts (a members table, section 6).
 
-| Trait or field | Means | TypeScript | Python |
-|---|---|---|---|
-| `trait: people form` | the text a person reads (contract 2) | `toString()` | `__str__` |
-| `trait: iterate` | the items in order | `[Symbol.iterator]()` | `__iter__` |
-| `trait: count` | how many | `length` | `__len__` |
-| `trait: index` | the item at an index | `at(i)`, absent out of range | `__getitem__`, `IndexError` out of range |
-| `trait: walk` | depth-first visit (spec 7.5) | `walk(visit)`, callback returns `WalkControl` | `walk(*, descend=None)`, a generator |
-| `trait: collect` | run reads, record a diagnostic error | `collect(read)` | `collecting()`, a context manager |
-| `io: true` | goes through a port | returns a `Promise` | a plain call |
-| `passed: keyword` | an argument named at the call | positional | keyword-only |
-| `passed: option` (with the member's `options` record) | an optional setting | one options object (`load(path, { overrides })`) | keyword-only (`load(path, *, overrides=None)`) |
-| `factory` (`{"of": concept}`; the form is the emitter's `factory_forms`, default `constructor`) | how a concept is made | the emitter's `factory_forms`; the glossary's generated tables show each call | the same |
-| `nature: named type`, `brand` | a string with its own type (spec 6.9) | a branded string | a `NewType` of `str` |
-| `nature: named type`, `template` | text of a stated form (`{text}/{text}`; the `pattern` checks it at run time) | a template literal type (`${string}/${string}`) | `str` |
-| `nature: named type`, `is: native` | the platform's own type | the emitter's `LANGUAGE.native`; the loader refuses a kept native type without one | the same (a binding that keeps no native type leaves out the module that holds them) |
-| list `[]` | in order | `readonly T[]` | `tuple[T, ...]` as a result, `Sequence[T]` as a parameter |
-| `map` | keyed, ordered | `ReadonlyMap` as a result, `Readonly<Record>` as a parameter or an options record's property (`writable`: `Record`) | `Mapping` (`writable`: `MutableMapping`) |
-| `module` (`files`, `fetch`, `include`; the path is the emitter's `modules`) | an adapter module, named for what it holds | the emitter's `modules`; contract 5's and the glossary's generated tables show each path | the same; a module the emitter leaves out does not exist there, nor its functions and concepts |
-| what a binding leaves out (the emitter's `omit`, and any module it does not map) | exists in some bindings only | nothing | options records (keyword arguments instead), `walk control` (the walk is a generator), the `fetch` module's concepts |
-| `trait: collect`'s class | the context manager's own class | none | `Collecting`, public beside the concept with the trait (the Python emitter's `trait_names`) |
-| a root error group's class (the emitter's `error_roots`) | the root's base, or the language's own class | spec 2.8's and contract 4.2's generated tables | the same |
-| the argument type error's message (the emitter's `argument_type_message`; the schema keeps its rule and placeholders) | a whole sentence, because it names the language's own conversion and type words | spec 6.9's generated table | the same |
+<!-- generated: members: traits (tools/gen-api.py docs) -->
+| Trait or field | TypeScript | Python | C++ | Means |
+|---|---|---|---|---|
+| `trait: people form` | `toString()` | `__str__` | `to_string(x)`, a free function (`<villanelle/format.hpp>` adds `std::format` and `<<`) | the text a person reads (contract 2) |
+| `trait: iterate` | `[Symbol.iterator]()` | `__iter__` | `begin()` and `end()`: a range | the items in order |
+| `trait: count` | `length` | `__len__` | `size()` | how many |
+| `trait: index` | `at(i)`, absent out of range | `__getitem__`, `IndexError` out of range | `at(i)`, `index_out_of_range` out of range | the item at an index |
+| `trait: walk` | `walk(visit)`, callback returns `WalkControl` | `walk(*, descend=None)`, a generator | `walk(descend)`, a `walk_view` range; `descend(item)` says whether to enter its block | depth-first visit (spec 7.5) |
+| `trait: collect` | `collect(read)` | `collecting()`, a context manager | `collect(read)`, returning `std::optional` | run reads, record a diagnostic error |
+| `io: true` | returns a `Promise` | a plain call | a plain call | goes through a port |
+| `passed: keyword` | positional | keyword-only | positional | an argument named at the call |
+| `passed: option` (with the member's `options` record) | one options object (`load(path, { overrides })`) | keyword-only (`load(path, *, overrides=None)`) | an options aggregate (`load(path, {.overrides = ...})`) | an optional setting |
+| `factory` (`{"of": concept}`; the form is the emitter's `factory_forms`, default `constructor`) | `villanelle(...)`, `new Diagnostics(...)` | `Processor(...)`, `Diagnostics(...)` | `processor(...)`, `diagnostics(...)` | how a concept is made |
+| `nature: named type`, `brand` | a branded string | a `NewType` of `str` | a class of its own holding the text (`config_text`) | a string with its own type (spec 6.9) |
+| `nature: named type`, `template` | a template literal type (`${string}/${string}`) | `str` | a class checked when made (a `program_code` literal is checked at compile time) | text of a stated form (`{text}/{text}`; the `pattern` checks it at run time) |
+| `nature: named type`, `is: native` | `platform fetch`: `typeof globalThis.fetch` | none | none | the platform's own type: the emitter's `LANGUAGE.native`; the loader refuses a kept native type without one, and a binding that keeps no native type leaves out the module that holds them |
+| list `[]` | `readonly T[]` | `tuple[T, ...]` as a result, `Sequence[T]` as a parameter | `villanelle::sequence<T>`, an immutable shared list | in order |
+| `map` | `ReadonlyMap` as a result, `Readonly<Record>` as a parameter or an options record's property (`writable`: `Record`) | `Mapping` (`writable`: `MutableMapping`) | `villanelle::ordered_map<K, V>` (`writable`: held by `std::shared_ptr`, shared with the caller) | keyed, ordered |
+| `module` (`files`, `fetch`, `include`; the path is the emitter's `modules`) | `files`: `villanelle/node`, `fetch`: `villanelle/browser`, `include`: `villanelle/include` | `files`: `villanelle.files`, `fetch`: none, `include`: `villanelle.include` | `files`: `villanelle::files`, `fetch`: none, `include`: `villanelle::extensions` | an adapter module, named for what it holds; a module the emitter leaves out does not exist there, nor its functions and concepts |
+| what a binding leaves out (the emitter's `omit`, and any module it does not map) | nothing | `load options`, `processor options`, `key options`, `walk control`, the `fetch` module | `walk control`, the `fetch` module | exists in some bindings only (a left-out module takes its functions and concepts with it) |
+| a trait's own public names (the emitter's `trait_names`) | none | `Collecting` | `sequence`, `ordered_map`, `walk_view` | a class or type a trait's idiom adds, public beside the concept with the trait |
+| a root error group's class (the emitter's `error_roots`) | `villanelle error`: `Error`, `detached error`: `ReferenceError`, `argument type error`: `TypeError`, `misuse error`: `Error`, `index out of range`: `RangeError` | `villanelle error`: `Exception`, `detached error`: `ReferenceError`, `argument type error`: `TypeError`, `misuse error`: `ValueError`, `index out of range`: `IndexError` | `villanelle error`: `std::runtime_error`, `detached error`: `std::logic_error`, `argument type error`: `std::logic_error`, `misuse error`: `std::invalid_argument`, `index out of range`: `std::out_of_range` | the root's base, or the language's own class (spec 2.8's and contract 4.2's generated tables) |
+| the argument type error's message (the emitter's `argument_type_message`; the schema keeps its rule and placeholders) | `{member}(): argument "{parameter}" must be a string, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, String() a number first` | `{member}() argument '{parameter}' must be str, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, str() a number first` | `{member}(): argument '{parameter}' must be a live object, not {got}` | a whole sentence, because it names the language's own conversion and type words (spec 6.9's generated table) |
+<!-- end generated -->
 
 Python methods take their parameters positional-only (`/`): a hand-written class that also accepts them by keyword
 still satisfies the Protocol, so the generated signature never forbids what a binding allows.
@@ -249,6 +252,29 @@ written, as ruff's docs order it: its import sorting (`ruff check --select I --f
 | `py/conformance/shapes.py` | the protocol's `TypedDict`s, `PROTOCOL`, `SPELLING` (in snake_case), `ERROR_GROUP_OF_CLASS` |
 | `py/tests/api_contract.py` | what the tests check the binding against, every type named through its public module: `PUBLIC_NAMES` (each module's `__all__`), `MATCH_ARGS`, `UNIONS` (each public union's variant classes); and a type checker's block (`if TYPE_CHECKING:`) that mypy checks and nothing runs: each module assigned to its generated `<Module>Functions`, each constructed class to its `<Class>Constructor`, and each hand-written public class (a handle, or a snapshot or record with methods) to `type[<its generated Protocol>]`, so a member that drifts from the schema fails mypy even in a class that forgot to subclass its Protocol |
 
+**C++** (`cpp/include/villanelle/`, every header directly in it generated and git-ignored; `cpp/conformance/shapes.hpp`
+and `cpp/tests/generated/`, git-ignored). Header-only: every type is spelled fully qualified from `::villanelle`; every
+name follows the standard library's casing (snake_case, template parameters PascalCase); a member that would share
+its class's name, own or inherited, takes a trailing underscore (`written::index::index_()`, `written::list::list_()`).
+What the generator writes whole is inline in the header; every free function and every handle's or snapshot's member
+is declared `VILLANELLE_API` and defined by the hand code in `detail/` (inline in header-only mode; compiled once in
+compiled mode, through `implementation.hpp`). The generated files go through the pinned clang-format with
+`cpp/.clang-format`.
+
+| Header | Holds |
+|---|---|
+| `kinds.hpp` | every kind list as `enum class <name> : std::uint8_t` in namespace `villanelle` (token kinds keep the grammar's names, in grammar order; the others snake_case) and a `constexpr to_string` per list giving the spec's value; the generated parser includes it |
+| `codes.hpp` | `enum class diagnostic_code : std::uint16_t` (each value its code's number), `to_string(code)` (`"E1001"`), `message(code)`, `code_facts` and `facts_of(code)`, `described` and `describe(code)` / `describe(code, detail)` |
+| `limits.hpp` | the limits and the reserved names as `inline constexpr` values, each in its layer's namespace (`villanelle::syntax::max_nesting`, `villanelle::written::reserved`) |
+| `errors.hpp` | the error class tree (spec 2.8): each class under its parent or its root's standard class (`std::runtime_error`, `std::logic_error`, `std::invalid_argument`, `std::out_of_range`), with default visibility, a constructor taking the message (when given) then its fields, a `const` accessor per own field, the message built from the template; `detail::argument_type_message`. The classes hold the shared layer's records, so `villanelle.hpp` includes it after them |
+| `villanelle.hpp` (the package's layers: shared, io), `syntax.hpp`, `written.hpp`, `rendered.hpp` (one per layer with its own namespace) | per layer, in its namespace: an immutable class per record (one constructor taking its fields in Python's dataclass field order, a `const` accessor per property, defaulted `operator==`); a view class per handle and snapshot (one `detail::view`, members declared for the hand code, `const` throughout), a union's view class with `kind()`, `as<V>()` and `visit(f)` and each variant deriving from it (a record union too, so a sequence of it never slices); an abstract class per port, held as `std::shared_ptr`; a C++20 `concept` per interface; an aggregate per options record; `using` aliases for callbacks (`std::function`) and for a block that adds nothing (`block<Item, Directive>`, the hand-written support template); `config_text` (made only by `quote` and `text`) and `program_code` (a literal checked at compile time); each pattern's `constexpr` matcher over code points (`villanelle::is_program_code`, `written::is_variable_name`); each people form as a free `to_string` found by argument-dependent lookup; the free functions, a trailing optional parameter or options record as an overload without it; each layer's `detail/<layer>/definitions.hpp` at the end in header-only mode |
+| `files.hpp`, `extensions.hpp` (one per adapter module the binding has) | the module's free functions in `villanelle::files` and `villanelle::extensions` |
+| `format.hpp` | opt-in, written whole: for every type with a `to_string` (each people form, each kind list, `diagnostic_code`) a `std::formatter` (formatting the `to_string` as a string, so width, fill and alignment apply) and an `operator<<` in the type's namespace, both calling that `to_string` |
+| `implementation.hpp` | compiled mode's one implementation file: every public header, then every `detail/<x>/definitions.hpp` (the schema's layer list) |
+| `cpp/conformance/shapes.hpp` | `adapter::shapes::protocol`, `spelling(spec_name)` (snake_case), `error_group_of(exception)` (the most specific group first) |
+| `cpp/tests/generated/api_contract_<header>.cpp` | a `main` that odr-uses every hand-defined function and member of one header through volatile function pointers, so a declaration without a definition fails to link |
+| `cpp/tests/generated/layers_<header>.cpp` | the layer-direction check: the include guards of every header the header's layers may not import (and of every adapter module's header) defined first, so a forbidden include leaves its names undeclared and the file fails to compile |
+
 How a binding uses them (frozen-m6.md has the per-file list):
 
 - **TypeScript:** each layer's public entry (`villanelle/syntax`, `villanelle/written`, `villanelle/rendered`, and
@@ -297,7 +323,7 @@ is byte-identical between runs, and a formatter upgrade is a generator change:
 |---|---|---|---|
 | TypeScript | Prettier, its defaults with a print width of 120 (`--no-config`: the options are the emitter's, and the hand-written code's editors pick up none) | `ts/package.json` and `ts/pnpm-lock.yaml`, exact | `ts/node_modules/.bin/prettier`, installed by `pnpm install` |
 | Python | ruff (import sorting, then `ruff format`) | `py/pyproject.toml` and `py/uv.lock`, exact | `uv run --project py --locked ruff`, with `--config py/pyproject.toml` |
-| C++ (planned) | clang-format | the C++ emitter's `Language`, as a PyPI wheel version (the `clang-format` package ships the binary, so no system install) | `uv tool run --from clang-format==<version> clang-format -i --style=file:<the binding's .clang-format>` |
+| C++ | clang-format, `cpp/.clang-format` (Google style, a column limit of 120, C++20) | `CLANG_FORMAT` in `tools/api/emit_cpp.py`, as a PyPI wheel version, exact (the `clang-format` package ships the binary, so no system install) | `uv tool run --quiet --from clang-format==<version> clang-format -i --style=file:cpp/.clang-format` |
 
 A new binding adds its formatter the same way: one `Formatter` in its `Language` and nothing in `tools/gen-api.py`.
 `tools/gen-api.py --check` renders without formatting, since it checks the schema and the emitters, not the layout;
@@ -326,12 +352,32 @@ make an adapter's dumps checked by its own compiler instead, a missing per-kind 
 
 Generated between `<!-- generated: NAME (tools/gen-api.py docs) -->` and
 `<!-- end generated -->`: the code registry in spec 2.4, the rules list in spec 2.5, the error groups in spec 2.8,
-the class tree in contract 4.2, the glossary's names per layer, the error-code table in docs/rendered-tree.md, and the
-adapter's requests and dumps in spec/conformance.md 4.1 and 4.2. They are committed, unlike the code, because nothing
-builds the docs: GitHub shows the files as they are. `python3 tools/gen-api.py docs` rewrites them and
+the class tree in contract 4.2, the glossary's names per layer, the error-code table in docs/site/pages/diagnostics.md, and the
+adapter's requests and dumps in spec/conformance.md 4.1 and 4.2. They are committed, unlike the code, because GitHub
+shows the spec and READMEs as they are, and the user guide's site is built from its pages as written. `python3 tools/gen-api.py docs` rewrites them and
 `tools/check.sh` fails when one is stale, so no table can drift from its source (round 15 found three copies of the
 code table disagreeing on 8 of 32 meanings and 14 of 32 found-by entries). Prior art: `cog` and the "generated
 section" markers of rustfmt's and Prettier's option docs.
+
+**Members tables.** A hand-written page's table with a column per binding (the processor, readers, addresses and
+sources tables, the graph, document and variable members, errors and writers tables in the user guide's pages under
+docs/site/pages/; README.md's entry points; section 3's trait table) is generated too, between
+`<!-- generated: members: NAME (tools/gen-api.py docs) -->` and `<!-- end generated -->`. Its rows' one home is
+`docs/tables.json`, keyed by NAME: `{"file": page, "first": [the column before the bindings], "last": [the columns
+after], "rows": [...]}`. Each row has `what` (the first column), `ref` (a schema name, or a list of them joined with
+commas), `last` (the cells after the bindings), and may have `receiver` (written before a member: `graph.read()`),
+`names` (an entry point's exports, listed after its path) and `cells` (by binding key: the text for that binding only,
+where the schema cannot spell it). A `ref` is `<concept>.<member>` (spelled by `member_spelling` or `function_case`; a
+property through `property_form`, a method with its parameters through `call_params`, a trait member through
+`trait_forms`), `<concept>`, `<free function>` (its call and import path), `<error group>` (its class and the fields a
+program reads), `<kind list>`, `layer: <layer>` or `module: <module>` (an import path; a bare name too when it names
+nothing else), or `trait: <trait or field>` (section 3's table: `trait_forms`, or the binding's own `factory_forms`,
+`native`, `modules`, `omit`, `trait_names`, `error_roots` and `argument_type_message` for `factory`, `native`,
+`module`, `omit`, `names`, `error roots` and `argument type message`). A `ref` naming nothing, or two things, fails
+`tools/gen-api.py docs` and `--check`, so a renamed member cannot leave a stale row; the third-binding stub gets a
+column in every members table, and `--check` asserts it. Each hand `cells` entry is a cost: today four, all in the
+addresses table (the people form called on an address in each of the three bindings, which a trait's documentation
+text does not spell as a call, and Python's hashable `Address`).
 
 ## 7. The kind lint
 
@@ -405,8 +451,21 @@ A new binding is **one emitter, one adapter and one name test** (binding guide s
   - `native`: the platform's own type for each native named type it keeps;
   - `omit` and `omitted_as`: a concept or kind list its idiom has no use for (Python leaves out the options records
     and `walk control`), and what the glossary says stands in for it;
-  - how the docs tables spell it: `enum_form`, `generic`, `construct`, `extends_word`, `cause_field`. Every docs
-    table builds one column per `Language`, so the binding is a column with no edit to `emit_docs.py`.
+  - how the docs tables spell it: `enum_form`, `generic`, `construct`, `extends_word`, `cause_field`, and for the
+    members tables (section 6) `trait_forms` (the documentation text of every trait the schema uses and of each
+    typed field section 3's table lists; the loader refuses a language missing one), `property_form` (a property
+    read: its name; C++ an accessor call) and `call_params` (a call's parameters, given each one's name, how it is
+    passed and whether it is optional). Every docs table builds one column per `Language`, so the binding is a column
+    with no edit to `emit_docs.py` or `docs/tables.json`;
+  - the hooks for a language whose names differ from the default, each defaulting to what TypeScript and Python
+    spell: `type_case` (a type's public name: PascalCase; C++ snake_case), `constant_case` (a limit's or the reserved
+    names': UPPER_SNAKE; C++ snake_case), `pattern_form` (a pattern's public name: the constant's; C++ a matcher,
+    `is_<name>`), `member_spelling` (a member's identifier in a class, given the class's and the member's spec names:
+    none; C++ appends `_` to a member spelled as its class; the loader refuses any member, own or inherited, that a
+    language spells as its class's type name)
+    and `kinds_in_package` (every kind list in the package's namespace rather than its layer's: C++, whose one
+    `kinds.hpp` the generated parser includes). `Model.public`, the name-collision checks and the docs tables spell
+    every name through them.
 - Its regex dialect, in the emitter: a schema pattern is an I-Regexp (section 2); the emitter renders it (the
   loader's `pattern_body` does RFC 9485's mapping given the engine's escape for one character) and refuses a
   construct its engine lacks.

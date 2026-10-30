@@ -1,13 +1,23 @@
 """The driver's end of the adapter protocol (spec/conformance.md section 2): one adapter process, JSON lines on its
-standard input and output, one request and its response at a time."""
+standard input and output, one request and its response at a time. Each request waits at most the timeout
+(VILLANELLE_DRIVER_TIMEOUT seconds, 60 by default): a stalled adapter is a fault, killed, and the run goes on."""
 
 from __future__ import annotations
 
 import json
+import os
+import queue
 import subprocess
-from typing import Any, Dict, List, Optional
+import threading
+from typing import IO, Any, Dict, List, Optional, Union
 
 PROTOCOL = 1
+DEFAULT_TIMEOUT = 60.0
+
+
+def request_timeout() -> float:
+    """Seconds one request may wait for its response: VILLANELLE_DRIVER_TIMEOUT, else 60."""
+    return float(os.environ.get("VILLANELLE_DRIVER_TIMEOUT", DEFAULT_TIMEOUT))
 
 
 class AdapterFault(Exception):
@@ -27,6 +37,8 @@ class Adapter:
         self.command = command
         self.cwd = cwd
         self.process: Optional[subprocess.Popen] = None  # type: ignore[type-arg]
+        self.lines: "queue.Queue[Union[str, Exception]]" = queue.Queue()
+        self.timeout = request_timeout()
         self.next_id = 0
         self.hello: Dict[str, Any] = {}
 
@@ -39,6 +51,11 @@ class Adapter:
             encoding="utf-8",
             bufsize=1,
         )
+        # One reader thread per process feeds its lines to a queue, so a request can wait for a line with a timeout
+        # (a blocking readline cannot be abandoned). The queue is the process's own: a late line never reaches the next.
+        self.lines = queue.Queue()
+        assert self.process.stdout is not None
+        threading.Thread(target=_read_lines, args=(self.process.stdout, self.lines), daemon=True).start()
         self.hello = self.request("hello", protocol=PROTOCOL)
         if self.hello.get("protocol") != PROTOCOL:
             raise AdapterFault(f"adapter speaks protocol {self.hello.get('protocol')!r}, the driver {PROTOCOL}")
@@ -74,9 +91,15 @@ class Adapter:
         try:
             self.process.stdin.write(json.dumps(message, ensure_ascii=True, separators=(",", ":")) + "\n")
             self.process.stdin.flush()
-            line = self.process.stdout.readline()
-        except (OSError, UnicodeDecodeError) as error:
+        except OSError as error:
             raise AdapterFault(f"{op}: {error}") from error
+        try:
+            line = self.lines.get(timeout=self.timeout)
+        except queue.Empty:
+            self.stop(kill=True)
+            raise AdapterFault(f"timed out after {self.timeout:g} s waiting for {op}") from None
+        if isinstance(line, Exception):
+            raise AdapterFault(f"{op}: {line}") from line
         if not line:
             code = self.process.wait()
             self.stop()
@@ -92,3 +115,13 @@ class Adapter:
         if "thrown" in response:
             raise Thrown(response["thrown"])
         raise AdapterFault(f"{op}: {response.get('fault', 'a response with neither ok, thrown nor fault')}")
+
+
+def _read_lines(stdout: IO[str], lines: "queue.Queue[Union[str, Exception]]") -> None:
+    """Put each line the adapter writes on ``lines``, then "" at end of file (or the read's error)."""
+    try:
+        for line in stdout:
+            lines.put(line)
+        lines.put("")
+    except (OSError, UnicodeDecodeError, ValueError) as error:  # ValueError: the pipe was closed under the read
+        lines.put(error)

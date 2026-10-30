@@ -1,0 +1,8 @@
+tokens 14, problems 0
+document tokens 0-14 from WORD "server"
+  directive tokens 0-13 from WORD "server"
+    block tokens 2-13 from LBRACE "{"
+      directive tokens 5-9 from WORD "port"
+comment # the port
+lossless true
+E1001 at line 2, column 3

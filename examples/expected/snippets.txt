@@ -1,0 +1,4 @@
+twinkle: seed 11337 (written at main.conf:2:5, via use twinkle at main.conf:6:30)
+twinkle: connect rgb_150 (written at main.conf:3:5, via use twinkle at main.conf:6:30)
+white_twinkle: seed 11337 (written at main.conf:2:5, via use twinkle at main.conf:7:36)
+white_twinkle: connect white_150 (written at main.conf:3:5, via use twinkle at main.conf:7:36)

@@ -12,7 +12,7 @@ as a slice's name (section 8). The scoping and precedence model is unchanged.
 
 Pattern: CUE's "Declarations and scopes" (a block is a scope, a declaration is visible from where it is to the end
 of its block, lookups go outward), plus nginx's order of walking. [spec.md](spec.md) 5, 6.6, 6.7 and 6.10 use this
-page; [docs/language.md](../docs/language.md) teaches it with examples and links here.
+page; the user guide's [language page](../docs/site/pages/language.md) teaches it with examples and links here.
 
 ## 1. Words
 

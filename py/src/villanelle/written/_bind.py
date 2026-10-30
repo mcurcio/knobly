@@ -695,8 +695,9 @@ class Binding:
 
     def _unread(self, text: _Text, name: Token, via: tuple[Step, ...]) -> _Problem:
         """An extension copy not read yet (its edge is in ``unread()``): unreadable with reason ``unread``, and E3007
-        on the extension line's name (spec 6.10), so a render shows it and ``diff`` reports what it held as unknown."""
-        return self._problem(DiagnosticCode.UNREAD_COPY, text, name.span, via)
+        on the extension line's name, the extension's name as its detail (spec 6.10), so a render shows it and
+        ``diff`` reports what it held as unknown."""
+        return self._problem(DiagnosticCode.UNREAD_COPY, text, name.span, via, name.text[1:])
 
     def _extension_block(
         self, block: Node | None, text: _Text, scope: _BlockScope, via: tuple[Step, ...]

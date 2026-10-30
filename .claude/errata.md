@@ -673,3 +673,257 @@
   formatter (Prettier from `ts/node_modules`, ruff through `uv`), the one exception spec/codegen.md sections 4 and 11
   record. The comparison in spec/conformance.md is left as written (not an owned path); it reads true of imports
   only.
+
+## 2026-10-30, C++ binding milestone 1 skeleton (.claude/design/cpp/frozen-m1.md)
+
+- **C++ 1. Two error groups had no `message`, so a binding that makes them its own classes could not load.**
+  `argument type error` and `index out of range` carried no `message` in spec/schema/api.json because TypeScript and
+  Python both map them to built-in classes (`TypeError`, `RangeError`, `IndexError`); the loader requires `message`
+  for any group some binding makes a class of, and C++ makes both (`villanelle::argument_type_error`,
+  `villanelle::index_out_of_range`, design.md 2.2). Both now say `"message": {"given": true}`. TypeScript, Python and
+  docs output are byte-identical with and without it (rendered both schemas and compared).
+- **C++ 2. spec/codegen.md section 10 says a new binding needs no loader edit, but the loader spells type names in
+  PascalCase.** `Model.public` uses `pascal(c.name)` and tools/gen-api.py's `check_layers` looks for `"Widget"`, so a
+  binding whose types are snake_case (C++, design.md 1.2) fails both. Lane A adds a `type_case` hook (frozen-m1.md
+  4.1), beside design finding F2's `member_spelling`; section 10 should then name the hooks.
+- **C++ 3. `Formatter.suffix` held one suffix**; C++ formats `.hpp` and `.cpp`. It now takes one suffix or a tuple
+  (`str.endswith` takes either); TypeScript and Python unchanged.
+- **C++ 4. spec/README.md and spec/binding-guide.md step 3 name ANTLR as the only way to get a parser** (design finding
+  F18). Slice T rewrites both to name villanelle's own generator as the second route.
+
+## 2026-10-30, C++ binding milestone 1, Lane A (the C++ API emitter)
+
+- **A1. Two loader hooks beyond frozen-m1.md 4.1's four.** `constant_case` (C++ spells a limit `max_nesting`;
+  `Model.public` and the glossary spelled every constant UPPER_SNAKE) and `kinds_in_package` (frozen 3.2 puts
+  `token_kind` and `node_kind` in `::villanelle`, the one `kinds.hpp` the generated parser includes, while
+  `Model.public` put each kind list in its layer's namespace). Both default to what TypeScript and Python spell; their
+  generated code is byte-identical. `emit_docs.py` now spells types and constants through `type_case`,
+  `constant_case` and `pattern_form` (the C++ column needs it). spec/codegen.md section 10 names all five hooks.
+- **A2. Lane A's owned paths leave out `docs/rendered-tree.md`**, which `tools/gen-api.py docs` also rewrites (the
+  error codes table, one column per binding); `--check` fails until it has the C++ column, so Lane A commits it with
+  the other generated tables.
+- **A3. Templates have no home for their definitions in compiled mode.** frozen 4.3 sends every hand definition to
+  `detail/<layer>/definitions.hpp`, which a public header includes only in header-only mode. The template members
+  (`diagnostics::collect`, `diagnostics::report`, each union's `as<V>()` and `visit(f)`) and the class template
+  `written::resolution<Definition>` cannot be compiled once: slice 2 needs a header every mode includes (say
+  `detail/<layer>/templates.hpp`) or explicit instantiation with `extern template` (design.md 2.5, point 2).
+- **A4. The skeleton's compile check builds every `tests/generated/*.cpp` under `-Werror`**, but a contract for a
+  layer with no definitions yet odr-uses inline functions that are declared and never defined. The generated
+  contract turns off clang's `-Wundefined-inline` before its include (a missing definition is the linker's to report,
+  which is the contract's point); GCC's equivalent warning ("used but never defined") has no flag, so on the gcc leg
+  Slice T should compile and link only the contracts of implemented layers (M1: `api_contract_syntax.cpp`).
+- **A5. The skeleton's compile check stays red until Slice T defines three M1 items** the generated code uses inline:
+  `detail::decode_utf8` (every pattern matcher, so `program_code`'s compile-time check), `to_string(const
+  diagnostic&)` (`bad_text_error`'s message) and `sequence<T>::iterator` (`diagnostics::begin()` in the shared
+  contract). Lane A proved the build green with stand-ins for exactly those three, defined by a test overlay outside
+  the repo.
+- **A6. The contract takes each address, it does not call each free function** (frozen 4.2 says "calls each free
+  function through a volatile function pointer"): a call needs an argument of every type, which the generator cannot
+  make in general. Each hand-defined function, member, constructor, `operator==` and `to_string` is wrapped in a
+  lambda stored in a volatile function pointer, which odr-uses it, so a missing definition still fails to link.
+- **A7. A record union is a view class, not a record written whole** (frozen 4.3 says records are generated whole;
+  design.md 1.3 lists `change` with the view-class unions). A `sequence<change>` returns `change` by value, which
+  would slice an `added` held by a class hierarchy of plain records; so `change` and its variants hold one
+  `detail::view` and their members are the hand code's.
+- **A8. `memory_source` takes `std::shared_ptr<const ordered_map<std::string, std::string>>`** (design.md 3.1), not
+  the map by value (design.md 1.3's table): its schema doc says it reads the map it is given at each call, and a
+  copy-on-write map copied by value would never see a memory writer's change. The rule the emitter applies: a map a
+  free function takes is shared.
+- **A9. `errors.hpp` and `villanelle.hpp` include each other.** The error classes hold shared records
+  (`diagnostic_error` holds a `located_diagnostic`), so `villanelle.hpp` forward-declares the error classes, declares
+  its records, then includes `errors.hpp` at its end (frozen 4.2 lists it among the includes); `errors.hpp` entered
+  first includes `villanelle.hpp`, which includes it back. Every header compiles alone.
+- **A10. A union's or extended class's view constructor is protected**, not private (frozen 4.3): each variant (and
+  `reference_resolution`, which extends `resolution<variable>`) constructs its base from the view. The view itself
+  stays private, read through `detail::access`.
+- **A11. The layer check is per header, and `villanelle.hpp` holds the shared and io layers together**, so a syntax
+  header that used an io name would pass `layers_syntax.cpp`. A header is allowed when it holds any layer the
+  header's layers may import; every adapter module's header is forbidden to every other header.
+- **A12. The loader's doc check could not catch "C++"**: it searched `\bC\+\+\b`, and no word boundary follows `+`.
+  It now matches a language's name not inside a word, which is the same test for TypeScript and Python.
+
+## 2026-10-30, C++ binding milestone 1, Slice T (the tracer)
+
+- **T1. The CI compilers are pinned to a major version from the runner image, not to an exact apt version**
+  (frozen-m1.md 5.4 says "GCC 13 (apt, pinned version)", "Clang 18 (apt, pinned version)"). Ubuntu keeps only the
+  newest build of a package in `-updates`; pinning the release-pocket build would downgrade the image's runtime
+  libraries (`libgcc`, `libstdc++`) that `g++-13` and `clang-18` depend on. The legs run the image's `g++-13` and
+  `clang++-18` and print the full version; AppleClang is pinned through `DEVELOPER_DIR` (Xcode 16.4).
+- **T2. The shared driver's position check is quadratic in `byte` units** (`conformance/driver/syntax.py`,
+  `native_position`, not an owned path): it rescans the text for every position, so the case `list-5000` alone
+  takes about 40 s and the C++ L0 run about a minute per CI leg; the C++ adapter answers all 168 cases in about a
+  second under ASan and UBSan. A fix (one pass building an offset table per case) belongs to the driver's owner.
+- **T3. `sequence::at` cannot name `index_out_of_range`**: `errors.hpp` includes `support/sequence.hpp`, so the
+  error class is incomplete where the template is defined. `detail/raise.hpp` declares
+  `raise_index_out_of_range(index, size)` (`VILLANELLE_API`), defined with the shared layer; `ordered_map::at` and
+  `block::at` (slice 2) use the same helper.
+- **T4. Only the contract of an implemented layer is built** (Lane A's A4): GCC reports "inline function used but
+  never defined" as an error under `-Werror`, with no flag to silence it, so `api_contract_villanelle.cpp` and the
+  other layers' contracts are not compiled in milestone 1. `api_contract_syntax.cpp` is linked and run by `ctest`.
+  The shared layer's contract joins when the io functions, `diagnostics` and the other people forms are defined.
+- **T5. No MSVC leg** (frozen-m1.md 5.4 allows leaving it out): on `windows-2022` the checkout itself fails, "invalid
+  path 'conformance/expected/nul.json'", because `NUL` is a reserved device name on Windows. Passing there would
+  need the syntax case `nul` renamed (its expected file with it) or a sparse checkout in the leg, which is special
+  casing; the case's name is the conformance corpus's to change, not Slice T's.
+
+## 2026-10-30, C++ binding milestone 2 freeze (.claude/design/cpp/frozen-m2.md)
+
+- **M2-1. The milestone 2 ask ("L1 and L2 as spec/conformance.md defines them") needs the rendered layer.** L2 is the
+  load, rendered and contract corpora, which `render`, `diff` and `read`; design.md section 7 puts render in slice 3
+  and says slice 2 proves "the `load` ... cases", which render. Milestone 2 takes in the rendered layer and, since the
+  include extension is in its scope, claims level 3 (frozen-m2.md choice 1).
+- **M2-2. `program_code(std::string_view)` was declared `VILLANELLE_API` but missing from the generated contract** (the
+  named type had no `Hand`): a missing definition would not have failed to link. The emitter now records it.
+- **M2-3. The block shape had no way to reach its layer** (support/block.hpp declared members over a bare view):
+  frozen-m2.md 3.1 adds `detail::block_traits<Item>`, specialized per item type in `detail/<layer>/templates.hpp`.
+- **M2-4. design.md 2.4's `file_source` join (`lexically_normal()`) and spec 4.3's memory source join (POSIX rules) were
+  two rules**; milestone 2 resolves both through `detail::io::join` (frozen-m2.md choice 7). A trailing `/` and
+  Windows paths are where they would differ.
+
+## 2026-10-30, C++ binding milestone 2, slice F
+
+- **F1. spec/conformance.md section 3 (transport) does not say a stalled adapter is a fault.** The driver now waits at
+  most 60 s per request (`VILLANELLE_DRIVER_TIMEOUT` overrides it, bead vil-p5x, frozen-m2.md 5 and choice 9), then
+  kills the adapter, fails the case with "timed out after N s waiting for <op>" and restarts it for the next case, as
+  for any fault. Section 3's fault list ("If it exits early, or writes a line that is not a response") should name the
+  timeout too; spec/ is not slice F's to change, so this is a follow-up.
+
+## 2026-10-30, C++ binding milestone 2, Slice W (the written layer)
+
+- **W1. frozen-m2.md 3.3 rules 6 and 7 disagree**: rule 6 has `load` and `save` catch the ports' `std::exception`s,
+  rule 7 allows a `try` only in `detail/raise.hpp` and `collect`. The catching lives in `detail/raise.hpp`:
+  `catch_exception(f)`, `when_caught<E>(error, read)`, `message_of`, `rethrow` and `raise_nested` (the
+  `std::throw_with_nested` behind `read_error` and `save_error`), each with its `-fno-exceptions` branch.
+  `tests/compile/no_exceptions.cpp` now compiles the written layer too.
+- **W2. The syntax layer has no entry mode** (spec 2.8: an entry rule's statement is the whole text,
+  `ts/src/syntax/recovery.ts` `statementStart`): its `report` hook classifies an error from the token where it
+  happens when no directive is open, so `set("[1 # note")` gave E2001 where spec 2.4's rules give E2004 (the L1 case
+  `set-comment-after-syntax-error`). `detail/written/entry.hpp` (`parse_entry`, built on the generated parser and its
+  public hooks, since `detail/syntax/` is not slice W's) re-classifies the first error of a non-statements entry rule
+  from token 0. Follow-up for the syntax layer's owner: `parse_entry` with an entry mode there.
+- **W3. `block<Item, Directive>` needs a constructor from a view** (frozen-m2.md 3.1 lists none): `expansion_block` is
+  the class template itself, so `access::make<expansion_block>(view)` needs `block(detail::view)`; it is protected,
+  beside a protected default constructor that `written_block`'s generated constructor uses.
+- **W4. `detail::view`'s members are defined inline in `support/view.hpp`** (frozen-m2.md 3.1 allows it), and
+  `detail/shared/view.hpp` is gone: once `block` and `walk_view` hold views, `tests/compile/support.cpp` (support
+  headers only) odr-uses the destructor through `std::optional<view>`, and `-Wundefined-inline` fails it.
+- **W5. Floating-point `std::from_chars` is deleted for macOS 13.3** (the AppleClang leg's deployment target):
+  `number_of` reads with `std::strtod`, handing the text's `.` over as the current C locale's decimal point.
+
+## 2026-10-30, C++ binding milestone 2, Slice R (the rendered layer, level 3)
+
+- **R1. The contract corpus had no `"byte"` expectations** for its two astral cases, `position-astral-print` and
+  `format-astral-before`, though `conformance/contract/format.md` names the `"byte"` key and spec/contract.md 1 lets a
+  binding count bytes. A byte binding failed both with "no expectation for the unit byte", so frozen-m2.md's "all 380
+  cases pass" could not hold. Following the spec's intent (contract 2: one column, one space and one caret per unit),
+  slice R added the byte expectations to `conformance/contract/cases.json`, a path outside its list: `main.conf:1:10`,
+  and `main.conf:1:10: E5001: {message}` with nine spaces before the carets (`x "` is 3 bytes, the emoji 4, `" ` 2).
+  TypeScript and Python read their own unit's key, so their results do not change (their contract corpora ran green).
+- **R2. `render` of something that is not a graph cannot be written in C++** (design.md finding F1): `render` takes a
+  `const written::document_graph&`, so the compiler refuses the call. The adapter answers the `render` request for a
+  non-graph id with the `argument type error` itself, standing in for that refusal; `render` raises
+  `argument_type_error` for the one graph a C++ program can pass that has no callable `expand`, a moved-from handle.
+  The spec's "given anything without a callable expand" needs the `needs` token F1 proposes for statically typed
+  bindings.
+- **R3. A key rule's "returns anything but text or absent" (spec 7.4) is a compile-time refusal in C++**: `key_rule` is
+  `std::function<std::optional<std::string>(const directive&)>`, so `addresses` and `diff` never raise that
+  `argument_type_error`. Same follow-up as R2.
+
+## 2026-10-30, C++ binding milestone 3, Slice P (format tests, programs 4.1 and 4.3, compile-fail tests)
+
+- **P1. `9bad=1` is not a bad override name** (frozen-m3.md 4 and the slice brief: "`9bad=1` (the usage line, exit
+  2)"). spec.md's `VARIABLE_NAME` is `^[A-Za-z0-9_]+$` (grammar `VARIABLE : '$' [A-Za-z0-9_]+`), so a leading digit
+  is allowed: `is_variable_name("9bad")` is true, program 4.1 loads with an override nobody reads and prints the two
+  sinks (exit 1), not the usage line. Following the spec, the `programs_sinks` usage run passes `bad-name=1` (a `-` is
+  outside the pattern), which prints `usage: sinks name=value...` and exits 2. No code changed.
+- **P2. design.md 4.3's prose builds `vl::located_diagnostic(code, message, field.place())` with three arguments**;
+  the generated record constructor takes four (`via` too, no default), so the call as written does not compile. The
+  `report_written_statement` compile-fail control passes `{}` for `via`. Whether records get defaulted trailing
+  fields is a generator question for every binding's record constructors (follow-up), not changed here.
+
+## 2026-10-30, C++ binding milestone 3, Slice D (generated per-language documentation tables)
+
+- **D1. frozen-m3.md 3.3's row shape could not spell every hand table, so it grew** (additions only; spec/codegen.md
+  section 6 documents the result): a row may carry `receiver` (`graph.read()`), `names` (README's entry points list
+  their exports after the path) and a list `ref` (`kind`, `name` in one row); a bare `ref` naming two things
+  (`include` is a module and a free function; `rendered`, `syntax` are layers and concepts) fails, and `layer: X` /
+  `module: X` pick one. `Language` gained `property_form` (C++ reads a property through an accessor, `root()`) and
+  `call_params` (each binding's optional and options parameters) beside 3.3's `trait_forms`.
+- **D2. section 3's trait table had rows 3.3 has no ref for** (factory, native, module, what a binding leaves out, a
+  trait's own names, the root error classes, the argument type sentence): `trait: factory|native|module|omit|names|
+  error roots|argument type message` are computed from the facts each `Language` already holds, instead of hand cells;
+  `trait_forms` also covers the typed fields the table lists (`io`, `passed: keyword|option`, `brand`, `template`,
+  `list`, `map`), which the loader requires beside every trait the schema uses.
+- **D3. C++'s `trait_names` puts a description where `Model.public` expects `type`, `value` or `both`**
+  (`emit_cpp.LANGUAGE.trait_names`: "the list type form"; Python gives `value`). Not changed (it would change C++'s
+  generated contract, which P builds against); follow-up for the emitter's owner.
+
+## 2026-10-30, C++ binding review fixes (PR 8, overnight)
+
+- **F1. design.md 1.3 promises `std::hash` for every view class and text equality for `expanded_value` (spec 2.9:
+  "a language with an equality operator ... MUST make it compare the texts"); the C++ code had neither** (identity
+  `==` on `expanded_value`, no hash anywhere). Fixed: api.json's `expanded value` gained `"equal by": "text"` (a new
+  concept key in api.schema.json, read only by emit_cpp today; Python's `__eq__`/`__hash__` stay hand-written), and
+  emit_cpp emits `==` and `std::hash` for every view class from it.
+- **F2. design.md 2.3 names three handle states (live, detached, gone with its graph) but a moved-from view was a
+  fourth, null one** that crashed on any member, `kind()` included. Choice made overnight (the finding's first
+  option): a view's move copies (one atomic increment), so no handle is ever null. Render's "an empty document
+  graph" argument type error for a moved-from graph is gone with it (frozen-m3.md R2's moved-from case).
+- **F3. design.md 2.3 does not state that a graph keeps every node it ever made** (detached ones until the graph
+  dies; about 20 KB per whole-document replace of a 50-line file). Stated in cpp/README.md ("Memory"); design 2.3
+  should say it too. Freeing detached nodes when their last view goes is a follow-up.
+- **F4. cpp/README.md said "An edit that throws changes nothing"; that held only for refusals.** An edit cut short by
+  `std::bad_alloc` part way through re-building the handle tree leaves a half-built tree (a probe that failed each
+  allocation in turn then saw `expand()` raise `unordered_map::at`). Choice made overnight (the finding's second
+  option): the graph's version is bumped before the change, and the README now says a refused edit changes nothing
+  and a graph an allocation failure cut short should be dropped. A real strong guarantee (build the new handle tree
+  aside, then commit) is a follow-up.
+- **F5. spec 4.2 does not say how a file writer replaces a file**, and the bindings differ: Python stages with
+  `mkstemp` (mode 0600) and renames, TypeScript writes in place (0666 less the umask). C++ now replaces a symbolic
+  link's target (the link stays) and gives the staged file the old file's permissions. The rule belongs in spec 4.2
+  for all three bindings (follow-up).
+
+## 2026-10-30, user guide samples, slice py-samples (PR 8, overnight)
+
+- **G1. Python's E3007 message leaves out the extension's name, so `include_read` cannot print
+  `examples/expected/include_read.txt` in Python.** TypeScript (`ts/src/written/bind.ts`, `unread`) and C++
+  (`detail/written/bind.hpp`, `fail(unread_copy, directive)`) pass the extension directive as the message detail:
+  `main.conf:2:1: E3007: extension copy not read yet: include`. Python (`py/src/villanelle/written/_bind.py`,
+  `_unread`) calls `_problem(DiagnosticCode.UNREAD_COPY, text, name.span, via)` without it and prints
+  `main.conf:2:1: E3007: extension copy not read yet`. The message is for people (spec: it may differ), so the
+  sample table is not wrong; the fix that matches the other two is passing the extension's directive as `detail`
+  in Python's `_unread` (not in py-samples' owned paths). `py/examples/include_read.py` is written and kept on
+  branch `wip/py-samples` until then; the other sixteen Python samples print their expected files.
+
+## 2026-10-30, packaging, slice packaging (PR 8, overnight)
+
+- **P1. frozen-docs.md section 6, packaging step 5: the grep `find_package\|cmake --install\|VILLANELLE_INSTALL`
+  cannot find nothing.** `cpp/CMakeLists.txt` keeps `find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)`
+  inside `if(VILLANELLE_BUILD_TESTS)`: the conformance test runs the shared driver under Python. It is a test-only
+  tool, off in every consumer route, not villanelle's own package. Followed the intent: no `find_package(villanelle`,
+  no `cmake --install`, no `VILLANELLE_INSTALL` remain outside `.claude/design/` and `.beads/`; the one hit left is
+  that Python line.
+
+## 2026-10-30, user guide pages, slice pages (PR 8, overnight)
+
+- **W1. frozen-docs.md section 6, pages step 4 cannot pass while G1 stands: the hook requires the Python tab of
+  `include_read`, and `py/examples/include_read.py` is not on the branch** (kept on `wip/py-samples`, errata G1). By
+  design the build fails (`SnippetMissingError` for the page's include, and the hook names the file). Checked: with
+  G1's fix (Python's `_unread` in `py/src/villanelle/written/_bind.py` passing `name.text[1:]` as the `detail`, as
+  TypeScript and C++ do) and the wip file, all 18 Python samples pass and `mkdocs build --strict` passes. Neither is
+  in the pages slice's owned paths, so the pages work is on `wip/pages` until they land.
+- **W2. frozen-docs.md section 6, pages step 5: the grep `low-level-api.md\|rendered-tree.md\|docs/language.md`
+  cannot find nothing outside `.claude/design/` and `.beads/`.** `design/RECORD.md` (the grammar's design record, not
+  in the slice's owned paths) still links the three deleted pages at lines 128-129 and 168 (live links, now broken
+  on GitHub) and names them as history at 82-83; `.claude/errata.md`'s own history entries name them too. Followed
+  the intent: every other file now points at the guide. Pointing RECORD.md's three links at the guide is a
+  follow-up.
+
+## 2026-10-30, guide landing (PR 8, overnight)
+
+- **G1 and W1 resolved.** Python's `_unread` now passes the extension's name as E3007's detail (test
+  `test_an_unread_copys_message_names_its_extension`); `py/examples/include_read.py` and the pages commit are on
+  `feat/cpp-binding`, all 18 Python samples print their expected files and `mkdocs build --strict` passes. The shared
+  corpus cannot pin the message: `conformance/format.md` says the message is not part of the contract, so the three
+  bindings agree on it by their own tests and the guide's sample, not by a conformance case. W2 (RECORD.md's links)
+  stays a follow-up.
