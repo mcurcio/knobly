@@ -4,8 +4,22 @@ Instructions for every AI coding agent in this repo. `CLAUDE.md` is a symlink to
 
 ## What this repo is
 
-knobly is a configuration language, defined by one formal grammar, with generated TypeScript
-and Python parsers. It began as `@rasl/config` in mcurcio/rasl, and rasl will consume it.
+knobly is a configuration language, defined by one formal grammar, with generated TypeScript,
+Python and C++ parsers. It began as `@rasl/config` in mcurcio/rasl, and rasl will consume it. It is
+an open source project: `README.md` is for users, `CONTRIBUTING.md` for contributors (layout,
+build, docs, releases), and this file adds what agents need on top.
+
+## Start here
+
+1. `README.md`: what the language looks like and the three API layers (syntax tree, files as
+   written, rendered tree).
+2. `CONTRIBUTING.md`: how the grammar, the spec and the three bindings fit, the repo layout, and
+   every build and test command.
+3. `bd ready`, then `bd show <id>` for the bead you take (see Task tracking below).
+4. Before changing any API shape: `.claude/skills/knobly-binding/SKILL.md`, then `spec/`.
+5. For design history: `design/RECORD.md` (current choices and the work outline).
+
+## Rules of the repo
 
 - `grammar/Knobly.g4` is the language. Change the language only there, and run
   `tools/check.sh` after every grammar change: it must exit 0.
@@ -13,25 +27,43 @@ and Python parsers. It began as `@rasl/config` in mcurcio/rasl, and rasl will co
   refuses them because they can hide a conflict.
 - Whitespace, comments and newlines are ordinary tokens. Nothing goes on a hidden channel, so the
   parse tree keeps every character.
-- The API every binding offers is specified in `spec/` (canonical: it wins over the TypeScript and
-  Python code). Read `.claude/skills/knobly-binding/SKILL.md` before changing any API shape.
-- Current design choices and the work outline are in `design/RECORD.md`. The older requirement
-  plans are in `design/plans/`. Code carried over from rasl is in `reference/`
-  (see `reference/README.md`).
+- The API every binding offers is specified in `spec/` (canonical: it wins over the TypeScript,
+  Python and C++ code). Public declarations are generated from `spec/schema/api.json`.
+- The older requirement plans are in `design/plans/`. Code carried over from rasl is in
+  `reference/` (see `reference/README.md`); it is source material, not part of the build.
+
+## Docs
+
+- `README.md` is user-first: what knobly is, a quickstart, install, and links into the user guide.
+  Maintainer detail (layout, checks, releases) belongs in `CONTRIBUTING.md`, not the README.
+- The user guide is `docs/site/` (MkDocs Material), published to https://mcurcio.github.io/knobly/.
+  Every code sample on it is included from a program in `ts/examples/`, `py/examples/` and
+  `cpp/examples/`, listed in `examples/samples.json`; each binding's tests run them, and the docs
+  build fails if a language's file is missing.
+- Tables between `<!-- generated: ... -->` markers (in `README.md`, `spec/` and the guide) are
+  generated: run `python3 tools/gen-api.py docs`, never edit them by hand. `tools/check.sh` fails
+  when one is stale.
+- The logo (`docs/site/pages/assets/logo.svg`, `logo-dark.svg`, `icon.svg`) is drawn by
+  `tools/logo.py`; edit the script and rerun it, never the SVGs.
+- When you change behaviour or an API, update the guide page and the package README that describe
+  it in the same change.
 
 ## Build and test
 
 Run the checks for every package you change, from the repository root:
 
 ```bash
-bash tools/check.sh                       # after any grammar change; must exit 0
+bash tools/check.sh                       # after any grammar or schema change; must exit 0
 corepack pnpm -C ts install               # ts/: then test, typecheck and lint
 corepack pnpm -C ts test
-cd py && uv run pytest                    # py/: also ruff check, ruff format --check, mypy
+(cd py && uv run pytest)                  # py/: also ruff check, ruff format --check, mypy
+cmake -S cpp -B build && cmake --build build && ctest --test-dir build   # cpp/
+(cd docs/site && uv run --locked mkdocs build --strict)                  # the user guide
 ```
 
-`ts/README.md` and `py/README.md` give the full lists. CI (`.github/workflows/ci.yml`) runs all
-of them on every push and pull request.
+`CONTRIBUTING.md` and each package README (`ts/`, `py/`, `cpp/`) give the full lists. CI
+(`.github/workflows/ci.yml`) runs all of them on every push and pull request, so run locally only
+the checks for what you changed.
 
 Pins:
 
@@ -42,13 +74,15 @@ Pins:
 | Python | 3.11 or later; 3.13 by default; CI runs 3.11 and 3.13 | `requires-python` in `py/pyproject.toml`; `py/.python-version` |
 | Java | 11 or later (CI uses 21) | `tools/gen.sh` refuses older |
 | ANTLR | 4.13.2: the jar (sha256-pinned) and both runtimes | `tools/gen.sh`; `ts/package.json`; `py/pyproject.toml` |
+| C++ | C++20, CMake 3.24 or later; no dependencies beyond the standard library | `cpp/CMakeLists.txt` |
 | CI tools | exact versions of Node, Java, uv and bison | the `env` block of `.github/workflows/ci.yml` |
 
-Generated parser code is never committed (owner, 2026-10-23: "Don't commit the generated code, just
-the source"). `tools/gen.sh ts|py` writes it to the git-ignored `ts/src/gen/` and
-`py/src/knobly/_gen/`; the TS package scripts and `py/tests/conftest.py` run it first, so every
-build and test regenerates. It caches the ANTLR jar in `$ANTLR_JAR_DIR` (default
-`~/.cache/antlr`); on the owner's Mac, set `ANTLR_JAR_DIR=/Volumes/Dock/Home/.cache/antlr`.
+Generated code is never committed (owner, 2026-10-23: "Don't commit the generated code, just
+the source"). `tools/gen.sh ts|py|cpp` writes it to git-ignored folders (`ts/src/gen/`,
+`py/src/knobly/_gen/` and `_api/`, the C++ headers in `cpp/`); the TS package scripts,
+`py/tests/conftest.py` and CMake's configure step run it first, so every build and test
+regenerates. It caches the ANTLR jar in `$ANTLR_JAR_DIR` (default `~/.cache/antlr`); on the
+owner's Mac, set `ANTLR_JAR_DIR=/Volumes/Dock/Home/.cache/antlr`.
 
 ## Landing work
 

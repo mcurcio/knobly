@@ -12,6 +12,8 @@ strict: true
 
 theme:
   name: material
+  logo: assets/icon.svg      # drawn by tools/logo.py
+  favicon: assets/icon.svg
   features:
     - content.tabs.link
     - content.code.copy

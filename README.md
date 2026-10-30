@@ -1,67 +1,179 @@
-# knobly
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/site/pages/assets/logo-dark.svg">
+    <img alt="knobly" src="docs/site/pages/assets/logo.svg" width="440">
+  </picture>
+</p>
 
-A small configuration language: directives ended by `;` (a line break is a space, as in nginx), `{ }` blocks,
-lists and slices (`name[1~3]`), raw single-quoted strings, `#` comments, and variables and snippets written as
-`@` statements (`@set`, `@snippet`, `@use`, and an extension's `@include`), with parsers for TypeScript, Python
-and C++ generated from one grammar.
+<p align="center">
+  <b>A small, friendly configuration language, with parsers for TypeScript, Python and C++ built from one grammar.</b>
+</p>
+
+<p align="center">
+  <a href="https://github.com/mcurcio/knobly/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/mcurcio/knobly/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://mcurcio.github.io/knobly/"><img alt="User guide" src="https://img.shields.io/badge/docs-user%20guide-ff8a3d"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-3b3660"></a>
+</p>
+
+---
+
+knobly files look like nginx's: directives ended by `;`, blocks in `{ }`, `#` comments. On top of that they have
+variables, reusable snippets and included files, so a big config doesn't have to repeat itself:
 
 ```conf
+# main.conf
 @set $pixels 2284;
+@set $leds_host "10.0.60.30";
 
-@snippet twinkle $source {
-    seed 11337;
-    mode brightness;
-    frequency_hz 0.3;
-    attack_ratio 0.33;
-    min_speed 1.0;
-    max_speed 3.0;
+graph {
+    node Waveform hue_ramp {
+        shape sine;
+        frequency_hz 0.01;
+    }
 
-    connect $source;
+    @include "sink.conf" {        # one file, included twice,
+        @set $name leds;          # each time with its own variables
+        @set $host $leds_host;
+    }
+
+    @include "sink.conf" {
+        @set $name porch;
+        @set $host "10.0.60.31";
+    }
 }
 ```
 
-(Excerpt of [`fixtures/rasl/family_room.conf`](fixtures/rasl/family_room.conf), which both packages' tests load.)
-**The user guide: [https://mcurcio.github.io/knobly/](https://mcurcio.github.io/knobly/)** (source: [`docs/site/pages/`](docs/site/pages/)), one set of pages with every
-sample in TypeScript, Python and C++. The language is taught in its [language reference](https://mcurcio.github.io/knobly/language/); its rules
-live in the grammar and in
-[spec/expansion.md](spec/expansion.md) (which `@set` a `$name` reaches, and which definition wins).
+(Excerpt of [`fixtures/rasl/split/main.conf`](fixtures/rasl/split/main.conf), a real config the tests load.)
 
-## Using it from a program
+## Why knobly
 
-knobly has three layers, each built on the one below; a program can work at any of them.
+- **Easy to read and write.** A file is directives with values: words, `"strings"`, `'raw strings'`,
+  `[lists]` and slices like `channel[1~3]`. A line break is just a space, so long lines wrap freely.
+- **Keeps big configs DRY.** `@set` variables, `@snippet` / `@use` for repeated blocks, and `@include` for
+  splitting a config across files, each include with its own variables.
+- **Every value knows where it came from.** Problems arrive as diagnostics with a file, line and column, and a
+  caret under the exact text. A bad file never throws; it tells you what is wrong.
+- **Programs can edit configs, too.** Load a file, change a value or a variable, and save it back with every
+  comment and the layout kept.
+- **The same everywhere.** The TypeScript, Python and C++ parsers are generated from
+  [one grammar](grammar/Knobly.g4) that is machine-checked to be unambiguous, and all three pass the same
+  conformance tests. A file means the same thing in every language.
+- **Light.** TypeScript and Python need only the ANTLR runtime; C++ is a single header with no dependencies.
 
-- **The syntax tree.** `parse(text)` reads one text into tokens and a tree, with every character in exactly one
-  token. It never fails: problems are diagnostics.
-- **The low level: the files as written.** `processor.load(path)` reads a root file and every file it includes into
-  a document graph, and shows which files were read, what variables exist and which `set` line wins where. A
-  program can change any of it (`set(text)` on a line, a variable or a value, `setOverride` / `set_override` for an
-  override), each edit taking config text made by `quote()` or `text()`, and `graph.save(writer)` writes the changed files back, comments and layout kept; `graph.read()` reads
-  files an edit newly includes. The low level knows nothing of the rendered tree. Guide:
-  [Editing and saving](https://mcurcio.github.io/knobly/editing/).
-- **The rendered tree.** `render(graph)` works out variables, snippets and included files into the directives a
-  program reads, each value with the place it was written. It also gives every directive an address under the
-  program's key rule, and `before.diff(after, { key })` (Python: `before.diff(after, key=...)`) lists what changed
-  between two renders. Guide: [Getting started](https://mcurcio.github.io/knobly/getting-started/).
+## Quickstart
 
-```ts
-  // import { memorySource, quote } from "knobly"; import { knobly } from "knobly/written";
-  const config = knobly({ source: memorySource(FILES), extensions: [include()] });
-  const graph = await config.load("main.conf", { overrides: { leds_host: quote("10.0.70.1") } });
+Take a config file, `app.conf`:
+
+```conf
+@set $port 8080;
+
+server {
+    host "127.0.0.1";
+    port $port;
+    debug false;
+}
 ```
+
+Load it, render it (which fills in variables, snippets and includes), and read typed values:
 
 ```python
-    # import knobly as vl; from knobly import written
-    config = written.Processor(source=vl.memory_source(FILES), extensions=[include()])
-    return config.load("main.conf", overrides={"leds_host": vl.quote("10.0.70.1")})
+from knobly import rendered, written
+from knobly.files import file_source
+
+config = written.Processor(source=file_source())
+tree = rendered.render(config.load("app.conf"))
+
+server = tree.block.directives("server")[0].block
+port = server.directives("port")[0].values[0].integer()   # 8080
+debug = server.directives("debug")[0].values[0].boolean()  # False
+print(len(tree.diagnostics))                               # 0 problems
 ```
 
-(Excerpts of `ts/src/written/tracer.test.ts` and `py/tests/test_tracer.py`, which go on to list the variables of
-[`fixtures/rasl/split`](fixtures/rasl/split/), change `$pixels`, save, and render.) Every sample in the user guide is a file each binding's tests run
-([`examples/samples.json`](examples/samples.json)), so a sample cannot rot.
+<details>
+<summary>The same in TypeScript</summary>
 
-Each layer is its own import path, and every name has exactly one (milestone 6; [spec/binding-guide.md](spec/binding-guide.md)
-rule 9). Type names carry no prefix (`DocumentGraph`, `Rendered`), the same in TypeScript and Python; C++ spells them
-in snake_case, as its standard library does (`document_graph`), and its import paths are namespaces.
+```ts
+import { knobly } from "knobly/written";
+import { render } from "knobly/rendered";
+import { fileSource } from "knobly/node";
+
+const config = knobly({ source: fileSource() });
+const tree = render(await config.load("app.conf"));
+
+const server = tree.block.directives("server")[0]?.block;
+const port = server?.directives("port")[0]?.values[0]?.integer();   // 8080
+const debug = server?.directives("debug")[0]?.values[0]?.boolean(); // false
+console.log(tree.diagnostics.length);                               // 0 problems
+```
+
+</details>
+
+<details>
+<summary>The same in C++</summary>
+
+```cpp
+#include <knobly/files.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/written.hpp>
+
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
+
+const vw::processor config({.source = knobly::files::file_source()});
+const vr::rendered tree = vr::render(config.load("app.conf"));
+
+const vr::rendered_block server = tree.block().directives("server").at(0).block().value();
+const auto port = server.directives("port").at(0).values().at(0).integer();    // 8080
+const auto debug = server.directives("debug").at(0).values().at(0).boolean();  // false
+```
+
+</details>
+
+These are shortened from the user guide's quickstart sample
+([Python](py/examples/quickstart.py), [TypeScript](ts/examples/quickstart.ts), [C++](cpp/examples/quickstart.cpp)),
+which every build runs.
+
+## Install
+
+knobly has not made its first release yet, so for now you build it from a clone:
+
+```bash
+git clone https://github.com/mcurcio/knobly
+```
+
+The [Quickstart page of the user guide](https://mcurcio.github.io/knobly/#get-it) has the exact steps for each
+language. In short: TypeScript needs Node 24 and Java 11+ (to generate the parser), Python needs Python 3.11+ and
+Java 11+, and C++ needs a C++20 compiler (and Python with `uv` to generate the headers). Once releases start, each
+one on the [releases page](https://github.com/mcurcio/knobly/releases) will carry an npm tarball, a Python wheel,
+and a single C++ header; nothing is published to npm or PyPI.
+
+## Learn more
+
+The **[user guide](https://mcurcio.github.io/knobly/)** shows every example in all three languages, with a tab per
+language.
+
+| If you want to... | Read |
+|---|---|
+| install knobly and run a first program | [Quickstart](https://mcurcio.github.io/knobly/) |
+| load files, read values, pass overrides, handle problems | [Getting started](https://mcurcio.github.io/knobly/getting-started/) |
+| learn everything a knobly file may say | [Language reference](https://mcurcio.github.io/knobly/language/) |
+| change a config from a program and save it back | [Editing and saving](https://mcurcio.github.io/knobly/editing/) |
+| use variables, snippets and included files | [Variables, snippets and includes](https://mcurcio.github.io/knobly/variables/) |
+| report your own problems in a user's config | [Diagnostics and your own checks](https://mcurcio.github.io/knobly/diagnostics/) |
+| see how the three languages' APIs differ | [How the bindings differ](https://mcurcio.github.io/knobly/differences/) |
+| look up a language's full API | [TypeScript](ts/README.md), [Python](py/README.md), [C++](cpp/README.md) |
+
+### The API at a glance
+
+A program can work at three layers, each built on the one below:
+
+- **The rendered tree** (`render`): variables, snippets and includes worked out into the directives a program
+  reads. This is where most programs live.
+- **The files as written** (`load`): the root file and every file it includes, with their variables. Edit them
+  and save them back, comments and layout kept.
+- **The syntax tree** (`parse`): one text as tokens and a tree, every character in exactly one token.
+
+Each layer is its own import:
 
 <!-- generated: members: entry points (tools/gen-api.py docs) -->
 | Entry point | TypeScript | Python | C++ |
@@ -75,123 +187,19 @@ in snake_case, as its standard library does (`document_graph`), and its import p
 | files over `fetch` | `knobly/browser`: `fetchSource`, `fetchWriter`, ... | none | none |
 <!-- end generated -->
 
-**C++** (milestone 2): a header-only library, the CMake target `knobly::knobly`, with the syntax tree
-(`<knobly/syntax.hpp>`), the low level (`<knobly/written.hpp>`), the rendered tree
-(`<knobly/rendered.hpp>`), files on disk (`<knobly/files.hpp>`) and the include extension
-(`<knobly/extensions.hpp>`), with names in snake_case from the same schema ([`cpp/README.md`](cpp/README.md)).
-Its adapter claims level 3 of the conformance cases. Nothing is installed: copy the single header `knobly.hpp`
-(made by `tools/amalgamate.py`) into your project, or take each release's C++ source archive, which carries the
-generated headers, with CMake `FetchContent` or `add_subdirectory` (no Python needed either way).
+## Project status
 
-## The language is defined by one file
+knobly is young and has not made its first release yet; its API may still change. The TypeScript, Python and C++
+bindings are complete for all three layers and pass the same conformance tests. A higher-level API, where a program
+declares the directives it expects, is planned. knobly began as the config format of
+[rasl](https://github.com/mcurcio/rasl), which will use it.
 
-[`grammar/Knobly.g4`](grammar/Knobly.g4) (ANTLR4) is the specification. ANTLR4
-generates the TypeScript and Python parsers from it, and knobly's own parser generator
-([`tools/parser/gen.py`](tools/parser/gen.py), no runtime library) the C++ one, so every parser accepts exactly the
-grammar's language. Its entry rules (`statementsText`, `valuesText`, `valueText`, `itemsText`, `boundText`,
-`sliceNameText`, `nameText`) also check the shape of every text a program hands to an edit, so no binding keeps a scanner of its own. [`grammar/knobly.ebnf`](grammar/knobly.ebnf)
-is the same grammar in W3C EBNF, kept by hand as a readable view (whether to derive or retire it is an open question
-in `.claude/errata.md`).
+## Contributing
 
-The API every language binding offers on top of the parsers is specified, language-neutrally, in
-[`spec/`](spec/README.md): the layers, one word per concept ([`spec/glossary.md`](spec/glossary.md)),
-and the schema in [`spec/schema/`](spec/schema/), from which each binding's declarations (every public signature,
-kind list, error class and diagnostic code) are generated ([`spec/codegen.md`](spec/codegen.md)). The spec wins over either
-binding's code (owner, 2026-10-27: "Within villanelle I want the spec to win over a reference
-language").
+Bug reports, ideas and pull requests are welcome: open an
+[issue](https://github.com/mcurcio/knobly/issues) to start. [CONTRIBUTING.md](CONTRIBUTING.md) explains how the
+repository fits together and how to build and test it. AI coding agents start at [AGENTS.md](AGENTS.md).
 
-The grammar is checked to be unambiguous, so every valid file has exactly one parse:
+## License
 
-```bash
-tools/check.sh
-```
-
-The script runs these checks:
-- it translates the parser rules to Bison and requires 0 conflicts, for the document rule and each entry rule;
-- it checks that no two token kinds can match the same text;
-- it confirms that both checks still catch the planted bad grammars in `tools/planted/`;
-- it checks the API schema (every type resolves, the layer direction, the error tree), renders both bindings'
-  declarations, checks the generated docs tables are current, and validates the schema files against their JSON
-  Schema, each check also run against planted broken copies;
-- it runs the kind lint's and the conformance driver's own tests;
-- it runs knobly's own parser generator over the grammar, which must accept it and refuse every planted grammar
-  in `tools/planted-parser/`.
-
-It needs `python3`, `bison` and `uv`.
-
-## Layout
-
-| Path | What it is |
-|---|---|
-| `grammar/` | The grammar (`Knobly.g4`) and its EBNF view |
-| `tools/` | The soundness checks (`check.sh`), the planted bad grammars they must catch, the parser generator script (`gen.sh`), the API generator (`gen-api.py`: a loader in `api/loader.py` and one emitter per language) and the kind lint (`lint/`) |
-| `ts/` | The TypeScript package, npm name `knobly` ([`ts/README.md`](ts/README.md)) |
-| `py/` | The Python package, PyPI name `knobly` ([`py/README.md`](py/README.md)) |
-| `cpp/` | The C++ library, header-only, CMake target `knobly::knobly` ([`cpp/README.md`](cpp/README.md)) |
-| `conformance/` | Test cases every package must pass, with the expected output for each, and the one driver that runs them against each package's adapter ([`spec/conformance.md`](spec/conformance.md)): syntax cases ([`conformance/format.md`](conformance/format.md)), low-level cases in `conformance/written/`, load cases in `conformance/load/`, addresses and diff order in `conformance/rendered/`, and readers, positions and formatting in `conformance/contract/`; `conformance/corpora.json` lists them |
-| `examples/` | The user guide's samples: the table (`samples.json`), each sample's expected output and its fixtures; each binding's sample files are in its own `examples/` |
-| `fixtures/rasl/` | rasl's real config files, which each package's rasl test loads ([`fixtures/rasl/README.md`](fixtures/rasl/README.md)) |
-| `docs/` | The user guide's site ([`docs/site/`](docs/site/): MkDocs, pages in `docs/site/pages/`, published at [https://mcurcio.github.io/knobly/](https://mcurcio.github.io/knobly/)) and `tables.json`, the rows of its generated tables |
-| `.github/` | CI and the release build (`workflows/ci.yml`, `release-build.sh`) |
-| `package.json`, `.releaserc.json` | Release tooling only (semantic-release); the packages are `ts/` and `py/` |
-| `design/` | The design record ([`design/RECORD.md`](design/RECORD.md)), run logs, the older plans, drafts, reviews and experiments |
-| `reference/` | The config code copied from mcurcio/rasl, as source material ([`reference/README.md`](reference/README.md)) |
-| `.beads/` | The issue tracker (`bd ready` for work) |
-
-## Build and test
-
-The generated parsers and API declarations are not committed (owner, 2026-10-23: "Don't commit the generated
-code, just the source"). `tools/gen.sh ts` and `tools/gen.sh py` write them to `ts/src/gen/` (with
-`ts/conformance/shapes.ts`) and `py/src/knobly/_gen/` and `_api/` (with `py/conformance/shapes.py` and
-`py/tests/api_contract.py`), all ignored by git, and every build and test runs it first; `tools/gen.sh cpp` writes
-the C++ headers into `cpp/` (CMake runs it at configure time; Python and `uv` only, no Java). The generated docs tables are the one committed output
-(`python3 tools/gen-api.py docs`; [spec/codegen.md](spec/codegen.md) section 6). It needs
-Java 11+ and `curl`: it downloads the ANTLR 4.13.2 jar once, checks its sha256, and caches it in
-`$ANTLR_JAR_DIR` (default `~/.cache/antlr`).
-
-From the repository root:
-
-```bash
-bash tools/check.sh                       # grammar soundness: needs python3, bison, uv
-
-corepack pnpm -C ts install               # TypeScript: Node 24 (.nvmrc), pnpm through corepack
-corepack pnpm -C ts test                  # also: typecheck, lint, build
-
-cd py && uv run pytest                    # Python 3.11 or later, through uv
-uv run ruff check && uv run ruff format --check && uv run mypy
-
-cmake -S cpp -B build && cmake --build build && ctest --test-dir build   # C++: CMake 3.24+, a C++20 compiler
-```
-
-CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs these on every push and pull
-request: the grammar check, the TypeScript checks on Node 24, the Python checks on Python 3.11
-and 3.13, the C++ tests (GCC, Clang and AppleClang, each header-only and compiled), the C++ format check,
-a C++ package check (a program built from the release archive with `FetchContent` and `add_subdirectory`, and from
-the single header alone, with nothing installed), and the user guide's build (`docs/site/`).
-
-## Releases
-
-A push to `main` that passes CI runs semantic-release. It takes the next version from the
-Conventional Commits since the last release and builds the npm tarball of `ts/`, the Python
-wheel and sdist of `py/`, and the C++ source archive and single header of `cpp/` with
-`.github/release-build.sh`. The version is stamped into the
-manifests for the build only and never committed. The packages go to GitHub Release assets only;
-nothing is published to npm or PyPI.
-
-Releases are dry-run until the repository variable `RELEASE_ENABLED` is `true` (owner, 2026-10-23:
-"Dry-run until I enable it"). In dry-run the job still computes the version and builds every
-asset, and uploads them as a workflow artifact; it creates no tag and no release. To turn
-releases on:
-
-```bash
-gh variable set RELEASE_ENABLED --body true -R mcurcio/knobly
-```
-
-## Status
-
-The TypeScript and Python packages are built from the grammar and pass the same conformance cases, run by one
-shared driver (`python3 conformance/driver/run.py -- <adapter>`, [`spec/conformance.md`](spec/conformance.md)). Both have the syntax tree, the low level (the files as written, editable and saved back) and the
-rendered tree; the high-level API, where a program declares its directives, is deferred (`kno-xlo`). The C++
-library has all three (level 3). No release has
-been made yet. The grammar design was done in [mcurcio/rasl#2](https://github.com/mcurcio/rasl/pull/2), where this
-language began as `@rasl/config`.
+[MIT](LICENSE) © 2026 Matt Curcio

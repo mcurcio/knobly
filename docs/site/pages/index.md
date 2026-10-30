@@ -1,5 +1,8 @@
 # Quickstart
 
+![knobly](assets/logo.svg#only-light){ width="440" }
+![knobly](assets/logo-dark.svg#only-dark){ width="440" }
+
 knobly is a small configuration language: directives ended by `;`, `{ }` blocks, lists, slices, `#` comments,
 and variables and snippets written as `@` statements. It has one grammar and three bindings, TypeScript, Python and
 C++, with the same parts under each language's own names. Every sample on this site has a tab per language; pick
