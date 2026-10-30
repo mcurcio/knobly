@@ -127,14 +127,16 @@ def _scope(p: Any) -> tuple[Any, bool]:
 
 
 def _statement_start(statements: Any, current: int) -> int:
-    """The first token index of the statement being parsed in ``statements`` (or ``current`` before any); 0 outside
-    any statements, in an entry rule (``parse_entry``), whose text is one statement's worth from its start."""
+    """The first token index of the statement being parsed in ``statements``: its last directive while that one is
+    open or has just failed (its exception is set), else ``current``, since a directive that finished is a statement
+    before this one (spec 3.2: its brackets are not this statement's). 0 outside any statements, in an entry rule
+    (``parse_entry``), whose text is one statement's worth from its start."""
     if statements is None:
         return 0
-    kids = [
-        k for k in ((statements.children or []) if statements is not None else []) if _rule_of(k) == P.RULE_directive
-    ]
-    return int(kids[-1].start.tokenIndex) if kids else current
+    kids = [k for k in (statements.children or []) if _rule_of(k) == P.RULE_directive]
+    if not kids or (kids[-1].stop is not None and kids[-1].exception is None):
+        return current
+    return int(kids[-1].start.tokenIndex)
 
 
 class _Recovery(DefaultErrorStrategy):  # type: ignore[misc]

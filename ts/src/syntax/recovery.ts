@@ -85,6 +85,10 @@ interface Context {
   readonly parentCtx: Context | null;
   readonly children: readonly Context[] | null;
   readonly start: { readonly tokenIndex: number };
+  /** Set when the rule has exited (antlr4 starts it null). */
+  readonly stop: unknown;
+  /** The RecognitionException the rule failed with, or null (antlr4 starts it null). */
+  readonly exception: unknown;
 }
 
 interface StreamToken {
@@ -147,13 +151,16 @@ function scope(p: Parser): { statements: Context | undefined; inBlock: boolean }
 }
 
 /**
- * The first token index of the statement being parsed in `statements` (or `current` before any); 0 outside any
- * statements, in an entry rule, whose statement is the whole text (spec 2.8).
+ * The first token index of the statement being parsed in `statements`: its last directive while that one is open or
+ * has just failed (its exception is set), else `current`, since a directive that finished is a statement before this
+ * one (spec 3.2: its brackets are not this statement's). 0 outside any statements, in an entry rule, whose statement
+ * is the whole text (spec 2.8).
  */
 function statementStart(statements: Context | undefined, current: number): number {
   if (statements === undefined) return 0;
-  const kids = (statements.children ?? []).filter((k) => k.ruleIndex === P.RULE_directive);
-  return kids.at(-1)?.start.tokenIndex ?? current;
+  const last = (statements.children ?? []).filter((k) => k.ruleIndex === P.RULE_directive).at(-1);
+  if (last === undefined || (last.stop !== null && last.exception === null)) return current;
+  return last.start.tokenIndex;
 }
 
 class Recovery extends DefaultErrorStrategy {
