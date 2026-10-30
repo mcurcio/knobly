@@ -130,7 +130,7 @@ Python `X: TypeAlias = A | B | ...` over classes (so `isinstance(x, X)` works). 
 | `block` | `Block<Item, Directive>` | `Block[Item, Directive]` |
 | `step kind` (kind list) | `StepKind` (as-const object and type) | `StepKind` (`StrEnum`) |
 | `place kind` (kind list) | `PlaceKind` (as-const object and type) | `PlaceKind` (`StrEnum`) |
-| `walk control` (kind list) | `WalkControl` (as-const object and type) | `WalkControl` (`StrEnum`) |
+| `walk control` (kind list) | `WalkControl` (as-const object and type) | none |
 | `diagnostic code` | `DiagnosticCode` (as-const object and type) | `DiagnosticCode` (`StrEnum`) |
 | `villanelle error` (error group) | `VillanelleError` | `VillanelleError` |
 | `diagnostic error` (error group) | `DiagnosticError` | `DiagnosticError` |
@@ -357,3 +357,15 @@ These are words of the conformance tooling, not of the API: no binding exports t
 | `conformance level` (L0 to L4) | how much of the spec a binding claims to meet, cumulative | a binding climbs them in order, and CI checks the claim | the `needs` tokens, which stay as a record |
 | `key rule data` | a key rule written as data in `conformance/keys.json` | a case cannot hold a function (root cause 5: "the "rasl" key rule becomes data") | the `"rasl"` rule each runner wrote by hand |
 | `dump` | the neutral JSON shape of a binding object the adapter sends | the driver finds targets and compares; the adapter only describes | none |
+
+## New terms in milestone 7
+
+These are words of the schema and its generator ([codegen.md](codegen.md)), not of the API: no binding exports them.
+
+| Term | Definition | Why it is needed | Existing term it could be |
+|---|---|---|---|
+| `doc` | a schema entry's text for the binding's users (a concept, member, parameter, kind list, error group, free function, protocol shape or request), which every emitter writes as the declaration's doc comment (JSDoc, a docstring); it may not carry a bead id, `milestone N`, an `owner, <date>` quote or a language's name ([codegen.md](codegen.md) 3, "Docs and rationale") | one `note` held both user docs and maintainer history, and the history reached generated code | `note`, which it and `rationale` replace |
+| `rationale` | a schema entry's text for the people who maintain the schema: history, the owner's words, bead ids, one language's notes; no emitter reads it | the same | `note` |
+| adapter module (`files`, `fetch`, `include`) | a module a binding may have beside its layer namespaces, named for what it holds: `files` the filesystem source and writer, `fetch` the fetch source and writer, `include` the include extension. Each emitter maps it to its own import path or leaves it out (its `LANGUAGE.modules`); the generated contract 5 table and the glossary's io table show each binding's path | the schema named the TypeScript paths (`node`, `browser`), a per-language fact | `node` and `browser`, the schema's old module names. Not the source and writer adapters themselves (spec 4.3), nor the conformance adapter |
+| `registry layer`, `adapter layer` | the layer that holds the error groups and the diagnostic code type, and the one layer whose concepts may sit in an adapter module (`api.json`) | the loader named `shared` and `io` in code, so a renamed or added layer needed a loader edit | none |
+| I-Regexp | the interoperable regular expression subset of RFC 9485; every schema pattern is one, between `^` and `$`, and each emitter writes it in its engine's dialect | a pattern must mean the same in every binding's engine, not only JavaScript's and Python's | the "no `\s`, `\w`, `\d`, `\b`" rule it replaces |

@@ -229,7 +229,7 @@ statement classification reads; no binding compares a keyword's text by hand.
 - `MAX_SAFE_INTEGER` (integer range; the written layer): 9,007,199,254,740,991, integer words and slice or index bounds lie within plus or minus this (2^53-1) (E4005).
 - `RESERVED` (reserved names; the written layer): `set`, `snippet`, `use`: the language statements' names, written @set, @snippet and @use: no extension may take one (spec 2.5, 5). No directive name is reserved: a directive's name is a WORD, which never starts with @.
 - `VARIABLE_NAME` (variable name pattern; the written layer): `^[A-Za-z0-9_]+$`, a $name without its $, an override name, a variable rename.
-- `PROGRAM_CODE` (program code pattern; the shared layer): `^[^/\t\n\u000b\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$`, <namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out); villanelle's codes start with E.
+- `PROGRAM_CODE` (program code pattern; the shared layer): `^[^/\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/[^\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$`, <namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out); villanelle's codes start with E.
 <!-- end generated -->
 
 - **No directive name is reserved** (milestone 5; owner, 2026-10-29, bead vil-umh.14: "yes" to language
@@ -1131,12 +1131,22 @@ The schema names it as the concept `config text` ([schema/api.json](schema/api.j
 - At run time the check is unchanged: given anything that is not text (a number, a boolean, a list, a null), each
   member above, `quote` and `text` MUST raise an `argument type error` before it changes anything, whose message
   names the member and the parameter and points to `quote ()` and `text ()`. Its placeholders and rule are in
-  [schema/api.json](schema/api.json) (`argument type error message`) and each binding's exact sentence in its
-  emitter (`tools/api/emit_ts.py`, `emit_py.py`, `LANGUAGE`): in Python, `statement.set(2400)` raises
-  `TypeError: set() argument 'text' must be str, not int; ...` and never fails inside the library. A plain string
+  [schema/api.json](schema/api.json) (`argument type error message`); each binding's exact sentence is its
+  emitter's (`LANGUAGE.argument_type_message`), shown in the generated table below. The error is raised before the
+  library does anything with the value, so it never fails inside the library. A plain string
   passes at run time (neither language can tell it from config text then); the type checker refuses it. Absent is
   allowed only where the member says so (`set override`'s text, which removes the override).
 - A binding's docs show `quote ()` and `text ()` beside the first edit they teach.
+
+Each binding's argument type error message, from its emitter (`{member}`, `{parameter}` and `{got}` are filled in at
+the raise):
+
+<!-- generated: argument type messages (tools/gen-api.py docs) -->
+| Binding | Message |
+|---|---|
+| TypeScript | `{member}(): argument "{parameter}" must be a string, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, String() a number first` |
+| Python | `{member}() argument '{parameter}' must be str, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, str() a number first` |
+<!-- end generated -->
 
 Costs: every literal a program writes into an edit needs `text (...)` (`statement.set(text("8080"))`), and a value's
 `text` read from one line must be wrapped to be written into another. A cast (`as ConfigText`, `cast(ConfigText,

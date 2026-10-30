@@ -50,7 +50,7 @@
     "gen": "bash ../tools/gen.sh ts",
     "build": "bash ../tools/gen.sh ts && tsc -p tsconfig.build.json",
     "test": "bash ../tools/gen.sh ts && vitest run",
-    "typecheck": "bash ../tools/gen.sh ts && tsc --noEmit && tsc -p conformance",
+    "typecheck": "bash ../tools/gen.sh ts && tsc --noEmit && tsc -p conformance && tsc -p test",
     "lint": "bash ../tools/gen.sh ts && eslint .",
     "conformance": "python3 ../conformance/driver/run.py -- node conformance/adapter.ts"
   },

@@ -5,10 +5,10 @@ the error tree, config text, the document source and writer ports and the in-mem
 level: ``Processor.load`` returns a ``DocumentGraph`` of editable documents, read further with ``graph.read()`` and
 saved back with ``graph.save(writer)``); ``villanelle.rendered`` the rendered tree (``render(graph)``: variables,
 snippets and included files expanded into directives a program reads). The core does no I/O: ``villanelle.files``
-gives a filesystem source and writer, ``villanelle.include`` the include extension.
+gives a filesystem source and writer, ``villanelle.include`` the include extension."""
 
-Every public signature is generated from spec/schema/api.json (``villanelle._api``); each module's ``__all__`` equals
-the generated ``PUBLIC_NAMES`` for it (tests/test_api_names.py)."""
+# Every public signature is generated from spec/schema/api.json (villanelle._api); each module's __all__ equals the
+# generated PUBLIC_NAMES for it (tests/test_api_names.py).
 
 from villanelle._api.codes import DiagnosticCode
 from villanelle._api.errors import (

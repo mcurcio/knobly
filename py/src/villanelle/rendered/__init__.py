@@ -1,9 +1,11 @@
 """``villanelle.rendered``: the middle layer, the rendered tree (spec 7). It builds on the low level's public objects
 only: ``render(graph)`` reads ``graph.expand()`` and returns a ``Rendered`` whose directives hold the expansion's own
-expanded values and unreadable expansions (vil-umh.8), adding names, parents, blocks that walk, addresses and
-``diff``. Nothing below this layer imports it, and it imports nothing private of the low level (spec 5, "Layer
-direction"; both checked by tests/test_layers.py). The records (``AddressStep``, ``Added`` ... ``Unknown``), the
-``Change`` union and ``KeyRule`` are generated from spec/schema/api.json (``villanelle._api.rendered``)."""
+expanded values and unreadable expansions, adding names, parents, blocks that walk, addresses and ``diff``. Nothing
+below this layer imports it, and it imports nothing private of the low level (spec 5, "Layer direction")."""
+
+# The records (AddressStep, Added ... Unknown), the Change union and KeyRule are generated from spec/schema/api.json
+# (villanelle._api.rendered). The rendered layer holds the expansion's own objects (vil-umh.8). tests/test_layers.py
+# checks the layer direction.
 
 from villanelle._api.kinds import ChangeKind
 from villanelle._api.rendered import Added, AddressStep, Change, Changed, KeyRule, Removed, Unknown

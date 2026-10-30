@@ -9,11 +9,13 @@ Nothing here knows a target language. It owns the three things every emitter sha
   the layer direction holds for every member type, error groups form a tree on the spec's two sorts, no two names
   derive one identifier (public names, each concept's members, each kind list's members).
 
-Each closed list (traits, natures, found-by, code layers, ...) has one home, spec/schema/api.schema.json: the loader
-reads it from there (``closed``). What differs by target language is not here, nor in the schema: each emitter hands
-the loader a ``Language`` (its key, its casing, each root error group's class, its adapter modules, its factory forms,
-the argument type sentence, what it leaves out, what its public names are), so a new binding is one emitter and the
-loader and the schema are unchanged (spec/codegen.md section 10).
+Each closed list (traits, natures, found-by, code layers, factory and root forms, ...) has one home,
+spec/schema/api.schema.json: the loader reads it from there (``closed``). What differs by target language is not here,
+nor in the schema: each emitter hands the loader a ``Language`` (its key, its casing, each root error group's class,
+its adapter modules, its factory forms, its native types, the argument type sentence, what it leaves out, what its
+public names are, how the docs tables spell it), so a new binding is one emitter and the loader and the schema are
+unchanged (spec/codegen.md section 10). A schema pattern is an I-Regexp (RFC 9485), the interoperable regex subset,
+between ``^`` and ``$``; each emitter renders it in its engine's dialect.
 
 The loader also keeps the schema's emitted docs clean: a ``doc`` (and every other text an emitter writes as a doc
 comment) may not carry a bead id, an owner quote, history or one language's name; that goes in ``rationale``, which no
@@ -68,6 +70,14 @@ def upper_snake(name: str) -> str:
     return "_".join(w.upper() for w in words(name))
 
 
+def sentence(text: str) -> str:
+    """A doc fragment as a sentence (capitalized, ending in a stop), for a doc emitted after another sentence."""
+    text = text.strip()
+    if not text:
+        return ""
+    return text[0].upper() + text[1:] + ("" if text[-1] in ".!?" else ".")
+
+
 # --- the closed type grammar (spec/codegen.md section 2) -------------------------------------------------------------
 
 BUILTINS = ("text", "integer", "number", "boolean", "nothing", "absent")
@@ -94,9 +104,145 @@ def is_type_name(name: str) -> bool:
     return not any(w in KEYWORDS for w in words(name))
 
 
-# A schema regex must mean the same in JavaScript (/u) and Python re: no shorthand class whose set differs between the
-# engines (\s \S \w \W \d \D \b \B), and no '"' (Python's raw string literal ends at it).
-UNPORTABLE = re.compile(r'\\[sSwWdDbB]|"')
+# --- schema patterns: I-Regexp (RFC 9485), the regex subset every engine reads alike -------------------------------
+
+IREGEXP_ESCAPES = "()*+-.?[\\]^{|}nrt"  # SingleCharEsc: the only characters a backslash may precede (and \p{..}, \P{..})
+
+
+class _IRegexp:
+    r"""A checker for RFC 9485's grammar: branches, pieces, quantifiers (* + ? {n} {n,} {n,m}), groups without '(?',
+    character classes, the single-character escapes and \p{..}. Anything else (\d, \w, \b, backreferences,
+    lookaround, lazy quantifiers, anchors inside) is refused, so a pattern means the same in every engine."""
+
+    def __init__(self, body: str) -> None:
+        self.s, self.pos = body, 0
+
+    def fail(self, why: str) -> SchemaError:
+        return SchemaError(f"not an I-Regexp (RFC 9485) at {self.pos}: {why}")
+
+    def peek(self) -> str:
+        return self.s[self.pos] if self.pos < len(self.s) else ""
+
+    def check(self) -> None:
+        self.regexp()
+        if self.pos != len(self.s):
+            raise self.fail(f"unexpected {self.peek()!r}")
+
+    def regexp(self) -> None:
+        self.branch()
+        while self.peek() == "|":
+            self.pos += 1
+            self.branch()
+
+    def branch(self) -> None:
+        while self.peek() not in ("", "|", ")"):
+            self.atom()
+            c = self.peek()
+            if c in ("*", "+", "?"):
+                self.pos += 1
+            elif c == "{":
+                m = re.compile(r"\{[0-9]+(,[0-9]*)?\}").match(self.s, self.pos)
+                if not m:
+                    raise self.fail("a '{' starts a quantifier {n}, {n,} or {n,m}")
+                self.pos = m.end()
+
+    def escape(self) -> None:
+        self.pos += 1
+        c = self.peek()
+        if c in ("p", "P"):
+            m = re.compile(r"[pP]\{[A-Za-z]+(-[A-Za-z]+)?\}").match(self.s, self.pos)
+            if not m:
+                raise self.fail(f"'\\{c}' takes a property in braces")
+            self.pos = m.end()
+        elif c and c in IREGEXP_ESCAPES:
+            self.pos += 1
+        else:
+            raise self.fail(f"'\\{c}' is no I-Regexp escape (write the class out)")
+
+    def atom(self) -> None:
+        c = self.peek()
+        if c == "(":
+            self.pos += 1
+            if self.peek() == "?":
+                raise self.fail("'(?' (lookaround, named or non-capturing groups) is not in the subset")
+            self.regexp()
+            if self.peek() != ")":
+                raise self.fail("missing ')'")
+            self.pos += 1
+        elif c == "[":
+            self.klass()
+        elif c == "\\":
+            self.escape()
+        elif c in ("^", "$"):
+            raise self.fail(f"{c!r} anchors only the whole pattern")
+        elif c in "*+?{}])":
+            raise self.fail(f"{c!r} has nothing to apply to")
+        else:
+            self.pos += 1
+
+    def klass(self) -> None:
+        self.pos += 1
+        if self.peek() == "^":
+            self.pos += 1
+        first = True
+        while True:
+            c = self.peek()
+            if c == "":
+                raise self.fail("missing ']'")
+            if c == "]" and not first:
+                self.pos += 1
+                return
+            if c == "-":
+                if not (first or self.s[self.pos + 1 : self.pos + 2] == "]"):
+                    raise self.fail("'-' in a class goes first, last or in a range")
+                self.pos += 1
+            else:
+                self.class_char()
+                if self.peek() == "-" and self.s[self.pos + 1 : self.pos + 2] not in ("]", ""):
+                    self.pos += 1
+                    self.class_char()
+            first = False
+
+    def class_char(self) -> None:
+        c = self.peek()
+        if c == "\\":
+            self.escape()
+        elif c in ("[", "]"):
+            raise self.fail(f"{c!r} in a class must be escaped")
+        else:
+            self.pos += 1
+
+
+def check_pattern(regex: str) -> None:
+    """A schema pattern is an I-Regexp between ``^`` and ``$`` (the whole text must match)."""
+    if not (regex.startswith("^") and regex.endswith("$")) or len(regex) < 2:
+        raise SchemaError("regex must be anchored with ^ and $")
+    _IRegexp(regex[1:-1]).check()
+
+
+def pattern_body(regex: str, char: Callable[[int], str]) -> str:
+    r"""A checked pattern's body in a JavaScript- or Python-like dialect: RFC 9485 section 5's mapping. '.' becomes
+    [^\n\r] (the subset's '.', which both engines read wider), and each character outside printable ASCII is written by
+    ``char`` (its code point), so the result holds no raw control or line character."""
+    body, out, i, in_class = regex[1:-1], [], 0, False
+    while i < len(body):
+        c = body[i]
+        if c == "\\":
+            out.append(body[i : i + 2])
+            i += 2
+            continue
+        if c == "[":
+            in_class = True
+        elif c == "]":
+            in_class = False
+        if c == "." and not in_class:
+            out.append("[^\\n\\r]")
+        elif not (" " <= c <= "~"):
+            out.append({"\t": "\\t", "\n": "\\n", "\r": "\\r"}.get(c) or char(ord(c)))
+        else:
+            out.append(c)
+        i += 1
+    return "".join(out)
 
 
 @dataclass(frozen=True)
@@ -138,11 +284,35 @@ def tokenize(text: str) -> List[str]:
 
 
 class TypeParser:
-    """Recursive descent over the grammar; ``known`` is every name a type may use at that point."""
+    """Recursive descent over the grammar; ``known`` is every name a type may use at that point.
+
+    Every form reads one way: a union directly after a function's result or a map's value, and a generic, function or
+    map as one item of an argument list (``of ... and ...``), must be written in parentheses (spec/codegen.md
+    section 2), so ``function to text or absent`` and ``block of resolution of text and directive`` are refused."""
 
     def __init__(self, text: str, known: Sequence[str], *, protocol: bool = False) -> None:
         self.text, self.toks, self.pos, self.protocol = text, tokenize(text), 0, protocol
         self.known = sorted(known, key=lambda n: -len(n.split()))  # longest name first
+        self.in_list = False  # parsing one item of an 'of ... and ...' list
+
+    def items(self) -> List[Type]:
+        """An 'of ... and ...' list's items, each a postfix that takes no arguments of its own unless parenthesized."""
+        outer, self.in_list = self.in_list, True
+        try:
+            out = [self.postfix()]
+            while self.take("and"):
+                out.append(self.postfix())
+            return out
+        finally:
+            self.in_list = outer
+
+    def nested(self, what: str) -> None:
+        if self.in_list:
+            raise self.fail(f"{what} inside an argument list goes in parentheses")
+
+    def no_union_after(self, what: str) -> None:
+        if self.peek() == "or":
+            raise self.fail(f"'or' after {what} reads two ways: parenthesize the union or the {what}")
 
     def fail(self, why: str) -> SchemaError:
         return SchemaError(f"type {self.text!r}: {why}")
@@ -179,7 +349,9 @@ class TypeParser:
         if tok is None:
             raise self.fail("ends early")
         if self.take("("):
+            outer, self.in_list = self.in_list, False
             t = self.union()
+            self.in_list = outer
             if not self.take(")"):
                 raise self.fail("missing ')'")
             return t
@@ -189,30 +361,32 @@ class TypeParser:
             self.pos += 1
             return Type("literal", name=tok[1:-1])
         if tok == "function" and not self.protocol:
+            self.nested("a function type")
             self.pos += 1
-            params: List[Type] = []
-            if self.take("of"):
-                params.append(self.postfix())
-                while self.take("and"):
-                    params.append(self.postfix())
+            params = self.items() if self.take("of") else []
             if not self.take("to"):
                 raise self.fail("'function' needs 'to <type>'")
-            return Type("function", args=(*params, self.union()))
+            result = self.postfix()
+            self.no_union_after("a function's result")
+            return Type("function", args=(*params, result))
         if tok == "tuple" and self.protocol:
+            self.nested("a tuple")
             self.pos += 1
             if not self.take("of"):
                 raise self.fail("'tuple' needs 'of'")
-            items = [self.postfix()]
-            while self.take("and"):
-                items.append(self.postfix())
-            return Type("tuple", args=tuple(items))
+            return Type("tuple", args=tuple(self.items()))
         if tok in ("writable", "map"):
+            self.nested("a map")
             writable = self.take("writable")
             if not (self.take("map") and self.take("of")):
                 raise self.fail("expected 'map of'")
+            outer, self.in_list = self.in_list, True  # a generic key or value would swallow 'to': parenthesize it
             first = self.postfix()
-            if self.take("to"):
-                return Type("map", args=(first, self.postfix()), writable=writable)
+            second = self.postfix() if self.take("to") else None
+            self.in_list = outer
+            self.no_union_after("a map's value")
+            if second is not None:
+                return Type("map", args=(first, second), writable=writable)
             return Type("map", args=(Type("name", name="text"), first), writable=writable)
         return self.name()
 
@@ -223,10 +397,9 @@ class TypeParser:
                 self.pos += n
                 args: List[Type] = []
                 if self.peek() == "of" and known not in BUILTINS and known not in PROTOCOL_BUILTINS:
+                    self.nested(f"{known!r} with type arguments")
                     self.pos += 1
-                    args.append(self.postfix())
-                    while self.take("and"):
-                        args.append(self.postfix())
+                    args = self.items()
                 return Type("name", name=known, args=tuple(args))
         raise self.fail(f"{' '.join(self.toks[self.pos:self.pos + 3])!r}... names nothing the schema defines")
 
@@ -239,7 +412,8 @@ class Param:
     name: str
     type: Type
     optional: bool = False
-    passed: str = "position"  # position | keyword (Python keyword-only) | option (TS options object, Python kw-only)
+    passed: str = "position"  # position | keyword | option (each emitter's form: spec/codegen.md section 3)
+    doc: str = ""
 
 
 @dataclass
@@ -263,8 +437,8 @@ NATURES = closed("concept", "properties", "nature")
 PASSED = closed("param", "properties", "passed")
 SORTS = closed("errorGroup", "properties", "sort")
 MODULES = closed("moduleName")
-FACTORY_FORMS = ("constructor", "package function")  # how a binding makes a concept a factory function makes
-ROOT_FORMS = ("base", "builtin")  # a root error group's class extends the language's class, or is it
+FACTORY_FORMS = closed("factoryForm")  # how a binding makes a concept a factory function makes
+ROOT_FORMS = closed("rootForm")  # a root error group's class extends the language's class, or is it
 
 # What an emitted doc may not carry (spec/codegen.md section 3, "Docs and rationale"): it goes in 'rationale'.
 BEAD_ID = re.compile(r"\bvil-[a-z0-9]{3}(\.[0-9]+)*\b")  # this repository's beads prefix
@@ -276,15 +450,26 @@ class Language:
     """Everything one target language adds to the shared model. The schema names no language: each emitter states its
     own facts here, and the loader checks them against the schema (a third binding is an emitter, never a schema edit).
 
-    ``key`` names the emitter (``ts``, ``py``) and ``name`` the language, for messages and the docs check; ``sep``
-    joins a module path; ``function_case`` spells a free function; ``public_kind`` says whether a concept's public
-    name is a type, a value or both."""
+    ``key`` names the emitter (``ts``, ``py``) and ``name`` the language, for messages, the docs tables' column and
+    the docs check; ``sep`` joins a module path; ``function_case`` spells a free function and ``code_case`` a
+    diagnostic code's member; ``public_kind`` says whether a concept's public name is a type, a value or both.
+
+    The docs tables (tools/api/emit_docs.py) spell each binding through these too, so a binding is a column there
+    with no edit: ``enum_form`` is what a kind list is ("as-const object and type"), ``generic`` writes a generic's
+    name with its parameters, ``construct`` a class constructed (its name), ``extends_word`` the class tree's word for
+    a base class, and ``cause_field`` the field a chained cause is read from."""
 
     key: str
     name: str
     sep: str
     function_case: Callable[[str], str]
+    code_case: Callable[[str], str]
     public_kind: Callable[["Model", Optional["Concept"]], str]  # None: an enumeration or a generated class
+    enum_form: str
+    generic: Callable[[str, List[str]], str]
+    construct: Callable[[str], str]
+    extends_word: str
+    cause_field: str
     # Each root error group (one without a parent) to the language's class it extends, {"base": X}, or is,
     # {"builtin": X} (spec 2.8): every root must be given, and nothing else.
     error_roots: Dict[str, Dict[str, str]]
@@ -300,9 +485,15 @@ class Language:
     # A concept or kind list the binding leaves out because its idiom has no use for it, given (name, nature) with
     # nature "kind list" for a kind list: Python passes options as keyword arguments, so it has no options records.
     omit: Callable[[str, str], bool] = lambda name, nature: False
+    # What the glossary says of a concept or kind list the binding leaves out, given (name, nature): "none" unless the
+    # idiom stands in for it (Python's options records are keyword arguments).
+    omitted_as: Callable[[str, str], str] = lambda name, nature: "none"
     # Public names a trait's idiom adds in this language, as (module, identifier, what): Python's collect trait is a
     # context manager class, `Collecting`, beside the concept that has it.
     trait_names: Callable[["Model"], List[Tuple[str, str, str]]] = lambda model: []
+    # The platform's own type for each native named type the binding has (``is: native``): every one it keeps must be
+    # given; a binding with none leaves out the module that holds them.
+    native: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -422,6 +613,9 @@ class Model:
         self.layers = [Layer(l["name"], l["holds"], list(l["may import"]), l["namespace"]) for l in api["layers"]]
         self.layer = {l.name: l for l in self.layers}
         self.layer_direction = str(api["layer direction"])
+        self.registry_layer, self.adapter_layer = str(api["registry layer"]), str(api["adapter layer"])
+        self._layer(self.registry_layer, "registry layer")
+        self._layer(self.adapter_layer, "adapter layer")
 
         self.kinds: List[KindList] = []
         for name, raw in api["kinds"].items():
@@ -461,12 +655,10 @@ class Model:
         self.constants.append(Constant(r["constant"], r["layer"], [w for w, _ in self.keywords], "words", r["means"], "reserved names"))
         for name, raw in api["patterns"].items():
             regex = raw["regex"]
-            if not (regex.startswith("^") and regex.endswith("$")):
-                raise SchemaError(f"pattern {name!r}: regex must be anchored with ^ and $")
-            re.compile(regex)
-            bad = UNPORTABLE.search(regex)
-            if bad:
-                raise SchemaError(f"pattern {name!r}: {bad.group()!r} means different things in JavaScript and Python; write the class out")
+            try:
+                check_pattern(regex)
+            except SchemaError as e:
+                raise SchemaError(f"pattern {name!r}: {e}") from None
             self.constants.append(Constant(raw["constant"], raw["layer"], regex, "pattern", raw["means"], name))
         for c in self.constants:
             words(c.name)
@@ -551,7 +743,8 @@ class Model:
             passed = p.get("passed", "position")
             if passed not in PASSED:
                 raise SchemaError(f"{where}: parameter {p['name']!r}: passed {passed!r}")
-            out.append(Param(p["name"], self.parse(p["type"], f"{where} ({p['name']})", extra), bool(p.get("optional")), passed))
+            out.append(Param(p["name"], self.parse(p["type"], f"{where} ({p['name']})", extra), bool(p.get("optional")), passed,
+                             p.get("doc", "")))
         return out
 
     def _concept(self, c: dict) -> Concept:
@@ -634,10 +827,8 @@ class Model:
             return self.concept[name].layer
         if name in self.kind:
             return self.kind[name].layer
-        if name == "diagnostic code":
-            return "shared"
-        if name in self.group:
-            return "shared"
+        if name == "diagnostic code" or name in self.group:
+            return self.registry_layer
         return None
 
     def _check(self) -> None:
@@ -654,8 +845,8 @@ class Model:
                 raise SchemaError(f"{where}: a named type is 'text' or 'native'")
             if c.nature == "callback" and (c.callback is None or c.callback.form != "function"):
                 raise SchemaError(f"{where}: a callback's type is a function type")
-            if c.module is not None and c.layer != "io":
-                raise SchemaError(f"{where}: only the io layer has adapter modules")
+            if c.module is not None and c.layer != self.adapter_layer:
+                raise SchemaError(f"{where}: only the {self.adapter_layer} layer has adapter modules")
             self._members_distinct(c)
             if c.is_union:
                 lst = self.kind.get(c.kind_list or "")
@@ -718,7 +909,7 @@ class Model:
             self._distinct([f for f, _ in g.fields], where)
             for fname, ftype in g.fields:
                 words(fname)
-                self._direction("shared", ftype, where, ())
+                self._direction(self.registry_layer, ftype, where, ())
             if not all(g.builtin(lang) for lang in self.languages) and "given" not in g.message and "template" not in g.message:
                 raise SchemaError(f"{where}: a class needs 'message': given or a template")
             t = g.message.get("template")
@@ -757,6 +948,12 @@ class Model:
             for of, form in lang.factory_forms.items():
                 if of not in made or form not in FACTORY_FORMS:
                     raise SchemaError(f"{key} emitter: factory form {of!r}: {form!r} (a concept a factory makes, one of {FACTORY_FORMS})")
+            for c in self.concepts:
+                if c.is_ == "native" and key in c.languages and c.name not in lang.native:
+                    raise SchemaError(f"{key} emitter: native type {c.name!r} has no platform type (Language.native)")
+            for name in lang.native:
+                if name not in self.concept or self.concept[name].is_ != "native":
+                    raise SchemaError(f"{key} emitter: native {name!r} is no native named type")
             have = {c.name for c in self.concepts if key in c.languages} | {k.name for k in self.kinds if key in k.languages}
             gone = ({c.name for c in self.concepts} | {k.name for k in self.kinds}) - have
 
@@ -788,12 +985,18 @@ class Model:
         texts: List[Tuple[str, str]] = []
         for c in self.concepts:
             texts.append((f"concept {c.name!r}", c.doc))
-            texts += [(f"concept {c.name!r}, member {m.name!r}", m.doc) for m in c.members]
+            for m in c.members:
+                texts.append((f"concept {c.name!r}, member {m.name!r}", f"{m.doc} {m.order}"))
+                texts += [(f"concept {c.name!r}, member {m.name!r}, parameter {p.name!r}", p.doc) for p in m.params]
         texts += [(f"kind list {k.name!r}", k.doc) for k in self.kinds]
-        texts += [(f"free function {f.name!r}", f.doc) for f in self.functions]
+        for f in self.functions:
+            texts.append((f"free function {f.name!r}", f.doc))
+            texts += [(f"free function {f.name!r}, parameter {p.name!r}", p.doc) for p in f.params]
         texts += [(f"error group {g.name!r}", f"{g.raised_when} {g.doc}") for g in self.groups]
         texts += [(f"constant {c.name!r}", c.means) for c in self.constants]
         texts += [(f"code {c.code}", c.meaning) for c in self.codes]
+        texts += [(f"protocol shape {s.name!r}", s.doc) for s in self.protocol.shapes]
+        texts += [(f"protocol request {r.op!r}", f"{r.doc} {r.params_doc}") for r in self.protocol.requests]
         for where, text in texts:
             bad = BEAD_ID.search(text) or HISTORY.search(text)
             word = next((n for n in names if re.search(rf"\b{re.escape(n)}\b", text)), None)
@@ -932,7 +1135,7 @@ class Shape:
     by_kind: Dict[str, Dict[str, Type]]
     tuple_: Optional[List[Type]]
     one_of: Dict[str, Type]
-    note: str
+    doc: str
     other_kinds: List[str] = field(default_factory=list)  # with by_kind: every kind the shape takes
 
     @property
@@ -947,8 +1150,8 @@ class Request:
     optional: List[str]
     result: Type
     level: str
-    note: str = ""
-    params_note: str = ""
+    doc: str = ""
+    params_doc: str = ""
 
 
 class Protocol:
@@ -984,7 +1187,7 @@ class Protocol:
                 raise SchemaError(f"protocol shape {s['name']!r}: 'by kind' needs a kind field and 'other kinds', the rest of its kinds")
             if other and not by_kind:
                 raise SchemaError(f"protocol shape {s['name']!r}: 'other kinds' goes with 'by kind'")
-            self.shapes.append(Shape(s["name"], fields, list(s.get("optional", [])), by_kind, tup, one_of, s.get("note", ""), other))
+            self.shapes.append(Shape(s["name"], fields, list(s.get("optional", [])), by_kind, tup, one_of, s.get("doc", ""), other))
         self.shape = {s.name: s for s in self.shapes}
         self.requests = []
         for r in raw["requests"]:
@@ -994,10 +1197,10 @@ class Protocol:
                 if o not in params:
                     raise SchemaError(f"protocol request {r['op']!r}: optional {o!r} is no parameter")
             for k in params:
-                if f"`{k}`" not in r.get("params note", ""):
-                    raise SchemaError(f"protocol request {r['op']!r}: its params note does not describe `{k}`")
+                if f"`{k}`" not in r.get("params doc", ""):
+                    raise SchemaError(f"protocol request {r['op']!r}: its params doc does not describe `{k}`")
             self.requests.append(Request(r["op"], params, list(r.get("optional", [])), parse(r["result"], r["op"]), r["level"],
-                                         r.get("note", ""), r.get("params note", "")))
+                                         r.get("doc", ""), r.get("params doc", "")))
         self.edit_members = list(raw["edit members"])
         self.readers = list(raw["readers"])
 
@@ -1045,6 +1248,13 @@ def planted(api: dict, diagnostics: dict, protocol: dict, languages: Sequence[La
         "member listed twice": lambda a, d, p: concept(a, "place")["members"].append(dict(member(a, "place", "resolved path"))),
         "kind value collision": lambda a, d, p: a["kinds"]["walk control"]["values"].extend(["zed x", "zed-x"]),
         "unportable regex": lambda a, d, p: a["patterns"]["variable name"].__setitem__("regex", "^\\w+$"),
+        "lookahead regex": lambda a, d, p: a["patterns"]["variable name"].__setitem__("regex", "^(?=a)[a-z]+$"),
+        "union after a function": lambda a, d, p: concept(a, "key rule").__setitem__("type", "function of directive to text or absent"),
+        "generic in an argument list": lambda a, d, p: member(a, "document", "block").__setitem__(
+            "type", "block of resolution of text and written directive"),
+        "history in a protocol doc": lambda a, d, p: p["shapes"][0].__setitem__("doc", "a position (milestone 5)"),
+        "bead id in a parameter doc": lambda a, d, p: next(f for f in a["free functions"] if f["name"] == "check lost updates")[
+            "params"][-1].__setitem__("doc", "the texts (vil-umh.6)"),
         "template on a non-list": lambda a, d, p: next(g for g in a["error groups"] if g["name"] == "read error").__setitem__(
             "message", {"template": "{paths}"}) or next(g for g in a["error groups"] if g["name"] == "read error")["fields"][0].__setitem__("type", "text"),
         "bead id in a doc": lambda a, d, p: member(a, "document", "block").__setitem__("doc", "the top block (vil-umh.6)"),
@@ -1060,7 +1270,13 @@ def planted(api: dict, diagnostics: dict, protocol: dict, languages: Sequence[La
         "member spelling collision": "both spell 'resolvedPath'",
         "member listed twice": "both spell 'resolved path'",
         "kind value collision": "both spell 'ZedX'",
-        "unportable regex": "means different things",
+        "unportable regex": "is no I-Regexp escape",
+        "lookahead regex": "'(?'",
+        "union after a function": "reads two ways",
+        "generic in an argument list": "goes in parentheses",
+        "history in a protocol doc": "names 'milestone 5'",
+        "bead id in a parameter doc": "names 'vil-umh.6'",
+        "a native type without a platform type": "has no platform type",
         "template on a non-list": "which is no list",
         "bead id in a doc": "names 'vil-umh.6'",
         "history in a doc": "names 'milestone 5'",
@@ -1088,9 +1304,13 @@ def planted(api: dict, diagnostics: dict, protocol: dict, languages: Sequence[La
         "a language leaves out a used concept": replace(first, omit=lambda name, nature: name == "source span"),
         "an unknown module": replace(first, modules={**first.modules, "network": "net"}),
     }
+    # A Language that keeps a native type gives its platform type: plant on the first that has one.
+    keeps_native = next((lang for lang in languages if lang.native), None)
+    if keeps_native is not None:
+        lang_plants["a native type without a platform type"] = replace(keeps_native, native={})
     for name, lang in lang_plants.items():
         try:
-            Model(api, diagnostics, protocol, [lang, *languages[1:]])
+            Model(api, diagnostics, protocol, [lang if lang.key == other.key else other for other in languages])
         except SchemaError as e:
             if reason[name] not in str(e):
                 raise SchemaError(f"planted {name}: refused for another reason: {e}") from None

@@ -14,8 +14,9 @@ import { ValueKind } from "../gen/api/kinds.js";
 
 /**
  * The include extension. Its one value must be a quoted path or glob (E3005 otherwise, placed on the value);
- * matching files are spliced in code-point order of resolvedPath (vil-bgz.1).
+ * matching files are spliced in code-point order of resolvedPath.
  */
+// The include ordering both bindings share: vil-bgz.1.
 export function include(): Extension {
   return {
     directive: "include",

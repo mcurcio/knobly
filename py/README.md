@@ -22,9 +22,11 @@ tree, the rules module (`MAX_NESTING`, `RESERVED`, `VARIABLE_NAME` ...) and a `P
 each hand-written class here subclasses, so mypy checks each member against the schema. Every generated annotation
 names the public classes (`villanelle.LocatedDiagnostic`, `rendered.Directive`, `written.Statement` ...), so a
 program annotates with what it imports: `def key(d: rendered.Directive) -> str | None` is a `rendered.KeyRule`.
-`_api` is private; nothing outside `src/` imports it. Each module's `__all__` equals the generated `PUBLIC_NAMES`,
-each public union holds the generated `UNIONS` variants, and each module type-checks against its generated
-`<Module>Functions` Protocol (tests/test_api_names.py, from the generated `tests/api_contract.py`). Inside the
+`_api` is private; nothing outside `src/` imports it but the generated contract's type checker's block. Each
+module's `__all__` equals the generated `PUBLIC_NAMES` and each public union holds the generated `UNIONS` variant
+classes (tests/test_api_names.py); mypy checks each module against its generated `<Module>Functions` Protocol, each
+constructed class against its `<Class>Constructor` and each hand class against its generated Protocol, all from the
+generated `tests/api_contract.py`. Inside the
 package a `kind`, `reason` or `code` is compared with an enum member, never a string (tests/test_kind_lint.py runs `tools/lint/kind_lint.py`).
 
 One namespace per layer (binding guide rule 9):

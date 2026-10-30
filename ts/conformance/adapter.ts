@@ -21,6 +21,7 @@ import {
   type ChangeDump,
   type CopyDump,
   type DirectiveDump,
+  ERROR_GROUP_OF_CLASS,
   type ExpandedValueDump,
   type GraphDump,
   type Json,
@@ -44,7 +45,6 @@ import {
   type VariableReferenceDump,
   type WrittenValueDump,
 } from "./shapes.ts";
-import type * as Names from "../src/gen/api/names.js";
 
 const dist = new URL("../dist/", import.meta.url);
 const load = async <T>(path: string): Promise<T> => (await import(new URL(path, dist).href)) as T;
@@ -53,7 +53,6 @@ const syntaxLayer = await load<typeof Syntax>("syntax/index.js");
 const written = await load<typeof Written>("written/index.js");
 const renderedLayer = await load<typeof Rendered>("rendered/index.js");
 const { include } = await load<typeof Include>("include.js");
-const { ERROR_GROUP_OF_CLASS } = await load<typeof Names>("gen/api/names.js");
 const { PlaceKind } = vl;
 const { StatementKind, ValueKind, VariableKind } = written;
 

@@ -11,7 +11,7 @@
 #   6. The kind lint's own test (tools/lint/kind_lint.py, under py's pinned Python so `match` is checked too; its
 #      TypeScript twin tools/lint/kind-rule.mjs runs in ts lint).
 #   7. The shared conformance driver's own test (conformance/driver/test_driver.py; spec/conformance.md).
-# The public-name check runs in each package's tests against the generated names module (spec/codegen.md section 4).
+# The public-name check runs in each package's tests against its generated test contract (spec/codegen.md section 4).
 # Needs: python3, bison, uv (for interegular and jsonschema).
 set -u
 cd "$(dirname "$0")/.."

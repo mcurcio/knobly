@@ -627,3 +627,22 @@
 - **Milestone 6's `own()` helper (`written/_model.py`) went with the workarounds:** it narrowed a generated record's
   `Copy.statement` (typed with the `_api` Protocol union) to the binding's classes; the field is now typed
   `villanelle.written.Statement`, so its three call sites read the field directly.
+
+## 2026-10-30, milestone 7 (review fixes)
+
+- **spec/codegen.md section 10 listed too few touch points for a new binding.** A binding also had to edit
+  `emit_docs.py` (hard-coded TypeScript and Python columns), keep its own layer list, a native-type table outside
+  its `Language`, and possibly the loader's JavaScript-and-Python regex rule. The code now makes the section true
+  (columns from the languages, layers from `api.json`, `Language.native`, I-Regexp patterns) and the section names
+  every touch point, the hand-written name test included.
+- **spec/codegen.md section 3 promised parameter, kind list and error group docs that no emitter wrote** (the loader
+  dropped parameter docs). Both emitters now write them (`@param` / `Args:`, the group's and list's doc), with each
+  member's `errors` (`@throws` / `Raises:`) and `order`.
+- **The glossary's generated io table said Python has `WalkControl` (`StrEnum`)**: the table ignored the Python
+  emitter's `omit` for kind lists. It now reads "none".
+- **frozen-m7.md differs from spec/ after the review** (spec wins): TypeScript's `names.ts` is gone
+  (`PUBLIC_NAMES` in the generated `ts/test/api-contract.ts`, `ERROR_GROUP_OF_CLASS` in `ts/conformance/shapes.ts`);
+  `protocol.json`'s `note` / `params note` are `doc` / `params doc` with a `rationale`; `api.json` has `registry
+  layer` and `adapter layer`; the key rule's type is `function of directive to (text or absent)`; schema patterns
+  are I-Regexps (the program code pattern holds its characters as JSON escapes); `tests/test_api_names.py` no longer
+  lists the `<Module>Functions` / `<Class>Constructor` assignments (the generated contract holds them).

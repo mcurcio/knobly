@@ -49,6 +49,8 @@
     }
   ],
   "layer direction": "A layer imports only the layers in its 'may import' list; nothing below the rendered layer imports, names or returns a rendered type (owner, 2026-10-29: \"The low level shouldn't \\\"depend on\\\" the middle layer\"). Going up a layer is the upper layer's free function: render (graph).",
+  "registry layer": "shared",
+  "adapter layer": "io",
   "kinds": {
     "token kind": {
       "layer": "syntax",
@@ -260,7 +262,7 @@
     "program code": {
       "constant": "program code",
       "layer": "shared",
-      "regex": "^[^/\\t\\n\\u000b\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]+/[^\\t\\n\\u000b\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]+$",
+      "regex": "^[^/\\t\\n\u000b\f\\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/[^\\t\\n\u000b\f\\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$",
       "means": "<namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out); villanelle's codes start with E"
     }
   },
@@ -2964,7 +2966,7 @@
       "name": "key rule",
       "layer": "rendered",
       "nature": "callback",
-      "type": "function of directive to text or absent",
+      "type": "function of directive to (text or absent)",
       "members": [],
       "doc": "the program's rule naming a directive among its siblings (spec 7.4); absent: no key"
     },

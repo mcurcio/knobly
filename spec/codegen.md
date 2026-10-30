@@ -51,27 +51,34 @@ tools/
 Every type in `api.json` (a property's `type`, a method's `returns`, a parameter's `type`, an `extends`, an error
 field) is text in this grammar, and every name in it must resolve: a free-text type cannot pass the loader, and the
 JSON Schema refuses any character outside the grammar's alphabet. Each closed list (traits, natures, `passed`,
-error sorts, found-by, code layers, adapter modules) has one home, the enum in `api.schema.json`, which the loader reads;
-the layers are `api.json`'s own `layers` list.
+error sorts, found-by, code layers, adapter modules, and the emitter-facing factory forms and root forms) has one
+home, the enum in `api.schema.json`, which the loader reads (`closed`); the layers are `api.json`'s own `layers`
+list, with its `registry layer` (the error groups and the diagnostic code type) and its `adapter layer` (the one
+whose concepts may sit in an adapter module). Every emitter, the docs tables and the stub loop over that list, and
+`tools/gen-api.py --check` renders a schema copy with one more layer to prove each emitter gives it a module.
 
 ```text
 type      = union
 union     = postfix { " or " postfix }
 postfix   = primary { "[]" }                            a list, in order
 primary   = "(" type ")"
-          | "function" [ " of " postfix { " and " postfix } ] " to " type
-          | [ "writable " ] "map of " postfix [ " to " postfix ]      one argument: text keys
-          | name [ " of " postfix { " and " postfix } ]               type arguments of a generic concept
+          | "function" [ " of " item { " and " item } ] " to " postfix
+          | [ "writable " ] "map of " item [ " to " item ]            one argument: text keys
+          | name [ " of " item { " and " item } ]                     type arguments of a generic concept
+item      = a postfix that is not a function, map or generic with arguments, unless in parentheses
 name      = "text" | "integer" | "number" | "boolean" | "nothing" | "absent"
           | a concept | a kind list | "diagnostic code" | an error group | a type parameter in scope
 ```
 
 A name a type can use holds no word of the grammar (`or`, `of`, `to`, `and`, `map`, `function`, `writable`,
 `tuple`), so a type parses one way: the loader refuses a concept, kind list or type parameter named so, and an error
-group named so (`index out of range`, a program bug's class) is simply not a type name.
+group named so (`index out of range`, a program bug's class) is simply not a type name. Two more rules keep every
+form reading one way: an `or` straight after a function's result or a map's value is refused (write `function to
+(text or absent)` or `(function to text) or absent`), and an item of an `of ... and ...` list that takes arguments
+itself (a generic, a function, a map) must be in parentheses (`block of (resolution of text) and directive`).
 
 Examples: `written block or absent`, `(resolution of snippet line)[]`, `map of directive to address`, `function of
-directive to text or absent`, `block of statement and written directive`. `absent` is a type, so "may be absent" is
+directive to (text or absent)`, `block of statement and written directive`. `absent` is a type, so "may be absent" is
 part of the type (`statement or absent`), not a flag beside it. A map keeps insertion order in every binding.
 
 Prior art: the Language Server Protocol's `metaModel.json`, which describes LSP's types as data (`or`, `array`,
@@ -94,18 +101,23 @@ The loader also checks what a shape check cannot see:
 - no two public names derive the same identifier in one namespace, no concept lists a member twice or has two that
   spell one identifier in either casing, and no kind list has two values that do (the casing rule stays one-to-one);
 - an error group's template names a field that is a list (its items are joined), or `<field> message`;
-- a pattern uses no regex construct whose meaning differs between JavaScript and Python (`\s`, `\w`, `\d`, `\b`
-  and their negations: write the class out) and no `"`.
+- a pattern is an **I-Regexp** (RFC 9485, the interoperable regex subset) between `^` and `$`: no shorthand class
+  (`\s`, `\w`, `\d`, `\b`: write the class out), no backreference, lookaround, lazy quantifier or inner anchor, and a
+  character outside printable ASCII written as itself (a JSON escape), not as a regex escape. Each emitter renders
+  it in its engine's dialect (RFC 9485 section 5: `.` as `[^\n\r]`, each such character as the engine's escape);
+  an emitter whose engine lacks a construct the subset has (Python's `re` has no `\p{..}`) refuses it there.
 
-Each check is planted: `tools/gen-api.py --check` breaks a copy of the schema 24 ways (an unresolved type, a broken
+Each check is planted: `tools/gen-api.py --check` breaks a copy of the schema 29 ways (an unresolved type, a broken
 type, a layer-direction breach, a free-text type, a missing variant, a wrong kind, a bad parent, a bug under the
 base, an unknown trait, a spelling collision, an unknown found-by, a bad protocol type, three wrong type-argument
-counts, a grammar word in a name, a member spelling collision, a member listed twice, a kind value collision, an
-unportable regex, a template on a non-list, a bead id, a milestone and a language's name in a doc) and a copy
-of an emitter's `Language` 3 ways (a root error group without a class, a left-out concept still in use, an unknown
-module), and fails unless each is refused, the newer ones for their own reason. `tools/api/validate.py` does the same for the JSON Schema (a per-language spelling, a per-language error
-base, a language list, a `note` in place of `doc`, a free-text type, an unknown trait, a `spell` note, an unknown
-found-by).
+counts, a grammar word in a name, a member spelling collision, a member listed twice, a kind value collision, two
+patterns outside the subset, a template on a non-list, a bead id, a milestone and a language's name in a doc, a
+milestone in a protocol doc, a bead id in a parameter doc, a union after a function's result, a generic in an
+argument list) and a copy of an emitter's `Language` 4 ways (a root error group without a class, a left-out
+concept still in use, an unknown module, a kept native type without a platform type), and fails unless each is
+refused, the newer ones for their own reason. `tools/api/validate.py` does the same for the JSON Schema (a
+per-language spelling, a per-language error base, a language list, a `note` in place of `doc` in `api.json` and
+in `protocol.json`, a free-text type, an unknown trait, a `spell` note, an unknown found-by).
 
 ## 3. Idiom as typed traits, spellings derived
 
@@ -129,32 +141,40 @@ knows its language's form. Milestone 5's 31 prose `spell` notes are gone.
 | `io: true` | goes through a port | returns a `Promise` | a plain call |
 | `passed: keyword` | an argument named at the call | positional | keyword-only |
 | `passed: option` (with the member's `options` record) | an optional setting | one options object (`load(path, { overrides })`) | keyword-only (`load(path, *, overrides=None)`) |
-| `factory` (`{"of": concept}`; the form is the emitter's `factory_forms`, default `constructor`) | how a concept is made | `package function` for the processor (`villanelle(...)`), `constructor` for the rest | `constructor` (`Processor(...)`) |
+| `factory` (`{"of": concept}`; the form is the emitter's `factory_forms`, default `constructor`) | how a concept is made | the emitter's `factory_forms`; the glossary's generated tables show each call | the same |
 | `nature: named type`, `brand` | a string with its own type (spec 6.9) | a branded string | a `NewType` of `str` |
 | `nature: named type`, `template` | text of a stated form (`{text}/{text}`; the `pattern` checks it at run time) | a template literal type (`${string}/${string}`) | `str` |
-| `nature: named type`, `is: native` | the platform's own type | the emitter's table of native types (`platform fetch`: `typeof globalThis.fetch`); an unknown one fails the generator | none (a native concept lists only the languages that have it) |
+| `nature: named type`, `is: native` | the platform's own type | the emitter's `LANGUAGE.native`; the loader refuses a kept native type without one | the same (a binding that keeps no native type leaves out the module that holds them) |
 | list `[]` | in order | `readonly T[]` | `tuple[T, ...]` as a result, `Sequence[T]` as a parameter |
 | `map` | keyed, ordered | `ReadonlyMap` as a result, `Readonly<Record>` as a parameter or an options record's property (`writable`: `Record`) | `Mapping` (`writable`: `MutableMapping`) |
-| `module` (`files`, `fetch`, `include`; the path is the emitter's `modules`) | an adapter module, named for what it holds | `files` is `villanelle/node`, `fetch` `villanelle/browser`, `include` `villanelle/include` | `files` is `villanelle.files`, `include` `villanelle.include`; no `fetch` (its functions and concepts are left out) |
+| `module` (`files`, `fetch`, `include`; the path is the emitter's `modules`) | an adapter module, named for what it holds | the emitter's `modules`; contract 5's and the glossary's generated tables show each path | the same; a module the emitter leaves out does not exist there, nor its functions and concepts |
 | what a binding leaves out (the emitter's `omit`, and any module it does not map) | exists in some bindings only | nothing | options records (keyword arguments instead), `walk control` (the walk is a generator), the `fetch` module's concepts |
 | `trait: collect`'s class | the context manager's own class | none | `Collecting`, public beside the concept with the trait (the Python emitter's `trait_names`) |
-| a root error group's class (the emitter's `error_roots`) | the root's base, or the language's own class | `{"base": "Error"}`, `{"builtin": "TypeError"}` | `{"base": "Exception"}`, `{"builtin": "ValueError"}` |
-| the argument type error's message (the emitter's `argument_type_message`; the schema keeps its rule and placeholders) | a whole sentence, because it names the language's own conversion and type words | `{member}(): argument "{parameter}" must be a string, ...` | `{member}() argument '{parameter}' must be str, ...` |
+| a root error group's class (the emitter's `error_roots`) | the root's base, or the language's own class | spec 2.8's and contract 4.2's generated tables | the same |
+| the argument type error's message (the emitter's `argument_type_message`; the schema keeps its rule and placeholders) | a whole sentence, because it names the language's own conversion and type words | spec 6.9's generated table | the same |
 
 Python methods take their parameters positional-only (`/`): a hand-written class that also accepts them by keyword
 still satisfies the Protocol, so the generated signature never forbids what a binding allows.
 
 ### Docs and rationale
 
-Each concept, member, parameter, kind list, error group and free function carries an optional `doc` and an optional
-`rationale`. The `doc` is for the binding's users: each emitter writes it as the declaration's doc comment (JSDoc,
-a docstring), and it reaches every binding, so it says what the thing is and does, in spec terms. The `rationale` is
-for the people who maintain the schema: history (renames, what a milestone changed), the owner's words, bead ids,
-and anything true of one language only. No emitter reads it.
+Each concept, member, parameter, kind list, error group and free function, and each protocol shape and request
+(whose request carries a `doc` and a `params doc`), carries an optional `doc` and an optional `rationale`. The `doc`
+is for the binding's users: each emitter writes it as the declaration's doc comment (JSDoc, a docstring), and it
+reaches every binding, so it says what the thing is and does, in spec terms. A member's or free function's comment
+also holds its `order` ("Order: walk order."), each parameter's doc (`@param`; a docstring's `Args:` section) and each
+error group in its `errors` (`@throws {ReadError}`; `Raises:`, with the group's `raised when`); an error class's and
+a kind list's comment holds the group's or list's `doc`. A declaration with no doc gets no comment in any binding (no
+placeholder). The `rationale` is for the people who maintain the schema: history (renames, what a milestone
+changed), the owner's words, bead ids, and anything true of one language only. No emitter reads it.
 
-The loader refuses, in every text an emitter writes as a doc (each `doc`, an error group's `raised when`, a
-constant's `means`, a code's `meaning`), a bead id (`vil-` and three characters), `milestone N`, an `owner, <date>`
-quote and the name of any emitter's language (`TypeScript`, `Python`): each is planted in `tools/gen-api.py --check`.
+The loader refuses, in every text an emitter writes as a doc (each `doc`, `params doc` and `order`, an error group's
+`raised when`, a constant's `means`, a code's `meaning`), a bead id (`vil-` and three characters), `milestone N`, an
+`owner, <date>` quote and the name of any emitter's language (`TypeScript`, `Python`): each is planted in
+`tools/gen-api.py --check`. The hand-written public docs are held to the same rule by each binding's name test
+(`test_public_docs_carry_no_history`; TypeScript's "public docs carry no maintainer history"), which reads every doc
+a program sees on hover or in `help()` and refuses those words, a private module path and a test path: maintainer
+notes go in comments.
 Prior art: the split between API reference text and design notes in an architecture decision record, and Smithy's
 `@documentation` trait beside comments that never reach generated code.
 
@@ -169,9 +189,9 @@ typechecked and linted with the adapter):
 | `codes.ts` | `DiagnosticCode` (`as const` object and union), `MESSAGES`, `CODE_FACTS` (name, layer, found by, reason, typed per code), `ReasonOf<C>`, `describe(code, detail?)` |
 | `limits.ts` | the rules module: `MAX_NESTING`, `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`, `PROGRAM_CODE` |
 | `errors.ts` | the error class tree (spec 2.8): each class's base, fields, constructor, message and `name`; `argumentTypeMessage(member, parameter, got)` |
-| `shared.ts`, `syntax.ts`, `io.ts`, `written.ts`, `rendered.ts` | per layer: one interface per handle, port, record and snapshot; each union's shared members once on `<Union>Common`, which each variant extends with `kind` a literal; union types; callback types; options objects; the generic `Block<TItem, TDirective>` (a block that adds nothing is a type alias of it); a `<Module>Functions` interface per import path listing its free functions; a `<Class>Constructor` interface (`new (...)`) per constructor factory |
-| `names.ts` | `PUBLIC_NAMES` (every public name per import path, values and types apart) and `ERROR_GROUP_OF_CLASS` |
-| `ts/conformance/shapes.ts` | every request, result and dump of the adapter protocol as a type; `PROTOCOL`; `SPELLING` (each spec name the driver sends, in camelCase) |
+| `shared.ts`, `syntax.ts`, `io.ts`, `written.ts`, `rendered.ts` (one per layer `api.json` lists) | per layer: one interface per handle, port, record and snapshot; each union's shared members once on `<Union>Common`, which each variant extends with `kind` a literal; union types; callback types; options objects; the generic `Block<TItem, TDirective>` (a block that adds nothing is a type alias of it); a `<Module>Functions` interface per import path listing its free functions; a `<Class>Constructor` interface (`new (...)`) per constructor factory |
+| `ts/conformance/shapes.ts` | every request, result and dump of the adapter protocol as a type; `PROTOCOL`; `SPELLING` (each spec name the driver sends, in camelCase); `ERROR_GROUP_OF_CLASS` |
+| `ts/test/api-contract.ts` (git-ignored, typechecked by `tsc -p test`) | `PUBLIC_NAMES` (every public name per import path, values and types apart), outside `src/`, so the published package never ships it |
 
 **Python** (`py/src/villanelle/_api/`, git-ignored, checked by ruff and `mypy --strict`; `py/conformance/shapes.py`
 and `py/tests/api_contract.py`, git-ignored, checked the same). The emitter writes what `ruff format` writes, and `ruff format --check` gates it, so
@@ -183,9 +203,9 @@ ruff is pinned exactly in `py/pyproject.toml`: a ruff upgrade is a generator cha
 | `codes.py` | `DiagnosticCode`, `MESSAGES`, `CodeFacts`, `CODE_FACTS`, `Described`, `describe(code, detail=None)` |
 | `limits.py` | the rules module, as TypeScript's (patterns end in `\Z`, the text's end) |
 | `errors.py` | the error class tree; `argument_type_message(member, parameter, got)` |
-| `shared.py`, `syntax.py`, `io.py`, `written.py`, `rendered.py` | per layer: a `Protocol` per handle, port and interface (variants with `kind: Literal[...]`, and the schema's `__match_args__`, which a class implementing it inherits); a frozen slotted `@dataclass` per plain record or snapshot (only properties: `eq=False` for a snapshot, field order the match args, `match_args=False` and an explicit `__match_args__` when the schema's are fewer than the fields, a fixed `kind` as a property); each member's doc as its docstring; callback `TypeAlias`es; a union `TypeAlias` only over generated records (`Change`); `ConfigText`; the generic `Block` Protocol (the index trait states `Sequence`'s read methods). Every annotation that names a concept the binding implements by hand names its public class (below) |
+| `shared.py`, `syntax.py`, `io.py`, `written.py`, `rendered.py` (one per layer `api.json` lists) | per layer: a `Protocol` per handle, port and interface (variants with `kind: Literal[...]`, and the schema's `__match_args__`, which a class implementing it inherits); a frozen slotted `@dataclass` per plain record or snapshot (only properties: `eq=False` for a snapshot, field order the match args, `match_args=False` and an explicit `__match_args__` when the schema's are fewer than the fields, a fixed `kind` as a property); each member's doc as its docstring; callback `TypeAlias`es; a union `TypeAlias` only over generated records (`Change`); `ConfigText`; the generic `Block` Protocol (the index trait states `Sequence`'s read methods). Every annotation that names a concept the binding implements by hand names its public class (below) |
 | `py/conformance/shapes.py` | the protocol's `TypedDict`s, `PROTOCOL`, `SPELLING` (in snake_case), `ERROR_GROUP_OF_CLASS` |
-| `py/tests/api_contract.py` | what the tests check the binding against, every type named through its public module: `PUBLIC_NAMES` (each module's `__all__`), `MATCH_ARGS`, `UNIONS` (each public union's variant classes), a `<Module>Functions` Protocol per module, a `<Class>Constructor` Protocol (`__call__`) per constructor factory |
+| `py/tests/api_contract.py` | what the tests check the binding against, every type named through its public module: `PUBLIC_NAMES` (each module's `__all__`), `MATCH_ARGS`, `UNIONS` (each public union's variant classes), a `<Module>Functions` Protocol per module, a `<Class>Constructor` Protocol (`__call__`) per constructor factory; and a type checker's block (`if TYPE_CHECKING:`) that mypy checks and nothing runs: each module assigned to its `<Module>Functions`, each constructed class to its `<Class>Constructor`, and each hand-written public class (a handle, or a snapshot or record with methods) to `type[<its generated Protocol>]`, so a member that drifts from the schema fails mypy even in a class that forgot to subclass its Protocol |
 
 How a binding uses them (frozen-m6.md has the per-file list):
 
@@ -194,7 +214,8 @@ How a binding uses them (frozen-m6.md has the per-file list):
   hand-written class `implements` its interface, so a drifted or missing member is a compile error. The
   hand-written interface files go.
 - **Python:** each hand-written handle class subclasses its generated `Protocol` (PEP 544's explicit form, so mypy
-  checks every member at the class); records and snapshots are the generated dataclasses, re-exported; the error
+  checks every member at the class), and `api_contract`'s type checker's block checks it structurally too, from the
+  schema's list of concepts, so no test keeps a hand list of classes or modules to check; records and snapshots are the generated dataclasses, re-exported; the error
   tree, kinds, codes and rules are imported from `_api`. **The public types and the generated types are one**
   (milestone 7): wherever a generated annotation names a concept the binding implements by hand (a Protocol
   concept, or a union over them), it names the binding's public class, `villanelle.rendered.Directive`, imported for
@@ -205,14 +226,17 @@ How a binding uses them (frozen-m6.md has the per-file list):
   and a hand class returns and takes its own public types. Where the module runs a name (a base class, a callback
   alias's parameters), it stays the generated class or a string. A union over the binding's own classes
   (`written.Statement`) is written by hand and is the only one: the generator writes no second union of the same
-  name, and the names test compares its members with `api_contract.UNIONS`. A module is checked against its
-  `<Module>Functions` Protocol (`_: SyntaxFunctions = villanelle.syntax`, mypy's modules-as-protocols), and a
-  constructed class against its `<Class>Constructor` (`_: DiagnosticsConstructor = villanelle.Diagnostics`), both
-  from `api_contract`. Nothing outside the package (tests, adapter, docs) imports `villanelle._api`. Every
+  name, and the names test compares its members with `api_contract.UNIONS`, by class identity. A module is checked
+  against its `<Module>Functions` Protocol (`_syntax_functions: SyntaxFunctions = villanelle.syntax`, mypy's
+  modules-as-protocols), and a constructed class against its `<Class>Constructor`, both in `api_contract`'s
+  generated type checker's block. Nothing outside the package (tests, adapter, docs) imports `villanelle._api`, but
+  for that block, which imports the generated Protocols for the type checker only. Every
   implementation module is private (`_model.py`), so each name has one import path (rule 9).
 - **Both:** the public-name test is one comparison per import path, both ways, against `PUBLIC_NAMES` (TypeScript
-  reads a module's exports, types included, through the compiler API; Python compares `__all__`). The adapters read
-  `SPELLING` and `ERROR_GROUP_OF_CLASS` instead of writing the casing rule or matching class names by regex.
+  reads a module's exports, types included, through the compiler API; Python compares `__all__`). Test-only tables
+  live on the test side in both: `PUBLIC_NAMES` in the generated contract beside the tests, `ERROR_GROUP_OF_CLASS` in
+  the adapter's generated shapes; nothing in either package ships them. The adapters read `SPELLING` and
+  `ERROR_GROUP_OF_CLASS` instead of writing the casing rule or matching class names by regex.
 
 Prior art for the Python choice: typeshed's and `lsprotocol`'s practice of annotating with the concrete public
 classes a package exports, with `TYPE_CHECKING` imports for cycles (PEP 484, "Runtime or type checking?"). The
@@ -225,8 +249,9 @@ classes, and two public types per concept is the confusion this removes.
 shape (fields, fields by `kind`, tuples, exactly-one-of), the edit members and the readers. Its types use the same
 grammar with the wire's own atoms (`text`, `integer`, `number`, `boolean`, `json`, `id`, `null`, `position`), quoted
 literals (`"utf-16"`) and `tuple of A and B`. Keys are the wire's own spellings (`savedText`, `includedBy`): data,
-not a binding's names. spec/conformance.md 4.1 and 4.2 are generated from it; each request's prose (`params note`,
-`note`) stays with it, and the loader refuses a note that does not name each parameter.
+not a binding's names. spec/conformance.md 4.1 and 4.2 are generated from it; each request's prose (`params doc`,
+`doc`) and each shape's `doc` stay with it, under the same rule as every emitted doc (section 3; history goes in
+`rationale`), and the loader refuses a `params doc` that does not name each parameter.
 
 A shape with fields `by kind` lists the rest of its kinds as `other kinds`, and is generated as a discriminated
 union: one alternative per kind with that kind's fields required (TypeScript object types; a `TypedDict` per kind in
@@ -289,20 +314,22 @@ Why not one of those tools as is:
 | TypeSpec | Its core is protocol-neutral, but a custom emitter is written in TypeScript against its compiler, a Node toolchain for the Python-only `tools/`, and the per-language idiom would still be written by hand in each emitter |
 | LSP metaModel generators | Written for LSP's own model (requests and notifications), not reusable outside it. Its model shape is used |
 
-So the bespoke part is small: about 1,100 lines of loader and 600 to 860 lines per emitter, in Python's standard
+So the bespoke part is small: about 1,300 lines of loader and 630 to 980 lines per emitter, in Python's standard
 library (the same toolchain as the driver and the grammar checks), for a schema of 78 concepts, 10 kind lists, 34
 codes and 13 protocol requests.
 
 ## 10. A new binding
 
-A new binding is **one emitter and one adapter** (binding guide section 5), with no schema edit: `spec/schema/` names
-no language. What changes:
+A new binding is **one emitter, one adapter and one name test** (binding guide section 5), with no edit to
+`spec/schema/` (which names no language), to the loader or to the docs emitter. Every file it touches:
 
 - `tools/api/emit_<lang>.py`, rendering the loader's model in the language's idiom (each trait of section 3, the
-  casing rule's output, the error tree, the protocol shapes), with its `LANGUAGE`: the loader's `Language`
-  descriptor, which holds every fact about the language:
-  - `key`, `name`, `sep` (between module parts), `function_case`, `public_kind` (a type, a value or both), and
-    `trait_names` (the public names a trait's idiom adds, as Python's `Collecting`);
+  casing rule's output, the error tree, one module per layer of `api.json`, the protocol shapes), with `render`,
+  `render_shapes` and `render_contract`, and its `LANGUAGE`: the loader's `Language` descriptor, which holds every
+  fact about the language:
+  - `key`, `name`, `sep` (between module parts), `function_case`, `code_case` (a diagnostic code's member),
+    `public_kind` (a type, a value or both), and `trait_names` (the public names a trait's idiom adds, as Python's
+    `Collecting`);
   - `error_roots`: each root error group (one without a parent) to the class it extends, `{"base": ...}`, or is,
     `{"builtin": ...}` (spec 2.8); every root must be given and nothing else;
   - `argument_type_message`: the argument type error's whole sentence, with `{member}`, `{parameter}` and `{got}`;
@@ -310,15 +337,28 @@ no language. What changes:
     import path under the package; a module left out does not exist there, nor its functions and concepts;
   - `factory_forms`: how it makes a concept a factory function makes (`constructor`, the default, or `package
     function`);
-  - `omit`: a concept or kind list its idiom has no use for (Python leaves out the options records and `walk
-    control`).
-- `tools/gen-api.py` (`EMITTERS`, `OUT`) and `tools/gen.sh` (the output directory).
+  - `native`: the platform's own type for each native named type it keeps;
+  - `omit` and `omitted_as`: a concept or kind list its idiom has no use for (Python leaves out the options records
+    and `walk control`), and what the glossary says stands in for it;
+  - how the docs tables spell it: `enum_form`, `generic`, `construct`, `extends_word`, `cause_field`. Every docs
+    table builds one column per `Language`, so the binding is a column with no edit to `emit_docs.py`.
+- Its regex dialect, in the emitter: a schema pattern is an I-Regexp (section 2); the emitter renders it (the
+  loader's `pattern_body` does RFC 9485's mapping given the engine's escape for one character) and refuses a
+  construct its engine lacks.
+- `tools/gen-api.py` (`EMITTERS`, `OUT`: the code folder, the adapter's shapes folder, the test contract's folder)
+  and `tools/gen.sh` (the output directory).
+- The binding's name test, hand-written once against its generated contract (as `py/tests/test_api_names.py` and
+  `ts/test/api-names.test.ts` are): each import path's exports against `PUBLIC_NAMES`, the match args and unions,
+  and the public docs' hygiene. The list of names, modules, constructors and Protocols to check comes from the
+  contract, so the test never changes when the schema does.
 
 The loader checks each `Language` against the schema as it checks the schema: a root without a class, a class for a
-group that is not a root, an unknown module or factory, or a left-out concept that a kept member still uses is
-refused, and `tools/gen-api.py --check` plants one of each. It also loads `tools/api/stub.py`, a third binding in
-miniature (a made-up language with its own error classes and one adapter module), beside the real ones and renders its
-names list, so a schema change that would need a new binding to edit the schema fails the check.
+group that is not a root, an unknown module or factory, a left-out concept that a kept member still uses, or a kept
+native type without a platform type is refused, and `tools/gen-api.py --check` plants each. It also loads
+`tools/api/stub.py`, a third binding in miniature (a made-up language with its own error classes and one adapter
+module), beside the real ones: it renders one module per layer, every concept's members through a trivial printer
+of every type form, the error tree, and every docs table with the stub as a third column. So a schema change that
+would need a new binding to edit the schema, the loader or the docs emitter fails the check.
 
 The adapter (spec/conformance.md 6) is then written against the generated shapes and spelling table.
 
@@ -343,5 +383,14 @@ language either.
   classes no longer exists: the binding's union is the one, checked against `UNIONS`.
 - A doc may not name a language, so a fact true of one binding only (TypeScript's template type for a program code)
   goes in `rationale` or the emitter, and no binding's users read it in their doc comments.
+- A schema pattern is an I-Regexp: a character outside printable ASCII is written as itself in the JSON, so the
+  pattern reads less plainly in `api.json` than a `\u` escape would (the generated rules list shows it escaped), and
+  the subset has no shorthand classes.
+- Two type forms need parentheses that once read without them (`function of directive to (text or absent)`).
+- The generated docs are only as good as the schema's: most concepts and members have no `doc` yet, so most
+  declarations carry no comment until the schema's docs are filled in. The hand-written classes' own docstrings and
+  JSDoc still repeat many schema docs (a second home); the name tests keep history out of them, not the repetition.
+- Python's generated code is laid out by hand to match `ruff format`, and TypeScript's is not formatted at all; a
+  formatter run after generation would be simpler but add a formatter to every generation (section 4).
 - The driver checks dumps only as far as it reads them; the generated shapes move the rest of that check to each
   adapter's compiler, not to the driver (spec/conformance.md 7).

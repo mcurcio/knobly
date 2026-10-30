@@ -193,12 +193,18 @@ its test suite (`corepack pnpm -C ts test`, `cd py && uv run pytest`); lint, for
   the binding implements names the binding's public class (`villanelle.rendered.Directive`), so a program
   annotating with public classes type-checks against every record, callback and Protocol. A union over hand classes
   (`written.Statement`) is the binding's own, checked against the generated `UNIONS`. Nothing outside the package
-  imports `villanelle._api`: the tests' half of the contract is the generated `py/tests/api_contract.py`
-  (`PUBLIC_NAMES`, `MATCH_ARGS`, `UNIONS`, each `<Module>Functions` and `<Class>Constructor`), and the adapter's
-  `ERROR_GROUP_OF_CLASS` is in its `shapes.py`.
+  imports `villanelle._api` (but the contract's type checker's block): the tests' half of the contract is the
+  generated `py/tests/api_contract.py` (`PUBLIC_NAMES`, `MATCH_ARGS`, `UNIONS`, each `<Module>Functions` and
+  `<Class>Constructor`, and the mypy assignments that check every module, constructor and hand class against the
+  schema), and the adapter's `ERROR_GROUP_OF_CLASS` is in its `shapes.py`. TypeScript mirrors it: `PUBLIC_NAMES` in
+  the generated `ts/test/api-contract.ts`, `ERROR_GROUP_OF_CLASS` in `ts/conformance/shapes.ts`; neither ships.
 - **Schema docs are for users** (milestone 7): a schema entry's `doc` is emitted as JSDoc and docstrings; its
   `rationale` (history, owner quotes, bead ids, one language's notes) is never emitted. `tools/gen-api.py --check`
-  refuses a bead id, `milestone N`, an `owner, <date>` quote or a language's name in any emitted doc.
+  refuses a bead id, `milestone N`, an `owner, <date>` quote or a language's name in any emitted doc, protocol
+  docs and parameter docs included; each binding's name test refuses the same (and private paths) in the
+  hand-written public docs. Maintainer notes go in comments.
+- **Schema patterns are I-Regexps** (RFC 9485) between `^` and `$`; a type with a union after a function's result
+  or a generic inside an argument list is written in parentheses.
 - **One import path per name** (milestone 6, binding guide rule 9): `villanelle` (shared and io),
   `villanelle/syntax`, `villanelle/written`, `villanelle/rendered` (Python: subpackages). No re-export under a second
   path, no `I` prefix, no alias for an old name.

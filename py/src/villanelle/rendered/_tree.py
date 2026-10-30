@@ -113,7 +113,7 @@ class Directive(api.Directive):
 
     @property
     def written(self) -> WrittenDirective:
-        """The written directive this is a copy of (closes vil-uji): the same handle for every copy of one line."""
+        # The user doc is the schema's, inherited from the generated Protocol (closes vil-uji).
         return self._written
 
     def closest(self, predicate: Callable[[Directive], bool], /) -> Directive | None:

@@ -8,17 +8,17 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
-import { PUBLIC_NAMES } from "./gen/api/names.js";
+import { PUBLIC_NAMES } from "./api-contract.ts";
 
 /** Each import path's entry module (package.json "exports"), relative to this directory. */
 const ENTRY: Readonly<Record<keyof typeof PUBLIC_NAMES, string>> = {
-  villanelle: "./index.ts",
-  "villanelle/browser": "./browser.ts",
-  "villanelle/include": "./include.ts",
-  "villanelle/node": "./node.ts",
-  "villanelle/rendered": "./rendered/index.ts",
-  "villanelle/syntax": "./syntax/index.ts",
-  "villanelle/written": "./written/index.ts",
+  villanelle: "../src/index.ts",
+  "villanelle/browser": "../src/browser.ts",
+  "villanelle/include": "../src/include.ts",
+  "villanelle/node": "../src/node.ts",
+  "villanelle/rendered": "../src/rendered/index.ts",
+  "villanelle/syntax": "../src/syntax/index.ts",
+  "villanelle/written": "../src/written/index.ts",
 };
 
 const paths = Object.keys(PUBLIC_NAMES) as (keyof typeof PUBLIC_NAMES)[];
@@ -46,5 +46,39 @@ describe("public names are the generated PUBLIC_NAMES (spec/schema/api.json)", (
     const module = (await import(file)) as Record<string, unknown>;
     expect(Object.keys(module).sort()).toEqual([...values].sort());
     expect(typeExports(file).sort()).toEqual([...types].sort());
+  });
+});
+
+/** What a public doc may not carry (spec/codegen.md section 3, "Docs and rationale"): it belongs in a `//` comment. */
+const HISTORY = /\bvil-[a-z0-9]{3}(\.[0-9]+)*\b|\bmilestone [0-9]|\bowner, [0-9]{4}-|\bgen\/api\b|\.test\.ts\b/;
+
+/** Every JSDoc a program sees on hover: each export of each entry, and each member of an exported class or interface. */
+function publicDocs(): [string, string][] {
+  const out: [string, string][] = [];
+  const text = (node: ts.Node): string =>
+    ts
+      .getJSDocCommentsAndTags(node)
+      .map((d) => d.getText())
+      .join("\n");
+  for (const [i, file] of files.entries()) {
+    const source = program.getSourceFile(file);
+    const module = source === undefined ? undefined : checker.getSymbolAtLocation(source);
+    if (module === undefined) throw new Error(`no module symbol for ${file}`);
+    for (const exported of checker.getExportsOfModule(module)) {
+      const symbol = exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
+      for (const decl of symbol.declarations ?? []) {
+        out.push([`${paths[i] ?? file}.${exported.name}`, text(decl)]);
+        if (ts.isClassDeclaration(decl) || ts.isInterfaceDeclaration(decl)) {
+          for (const member of decl.members) out.push([`${paths[i] ?? file}.${exported.name}.${member.name?.getText() ?? "?"}`, text(member)]);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+describe("public docs carry no maintainer history", () => {
+  it("has none", () => {
+    expect(publicDocs().filter(([, doc]) => HISTORY.test(doc)).map(([where, doc]) => `${where}: ${HISTORY.exec(doc)?.[0] ?? ""}`)).toEqual([]);
   });
 });

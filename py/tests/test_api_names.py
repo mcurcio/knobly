@@ -1,49 +1,26 @@
 """The public-name check (spec/codegen.md section 10): every public module's ``__all__`` equals its generated
 ``PUBLIC_NAMES`` entry, both ways (a name the schema lacks, a removed name among them, fails as surely as a missing
 one), every listed name exists, every class with a generated ``MATCH_ARGS`` entry has those ``__match_args__``, and
-every public union holds exactly the variant classes of its ``UNIONS`` entry. Each module is also checked against its
-generated ``<Module>Functions`` Protocol, by mypy (modules as protocols, PEP 544): a free function whose signature
-drifts from the schema is a type error. Members are checked by mypy too, where each handle class subclasses its
-generated Protocol. All of these come from ``api_contract`` (generated beside this file), which names every type
-through its public module."""
+every public union holds exactly the exported variant classes of its ``UNIONS`` entry. Signatures are checked by mypy
+in ``api_contract`` itself (generated beside this file): its type checker's block assigns each module to its
+``<Module>Functions`` Protocol, each constructed class to its ``<Class>Constructor`` and each hand-written public class
+to its concept's generated Protocol, so a drifted member fails mypy with no list kept here. The public docs a program
+reads in ``help()`` carry no maintainer history (``test_public_docs_carry_no_history``)."""
 
 from __future__ import annotations
 
 import importlib
+import inspect
+import re
 import types
 import typing
 from pathlib import Path
 from types import ModuleType
 
 import pytest
-from api_contract import (
-    MATCH_ARGS,
-    PUBLIC_NAMES,
-    UNIONS,
-    DiagnosticsConstructor,
-    FilesFunctions,
-    IncludeFunctions,
-    IoFunctions,
-    ProcessorConstructor,
-    RenderedFunctions,
-    SharedFunctions,
-    SyntaxFunctions,
-    WrittenFunctions,
-)
+from api_contract import MATCH_ARGS, PUBLIC_NAMES, UNIONS
 
 import villanelle
-from villanelle import files, include, rendered, syntax, written
-
-_shared: SharedFunctions = villanelle
-_io: IoFunctions = villanelle
-_syntax: SyntaxFunctions = syntax
-_written: WrittenFunctions = written
-_include: IncludeFunctions = include
-_files: FilesFunctions = files
-_rendered: RenderedFunctions = rendered
-# A class a program constructs is checked against its generated constructor (the schema's constructor factory).
-_diagnostics: DiagnosticsConstructor = villanelle.Diagnostics
-_processor: ProcessorConstructor = written.Processor
 
 
 @pytest.mark.parametrize("path", sorted(PUBLIC_NAMES))
@@ -78,20 +55,29 @@ def test_a_class_matches_by_the_generated_fields(name: str, cls: type) -> None:
     assert getattr(cls, "__match_args__", None) == MATCH_ARGS[name]
 
 
+def exported(name: str) -> object:
+    """The one object a public name is: the binding's own class, read through the module that exports it."""
+    [path] = [path for path, names in PUBLIC_NAMES.items() if name in names]
+    return getattr(importlib.import_module(path), name)
+
+
 def union_cases() -> list[object]:
     """Each ``UNIONS`` entry with the public alias of that name (the binding's own union over its own classes, or the
-    generated one for a union of generated records)."""
-    cases: list[object] = []
-    for name, variants in sorted(UNIONS.items()):
-        [path] = [path for path, names in PUBLIC_NAMES.items() if name in names]
-        cases.append(pytest.param(getattr(importlib.import_module(path), name), variants, id=f"{path}.{name}"))
-    return cases
+    generated one for a union of generated records) and the exported class of each variant."""
+    return [
+        pytest.param(exported(name), [exported(v) for v in variants], id=name)
+        for name, variants in sorted(UNIONS.items())
+    ]
 
 
 @pytest.mark.parametrize(("public", "variants"), union_cases())
-def test_a_public_union_has_the_schema_variants(public: object, variants: tuple[str, ...]) -> None:
+def test_a_public_union_has_the_schema_variants(public: object, variants: list[object]) -> None:
+    """By identity, not by name: a union over the generated Protocols, or over same-named classes of another module,
+    fails."""
     assert isinstance(public, types.UnionType)
-    assert sorted(t.__name__ for t in typing.get_args(public)) == sorted(variants)
+    args = typing.get_args(public)
+    assert len(args) == len(variants)
+    assert all(any(a is v for a in args) for v in variants)
 
 
 def test_there_are_union_cases() -> None:
@@ -112,3 +98,31 @@ def test_no_public_path_but_the_public_modules() -> None:
         if name not in PUBLIC_NAMES and not any(p.startswith("_") for p in parts):
             public.append(name)
     assert public == []
+
+
+# What a public doc may not carry (spec/codegen.md section 3, "Docs and rationale"): it belongs in a comment.
+HISTORY = re.compile(r"\bvil-[a-z0-9]{3}(\.[0-9]+)*\b|\bmilestone [0-9]|\bowner, [0-9]{4}-|\bvillanelle\._|\btests/")
+
+
+def public_docs() -> list[tuple[str, str]]:
+    """Every doc ``help()`` shows for a public name: each public module's, each exported object's and, for a class,
+    each member it defines itself (an inherited member's doc is checked where it is defined)."""
+    found: dict[str, str] = {}
+    for path in sorted(PUBLIC_NAMES):
+        module = importlib.import_module(path)
+        found[path] = module.__doc__ or ""
+        for name in sorted(PUBLIC_NAMES[path]):
+            obj = getattr(module, name)
+            if getattr(obj, "__module__", "").startswith("villanelle"):
+                found[f"{path}.{name}"] = inspect.getdoc(obj) or ""
+            if isinstance(obj, type) and obj.__module__.startswith("villanelle"):
+                for attr, value in vars(obj).items():
+                    doc = getattr(value, "__doc__", None)
+                    if isinstance(value, (types.FunctionType, property, classmethod, staticmethod)) and doc:
+                        found[f"{path}.{name}.{attr}"] = doc
+    return sorted(found.items())
+
+
+def test_public_docs_carry_no_history() -> None:
+    bad = [f"{where}: {m.group()!r}" for where, doc in public_docs() if (m := HISTORY.search(doc))]
+    assert bad == []
