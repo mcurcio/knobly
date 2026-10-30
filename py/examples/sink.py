@@ -1,9 +1,9 @@
-# Sample "sink" (examples/samples.json): collect a program's own problems with villanelle's, in one list. The user
+# Sample "sink" (examples/samples.json): collect a program's own problems with knobly's, in one list. The user
 # guide includes the regions between the --8<-- markers; py/tests/test_examples.py runs this file and compares what it
 # prints with examples/expected/sink.txt.
 # --8<-- [start:main]
-import villanelle as vl
-from villanelle import rendered, written
+import knobly as vl
+from knobly import rendered, written
 
 files = {"main.conf": "port eighty;\nnode Mystery m;\nfps $x;\n"}
 tree = rendered.render(written.Processor(source=vl.memory_source(files)).load("main.conf"))

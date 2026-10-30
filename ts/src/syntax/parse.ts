@@ -6,8 +6,8 @@
 import { CharStreams, CommonTokenStream } from "antlr4";
 
 import { makeDiagnostic } from "../diagnostics.js";
-import VillanelleLexer from "../gen/VillanelleLexer.js";
-import VillanelleParser from "../gen/VillanelleParser.js";
+import KnoblyLexer from "../gen/KnoblyLexer.js";
+import KnoblyParser from "../gen/KnoblyParser.js";
 import { spanOf } from "./cst.js";
 import { type RawDiagnostic, installRecovery, nestingOverflow } from "./recovery.js";
 import { type AntlrToken, type AntlrTree, toCst, toEntryCst } from "./walk.js";
@@ -17,12 +17,12 @@ import { DiagnosticCode, describe } from "../gen/api/codes.js";
 import type { TokenKind } from "../gen/api/kinds.js";
 
 /**
- * ANTLR token type -> our TokenKind. Both come from grammar/Villanelle.g4 (the generated lexer's symbolic names and
+ * ANTLR token type -> our TokenKind. Both come from grammar/Knobly.g4 (the generated lexer's symbolic names and
  * tools/gen-api.py's TokenKind), so a symbolic name is a TokenKind.
  */
 const KIND_BY_TYPE: ReadonlyMap<number, TokenKind> = (() => {
   const map = new Map<number, TokenKind>();
-  VillanelleLexer.symbolicNames.forEach((name, type) => {
+  KnoblyLexer.symbolicNames.forEach((name, type) => {
     if (name !== null) map.set(type, name as TokenKind);
   });
   return map;
@@ -74,8 +74,8 @@ function toTokens(antlrTokens: readonly AntlrToken[]): Token[] {
 /** The tokens of one text, and a parser over them with per-statement recovery reporting into `raw`. */
 function prepare(text: string): { tokens: Token[]; parser: AntlrParser; raw: RawDiagnostic[] } {
   // antlr4's typings do not line up with the generated classes' parameter types: cast at the call.
-  const input = CharStreams.fromString(text) as unknown as ConstructorParameters<typeof VillanelleLexer>[0];
-  const lexer = new VillanelleLexer(input);
+  const input = CharStreams.fromString(text) as unknown as ConstructorParameters<typeof KnoblyLexer>[0];
+  const lexer = new KnoblyLexer(input);
   // The lexer is total by construction (BAD_CHAR matches every character no other token can start with), so it
   // never reports an error; its default listener would print to the console.
   (lexer as unknown as AntlrRecognizer).removeErrorListeners();
@@ -83,7 +83,7 @@ function prepare(text: string): { tokens: Token[]; parser: AntlrParser; raw: Raw
   const antlrStream = stream as unknown as AntlrTokenStream;
   antlrStream.fill();
   const tokens = toTokens(antlrStream.tokens);
-  const parser = new VillanelleParser(stream as unknown as ConstructorParameters<typeof VillanelleParser>[0]);
+  const parser = new KnoblyParser(stream as unknown as ConstructorParameters<typeof KnoblyParser>[0]);
   const raw: RawDiagnostic[] = [];
   // With recovery installed the parser reports nothing to listeners; drop the default console listener anyway.
   (parser as unknown as AntlrRecognizer).removeErrorListeners();

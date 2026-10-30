@@ -2,7 +2,7 @@
 // and syntax problems. ts/examples/examples.test.ts runs this file and compares what it prints with
 // examples/expected/syntax_tree.txt.
 // --8<-- [start:main]
-import { parse, TokenKind, type Node } from "villanelle/syntax";
+import { parse, TokenKind, type Node } from "knobly/syntax";
 
 // --8<-- [start:parse]
 const text = "server {\n    port 8080; # the port\n}\n";

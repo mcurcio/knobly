@@ -49,7 +49,7 @@ describe("the user guide's samples", () => {
   it.each(FILES.filter((f) => basename(f, ".ts") in TABLE.samples))("%s prints its expected output", async (file) => {
     const id = basename(file, ".ts");
     const fixture = TABLE.samples[id]?.fixture ?? null;
-    const folder = realpathSync(mkdtempSync(join(tmpdir(), `villanelle-${id}-`)));
+    const folder = realpathSync(mkdtempSync(join(tmpdir(), `knobly-${id}-`)));
     try {
       if (fixture !== null) cpSync(join(REPO, fixture), folder, { recursive: true });
       const printed = (await run(file, folder)).replaceAll(folder + "/", "");

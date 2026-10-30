@@ -1,6 +1,6 @@
-# Villanelle: one model per language (v10)
+# Knobly: one model per language (v10)
 
-**Status:** draft v10 for your review (gate vil-9vn) · **Layer:** **[ System design ]** › Module › Feature
+**Status:** draft v10 for your review (gate kno-9vn) · **Layer:** **[ System design ]** › Module › Feature
 
 **What you are asked:** do these read right? Two more questions, each under its language: how a Python block lists what it holds (§2), and how a TypeScript read names its block (§3).
 
@@ -210,7 +210,7 @@ export class GzipService {
 }
 ```
 
-The program is a root `@Module`; `VillanelleFactory.create(RaslApp)` checks every declaration at startup, `app.load(file)` reads, `app.apply(loaded)` runs the `@OnChange` methods, and a handler throws `ChangeFailed` for a change it could not apply.
+The program is a root `@Module`; `KnoblyFactory.create(RaslApp)` checks every declaration at startup, `app.load(file)` reads, `app.apply(loaded)` runs the `@OnChange` methods, and a handler throws `ChangeFailed` for a change it could not apply.
 
 [[Q:tsread]]
 

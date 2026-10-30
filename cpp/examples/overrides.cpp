@@ -2,17 +2,17 @@
 // program's own for one variable. ctest examples_overrides compares what it prints with
 // examples/expected/overrides.txt.
 // --8<-- [start:main]
-#include <villanelle/extensions.hpp>
-#include <villanelle/files.hpp>
-#include <villanelle/rendered.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/extensions.hpp>
+#include <knobly/files.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/written.hpp>
 
 #include <iostream>
 #include <string>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 void print_targets(const vw::document_graph& graph) {
     std::string names;

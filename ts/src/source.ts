@@ -1,8 +1,8 @@
 /**
  * The I/O ports (spec/schema/api.json, layer io): where files come from, the one port the load reads through for the
  * root file and for every file an extension names, and where a save writes them
- * (`DocumentWriter`, given `FileWrite`s by `DocumentGraph.save`; the types are generated, gen/api/io.ts). The core does no I/O: "villanelle/node" and
- * "villanelle/browser" give file and fetch sources and writers; `memorySource` and `memoryWriter` serve and keep texts
+ * (`DocumentWriter`, given `FileWrite`s by `DocumentGraph.save`; the types are generated, gen/api/io.ts). The core does no I/O: "knobly/node" and
+ * "knobly/browser" give file and fetch sources and writers; `memorySource` and `memoryWriter` serve and keep texts
  * the program already holds (tests, editors). Adapters are named by medium and port (spec/contract.md 5). Every
  * writer refuses a lost update through the one check, `checkLostUpdates` (spec 4.2).
  */

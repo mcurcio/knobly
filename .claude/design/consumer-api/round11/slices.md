@@ -1,8 +1,8 @@
 # Low-level consumer API: the slice pages (round 11 build)
 
 **Status:** frozen pages for the build run on branch `feat/consumer-api-low-level` · **Layer:** Module › Feature
-(R15 tiers 1-2 only; the sugar is deferred, vil-xlo) · **Beads:** S1 `vil-9ze.4`, S2 `vil-stq.3`, S3 `vil-stq.4`,
-S4 `vil-9vn.1`.
+(R15 tiers 1-2 only; the sugar is deferred, kno-xlo) · **Beads:** S1 `kno-9ze.4`, S2 `kno-stq.3`, S3 `kno-stq.4`,
+S4 `kno-9vn.1`.
 
 **Sources, newest wins:** `requirements.md` (its last section is the plan the owner said yes to on 2026-10-28),
 `round11/design.md` as corrected by `round11/decisions.md` (every review finding is weighed there), this page.
@@ -11,7 +11,7 @@ Where this page and `design.md` disagree, this page wins and `decisions.md` says
 **Interfaces as code:** commit `3cf7460` holds every public signature below as compiling code with bodies that
 throw "not implemented": `ts/src/load/{origin,graph,report,directive,source,processor}.ts`, `ts/src/include.ts`,
 `createFileSource` in `ts/src/node.ts`, `createFetchSource` in `ts/src/browser.ts`;
-`py/src/villanelle/{origin,graph,report,directives,source,processor,include,files}.py`. Their docstrings are part of
+`py/src/knobly/{origin,graph,report,directives,source,processor,include,files}.py`. Their docstrings are part of
 the frozen page. An implementer who finds a signature or rule here wrong appends to `.claude/errata.md` and stops;
 the change comes back through an erratum, never a local edit.
 
@@ -70,7 +70,7 @@ LONE_DOLLAR   : '$' ;                               // E1004
 BAD_CHAR      : ~[\t\n "#$',./0-9:;@A-Z_a-z{}*?[\]\-﻿] ;   // '$' added to the excluded set
 ```
 
-`villanelle.ebnf` gets the same: `Value ::= Word | String | Variable | SlicedWord | List`,
+`knobly.ebnf` gets the same: `Value ::= Word | String | Variable | SlicedWord | List`,
 `Bounds ::= Bound ':' Bound? | ':' Bound | Bound` (this also adds the index form the EBNF lacked, round 8 finding),
 `Bound ::= Word | Variable`, `Variable ::= '$' VariableChar+`, `LoneDollar ::= '$'` (error token),
 `VariableChar ::= [A-Za-z0-9_]`, `'$'` added to `TokenStart`, the tokens comment line updated.
@@ -184,9 +184,9 @@ from Python's. E6xxx is reserved for the deferred sugar; none is defined. A prog
 
 | Primitive | One responsibility | Consumers today | Scheduled |
 |---|---|---|---|
-| `IPlace`, `IHanded`, `IStep`, `IOrigin`, `IDirectiveOrigin` (`load/origin.ts`, `origin.py`) | where text was written and how it got here | directives, arguments, unreadable, edges, diagnostics | the sugar's `ConfigError(at=...)`, editing (vil-uji) |
+| `IPlace`, `IHanded`, `IStep`, `IOrigin`, `IDirectiveOrigin` (`load/origin.ts`, `origin.py`) | where text was written and how it got here | directives, arguments, unreadable, edges, diagnostics | the sugar's `ConfigError(at=...)`, editing (kno-uji) |
 | `ILocatedDiagnostic` + `Diagnostics` sink + `formatDiagnostic` (`load/report.ts`, `report.py`) | collecting and printing load-level problems | load, readers, programs | the sugar's E6xxx, rasl-ynq's printer |
-| value rules module (private: `ts/src/load/values.ts`, `py/src/villanelle/_values.py`) | NumberText, IntegerText, BooleanText, the six escapes, canonical text: the one home of each rule | load (bounds, escapes), readers, canonical text | — |
+| value rules module (private: `ts/src/load/values.ts`, `py/src/knobly/_values.py`) | NumberText, IntegerText, BooleanText, the six escapes, canonical text: the one home of each rule | load (bounds, escapes), readers, canonical text | — |
 | `IDocumentSource` + `memorySource` (`load/source.ts`, `source.py`) | where files come from | the processor (root and extensions), tests | rasl's file watcher |
 | directive anatomy (`ts/src/ast/anatomy.ts` today; Python's port inside `ast.py`) | which tokens of a directive node are its name, values and block | load | S2/S3 move it beside the load (internal) when the facade goes |
 | `compareCodePoints` (`ts/src/graph/order.ts`) | include ordering both languages share | load (splice order), file source | — |
@@ -199,7 +199,7 @@ is no load without a root. `formatDiagnostic` without the file in the graph prin
 
 ## 3. Frozen public surface, TypeScript (final state after S2)
 
-`villanelle` (barrel, `ts/src/index.ts`) exports exactly:
+`knobly` (barrel, `ts/src/index.ts`) exports exactly:
 
 - tier 1, unchanged: `ISourcePosition`, `ISourceSpan`, `DiagnosticCode`, `IDiagnostic`, `IToken`, `TokenKind`
   (gains `Variable: "VARIABLE"` and `LoneDollar: "LONE_DOLLAR"` in S1), `INode`, `ISyntax`, `ITokenRange`,
@@ -211,9 +211,9 @@ is no load without a root. `formatDiagnostic` without the file in the graph prin
   `IAddress`, `UnreadableKind`, `IUnreadable`, `WalkControl`, `IDirective`, `IKeyInput`, `KeyRule`, `ILoadContext`,
   `IDocumentSource`, `memorySource`, `IDocumentNode`, `IDocumentEdge`, `IDocumentGraph`, `IExtensionUse`,
   `IExtension`, `IProcessorOptions`, `ILoadOptions`, `ILoaded`, `ChangeKind`, `IAdded`, `IRemoved`, `IChanged`,
-  `IUnknown`, `Change`, `IProcessor`, `villanelle`; and `IDocumentWriter`, `save(graph: IDocumentGraph, writer: IDocumentWriter): Promise<void>` (kept, reading `node.syntax`).
-- `villanelle/include`: `include(): IExtension`. `villanelle/node`: `createFileSource(): IDocumentSource`,
-  `createFsWriter(): IDocumentWriter`. `villanelle/browser`: `createFetchSource(fetchImpl: typeof fetch): IDocumentSource`,
+  `IUnknown`, `Change`, `IProcessor`, `knobly`; and `IDocumentWriter`, `save(graph: IDocumentGraph, writer: IDocumentWriter): Promise<void>` (kept, reading `node.syntax`).
+- `knobly/include`: `include(): IExtension`. `knobly/node`: `createFileSource(): IDocumentSource`,
+  `createFsWriter(): IDocumentWriter`. `knobly/browser`: `createFetchSource(fetchImpl: typeof fetch): IDocumentSource`,
   `createFetchWriter(...)` (unchanged), `IFetchWriterOptions`.
 
 Deleted (no dual paths): `createAst`, `parseDocument`, `walkDirectives`, `findDirectives`, `IAst*`, `valueOf`,
@@ -223,17 +223,17 @@ Deleted (no dual paths): `createAst`, `parseDocument`, `walkDirectives`, `findDi
 
 ## 4. Frozen public surface, Python (final state after S3)
 
-`villanelle` (`py/src/villanelle/__init__.py`) exports exactly: tier 1 unchanged (`SourcePosition`, `SourceSpan`,
+`knobly` (`py/src/knobly/__init__.py`) exports exactly: tier 1 unchanged (`SourcePosition`, `SourceSpan`,
 `Diagnostic`, `DiagnosticCode`, `Token`, `TokenKind` (+`VARIABLE`, `LONE_DOLLAR` in S1), `Node`, `NodeKind`, `Syntax`,
 `TokenRange`, `ValueRef`, `span_of`, `text_of`, `parse`, `ValueKind` (+`LIST`), `SliceValue`, `IndexValue` (both lose
 `span`)); `DiagnosticError` (carries a `LocatedDiagnostic`); and `Place`, `Handed`, `StepKind`, `Step`, `Origin`,
 `DirectiveOrigin`, `LocatedDiagnostic`, `Locatable`, `Collecting`, `Diagnostics`, `format_diagnostic`, `PlainValue`,
 `Argument`, `AddressStep`, `Address`, `UnreadableKind`, `Unreadable`, `Directive`, `KeyInput`, `KeyRule`, `walk`,
 `LoadContext`, `DocumentSource`, `memory_source`, `DocumentNode`, `DocumentEdge`, `DocumentGraph`, `ExtensionUse`,
-`Extension`, `Loaded`, `Added`, `Removed`, `Changed`, `Unknown`, `Change`, `Processor`. Modules: `villanelle.include`
-(`include()`), `villanelle.files` (`file_source()`).
+`Extension`, `Loaded`, `Added`, `Removed`, `Changed`, `Unknown`, `Change`, `Processor`. Modules: `knobly.include`
+(`include()`), `knobly.files` (`file_source()`).
 
-Deleted: `villanelle.ast` and its names (`AstArgument`, `AstDirective`, `AstDirectiveList`, `AstDocument`,
+Deleted: `knobly.ast` and its names (`AstArgument`, `AstDirective`, `AstDirectiveList`, `AstDocument`,
 `create_ast`, `find_directives`, `parse_document`, `walk_directives`), `value_of`, `WordValue`, `StringValue`,
 `Value`. Read-only attributes may be properties or frozen-dataclass fields (implementer's choice); names, types and
 `__match_args__` are frozen.
@@ -274,13 +274,13 @@ not edit them: a disagreement with §1 is an erratum.
 
 ---
 
-## S1: tracer (`vil-9ze.4`)
+## S1: tracer (`kno-9ze.4`)
 
-**Owns:** `grammar/Villanelle.g4`, `grammar/villanelle.ebnf`, `tools/planted/var-twice.g4` (new), `conformance/**`
+**Owns:** `grammar/Knobly.g4`, `grammar/knobly.ebnf`, `tools/planted/var-twice.g4` (new), `conformance/**`
 (new `conformance/variables.json` and its `expected/var-*.json`; `conformance/load/{format.md,cases.json,expected/}`),
 `fixtures/rasl/**` (new), `ts/src/syntax/tokens.ts`, `ts/src/syntax/recovery.ts`, `ts/src/ast/anatomy.ts`,
 `ts/src/conformance.test.ts`, `ts/src/load/**`, `ts/src/load-conformance.test.ts` (new), `ts/src/load/tracer.test.ts`
-(new), `py/src/villanelle/syntax/tokens.py`, `py/src/villanelle/syntax/_recovery.py`, `py/tests/test_conformance.py`,
+(new), `py/src/knobly/syntax/tokens.py`, `py/src/knobly/syntax/_recovery.py`, `py/tests/test_conformance.py`,
 `py/tests/test_tokens.py`. Nothing else.
 
 **Signatures introduced or changed:**
@@ -291,7 +291,7 @@ not edit them: a disagreement with §1 is an erratum.
 - `anatomyOf`: `VARIABLE` tokens are values (`ValueRef` token indexes), as `WORD` and `STRING` are.
 - `tools/planted/var-twice.g4`: the grammar with a variable usable both as a value and as a slice base piece, so the
   Bison check must report conflicts (round 8's planted case).
-- TS bodies, in `ts/src/load/`: `memorySource`; `villanelle({ source })` with `load` doing rules 1-4, 10-12 of §1.2
+- TS bodies, in `ts/src/load/`: `memorySource`; `knobly({ source })` with `load` doing rules 1-4, 10-12 of §1.2
   for files without `snippet`, `use` or extensions (those are S2's; S1 may leave them as ordinary directives) and
   `diff` still throwing; `ILoaded` (`body`, `unreadable`, `origin`, `diagnostics`, `graph`); `IDirective` (`name`,
   `args`, `body`, `unreadable`, `parent`, `address` with no key rule, `origin`, `node`); `IArgument` (`kind`, `text`,
@@ -302,14 +302,14 @@ not edit them: a disagreement with §1 is an erratum.
    (a variable as slice base) in the real grammar: the Bison check must report a conflict or the planted case must
    stop biting; restore.
 2. `conformance/variables.json` holds at least these inputs, with expected outputs that TS writes
-   (`VILLANELLE_WRITE_EXPECTED=1`) and Python reproduces byte for byte: `set $pixels 2284;`, `max_count $pixels;`,
+   (`KNOBLY_WRITE_EXPECTED=1`) and Python reproduces byte for byte: `set $pixels 2284;`, `max_count $pixels;`,
    `port $ports dev;`, `[$a, 1, $b]`, `c[0:$n];`, `c[$i];`, `c[$a:];`, `fps$x;` (E2009), `$x 1;`, `$x[0:3];`, `$1`,
    `cost $;` (E1004), `"a $b"`, `use twinkle rgb_150;`, `snippet twinkle $source { connect $source; }`. *Probe:*
    drop `VARIABLE` from the TS E2009 touch rule: `fps$x;` must fail its expected file; restore.
 3. Python's `test_conformance.py` runs `variables.json` and passes. *Probe:* remove `LONE_DOLLAR` from Python's
    E1004 classification: the `cost $;` case must fail; restore.
 4. TS tracer test (`ts/src/load/tracer.test.ts`): loading `set $pixels 2284;\ngraph {\n  node DdpSink leds { max_count $pixels; }\n}\n`
-   through `villanelle({ source: memorySource({ "main.conf": ... }) })` gives `max_count`'s argument with text
+   through `knobly({ source: memorySource({ "main.conf": ... }) })` gives `max_count`'s argument with text
    `2284`, `origin.written` at `main.conf` 0:12 and `origin.via` = one `variable pixels` step at 2:32.
    *Probe:* set `via` to `[]` for variable values: the test fails; restore.
 5. Same file with `$pixel` misspelt: `loaded.diagnostics` = one E5001 at the `$pixel` token; `leds.unreadable` holds
@@ -344,7 +344,7 @@ not edit them: a disagreement with §1 is an erratum.
 
 ---
 
-## S2: the TypeScript low-level API (`vil-stq.3`)
+## S2: the TypeScript low-level API (`kno-stq.3`)
 
 **Owns:** `ts/**` (S1's files included, now S2's). Nothing outside `ts/`.
 
@@ -358,7 +358,7 @@ Private modules are the implementer's (`load/values.ts` is the one home of the v
 **Acceptance criteria, each with its mutation probe:**
 1. The TS load-conformance runner passes every case in `conformance/load/cases.json` (the `needs` filter removed).
    *Probe:* make snippet bodies see use-site variables: `load-snippet-lexical` fails; restore.
-2. Each rule of §1.2 has a unit test through `villanelle(...)`: reserved names, set (incl. E5009), handed-in wins,
+2. Each rule of §1.2 has a unit test through `knobly(...)`: reserved names, set (incl. E5009), handed-in wins,
    `$name` in values/lists/bounds, snippet/use (E5003, E5004, E5005, E5010, E5011), extension block (E5012), limits
    (E5006, E5007, E5008 with a small fan-out snippet), value rules at load. *Probe:* lower the depth limit check from
    `> 16` to `> 17`: the E5007 test fails; restore.
@@ -392,7 +392,7 @@ Private modules are the implementer's (`load/values.ts` is the one home of the v
 
 ---
 
-## S3: the Python low-level API (`vil-stq.4`)
+## S3: the Python low-level API (`kno-stq.4`)
 
 **Owns:** `py/**` (S1's files included, now S3's). Nothing outside `py/`.
 
@@ -417,7 +417,7 @@ probe applied to the Python code. Plus:
 
 ---
 
-## S4: docs (`vil-9vn.1`)
+## S4: docs (`kno-9vn.1`)
 
 **Owns:** `README.md`, `design/RECORD.md`, `ts/README.md`, `py/README.md`, `docs/language.md` (new),
 `docs/low-level-api.md` (new). Runs after S2 and S3.
@@ -437,7 +437,7 @@ review, never fail a code slice).
 
 - **Tier 1** stays tested through the syntax conformance corpus (byte-identical in both languages) plus recovery
   tests. New syntax rides the same corpus (`variables.json`).
-- **Load layer, each language in isolation:** every test goes through the public `villanelle(...)` / `Processor`
+- **Load layer, each language in isolation:** every test goes through the public `knobly(...)` / `Processor`
   with `memorySource`; no test reaches into private modules except the value-rules module's own table tests. The
   document source is the seam: a counting or failing fake source tests read-once, E3001 and E3004 without a disk.
 - **Cross-language conformance boundary:** `conformance/load/` is the contract for R17 (identical codes, places,
@@ -464,7 +464,7 @@ review, never fail a code slice).
 
 | Today | This build | Cost |
 |---|---|---|
-| `IAstDocument`/`IAstDirective` facade, `parseDocument` (TS and Python) | `ILoaded`/`IDirective` through `villanelle(...).load` | the facade and its tests are rewritten; synchronous single-text reading now needs a processor and `memorySource` (async in TS) |
+| `IAstDocument`/`IAstDirective` facade, `parseDocument` (TS and Python) | `ILoaded`/`IDirective` through `knobly(...).load` | the facade and its tests are rewritten; synchronous single-text reading now needs a processor and `memorySource` (async in TS) |
 | `parseGraph` with a `DocumentLoader`, include hard-coded, E2006 a syntax code | the document source port (`resolve`/`read`) owned by the processor, include an extension, E3005 | `node.ts`/`browser.ts` loaders become sources; glob rules move into the file source and `memorySource` |
 | `valueOf` (lists throw, any escape decodes) | `IArgument` readers; lists read; only six escapes (owner v6 values: A) | a string with `\q` that decoded to `q` is now E4003 |
 | `IGraphDiagnostic` (path only), no chain | `ILocatedDiagnostic` with `at` and `via` | every load-level diagnostic maker changes |

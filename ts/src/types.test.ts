@@ -22,7 +22,7 @@ import * as writtenModule from "./written/index.js";
 import type { Diagnostic, Override, Place, Step, PlaceKind, StepKind } from "./index.js";
 import { include } from "./include.js";
 import { render } from "./rendered/render.js";
-import { villanelle } from "./written/index.js";
+import { knobly } from "./written/index.js";
 import { type ConfigText, memorySource, quote, text } from "./index.js";
 import type { Change, ChangeKind } from "./rendered/index.js";
 import type { Node, NodeKind, Token, TokenKind } from "./syntax/index.js";
@@ -80,8 +80,8 @@ x "a" [1, 2] c[0~$n] c[$n];
 oops ] ;
 `;
 
-async function loaded(): Promise<{ statements: readonly Statement[]; graph: Awaited<ReturnType<ReturnType<typeof villanelle>["load"]>> }> {
-  const graph = await villanelle({ source: memorySource({ "main.conf": MAIN, "part.conf": "" }), extensions: [include()] }).load("main.conf", {
+async function loaded(): Promise<{ statements: readonly Statement[]; graph: Awaited<ReturnType<ReturnType<typeof knobly>["load"]>> }> {
+  const graph = await knobly({ source: memorySource({ "main.conf": MAIN, "part.conf": "" }), extensions: [include()] }).load("main.conf", {
     overrides: { o: text("1") },
   });
   return { statements: [...graph.root.block], graph };
@@ -210,7 +210,7 @@ describe("members exist only on the variants where they can succeed (section 2)"
   });
 
   it("a value's set keeps the handle and changes its kind (spec 6.1, milestone 5)", async () => {
-    const graph = await villanelle({ source: memorySource({ "main.conf": "@set $p 2284;\nmax_count $p;\n" }) }).load("main.conf");
+    const graph = await knobly({ source: memorySource({ "main.conf": "@set $p 2284;\nmax_count $p;\n" }) }).load("main.conf");
     const directive = kindOf([...graph.root.block], "directive");
     const value = directive.values[0];
     if (value?.kind !== "reference") throw new Error("not a reference");

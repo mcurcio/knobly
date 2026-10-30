@@ -2,9 +2,9 @@
 # The user guide includes the regions between the --8<-- markers; py/tests/test_examples.py runs this file and
 # compares what it prints with examples/expected/load_render.txt.
 # --8<-- [start:main]
-from villanelle import rendered, written
-from villanelle.files import file_source
-from villanelle.include import include
+from knobly import rendered, written
+from knobly.files import file_source
+from knobly.include import include
 
 # --8<-- [start:processor]
 config = written.Processor(source=file_source(), extensions=[include()])

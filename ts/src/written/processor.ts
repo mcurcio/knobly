@@ -13,12 +13,12 @@ import { checkDirectiveName } from "./names.js";
 import { readRoot } from "./read.js";
 import { MisuseError } from "../gen/api/errors.js";
 
-export function villanelle(options: ProcessorOptions): Processor {
+export function knobly(options: ProcessorOptions): Processor {
   const { source } = options;
   const extensions = new Map<string, Extension>();
   for (const extension of options.extensions ?? []) {
     const name: unknown = extension.directive;
-    requireText(name, "villanelle", "directive");
+    requireText(name, "knobly", "directive");
     checkDirectiveName(name);
     if (RESERVED.has(name) || extensions.has(name)) throw new MisuseError(`extension directive name taken: ${JSON.stringify(name)}`);
     extensions.set(name, extension);

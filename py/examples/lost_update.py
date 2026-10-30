@@ -4,9 +4,9 @@
 # --8<-- [start:main]
 from pathlib import Path
 
-import villanelle as vl
-from villanelle import written
-from villanelle.files import file_source, file_writer
+import knobly as vl
+from knobly import written
+from knobly.files import file_source, file_writer
 
 
 def set_host(graph: written.DocumentGraph) -> None:

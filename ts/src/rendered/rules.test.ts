@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { include } from "../include.js";
 import type { Extension } from "../written/index.js";
-import { villanelle } from "../written/index.js";
+import { knobly } from "../written/index.js";
 import { addresses, countingSource, loadFiles, loadText, only, originText, problems, rendered, texts } from "./testing.js";
 import { BadTextError, DiagnosticError, memorySource, MisuseError, ReadError } from "../index.js";
 
@@ -34,10 +34,10 @@ describe("rule 1: @ statements (spec 2.5, milestone 5)", () => {
     const source = memorySource({});
     const named = (directive: string): Extension => ({ directive, specs: () => [] });
     for (const bad of ["set", "use", "snippet", "@x", "a b", "1x", ""]) {
-      expect(() => villanelle({ source, extensions: [named(bad)] }), bad).toThrow(MisuseError);
+      expect(() => knobly({ source, extensions: [named(bad)] }), bad).toThrow(MisuseError);
     }
-    expect(() => villanelle({ source, extensions: [named("x"), named("x")] })).toThrow(MisuseError);
-    expect(() => villanelle({ source, extensions: [named("include2")] })).not.toThrow();
+    expect(() => knobly({ source, extensions: [named("x"), named("x")] })).toThrow(MisuseError);
+    expect(() => knobly({ source, extensions: [named("include2")] })).not.toThrow();
   });
 });
 
@@ -293,7 +293,7 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
 
   it("reads a file included at two places once: one graph node, two edges (R21)", async () => {
     const { source, reads } = countingSource({ "main.conf": 'a { @include "p.conf"; }\nb { @include "p.conf"; }\n', "p.conf": "x 1;\n" });
-    const loaded = await rendered(villanelle({ source, extensions: [include()] }), "main.conf");
+    const loaded = await rendered(knobly({ source, extensions: [include()] }), "main.conf");
     expect(loaded.diagnostics).toEqual([]);
     expect([...reads]).toEqual([
       ["main.conf", 1],
@@ -326,7 +326,7 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
       read: (path) => (path === "main.conf" ? Promise.resolve('@include "other";\n') : Promise.reject(new Error("gone"))),
     });
     for (const resolve of [false, true]) {
-      const loaded = await rendered(villanelle({ source: failing(resolve), extensions: [include()] }), "main.conf");
+      const loaded = await rendered(knobly({ source: failing(resolve), extensions: [include()] }), "main.conf");
       expect(problems(loaded.diagnostics)).toEqual([["E3004", "main.conf:0:0"]]);
       expect(loaded.diagnostics[0]?.message).toContain(resolve ? "gone" : "network down");
       expect(loaded.unreadable.map((u) => u.reason)).toEqual(["extension"]);
@@ -343,11 +343,11 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
       read: (path) => Promise.resolve((path === "main.conf" ? '@include "p.conf";\n' : read) as string),
     });
     for (const [resolve, read] of [["p.conf", "x;"], [["p.conf"], 42]] as const) {
-      const loaded = await rendered(villanelle({ source: source(resolve, read), extensions: [include()] }), "main.conf");
+      const loaded = await rendered(knobly({ source: source(resolve, read), extensions: [include()] }), "main.conf");
       expect(problems(loaded.diagnostics)).toEqual([["E3004", "main.conf:0:0"]]);
     }
     const root: ReturnType<typeof memorySource> = { resolve: () => Promise.resolve("main.conf" as unknown as readonly string[]), read: () => Promise.resolve("") };
-    await expect(villanelle({ source: root }).load("main.conf")).rejects.toBeInstanceOf(ReadError);
+    await expect(knobly({ source: root }).load("main.conf")).rejects.toBeInstanceOf(ReadError);
   });
 
   it("rejects the load with a ReadError (not a diagnostic, not E3004) when the source has no root file", async () => {

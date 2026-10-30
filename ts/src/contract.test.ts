@@ -6,35 +6,35 @@
 
 import { describe, expect, it } from "vitest";
 
-import * as villanelleModule from "./index.js";
-import { BadTextError, checkLostUpdates, DetachedError, DiagnosticError, LostUpdateError, memorySource, memoryWriter, MisuseError, ReadError, SaveError, VillanelleError } from "./index.js";
+import * as knoblyModule from "./index.js";
+import { BadTextError, checkLostUpdates, DetachedError, DiagnosticError, LostUpdateError, memorySource, memoryWriter, MisuseError, ReadError, SaveError, KnoblyError } from "./index.js";
 import { parse } from "./syntax/parse.js";
 import { text } from "./index.js";
 import { render } from "./rendered/index.js";
-import { type DocumentGraph, villanelle } from "./written/index.js";
+import { type DocumentGraph, knobly } from "./written/index.js";
 
 describe("the error classes (spec 2.8; spec/contract.md 4.2)", () => {
-  it("put every expected outcome under VillanelleError and every program bug outside it", () => {
+  it("put every expected outcome under KnoblyError and every program bug outside it", () => {
     const tree: [new (...args: never[]) => Error, new (...args: never[]) => Error][] = [
-      [DiagnosticError, VillanelleError],
-      [ReadError, VillanelleError],
-      [SaveError, VillanelleError],
+      [DiagnosticError, KnoblyError],
+      [ReadError, KnoblyError],
+      [SaveError, KnoblyError],
       [LostUpdateError, SaveError],
-      [BadTextError, VillanelleError],
+      [BadTextError, KnoblyError],
       [DetachedError, ReferenceError],
       [MisuseError, Error],
-      [VillanelleError, Error],
+      [KnoblyError, Error],
     ];
     for (const [cls, parent] of tree) expect(cls.prototype instanceof parent, `${cls.name} extends ${parent.name}`).toBe(true);
-    for (const bug of [DetachedError, MisuseError]) expect(bug.prototype instanceof VillanelleError, bug.name).toBe(false);
+    for (const bug of [DetachedError, MisuseError]) expect(bug.prototype instanceof KnoblyError, bug.name).toBe(false);
     expect(MisuseError.prototype instanceof TypeError).toBe(false);
     expect(ReadError.prototype instanceof DiagnosticError).toBe(false);
     expect(new DetachedError("x").name).toBe("DetachedError");
     expect(new MisuseError("x").name).toBe("MisuseError");
     expect(new ReadError("x", ["a"]).name).toBe("ReadError");
     expect(new LostUpdateError(["a", "b"]).name).toBe("LostUpdateError");
-    expect("NoSetLineError" in villanelleModule).toBe(false);
-    expect("EditError" in villanelleModule).toBe(false);
+    expect("NoSetLineError" in knoblyModule).toBe(false);
+    expect("EditError" in knoblyModule).toBe(false);
   });
 
   it("build a bad text error's message from its diagnostics' people forms", () => {
@@ -43,8 +43,8 @@ describe("the error classes (spec 2.8; spec/contract.md 4.2)", () => {
     expect(new BadTextError(parse("x {").diagnostics).message).toMatch(/^bad text: 1:4: E2003: [^;]+$/);
   });
 
-  it("a detached handle throws DetachedError, a program bug outside VillanelleError", async () => {
-    const graph = await villanelle({ source: memorySource({ "main.conf": "a 1;\n" }) }).load("main.conf");
+  it("a detached handle throws DetachedError, a program bug outside KnoblyError", async () => {
+    const graph = await knobly({ source: memorySource({ "main.conf": "a 1;\n" }) }).load("main.conf");
     const [a] = graph.root.block;
     a?.remove();
     let thrown: unknown;
@@ -55,13 +55,13 @@ describe("the error classes (spec 2.8; spec/contract.md 4.2)", () => {
     }
     expect(thrown).toBeInstanceOf(DetachedError);
     expect(thrown).toBeInstanceOf(ReferenceError);
-    expect(thrown).not.toBeInstanceOf(VillanelleError);
+    expect(thrown).not.toBeInstanceOf(KnoblyError);
   });
 });
 
 describe("save (writer)", () => {
   it("refuses a writer without a write method with TypeError, before anything", async () => {
-    const graph = await villanelle({ source: memorySource({ "main.conf": "a 1;\n" }) }).load("main.conf");
+    const graph = await knobly({ source: memorySource({ "main.conf": "a 1;\n" }) }).load("main.conf");
     graph.root.block.directives()[0]?.set(text("2"));
     const write = (): Promise<void> => Promise.resolve();
     const error: unknown = await graph.save(write as unknown as Parameters<DocumentGraph["save"]>[0]).catch((e: unknown) => e);
@@ -76,7 +76,7 @@ describe("save (writer)", () => {
 describe("the memory adapters (spec/contract.md 5)", () => {
   it("share one object: a save through memoryWriter is what the next load reads", async () => {
     const files: Record<string, string> = { "main.conf": "a 1;\n" };
-    const processor = villanelle({ source: memorySource(files) });
+    const processor = knobly({ source: memorySource(files) });
     const graph = await processor.load("main.conf");
     graph.root.block.directives()[0]?.set(text("2"));
     expect(await graph.save(memoryWriter(files))).toEqual(["main.conf"]);
@@ -86,14 +86,14 @@ describe("the memory adapters (spec/contract.md 5)", () => {
 
   it("memorySource reads the object live: a key added after it was made is found", async () => {
     const files: Record<string, string> = {};
-    const processor = villanelle({ source: memorySource(files) });
+    const processor = knobly({ source: memorySource(files) });
     files["late.conf"] = "x;\n";
     expect((await processor.load("late.conf")).root.text).toBe("x;\n");
   });
 
   it("memoryWriter refuses a lost update with a LostUpdateError, raised by save as it is, writing nothing", async () => {
     const files: Record<string, string> = { "main.conf": "a 1;\n", "b.conf": "b;\n" };
-    const graph = await villanelle({ source: memorySource(files) }).load("main.conf");
+    const graph = await knobly({ source: memorySource(files) }).load("main.conf");
     graph.root.block.directives()[0]?.set(text("2"));
     files["main.conf"] = "changed;\n";
     const error: unknown = await graph.save(memoryWriter(files)).catch((e: unknown) => e);
@@ -138,7 +138,7 @@ describe("the memory adapters (spec/contract.md 5)", () => {
 
 describe("render (graph) on the public low level (spec 7.0)", () => {
   it("takes any object with the document graph's public members", async () => {
-    const graph = await villanelle({ source: memorySource({ "main.conf": "@set $a 1;\nx $a { y; }\n" }) }).load("main.conf");
+    const graph = await knobly({ source: memorySource({ "main.conf": "@set $a 1;\nx $a { y; }\n" }) }).load("main.conf");
     const facade: DocumentGraph = {
       get root() {
         return graph.root;
@@ -161,7 +161,7 @@ describe("render (graph) on the public low level (spec 7.0)", () => {
   });
 
   it("expand () is a snapshot: the same object until an edit, a new one after", async () => {
-    const graph = await villanelle({ source: memorySource({ "main.conf": "x 1;\n" }) }).load("main.conf");
+    const graph = await knobly({ source: memorySource({ "main.conf": "x 1;\n" }) }).load("main.conf");
     const first = graph.expand();
     expect(graph.expand()).toBe(first);
     const [x] = first.block;
@@ -174,7 +174,7 @@ describe("render (graph) on the public low level (spec 7.0)", () => {
   });
 
   it("builds the rendered directive on the expansion's own objects (spec 7.0)", async () => {
-    const graph = await villanelle({ source: memorySource({ "main.conf": "@set $p [1, 2];\nx $p;\nbad $nope;\nb { c 1; }\n" }) }).load("main.conf");
+    const graph = await knobly({ source: memorySource({ "main.conf": "@set $p [1, 2];\nx $p;\nbad $nope;\nb { c 1; }\n" }) }).load("main.conf");
     const expansion = graph.expand();
     const rendered = render(graph);
     expect(rendered.block.at(0)?.values).toBe(expansion.block.at(0)?.values);

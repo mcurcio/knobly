@@ -4,12 +4,12 @@
 // --8<-- [start:main]
 import { readFileSync, writeFileSync } from "node:fs";
 
-import { villanelle } from "villanelle/written";
-import { render, type KeyRule } from "villanelle/rendered";
-import { include } from "villanelle/include";
-import { fileSource } from "villanelle/node";
+import { knobly } from "knobly/written";
+import { render, type KeyRule } from "knobly/rendered";
+import { include } from "knobly/include";
+import { fileSource } from "knobly/node";
 
-const config = villanelle({ source: fileSource(), extensions: [include()] });
+const config = knobly({ source: fileSource(), extensions: [include()] });
 const before = render(await config.load("main.conf"));
 
 const edited = readFileSync("main.conf", "utf8")

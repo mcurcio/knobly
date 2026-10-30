@@ -3,8 +3,8 @@
 // nlohmann/json and Boost.JSON refuse. Strings hold UTF-8 (WTF-8) bytes; output is ASCII only. Test code, never part
 // of the library. Its WTF-8 rule is the protocol's, fixed; the library's decode policy (detail/text_in.hpp) is
 // provisional and may change apart from it, so the codec decodes for itself.
-#ifndef VILLANELLE_CONFORMANCE_JSON_HPP
-#define VILLANELLE_CONFORMANCE_JSON_HPP
+#ifndef KNOBLY_CONFORMANCE_JSON_HPP
+#define KNOBLY_CONFORMANCE_JSON_HPP
 
 #include <cstddef>
 #include <cstdint>
@@ -406,4 +406,4 @@ inline std::string dump(const value& v) {
 
 }  // namespace adapter::json
 
-#endif  // VILLANELLE_CONFORMANCE_JSON_HPP
+#endif  // KNOBLY_CONFORMANCE_JSON_HPP

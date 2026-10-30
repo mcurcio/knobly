@@ -1,10 +1,10 @@
-"""villanelle's own parser generator (design.md 1.5; frozen-m1.md section 3): reads grammar/Villanelle.g4 and writes a
+"""knobly's own parser generator (design.md 1.5; frozen-m1.md section 3): reads grammar/Knobly.g4 and writes a
 header-only C++ lexer and recursive-descent parser. Python 3.9+ standard library only, like tools/api/, but for the
 pinned clang-format the output goes through (the C++ Language's formatter in tools/api/emit_cpp.py, run by
 tools/api/formatter.py, as every generated C++ file is).
 
-    python3 tools/parser/gen.py cpp      -> cpp/include/villanelle/detail/syntax/parser.gen.hpp (never committed)
-    python3 tools/parser/gen.py --check  -> the generator accepts grammar/Villanelle.g4, refuses every grammar in
+    python3 tools/parser/gen.py cpp      -> cpp/include/knobly/detail/syntax/parser.gen.hpp (never committed)
+    python3 tools/parser/gen.py --check  -> the generator accepts grammar/Knobly.g4, refuses every grammar in
                                             tools/planted-parser/ for the reason its first line names, the .g4's tree
                                             annotations match the .ebnf's, and test_parser.py passes; prints one
                                             summary line, exits 1 on any failure
@@ -32,10 +32,10 @@ import lookahead
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
-GRAMMAR = REPO / "grammar" / "Villanelle.g4"
-EBNF = REPO / "grammar" / "villanelle.ebnf"
+GRAMMAR = REPO / "grammar" / "Knobly.g4"
+EBNF = REPO / "grammar" / "knobly.ebnf"
 PLANTED = REPO / "tools" / "planted-parser"
-OUT = REPO / "cpp" / "include" / "villanelle" / "detail" / "syntax" / "parser.gen.hpp"
+OUT = REPO / "cpp" / "include" / "knobly" / "detail" / "syntax" / "parser.gen.hpp"
 REFUSED = re.compile(r"^// refused: (.+)$", re.M)  # a planted grammar's first line: what its refusal must say
 
 

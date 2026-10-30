@@ -1,24 +1,24 @@
 // A program as a consumer writes it, built three ways by cpp/tests/consumer/check.sh (CI's C++ package job): with
 // FetchContent of the release source archive (CMakeLists.txt here), with add_subdirectory of the extracted archive
-// (../consumer-subdirectory/), and against the single header alone (-DVILLANELLE_SINGLE_HEADER, the release asset
-// villanelle.hpp on the include path and nothing else). It loads two texts from memory with an include and a
+// (../consumer-subdirectory/), and against the single header alone (-DKNOBLY_SINGLE_HEADER, the release asset
+// knobly.hpp on the include path and nothing else). It loads two texts from memory with an include and a
 // variable, renders them and prints one line per sink; it exits 0 only when the output is the expected one.
-#ifdef VILLANELLE_SINGLE_HEADER
-#include <villanelle.hpp>
+#ifdef KNOBLY_SINGLE_HEADER
+#include <knobly.hpp>
 #else
-#include <villanelle/extensions.hpp>
-#include <villanelle/rendered.hpp>
-#include <villanelle/villanelle.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/extensions.hpp>
+#include <knobly/knobly.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/written.hpp>
 #endif
 
 #include <iostream>
 #include <memory>
 #include <string>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 int main() {
     auto files = std::make_shared<vl::ordered_map<std::string, std::string>>();

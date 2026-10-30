@@ -13,7 +13,7 @@
 import * as antlr4 from "antlr4";
 
 import { MAX_NESTING } from "../gen/api/limits.js";
-import VillanelleParser from "../gen/VillanelleParser.js";
+import KnoblyParser from "../gen/KnoblyParser.js";
 import { isWordKind } from "./tokens.js";
 import type { TokenRange } from "../gen/api/syntax.js";
 import { DiagnosticCode, describe } from "../gen/api/codes.js";
@@ -93,7 +93,7 @@ export function classifyError(kinds: readonly TokenKind[], at: number, from: num
 
 // --- the ANTLR strategy -----------------------------------------------------------------------------------------
 
-const P = VillanelleParser;
+const P = KnoblyParser;
 const EOF = -1;
 
 /** The parts of an ANTLR rule context the strategy reads (antlr4's typings are incomplete). */
@@ -286,7 +286,7 @@ class Recovery extends DefaultErrorStrategy {
  * Install per-statement recovery on a parser whose token stream is already filled. Each error is passed to
  * `report` once, in the order found.
  */
-export function installRecovery(parser: VillanelleParser, report: (diagnostic: RawDiagnostic) => void): void {
+export function installRecovery(parser: KnoblyParser, report: (diagnostic: RawDiagnostic) => void): void {
   const p = parser as unknown as Parser;
   p._errHandler = new Recovery(report);
   // Report a failed prediction where it fails, not after ANTLR's guess at an alternative that ends the rule.

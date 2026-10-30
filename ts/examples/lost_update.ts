@@ -4,11 +4,11 @@
 // --8<-- [start:main]
 import { readFileSync, writeFileSync } from "node:fs";
 
-import { LostUpdateError, quote } from "villanelle";
-import { villanelle, type DocumentGraph } from "villanelle/written";
-import { fileSource, fileWriter } from "villanelle/node";
+import { LostUpdateError, quote } from "knobly";
+import { knobly, type DocumentGraph } from "knobly/written";
+import { fileSource, fileWriter } from "knobly/node";
 
-const config = villanelle({ source: fileSource() });
+const config = knobly({ source: fileSource() });
 
 function setHost(graph: DocumentGraph): void {
   graph.root.block.directives("server")[0]?.block?.directives("host")[0]?.set(quote("0.0.0.0"));

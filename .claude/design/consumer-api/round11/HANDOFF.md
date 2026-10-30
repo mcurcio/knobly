@@ -1,7 +1,7 @@
 # Round 11 handoff: the low-level consumer API
 
 Overnight run of 2026-10-28. Branch `feat/consumer-api-low-level`, PR
-https://github.com/mcurcio/villanelle/pull/3 (open, into `main`; the owner merges).
+https://github.com/mcurcio/knobly/pull/3 (open, into `main`; the owner merges).
 
 ## What landed
 
@@ -9,10 +9,10 @@ https://github.com/mcurcio/villanelle/pull/3 (open, into `main`; the owner merge
 |--------|------|------|
 | 3cf7460 | architect | Frozen interfaces for the low-level API, TypeScript and Python |
 | 20b763d | architect | Slice pages (`slices.md`), decisions, design record |
-| 4d55efe | S1 (vil-9ze.4) | Grammar: variables (`$name`), slice bounds from variables, lone `$` is E1004; syntax corpus `conformance/variables.json`; 24 load cases in `conformance/load/`; rasl fixtures in `fixtures/rasl/`; TypeScript tracer for `load` |
-| 08e0ff9 | S3 (vil-stq.4) | Python low-level API: expansion rules 1-12, readers, addresses and key rule, diff, diagnostics sink, `memory_source`/`file_source`, `include` |
-| f69dda9 | S2 (vil-stq.3) | TypeScript low-level API: the same, plus `createFileSource`/`createFetchSource`; old facade and graph code deleted |
-| b660737 | S4 (vil-9vn.1) | `docs/language.md`, `docs/low-level-api.md`, `design/RECORD.md`, the three READMEs |
+| 4d55efe | S1 (kno-9ze.4) | Grammar: variables (`$name`), slice bounds from variables, lone `$` is E1004; syntax corpus `conformance/variables.json`; 24 load cases in `conformance/load/`; rasl fixtures in `fixtures/rasl/`; TypeScript tracer for `load` |
+| 08e0ff9 | S3 (kno-stq.4) | Python low-level API: expansion rules 1-12, readers, addresses and key rule, diff, diagnostics sink, `memory_source`/`file_source`, `include` |
+| f69dda9 | S2 (kno-stq.3) | TypeScript low-level API: the same, plus `createFileSource`/`createFetchSource`; old facade and graph code deleted |
+| b660737 | S4 (kno-9vn.1) | `docs/language.md`, `docs/low-level-api.md`, `design/RECORD.md`, the three READMEs |
 | 5405aad | fix round 1 | One variable lookup rule, one root path, E5012 kind, reserved extension names, E3005 placement and Python-only fixes (F1-01..F1-09); 6 new load cases (30 total) |
 | 9db43f2 | close | `.beads/issues.jsonl` snapshot |
 
@@ -56,7 +56,7 @@ one line each with reason and the alternative. The ones that change behaviour a 
 - Small duplications: Python's two `error()` bodies; TS `reasonOf`/`place`; `include` builds
   E3005 by hand.
 - TS file source returns absolute paths, Python relative ones.
-- For the sugar bead vil-xlo: its E6xxx codes must go in core's registry; round 10's include
+- For the sugar bead kno-xlo: its E6xxx codes must go in core's registry; round 10's include
   depth option is gone.
 - No load case yet for E5007 depth, E5008, handed-in or list-held slice bounds, or E5003 for a
   snippet whose definition is not visible.
@@ -79,11 +79,11 @@ NOT RUN:
 
 ## How to resume
 
-1. Work in `/Volumes/Dock/Home/Code/villanelle/.claude/worktrees/consumer-api-build` on
+1. Work in `/Volumes/Dock/Home/Code/knobly/.claude/worktrees/consumer-api-build` on
    `feat/consumer-api-low-level`; Node 24.14.1 (`nvm use 24.14.1`), caches under
    `/Volumes/Dock/Home/.cache`.
 2. Read the owner's PR comment replies, then this file's "Open for the owner".
 3. For F1-10, change rule 7 or L2 per his answer, update `load-include-exports`, add a load case.
 4. Checks: `bash tools/check.sh`; `corepack pnpm -C ts test|typecheck|lint`;
    `(cd py && uv run pytest && uv run ruff check && uv run ruff format --check && uv run mypy)`.
-5. Gate bead vil-9vn stays open until the owner reviews the PR.
+5. Gate bead kno-9vn stays open until the owner reviews the PR.

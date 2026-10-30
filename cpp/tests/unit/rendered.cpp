@@ -1,7 +1,7 @@
 // The rendered layer (spec 7; frozen-m2.md 6): a walk whose descend skips a subtree, closest, addresses under a key
 // rule, each kind of diff change, and a render that a directive keeps alive after every other handle is gone.
-#include <villanelle/rendered.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/written.hpp>
 
 #include <optional>
 #include <string>
@@ -12,9 +12,9 @@
 
 #include "written_fixture.hpp"
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 namespace {
 

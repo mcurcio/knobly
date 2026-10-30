@@ -1,6 +1,6 @@
 /**
  * The first-party include extension (R20), as postcss-import is a PostCSS plugin; the package entry
- * "villanelle/include" exports it. `@include "palettes.conf";`, or with this place's own variables (R22):
+ * "knobly/include" exports it. `@include "palettes.conf";`, or with this place's own variables (R22):
  * `@include "palettes.conf" { @set $hue 0.3; }`. What an included file sees, and where its own `set` and `snippet`
  * lines are visible, is spec/expansion.md.
  */
@@ -12,7 +12,7 @@ import { DiagnosticCode, describe } from "../gen/api/codes.js";
 import { DiagnosticError } from "../gen/api/errors.js";
 import { ValueKind } from "../gen/api/kinds.js";
 
-// The include ordering both bindings share: vil-bgz.1.
+// The include ordering both bindings share: kno-bgz.1.
 export function include(): Extension {
   return {
     directive: "include",

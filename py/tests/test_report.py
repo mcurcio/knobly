@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-import villanelle as vl
-from villanelle import rendered, written
-from villanelle.include import include
+import knobly as vl
+from knobly import rendered, written
+from knobly.include import include
 
 
 def _render(processor: written.Processor, overrides: dict[str, vl.ConfigText] | None = None) -> rendered.Rendered:

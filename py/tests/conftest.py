@@ -1,4 +1,4 @@
-"""Regenerates the parser (tools/gen.sh py) before any test imports villanelle, as the TypeScript test script does:
+"""Regenerates the parser (tools/gen.sh py) before any test imports knobly, as the TypeScript test script does:
 generated code is never committed (owner, 2026-10-23), and a stale copy would hide a grammar change."""
 
 from __future__ import annotations

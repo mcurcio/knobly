@@ -1,6 +1,6 @@
 """The layer check (spec 5, "Layer direction"; owner, 2026-10-29: "The low level shouldn't "depend on" the middle
-layer"): no module of the package but the rendered layer itself imports ``villanelle.rendered`` or the rendered
-layer's generated declarations (``villanelle._api.rendered``, whose annotations name ``villanelle.rendered``'s public
+layer"): no module of the package but the rendered layer itself imports ``knobly.rendered`` or the rendered
+layer's generated declarations (``knobly._api.rendered``, whose annotations name ``knobly.rendered``'s public
 classes), in any form, ``if TYPE_CHECKING:`` blocks included. The package entry point is no exception: it holds only
 the shared and io layers, which sit below the rendered one (binding guide rule 9). An allow-list over every module,
 so an indirect import through a shared module is caught too (prior art: import-linter's layers contract)."""
@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-PACKAGE = Path(__file__).resolve().parents[1] / "src" / "villanelle"
-RENDERED = ("villanelle.rendered", "villanelle._api.rendered")
+PACKAGE = Path(__file__).resolve().parents[1] / "src" / "knobly"
+RENDERED = ("knobly.rendered", "knobly._api.rendered")
 """The rendered layer: its package and its generated declarations."""
 
 
@@ -55,8 +55,8 @@ def governed() -> list[Path]:
 
 def test_the_check_covers_the_low_level_the_shared_modules_and_the_generated_ones() -> None:
     names = {module_name(path) for path in governed()}
-    assert {"villanelle.written._model", "villanelle.written._processor", "villanelle.written._value"} <= names
-    assert {"villanelle", "villanelle._api.kinds", "villanelle.include"} <= names
+    assert {"knobly.written._model", "knobly.written._processor", "knobly.written._value"} <= names
+    assert {"knobly", "knobly._api.kinds", "knobly.include"} <= names
     assert not any(in_rendered(name) for name in names)
 
 
@@ -69,47 +69,45 @@ def test_no_module_below_the_rendered_layer_imports_it(path: Path) -> None:
 @pytest.mark.parametrize(
     "line",
     [
-        "import villanelle.rendered",
-        "import villanelle.rendered._tree as tree",
-        "from villanelle.rendered import Rendered",
-        "from villanelle.rendered._render import render",
-        "from villanelle import rendered",
+        "import knobly.rendered",
+        "import knobly.rendered._tree as tree",
+        "from knobly.rendered import Rendered",
+        "from knobly.rendered._render import render",
+        "from knobly import rendered",
         "from .. import rendered",
         "from ..rendered import Directive",
         "from ..rendered._tree import Directive",
-        "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from villanelle.rendered import Rendered",
+        "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from knobly.rendered import Rendered",
     ],
 )
 def test_the_check_bites_on_a_planted_import(line: str) -> None:
-    assert forbidden_imports(line, "villanelle.written._model", package=False) != []
+    assert forbidden_imports(line, "knobly.written._model", package=False) != []
 
 
 def test_the_check_passes_imports_of_other_layers() -> None:
-    source = (
-        "from villanelle import _origin\nfrom . import _bind\nfrom .._origin import Place\nimport villanelle.written"
-    )
-    assert forbidden_imports(source, "villanelle.written._model", package=False) == []
+    source = "from knobly import _origin\nfrom . import _bind\nfrom .._origin import Place\nimport knobly.written"
+    assert forbidden_imports(source, "knobly.written._model", package=False) == []
 
 
-# --- The second check: the rendered layer builds only on the low level's public API (vil-9fy; spec 7.0) -----------
+# --- The second check: the rendered layer builds only on the low level's public API (kno-9fy; spec 7.0) -----------
 
-WRITTEN = "villanelle.written"
+WRITTEN = "knobly.written"
 
 
 def public_written_names() -> frozenset[str]:
-    """``villanelle.written.__all__``, read from its source (no import, so the check needs no built package)."""
+    """``knobly.written.__all__``, read from its source (no import, so the check needs no built package)."""
     tree = ast.parse((PACKAGE / "written" / "__init__.py").read_text(encoding="utf-8"))
     for node in tree.body:
         if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets):
             value = ast.literal_eval(node.value)
             assert isinstance(value, list)
             return frozenset(str(name) for name in value)
-    raise AssertionError("villanelle.written has no __all__")
+    raise AssertionError("knobly.written has no __all__")
 
 
 def private_reaches(source: str, module: str, *, package: bool, public: frozenset[str]) -> list[str]:
     """Everything in ``source`` (a module of the rendered layer) that reaches the low level other than through
-    ``from villanelle.written import <public name>``: a submodule import in any form, a private or unlisted name, an
+    ``from knobly.written import <public name>``: a submodule import in any form, a private or unlisted name, an
     attribute starting with one ``_`` on anything but ``self`` or ``cls`` (dunders aside), and ``getattr`` with such a
     literal."""
     here = module.split(".") if package else module.split(".")[:-1]
@@ -131,7 +129,7 @@ def private_reaches(source: str, module: str, *, package: bool, public: frozense
             if target == WRITTEN:
                 if any(a.name not in public for a in node.names):
                     found.append(line)
-            elif low(target) or (target == "villanelle" and any(a.name == "written" for a in node.names)):
+            elif low(target) or (target == "knobly" and any(a.name == "written" for a in node.names)):
                 found.append(line)
         elif isinstance(node, ast.Attribute) and private(node.attr):
             if not (isinstance(node.value, ast.Name) and node.value.id in ("self", "cls")):
@@ -155,7 +153,7 @@ def rendered_modules() -> list[Path]:
 
 def test_the_public_check_covers_every_rendered_module() -> None:
     names = {module_name(path) for path in rendered_modules()}
-    assert {"villanelle.rendered", "villanelle.rendered._render", "villanelle.rendered._tree"} <= names
+    assert {"knobly.rendered", "knobly.rendered._render", "knobly.rendered._tree"} <= names
 
 
 @pytest.mark.parametrize("path", rendered_modules(), ids=lambda path: module_name(path))
@@ -168,18 +166,18 @@ def test_the_rendered_layer_reaches_the_low_level_only_through_its_public_api(pa
 @pytest.mark.parametrize(
     "line",
     [
-        "from villanelle.written import _document",
-        "from villanelle.written import _document, _graph",
-        "from villanelle.written import NotAPublicName",
-        "from villanelle.written._bind import BoundItem",
-        "from villanelle.written._model import DocumentGraph",
-        "import villanelle.written._graph",
-        "import villanelle.written",
-        "from villanelle import written",
+        "from knobly.written import _document",
+        "from knobly.written import _document, _graph",
+        "from knobly.written import NotAPublicName",
+        "from knobly.written._bind import BoundItem",
+        "from knobly.written._model import DocumentGraph",
+        "import knobly.written._graph",
+        "import knobly.written",
+        "from knobly import written",
         "from ..written import _bind",
         "from ..written.model import Statement",
         "from .. import written",
-        "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from villanelle.written._model import Statement",
+        "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from knobly.written._model import Statement",
         "doc = statement._doc",
         "x = after._block",
         "directive._freeze()",
@@ -188,18 +186,18 @@ def test_the_rendered_layer_reaches_the_low_level_only_through_its_public_api(pa
     ],
 )
 def test_the_public_check_bites_on_a_planted_private_reach(line: str) -> None:
-    found = private_reaches(line, "villanelle.rendered._render", package=False, public=public_written_names())
+    found = private_reaches(line, "knobly.rendered._render", package=False, public=public_written_names())
     assert found != []
 
 
 def test_the_public_check_passes_public_imports_and_own_private_state() -> None:
     source = (
-        "from villanelle.written import DocumentGraph, WrittenDirective\n"
-        "from villanelle.written import ExpandedWord\n"
+        "from knobly.written import DocumentGraph, WrittenDirective\n"
+        "from knobly.written import ExpandedWord\n"
         "from . import _tree\n"
         "self._block = ()\n"
         "x = cls._made\n"
         "y = after.block.__class__\n"
     )
-    found = private_reaches(source, "villanelle.rendered._render", package=False, public=public_written_names())
+    found = private_reaches(source, "knobly.rendered._render", package=False, public=public_written_names())
     assert found == []

@@ -2,10 +2,10 @@
 # The user guide includes the region between the --8<-- markers; py/tests/test_examples.py runs this file and compares
 # what it prints with examples/expected/variables.txt.
 # --8<-- [start:main]
-import villanelle as vl
-from villanelle import written
-from villanelle.files import file_source
-from villanelle.include import include
+import knobly as vl
+from knobly import written
+from knobly.files import file_source
+from knobly.include import include
 
 
 def line(place: vl.Place) -> str:

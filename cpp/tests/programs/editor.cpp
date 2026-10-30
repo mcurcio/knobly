@@ -3,16 +3,16 @@
 // the programs_editor test runs it in a fresh copy of tests/programs/editor/ and compares both files after. Kept as
 // the design writes it, so clang-format leaves it alone.
 // clang-format off
-#include <villanelle/villanelle.hpp>
-#include <villanelle/files.hpp>
-#include <villanelle/extensions.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/knobly.hpp>
+#include <knobly/files.hpp>
+#include <knobly/extensions.hpp>
+#include <knobly/written.hpp>
 
 #include <iostream>
 #include <string>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
+namespace vl = knobly;
+namespace vw = knobly::written;
 
 struct edits {                                       // kept as data so they can be applied again after a reload
     std::string pixels;

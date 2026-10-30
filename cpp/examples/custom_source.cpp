@@ -2,9 +2,9 @@
 // memory source and records every file it reads. ctest examples_custom_source compares what it prints with
 // examples/expected/custom_source.txt.
 // --8<-- [start:main]
-#include <villanelle/extensions.hpp>
-#include <villanelle/rendered.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/extensions.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/written.hpp>
 
 #include <iostream>
 #include <memory>
@@ -13,9 +13,9 @@
 #include <utility>
 #include <vector>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 // --8<-- [start:source]
 class recording_source : public vl::document_source {

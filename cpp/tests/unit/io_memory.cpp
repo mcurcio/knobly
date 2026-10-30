@@ -1,6 +1,6 @@
 // memory_source and memory_writer (spec 4.3): resolve through the shared POSIX join (relative, '..', absolute), globs
 // in the last segment, a missing key, reading the map at each call, and the writer's lost-update check.
-#include <villanelle/villanelle.hpp>
+#include <knobly/knobly.hpp>
 
 #include <algorithm>
 #include <memory>
@@ -11,7 +11,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-namespace vl = villanelle;
+namespace vl = knobly;
 
 namespace {
 

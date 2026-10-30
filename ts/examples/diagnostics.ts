@@ -2,12 +2,12 @@
 // for people. ts/examples/examples.test.ts runs this file and compares what it prints with
 // examples/expected/diagnostics.txt.
 // --8<-- [start:main]
-import { formatDiagnostic, villanelle } from "villanelle/written";
-import { render } from "villanelle/rendered";
-import { include } from "villanelle/include";
-import { fileSource } from "villanelle/node";
+import { formatDiagnostic, knobly } from "knobly/written";
+import { render } from "knobly/rendered";
+import { include } from "knobly/include";
+import { fileSource } from "knobly/node";
 
-const config = villanelle({ source: fileSource(), extensions: [include()] });
+const config = knobly({ source: fileSource(), extensions: [include()] });
 const graph = await config.load("main.conf");
 const tree = render(graph);
 // --8<-- [start:print]

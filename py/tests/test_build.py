@@ -11,7 +11,7 @@ from pathlib import Path
 
 PY = Path(__file__).resolve().parents[1]
 GENERATED = {
-    "_gen": {"VillanelleLexer.py", "VillanelleParser.py", "__init__.py"},
+    "_gen": {"KnoblyLexer.py", "KnoblyParser.py", "__init__.py"},
     "_api": {"__init__.py", "codes.py", "kinds.py", "limits.py"},
 }
 
@@ -25,28 +25,28 @@ def test_wheel_and_sdist_contain_the_generated_parser_and_api_lists(tmp_path: Pa
     with tarfile.open(sdist) as tf:
         sdist_names = tf.getnames()
     for folder, files in GENERATED.items():
-        assert {Path(n).name for n in wheel_names if n.startswith(f"villanelle/{folder}/")} >= files
-        assert {Path(n).name for n in sdist_names if f"/src/villanelle/{folder}/" in n} >= files
+        assert {Path(n).name for n in wheel_names if n.startswith(f"knobly/{folder}/")} >= files
+        assert {Path(n).name for n in sdist_names if f"/src/knobly/{folder}/" in n} >= files
 
 
 CONSUMER = """\
-from villanelle import memory_source
-from villanelle.include import include
-from villanelle.rendered import render
-from villanelle.written import Processor
+from knobly import memory_source
+from knobly.include import include
+from knobly.rendered import render
+from knobly.written import Processor
 
 graph = Processor(source=memory_source({"main.conf": "port 80;\\n"}), extensions=[include()]).load("main.conf")
 port: int = render(graph).block[0].values[0].integer()
-name: int = render(graph).block[0].name  # a str: the error proves villanelle's annotations reach the checker
+name: int = render(graph).block[0].name  # a str: the error proves knobly's annotations reach the checker
 """
 
 
 def test_a_consumer_type_checks_against_the_installed_wheel(tmp_path: Path) -> None:
-    """PEP 561: the wheel ships py.typed, so a program's type checker reads villanelle's annotations."""
+    """PEP 561: the wheel ships py.typed, so a program's type checker reads knobly's annotations."""
     subprocess.run(["uv", "build", "--wheel", "--quiet", "--out-dir", str(tmp_path / "dist"), str(PY)], check=True)
     [wheel] = (tmp_path / "dist").glob("*.whl")
     with zipfile.ZipFile(wheel) as zf:
-        assert "villanelle/py.typed" in zf.namelist()
+        assert "knobly/py.typed" in zf.namelist()
     venv = tmp_path / "venv"
     subprocess.run(["uv", "venv", "--quiet", str(venv)], check=True)
     python = venv / "bin" / "python"

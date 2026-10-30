@@ -4,11 +4,11 @@
 // and compares its output and exit status with tests/programs/sinks_expected/. Kept as the design writes it, so
 // clang-format leaves it alone.
 // clang-format off
-#include <villanelle/villanelle.hpp>
-#include <villanelle/files.hpp>
-#include <villanelle/extensions.hpp>
-#include <villanelle/written.hpp>
-#include <villanelle/rendered.hpp>
+#include <knobly/knobly.hpp>
+#include <knobly/files.hpp>
+#include <knobly/extensions.hpp>
+#include <knobly/written.hpp>
+#include <knobly/rendered.hpp>
 
 #include <cstdint>
 #include <cstdlib>
@@ -18,9 +18,9 @@
 #include <string>
 #include <vector>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 struct sink {
     std::string name;

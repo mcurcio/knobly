@@ -2,12 +2,12 @@
 // includes the regions between the --8<-- markers; ts/examples/examples.test.ts runs this file and compares what it
 // prints with examples/expected/quickstart.txt.
 // --8<-- [start:main]
-import { villanelle, type ExpandedValue } from "villanelle/written";
-import { render } from "villanelle/rendered";
-import { fileSource } from "villanelle/node";
+import { knobly, type ExpandedValue } from "knobly/written";
+import { render } from "knobly/rendered";
+import { fileSource } from "knobly/node";
 
 // --8<-- [start:load]
-const config = villanelle({ source: fileSource() });
+const config = knobly({ source: fileSource() });
 const tree = render(await config.load("app.conf"));
 // --8<-- [end:load]
 

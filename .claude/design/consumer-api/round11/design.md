@@ -1,10 +1,10 @@
-# Villanelle: the low-level API, tried by four real programs (round 11 design, revised)
+# Knobly: the low-level API, tried by four real programs (round 11 design, revised)
 
-**Status:** architect draft for the gate (vil-9vn), revised after the integrations · **Layer:** **[ System design ]** › Module › Feature · R15 tiers 1-2 only (the sugar is deferred, vil-xlo)
+**Status:** architect draft for the gate (kno-9vn), revised after the integrations · **Layer:** **[ System design ]** › Module › Feature · R15 tiers 1-2 only (the sugar is deferred, kno-xlo)
 
 **What the owner is asked:** does this read like an API rasl could really use? Three questions: who names a directive across reloads (§4), whether Python's `load` is synchronous (§5), and whether the DirectiveDelegator still ships (§6). The owner's page is `page-code.md`: it opens with rasl's code, copied from the checked files.
 
-He said on 2026-10-28: "it's not clear how practical these APIs are for a real integration." Four programs were written against the stubs: rasl in TypeScript (`integrate-rasl-ts`) and in Python (`integrate-rasl-py`), a third party's proxy with zod and pydantic (`integrate-third-party`), and the round-10 sugar rebuilt on top (`sugar-on-top-ts`, `sugar-on-top-py`). All pass their type checkers. None has run on villanelle, because no v10 parser exists yet (§8).
+He said on 2026-10-28: "it's not clear how practical these APIs are for a real integration." Four programs were written against the stubs: rasl in TypeScript (`integrate-rasl-ts`) and in Python (`integrate-rasl-py`), a third party's proxy with zod and pydantic (`integrate-third-party`), and the round-10 sugar rebuilt on top (`sugar-on-top-ts`, `sugar-on-top-py`). All pass their type checkers. None has run on knobly, because no v10 parser exists yet (§8).
 
 **Since the first draft:** six changes, each from what the programs ran into (§2). Two pieces were deleted (`whole`, `replaced`). Three were added (`Loaded.origin` and `Loaded.error()`, `collect`/`collecting`, the E6xxx band). One rule was stated (quoting means text), and `diff` now refuses a load with problems. The bead outline does not move materially: one unit gets smaller (diff) and one gets two small helpers (diagnostics).
 
@@ -62,7 +62,7 @@ graph {
 | both sugars | Changes come at their own address and an added subtree is listed once; inherited reads and refused changes are the sugar's to track | **Kept:** records, inheritance (R29) and `applied(failures)` are sugar concepts; `parent` and `walk` carry them |
 | sugar TS | The program reads the root file, and the include loader reads the rest | **Kept:** core does no I/O (R16). rasl hands the same reader to both |
 | sugar TS | Handed variables take one text, not `string[]` | **Kept:** the text is read the way the file is, so `--set` and the file never disagree |
-| sugar TS | Round 10's include `maxDepth` knob has nowhere to go | **Kept:** limits are villanelle's and shared with `use`. He never asked for a knob (numbers are parked) |
+| sugar TS | Round 10's include `maxDepth` knob has nowhere to go | **Kept:** limits are knobly's and shared with `use`. He never asked for a knob (numbers are parked) |
 
 The third party's extension (pydantic or zod: a directive into data, each schema error placed back on its value) took 110 lines in Python and 102 in TypeScript. That is evidence the native API is one an extension can wrap (R23, R25).
 
@@ -73,11 +73,11 @@ The third party's extension (pydantic or zod: a directive into data, each schema
 | | **TypeScript: PostCSS** | **Python: the standard `ast` module** |
 |---|---|---|
 | Why this one | A config-shaped language whose plugins do our three features: postcss-import, postcss-mixins (`@define-mixin name $arg`), postcss-simple-vars | The tree Python developers already read: nodes with `__match_args__`, read by `match`, carrying positions |
-| Made once, then used | `villanelle({ extensions, key })`, as `postcss([plugins])` | none: `vl.load(...)` is a function, as `ast.parse` |
+| Made once, then used | `knobly({ extensions, key })`, as `postcss([plugins])` | none: `vl.load(...)` is a function, as `ast.parse` |
 | Walking | `loaded.walk(cb)`, as `root.walk` | `vl.walk(node)`, as `ast.walk` (in written order) |
 | Located error | `d.error(msg, code)`, `loaded.error(...)`, as `node.error()` / `root.error()` | `raise d.error(...)`, as a located SyntaxError |
 | Keep going | `collect(errors, fn)` | `with vl.collecting(errors):`, as `contextlib.suppress` |
-| Our departures | read-only (editing is vil-uji); 0-based lines (R14) | problems are collected (R6); 0-based lines; readers are methods |
+| Our departures | read-only (editing is kno-uji); 0-based lines (R14) | problems are collected (R6); 0-based lines; readers are methods |
 
 **Identity** follows React's list `key`: the program names its children so identity survives reordering. **Change lists** follow the DOM's MutationRecord, which lists an added subtree once by its root. Also weighed: crossplane (no traces, no expansion), HCL (a range on every value, which `Origin` copies), Caddy's dispenser (turned down in round 8), tree-sitter/lezer/libcst (tier-1 tools).
 
@@ -124,7 +124,7 @@ interface Directive {
   readonly parent: Directive | undefined;
   readonly address: Address;
   readonly origin: Origin;
-  readonly node: Node;                              // its tier-1 node, for editing (vil-uji)
+  readonly node: Node;                              // its tier-1 node, for editing (kno-uji)
   walk(callback: (directive: Directive) => false | void): void;
   error(message: string, code: ProgramCode): DiagnosticError;
 }
@@ -144,7 +144,7 @@ interface Arg {
   error(message: string, code: ProgramCode): DiagnosticError;
 }
 
-type DiagnosticCode = `E${number}`;                 // 1-5xxx villanelle's, 6xxx the sugar's
+type DiagnosticCode = `E${number}`;                 // 1-5xxx knobly's, 6xxx the sugar's
 type ProgramCode = `${string}/${string}`;           // "rasl/unknown-node"
 
 type Change = Added | Removed | Changed;            // Changed: its own values differ, by text
@@ -157,7 +157,7 @@ interface Processor {
 declare function collect(into: Diagnostic[], read: () => void): void;
 ```
 
-### Python (`api-py/villanelle/__init__.pyi`; same concepts, Python spelling)
+### Python (`api-py/knobly/__init__.pyi`; same concepts, Python spelling)
 
 ```python
 @final
@@ -186,7 +186,7 @@ An **address** is where a directive lands in the expanded tree: one step per lev
 
 **Question: who names a directive among its siblings, so it keeps its identity when lines move?**
 
-| | **A. The program gives a key rule (recommended, shown)** | B. villanelle's fixed rule: a directive with a block is named by its values | C. Position only |
+| | **A. The program gives a key rule (recommended, shown)** | B. knobly's fixed rule: a directive with a block is named by its values | C. Position only |
 |---|---|---|---|
 | Evidence | rasl and both sugars wrote one; rasl TS names nodes by id, connects by what they connect, fills by port | would not name rasl's connects or fills | |
 | Cost | every program writes a rule until the sugar exists | changing a node's type is "removed + added"; a line with no block is named by position | inserting one node marks every later node changed |
@@ -202,9 +202,9 @@ An **address** is where a directive lands in the expanded tree: one step per lev
 
 Editing `set $pixels 2284` to `2400` lists `changed` at `graph › node leds › max_count` and at `… › connect crossfade_rgb pixels › repeat_until`, and never the `set` line. rasl's `planReload` turns that into a retune and a rewire of `leds`.
 
-**Includes** are a graph of files (`loaded.graph`: each file parsed once, R21), while in the walk the included directives stand where the `include` line was. Each one's `origin` and `node` point into its own file, so an edit can land there (R8). Include is an `Extension` made with its loader (R20). Depth, cycles and per-place variables are villanelle's, shared with `use`. rasl-py watches `loaded.graph.nodes` for file-change events.
+**Includes** are a graph of files (`loaded.graph`: each file parsed once, R21), while in the walk the included directives stand where the `include` line was. Each one's `origin` and `node` point into its own file, so an edit can land there (R8). Include is an `Extension` made with its loader (R20). Depth, cycles and per-place variables are knobly's, shared with `use`. rasl-py watches `loaded.graph.nodes` for file-change events.
 
-**Traceability.** `origin.written` is where the text is, and `via` lists the steps (variable, use, extension) that brought it here, innermost first. The third party's probe (real zod and pydantic, a stand-in villanelle) placed `rate` at `fast` in `use limits fast;`, via `$rps` at 5:10, via `use limits` at 12:5.
+**Traceability.** `origin.written` is where the text is, and `via` lists the steps (variable, use, extension) that brought it here, innermost first. The third party's probe (real zod and pydantic, a stand-in knobly) placed `rate` at `fast` in `use limits fast;`, via `$rps` at 5:10, via `use limits` at 12:5.
 
 **Diagnostics** carry a code, a message and an origin. `load` collects them all and never throws for the text; a reader throws one located error; `collect` keeps going. A whole-file problem is `loaded.error(...)`. `formatDiagnostic` prints `file:line:col: code: message`, the source line, a caret and one `via` line per step (rasl-ynq).
 
@@ -233,12 +233,12 @@ Editing `set $pixels 2284` to `2400` lists `changed` at `graph › node leds ›
 | `restart=True`, a changed node type, `changes.of(D)`, `@OnChange`, `applied(failures)` | `diff` by `address`, plus `parent` and `walk`; the sugar keeps the last applied load and works out "replaced" |
 | `ConfigError(at=...)`, its own codes; the include module | `arg.error()`, `Origin`, E6xxx; `Extension` |
 
-**Question: does the DirectiveDelegator (vil-stq) still ship?**
+**Question: does the DirectiveDelegator (kno-stq) still ship?**
 
 | | **A. No: its job is split (recommended)** | B. Ship a dispatch-by-name walker in this layer |
 |---|---|---|
 | Evidence | rasl and the third party read with `if` or `match`; the sugar does its own per-directive calls on top of the walk | |
-| Cost | vil-stq's acceptance text (hooks, typed `children/skip` results) is not met as written; vil-stq closes into vil-xlo | a third way to read a config; in Python it is subclass-based, the style he called "too class-inheritance driven" |
+| Cost | kno-stq's acceptance text (hooks, typed `children/skip` results) is not met as written; kno-stq closes into kno-xlo | a third way to read a config; in Python it is subclass-based, the style he called "too class-inheritance driven" |
 
 ---
 
@@ -251,7 +251,7 @@ Editing `set $pixels 2284` to `2400` lists `changed` at `graph › node leds ›
 - **A value's text is its identity for "changed"**, so `0.5` → `0.50` is listed. Both sugars skip equal values themselves.
 - **Scope:** a new token, an expansion pass, addresses and diff, readers (lists are unread today), and a Python include graph that does not exist (C7). All in both languages, with spec/ pages.
 
-**Deferred:** the sugar (vil-xlo), editing (vil-uji), severity and warnings, variables inside words (`join: whole`), conditionals and loops.
+**Deferred:** the sugar (kno-xlo), editing (kno-uji), severity and warnings, variables inside words (`join: whole`), conditionals and loops.
 
 **Tracer bullet:** rasl loads `family_room.conf` and `hyperhdr.conf` through `load` in TypeScript and Python. Both print the same node list, the same diagnostics for `integrate-rasl-ts/planted/family_room.bad.conf` (its header lists them), and the same plan after an edit to `set $pixels`. That proves expansion, origins, addresses and diff with identical codes and spans (R17). Non-goals: the sugar, editing, globs, speed.
 
@@ -273,7 +273,7 @@ Integration code changed only to keep compiling after the deletion: rasl-py `rel
 
 ### Reconcile with existing code (and the cost)
 
-| Today (villanelle `ts/`, `py/`) | This design | Cost |
+| Today (knobly `ts/`, `py/`) | This design | Cost |
 |---|---|---|
 | `IAstDocument`/`IAstDirective`: one file, unexpanded, identity by object (`ast.ts`) | `Loaded`/`Directive`: expanded, with address and origin | replaces the facade and rewrites its tests; dropping the `IAst` names needs the owner's OK |
 | `parseGraph`, include built into `parse-graph.ts` and `iterate.ts`, E2006 a syntax code | `load` plus the include `Extension`; the graph keeps its names (`DocumentGraph`, `DocumentNode`, `DocumentEdge`, `resolvedPath`) | include moves out of core (R20); E2006 becomes an extension code |
@@ -293,6 +293,6 @@ Integration code changed only to keep compiling after the deletion: rasl-py `rel
 | address | where a directive lands, one step per level: name, key, occurrence | identity for change lists | v15's "identity" |
 | key rule | the program's rule naming a directive among its siblings | stable addresses when lines move | the sugar's `key=True` |
 | extension | owns one directive name and gives files to splice in its place | include as a first-party plugin (R20) | round 10's "plugin" |
-| plain value | a value read by villanelle's one rule: number, true/false, text, slice, list | rasl's open property sets | R7's "villanelle's one rule" |
+| plain value | a value read by knobly's one rule: number, true/false, text, slice, list | rasl's open property sets | R7's "knobly's one rule" |
 
 *History: v10 approved the language · round 11: the low-level API · revised after four integrations (whole and replaced deleted; whole-file errors, collect, quoted-means-text).*

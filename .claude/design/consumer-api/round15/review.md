@@ -1,4 +1,4 @@
-## Villanelle PR 5: critical review
+## Knobly PR 5: critical review
 
 ### 1. Bottom line
 
@@ -34,16 +34,16 @@ The core is sound: the grammar is proven free of ambiguity, the syntax tree keep
 ### 4. By area
 
 #### 4.1 Language concepts
-- `grammar/Villanelle.g4:14` (`separator : ';' | NEWLINE`) with `:29` (words may start with a digit): `ranges 0.0627⏎ 0.922;` renders as `ranges 0.0627` plus a directive named `0.922`, with no diagnostic.
+- `grammar/Knobly.g4:14` (`separator : ';' | NEWLINE`) with `:29` (words may start with a digit): `ranges 0.0627⏎ 0.922;` renders as `ranges 0.0627` plus a directive named `0.922`, with no diagnostic.
 - `docs/language.md:197-203`: a file containing `set $port 80;` included twice in one block gives E5002. This breaks your requirement (2026-10-25) that "each instance of the file would have its own bindings".
 - `spec/spec.md:625-628`: the override `{name: x}` turns both per-place `node leds` and `node porch` into `node x`, silently.
-- `Villanelle.g4:30-31`: the two quote styles behave identically, so `'C:\temp\new'` reads as a tab and a newline.
+- `Knobly.g4:30-31`: the two quote styles behave identically, so `'C:\temp\new'` reads as a tab and a newline.
 
 Good: the grammar is proven unambiguous (Bison `%expect 0`, plus a check that no two token kinds overlap), the tree keeps every character of the text, and quoting always means text.
 
 #### 4.2 Domain model across layers
 - `ts/src/written/graph.ts:25-30` and `py/.../_graph.py:23`: a hand-kept set of codes filters the graph's diagnostics, so `x $nope;` shows no problem at the low level.
-- `spec/schema/api.json` error groups: `DetachedError` (a program bug) sits under `VillanelleError`, although contract 4.1 says program bugs must not.
+- `spec/schema/api.json` error groups: `DetachedError` (a program bug) sits under `KnoblyError`, although contract 4.1 says program bugs must not.
 - `spec.md:490-509`: the spec names the lost update but gives it no error. `ts/src/browser.ts:47` sends the save with no check that the file is unchanged.
 
 Good: the direction between layers is enforced by a lint with a planted-violation test, and operations exist only on the variants where they can succeed.

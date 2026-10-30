@@ -1,4 +1,4 @@
-# Milestone 2, frozen for the binding lanes (beads vil-0vz, vil-9fy, vil-5ya, vil-gxu)
+# Milestone 2, frozen for the binding lanes (beads kno-0vz, kno-9fy, kno-5ya, kno-gxu)
 
 This page is what the TypeScript lane (`ts/`) and the Python lane (`py/`) build in milestone 2. It is frozen: a lane
 that finds it wrong appends the finding to `.claude/errata.md` and does not diverge silently. The rules live in
@@ -8,8 +8,8 @@ types, the old-to-new list and the per-binding mechanics. Where it and `spec/` d
 difference is an erratum.
 
 Scope: round 13 root causes 3 (the types carry the kinds) and 4 (the contract at the edges), the rendered layer on
-the public low level only (vil-9fy), the line-break bug in values texts (vil-5ya), the reader names and list shape
-(vil-gxu), and Python's `List` and `String` at the package root. Not in scope: the shared corpora and the shared
+the public low level only (kno-9fy), the line-break bug in values texts (kno-5ya), the reader names and list shape
+(kno-gxu), and Python's `List` and `String` at the package root. Not in scope: the shared corpora and the shared
 conformance driver (milestone 3), the `I` prefix (binding guide rule 2), Python factory classes (rule 3), blocks as
 sequences and the walk generator (rule 5, spec 7.5), the docs pages (section 15).
 
@@ -89,7 +89,7 @@ export interface IUnreadableLine extends IStatementBase { readonly kind: "unread
 ```
 
 ```python
-# villanelle/written/model.py: every statement class has kind, document, parent, place, text, copies(),
+# knobly/written/model.py: every statement class has kind, document, parent, place, text, copies(),
 # replace_with_text(text, /), remove(), insert_before(text, /), insert_after(text, /)
 class WrittenDirective:   # kind -> Literal[StatementKind.DIRECTIVE]
     __match_args__ = ("name", "values", "block")
@@ -110,7 +110,7 @@ class UnreadableLine:     __match_args__ = ("text",)
 
 ### 1.2 Written values (low level; spec 6.6)
 
-| Spec name | `kind` | TypeScript | Python (from `villanelle.written` only) | `__match_args__` |
+| Spec name | `kind` | TypeScript | Python (from `knobly.written` only) | `__match_args__` |
 |---|---|---|---|---|
 | `written value` (union) | | `WrittenValue` (as today) | `WrittenValue: TypeAlias` | |
 | `word` | `word` | `IWord` | `Word` | `("text",)` |
@@ -146,7 +146,7 @@ Python). `IVariable` / the one `Variable` class is deleted.
 | `expanded slice` | `slice` | `IExpandedSlice` | `ExpandedSlice` | `("name", "start", "end")` | `name: string`, `start`, `end: number \| undefined` / `int \| None` |
 | `expanded index` | `index` | `IExpandedIndex` | `ExpandedIndex` | `("name", "index")` | `name: string`, `index: number` / `int` |
 
-Common to all five (`ts/src/value.ts`, `villanelle/value.py`): `kind`, `text`, `origin`, the readers `word()`,
+Common to all five (`ts/src/value.ts`, `knobly/value.py`): `kind`, `text`, `origin`, the readers `word()`,
 `string()`, `number()`, `integer()`, `boolean()`, `list()`, `slice()`, `plain()` (section 9), and
 `error(message, code)` (Python `error(message, *, code)`). `IExpandedValue` (the one interface) and the one Python
 `ExpandedValue` class are deleted; the name `ExpandedValue` is now the union. TypeScript's internal class
@@ -199,7 +199,7 @@ The expansion types are in section 4.
 ## 2. Which operations live on which variant
 
 `●` present, `·` absent. Absent means the member does not exist: TypeScript does not compile the call, Python
-raises `AttributeError` like any missing attribute. Nothing raises a villanelle error for a missing member.
+raises `AttributeError` like any missing attribute. Nothing raises a knobly error for a missing member.
 
 | Operation | written directive | extension line | set line | snippet line | use line | unreadable line |
 |---|---|---|---|---|---|---|
@@ -234,21 +234,21 @@ the program learns as a located E4002 (spec 2.9, 2.10).
 ## 3. Kind lists: one generated spelling
 
 `tools/gen-api.py` (already updated on this branch) writes, for every list in `spec/schema/api.json` `kinds`, and
-for `token kind` from `grammar/Villanelle.g4`:
+for `token kind` from `grammar/Knobly.g4`:
 
 - TypeScript `ts/src/gen/api/kinds.ts`: `export type TokenKind = "BOM" | ...;`, `NodeKind`, `StatementKind`,
   `ValueKind`, `VariableKind`, `StepKind`, `PlaceKind`, `UnreadableReason`, `ChangeKind`: string-literal types
-  only. **No constant objects.** Re-export each type from `"villanelle"` (`export type { ... }`).
-- Python `py/src/villanelle/_api/kinds.py`: a `StrEnum` of the same name for each (`StatementKind.SET = "set"`,
-  `TokenKind.BAD_CHAR = "BAD_CHAR"`). **No `Literal` aliases.** Export each from `villanelle`.
+  only. **No constant objects.** Re-export each type from `"knobly"` (`export type { ... }`).
+- Python `py/src/knobly/_api/kinds.py`: a `StrEnum` of the same name for each (`StatementKind.SET = "set"`,
+  `TokenKind.BAD_CHAR = "BAD_CHAR"`). **No `Literal` aliases.** Export each from `knobly`.
 
-Delete the hand-written `TokenKind` in `ts/src/syntax/tokens.ts` and `py/src/villanelle/syntax/tokens.py`; import
+Delete the hand-written `TokenKind` in `ts/src/syntax/tokens.ts` and `py/src/knobly/syntax/tokens.py`; import
 the generated one. Every `ValueKind.List`, `NodeKind.Block`, `TokenKind.Word`, `StepKind.Variable`,
 `ChangeKind.Added`, `UnreadableReason.Syntax` in TypeScript becomes the literal (`"list"`, `"block"`, `"WORD"`, ...).
 `DiagnosticCode` keeps its constant object in TypeScript and its `StrEnum` in Python (codes are a registry, not a
 kind list).
 
-## 4. The rendered layer on the public low level (vil-9fy)
+## 4. The rendered layer on the public low level (kno-9fy)
 
 ### 4.1 New public low-level surface
 
@@ -287,7 +287,7 @@ export interface IValueExpansion {
 ```
 
 ```python
-# villanelle/written/model.py (exported from villanelle.written and villanelle)
+# knobly/written/model.py (exported from knobly.written and knobly)
 class DocumentGraph:
     def expand(self) -> Expansion: ...
 
@@ -372,34 +372,34 @@ with the document graph's public members.
   other block sets `no-restricted-syntax` today. `ts/src/rendered/testing.ts` is not a test file: it follows the rule (or moves to a `*.test.ts` helper). Add a
   planted fixture (as milestone 1's layer check has) showing each of the three patterns is reported: an import of
   `../written/bind.js`, `graph as unknown as X`, `(x as A) as B`.
-- **Python.** Extend `py/tests/test_layers.py`: for every module under `villanelle/rendered/`, fail on any import of
-  the low level other than `from villanelle.written import <names>` with every name in `villanelle.written.__all__`
-  (so `from villanelle.written import _document`, `from villanelle.written._bind import ...`,
-  `from villanelle.written.model import ...`, `import villanelle.written._graph` and the relative forms all fail),
+- **Python.** Extend `py/tests/test_layers.py`: for every module under `knobly/rendered/`, fail on any import of
+  the low level other than `from knobly.written import <names>` with every name in `knobly.written.__all__`
+  (so `from knobly.written import _document`, `from knobly.written._bind import ...`,
+  `from knobly.written.model import ...`, `import knobly.written._graph` and the relative forms all fail),
   on an `ast.Attribute` whose `attr` starts with one `_` (dunders aside) unless its value is the name `self` or
   `cls`, and on `getattr(x, "<literal starting with _>")`. Rendered code reads another rendered object through its
   public members (`after.block`, not `after._block`). Add planted sources for each failure. Today's offenders, all
-  in `rendered/_render.py`: `from villanelle.written import _document, _graph`, `from villanelle.written._bind
-  import ...`, `from villanelle.written.model import ...`, `statement._doc`, `._node`, `._value_list`,
+  in `rendered/_render.py`: `from knobly.written import _document, _graph`, `from knobly.written._bind
+  import ...`, `from knobly.written.model import ...`, `statement._doc`, `._node`, `._value_list`,
   `doc._syntax`, `doc._path`, `directive._contents()`, `directive._freeze()`, `after._block`, `after._unreadable`;
-  and in `_tree.py` the `TYPE_CHECKING` import of `villanelle.written.model`.
+  and in `_tree.py` the `TYPE_CHECKING` import of `knobly.written.model`.
 
 ## 5. Error classes (contract 4)
 
 ```text
-TypeScript (ts/src/errors.ts new, shared)        Python (villanelle/errors.py new, shared)
-class VillanelleError extends Error               class VillanelleError(Exception)
-  DiagnosticError    diagnostic                     DiagnosticError(VillanelleError)    diagnostic
-  ReadError          paths, cause                   ReadError(VillanelleError)          paths, __cause__
-  SaveError          paths, cause                   SaveError(VillanelleError)          paths, __cause__
-  EditError                                         EditError(VillanelleError, ValueError)
+TypeScript (ts/src/errors.ts new, shared)        Python (knobly/errors.py new, shared)
+class KnoblyError extends Error               class KnoblyError(Exception)
+  DiagnosticError    diagnostic                     DiagnosticError(KnoblyError)    diagnostic
+  ReadError          paths, cause                   ReadError(KnoblyError)          paths, __cause__
+  SaveError          paths, cause                   SaveError(KnoblyError)          paths, __cause__
+  EditError                                         EditError(KnoblyError, ValueError)
     BadTextError     diagnostics                      BadTextError(EditError)           diagnostics
-  DetachedError                                     DetachedError(VillanelleError, ReferenceError)
+  DetachedError                                     DetachedError(KnoblyError, ReferenceError)
 native: TypeError (argument type, misuse),        native: TypeError (argument type), ValueError (misuse),
         RangeError (index)                                IndexError (index)
 ```
 
-- `VillanelleError` is exported from `"villanelle"` and `villanelle`. Every class above sets `name` (TypeScript)
+- `KnoblyError` is exported from `"knobly"` and `knobly`. Every class above sets `name` (TypeScript)
   to its class name.
 - `ReadError`: `paths` = `[path]` (the root path as given to `load`); cause: the source's rejection (absent when
   the source resolved no file or several; the message says how many). No `diagnostic`, no code: E3004 is no longer
@@ -458,10 +458,10 @@ native: TypeError (argument type, misuse),        native: TypeError (argument ty
 | Spec name | TypeScript (old -> new) | Python (old -> new) |
 |---|---|---|
 | `memory source` | `memorySource(files)` (same name; reads `files` live, no copy) | `memory_source(files)` (same; reads `files` live) |
-| `memory writer` | new: `memoryWriter(files: Record<string, string>): IDocumentWriter`, from `"villanelle"` | new: `memory_writer(files: MutableMapping[str, str], /) -> DocumentWriter`, from `villanelle` |
-| `file source` | `createFileSource()` -> `fileSource()` (`villanelle/node`) | `file_source()` (same) |
-| `file writer` | `createFsWriter()` -> `fileWriter()` (`villanelle/node`) | `fs_writer()` -> `file_writer()` (`villanelle.files`) |
-| `fetch source` | `createFetchSource(fetch)` -> `fetchSource(fetch)` (`villanelle/browser`) | none |
+| `memory writer` | new: `memoryWriter(files: Record<string, string>): IDocumentWriter`, from `"knobly"` | new: `memory_writer(files: MutableMapping[str, str], /) -> DocumentWriter`, from `knobly` |
+| `file source` | `createFileSource()` -> `fileSource()` (`knobly/node`) | `file_source()` (same) |
+| `file writer` | `createFsWriter()` -> `fileWriter()` (`knobly/node`) | `fs_writer()` -> `file_writer()` (`knobly.files`) |
+| `fetch source` | `createFetchSource(fetch)` -> `fetchSource(fetch)` (`knobly/browser`) | none |
 | `fetch writer` | `createFetchWriter(fetch, options)` -> `fetchWriter(fetch, options)`; `IFetchWriterOptions` unchanged | none |
 
 `memorySource`'s parameter stays `Readonly<Record<string, string>>` in TypeScript and `Mapping[str, str]` in
@@ -469,7 +469,7 @@ Python, but it reads that object at each `resolve` and `read` instead of copying
 creation. `memory writer` checks every file's current text in the map (`""` when absent) against `savedText`
 first, failing with an `Error` naming the lost paths and writing nothing, then sets every file.
 
-## 9. Reader names and list items (vil-gxu)
+## 9. Reader names and list items (kno-gxu)
 
 | Spec name | TypeScript (old -> new) | Python (old -> new) |
 |---|---|---|
@@ -488,7 +488,7 @@ class body, annotate the builtins as `builtins.list` / `builtins.slice`, as for 
 shape in both layers:** `items`, a property, a `readonly` array in TypeScript and a `tuple` in Python, on the
 written `list`, the `expanded list` and the `list argument`.
 
-## 10. The line break in a values text (vil-5ya)
+## 10. The line break in a values text (kno-5ya)
 
 Red first, in both bindings: a test that `stmt.set("1\n2")` on `port 80;` raises `BadTextError` with one E2001 at
 1:0 and leaves the text unchanged (it fails today: the text becomes `port 1\n2;`). Then the fix, in the one home of
@@ -502,11 +502,11 @@ true, or a line break inside `[ ]`) are unaffected.
 
 ## 11. Python exports (item E)
 
-`Word`, `String`, `List`, `Slice`, `Index` and `Reference` are exported from `villanelle.written` only: remove them
-from `villanelle/__init__.py`'s imports and `__all__`. The glossary keeps the words (spec 6.6), so the module gives
-the context (`from villanelle import written; written.List`). `WrittenValue` stays at the root. TypeScript keeps
+`Word`, `String`, `List`, `Slice`, `Index` and `Reference` are exported from `knobly.written` only: remove them
+from `knobly/__init__.py`'s imports and `__all__`. The glossary keeps the words (spec 6.6), so the module gives
+the context (`from knobly import written; written.List`). `WrittenValue` stays at the root. TypeScript keeps
 `IWord` ... `IReference` at its root (no clash there; per-layer entry points are binding guide rule 8's module
-layout proposal, not this milestone). This is a stated difference between the bindings, for Python's `import *`. New root exports in Python: `VillanelleError`, `StatementKind`, `VariableKind`, `PlaceKind`,
+layout proposal, not this milestone). This is a stated difference between the bindings, for Python's `import *`. New root exports in Python: `KnoblyError`, `StatementKind`, `VariableKind`, `PlaceKind`,
 `ChangeKind`, `ExtensionLine`, `SetVariable`, `Parameter`, `OverrideVariable`, the expanded and argument variants,
 the expansion types, `memory_writer`. In TypeScript, the same names (`I`-prefixed interfaces, the literal types).
 
@@ -522,13 +522,13 @@ the expansion types, `memory_writer`. In TypeScript, the same names (`I`-prefixe
 | `as_word`, `as_str`, `as_number`, `as_int`, `as_bool`, `as_slice` (Py) | `word`, `string`, `number`, `integer`, `boolean`, `slice` |
 | constant objects `NodeKind`, `ValueKind`, `StepKind`, `UnreadableReason`, `ChangeKind`, `TokenKind` (TS) | string-literal types of the same names |
 | `Literal` aliases for statement, variable and place kinds (Py); hand-written `TokenKind` (both) | generated `StrEnum`s / literal types |
-| `ReadError extends DiagnosticError` and its `diagnostic` (both) | `ReadError` under `VillanelleError`, `paths` |
+| `ReadError extends DiagnosticError` and its `diagnostic` (both) | `ReadError` under `KnoblyError`, `paths` |
 | `SaveError.files` (both) | `SaveError.paths` |
-| `DetachedError` under `EditError` (both) and `ValueError` (Py) | under `VillanelleError` (Py: and `ReferenceError`) |
+| `DetachedError` under `EditError` (both) and `ValueError` (Py) | under `KnoblyError` (Py: and `ReferenceError`) |
 | `createFileSource`, `createFsWriter`, `createFetchSource`, `createFetchWriter` (TS); `fs_writer` (Py) | `fileSource`, `fileWriter`, `fetchSource`, `fetchWriter`; `file_writer` |
 | `render`'s `instanceof DocumentGraph` check and `graph.binding()` use (TS); `rendered/_render.py`'s private imports and attributes (Py) | `graph.expand()` |
 | Python's UTF-16 conversion in `parse`, positions and `format_diagnostic` | code points |
-| `Word`, `String`, `List`, `Slice`, `Index`, `Reference` at Python's package root | `villanelle.written` only |
+| `Word`, `String`, `List`, `Slice`, `Index`, `Reference` at Python's package root | `knobly.written` only |
 | `"later"` markers in `spec/schema/api.json` and the checks' skipping of them | nothing: the checks are strict |
 | conformance case `override-no-set-line` and the token `NoSetLineError` | none (absence is a type test per binding) |
 
@@ -540,7 +540,7 @@ No aliases, no deprecated exports, no shims: each old name simply goes.
 
 | File | Cases | Proves |
 |---|---|---|
-| `conformance/written/cases.json` + `expected/<name>.json` | `set-line-break`, `set-line-break-trailing`, `set-line-break-leading`, `set-line-break-in-list`, `value-replace-line-break`, `set-override-trailing-line-break` | vil-5ya, the check of a values text (spec 2.8) |
+| `conformance/written/cases.json` + `expected/<name>.json` | `set-line-break`, `set-line-break-trailing`, `set-line-break-leading`, `set-line-break-in-list`, `value-replace-line-break`, `set-override-trailing-line-break` | kno-5ya, the check of a values text (spec 2.8) |
 | same | `set-bad-astral` | a bad text error's column after an astral character, printed in UTF-16 by every runner (contract 1) |
 | same | `insert-before-after`, `insert-after-nested` | `insert before`, `insert after` (ops `"insertBefore"`, `"insertAfter"`, needs `blocks`) |
 | `conformance/contract/cases.json` (new; format `conformance/contract/format.md`) | readers: `zero-integer`, `zero-number`, `zero-plain`, `zero-number-fraction`, `zero-number-exponent`, `int-max`, `int-min`, `int-beyond`, `int-beyond-negative`, `int-overflow`, `number-max-safe`, `number-beyond-2-53`, `plain-beyond-2-53`, `number-overflow`, `number-overflow-negative`, `plain-overflow`, `number-underflow`, `number-underflow-negative`, `number-exponent-form`, `number-large` | contract 3 |
@@ -587,7 +587,7 @@ Each is allowed by this milestone; none is the owner's word, each follows from t
 7. **`SaveError.files` is now `SaveError.paths`** (resolved paths, not file writes).
 8. **`DetachedError` is no longer an `EditError`** (both), nor in Python a `ValueError`; in Python it is a
    `ReferenceError`. `except EditError` / `except ValueError` no longer catch it.
-9. **`VillanelleError` is the base of every package error**, so `except VillanelleError` catches diagnostic, read,
+9. **`KnoblyError` is the base of every package error**, so `except KnoblyError` catches diagnostic, read,
    save, edit, bad text and detached errors (not `TypeError`, `ValueError` misuse or `IndexError`).
 10. **`NoSetLineError` is gone:** `set` on a parameter or an override variable, and `rename` on an override
     variable, do not compile in TypeScript; in Python they raise `AttributeError` (were `NoSetLineError`).
@@ -617,8 +617,8 @@ Each is allowed by this milestone; none is the owner's word, each follows from t
     promise with `TypeError`; was "the writer rejected/raised").
 21. **TypeScript `render` accepts any object with the document graph's members** (was `TypeError` for one this
     package did not make).
-22. **Python's `Word`, `String`, `List`, `Slice`, `Index`, `Reference` are no longer importable from `villanelle`**
-    (only from `villanelle.written`); `from villanelle import *` no longer replaces `typing.List`.
+22. **Python's `Word`, `String`, `List`, `Slice`, `Index`, `Reference` are no longer importable from `knobly`**
+    (only from `knobly.written`); `from knobly import *` no longer replaces `typing.List`.
 
 ## 15. Not in this milestone, and follow-ups
 

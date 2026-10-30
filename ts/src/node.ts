@@ -1,5 +1,5 @@
 /**
- * The "villanelle/node" entry: filesystem I/O edges for Node.js.
+ * The "knobly/node" entry: filesystem I/O edges for Node.js.
  */
 
 import { randomBytes } from "node:crypto";

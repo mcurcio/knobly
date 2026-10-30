@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { render } from "./render.js";
-import { villanelle } from "../written/index.js";
+import { knobly } from "../written/index.js";
 import { configTexts } from "./testing.js";
 import { memorySource } from "../index.js";
 import type { Directive, Rendered } from "./index.js";
@@ -9,7 +9,7 @@ import type { Directive, Rendered } from "./index.js";
 const RASL = "@set $pixels 2284;\ngraph {\n  node DdpSink leds { max_count $pixels; }\n}\n";
 
 async function load(text: string, overrides?: Record<string, string>): Promise<Rendered> {
-  const processor = villanelle({ source: memorySource({ "main.conf": text }) });
+  const processor = knobly({ source: memorySource({ "main.conf": text }) });
   return render(await processor.load("main.conf", overrides === undefined ? undefined : { overrides: configTexts(overrides) }));
 }
 

@@ -1,9 +1,9 @@
 // PLANTED (must be caught): a variable usable both as a whole value and as a piece joined to words
 // (round 8's var-twice). `$b` alone is then both a value and a spliced value: conflicts.
-// villanelle grammar, ported from villanelle.ebnf (draft 2 + rasl-trv: '*' and '?' in words;
+// knobly grammar, ported from knobly.ebnf (draft 2 + rasl-trv: '*' and '?' in words;
 // round 11: variables).
 // Whitespace is explicit: every token is on the default channel, nothing is skipped.
-grammar Villanelle;
+grammar Knobly;
 
 document      : BOM? statements EOF ;
 statements    : filler* (directive filler*)* lastDirective? ;

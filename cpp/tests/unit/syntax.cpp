@@ -1,6 +1,6 @@
 // The syntax layer (spec 3): parse is lossless and total, recovery follows spec 3.2 (the F16 and F17 inputs of
 // design.md, where the TypeScript and Python bindings differ), and span_of and text_of check their range.
-#include <villanelle/syntax.hpp>
+#include <knobly/syntax.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -10,10 +10,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-using villanelle::diagnostic_code;
-using villanelle::node_kind;
-using villanelle::token_kind;
-namespace syntax = villanelle::syntax;
+using knobly::diagnostic_code;
+using knobly::node_kind;
+using knobly::token_kind;
+namespace syntax = knobly::syntax;
 
 namespace {
 
@@ -35,7 +35,7 @@ shape shape_of(const syntax::node& n) {
 
 std::vector<diagnostic_code> codes(const syntax::syntax& s) {
     std::vector<diagnostic_code> out;
-    for (const villanelle::diagnostic& d : s.diagnostics()) {
+    for (const knobly::diagnostic& d : s.diagnostics()) {
         out.push_back(d.code());
     }
     return out;
@@ -94,11 +94,11 @@ TEST_CASE("parse is total: the empty text, an invalid byte and a lone surrogate"
 TEST_CASE("a diagnostic at the end of the text is zero-width there", "[parse]") {
     const syntax::syntax s = syntax::parse("a {\n  b;\n");
     CHECK(codes(s) == std::vector{diagnostic_code::expected_closing_brace});
-    const villanelle::source_span span = s.diagnostics().at(0).span();
+    const knobly::source_span span = s.diagnostics().at(0).span();
     CHECK(span.start() == span.end());
     CHECK(span.start().offset() == 9);
     CHECK(span.start().line() == 2);
-    CHECK(villanelle::to_string(s.diagnostics().at(0)).rfind("3:1: E2003: ", 0) == 0);
+    CHECK(knobly::to_string(s.diagnostics().at(0)).rfind("3:1: E2003: ", 0) == 0);
 }
 
 TEST_CASE("F16: a bad statement inside a finished block hides no later statement", "[parse][recovery]") {
@@ -142,17 +142,17 @@ TEST_CASE("nesting past the limit is one error node and E2010 at the first brack
 TEST_CASE("span_of and text_of take a range within the tokens, or raise index_out_of_range", "[span]") {
     const syntax::syntax s = syntax::parse("a b;");  // a, SPACE, b, ;
     CHECK(syntax::text_of(s, syntax::token_range(1, 3)) == " b");
-    const villanelle::source_span span = syntax::span_of(s, syntax::token_range(1, 3));
+    const knobly::source_span span = syntax::span_of(s, syntax::token_range(1, 3));
     CHECK(span.start().offset() == 1);
     CHECK(span.end().offset() == 3);
-    const villanelle::source_span at_end = syntax::span_of(s, syntax::token_range(4, 4));
+    const knobly::source_span at_end = syntax::span_of(s, syntax::token_range(4, 4));
     CHECK(at_end.start().offset() == 4);
     CHECK(at_end.start() == at_end.end());
     CHECK(syntax::span_of(syntax::parse(""), syntax::token_range(0, 0)).start().offset() == 0);
 
-    CHECK_THROWS_AS(syntax::span_of(s, syntax::token_range(-1, 1)), villanelle::index_out_of_range);
-    CHECK_THROWS_AS(syntax::span_of(s, syntax::token_range(0, 5)), villanelle::index_out_of_range);
-    CHECK_THROWS_AS(syntax::span_of(s, syntax::token_range(3, 2)), villanelle::index_out_of_range);
-    CHECK_THROWS_AS(syntax::text_of(s, syntax::token_range(0, 5)), villanelle::index_out_of_range);
-    CHECK_THROWS_AS(syntax::text_of(s, syntax::token_range(2, 1)), villanelle::index_out_of_range);
+    CHECK_THROWS_AS(syntax::span_of(s, syntax::token_range(-1, 1)), knobly::index_out_of_range);
+    CHECK_THROWS_AS(syntax::span_of(s, syntax::token_range(0, 5)), knobly::index_out_of_range);
+    CHECK_THROWS_AS(syntax::span_of(s, syntax::token_range(3, 2)), knobly::index_out_of_range);
+    CHECK_THROWS_AS(syntax::text_of(s, syntax::token_range(0, 5)), knobly::index_out_of_range);
+    CHECK_THROWS_AS(syntax::text_of(s, syntax::token_range(2, 1)), knobly::index_out_of_range);
 }

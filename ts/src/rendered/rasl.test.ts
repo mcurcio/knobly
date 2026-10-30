@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import { include } from "../include.js";
 import { fileSource } from "../node.js";
-import { villanelle, type WrittenValue } from "../written/index.js";
+import { knobly, type WrittenValue } from "../written/index.js";
 import { rendered } from "./testing.js";
 import { type DocumentSource, text } from "../index.js";
 import type { Directive, KeyRule, Rendered } from "./index.js";
@@ -65,7 +65,7 @@ describe("rasl's configs", () => {
   it.each(Object.keys(EXPECTED))("%s loads with the expected nodes and reload changes", async (name) => {
     const expected = EXPECTED[name] as Expected;
     const { source: files, edit } = source();
-    const processor = villanelle({ source: files, extensions: [include()] });
+    const processor = knobly({ source: files, extensions: [include()] });
     const path = fileURLToPath(new URL(name, FIXTURES));
     const options = { overrides: OVERRIDES };
     const first = await rendered(processor, path, options);
@@ -77,7 +77,7 @@ describe("rasl's configs", () => {
   });
 
   it("splits one sink file over two places, each with its own include-block values and the override host", async () => {
-    const processor = villanelle({ source: fileSource(), extensions: [include()] });
+    const processor = knobly({ source: fileSource(), extensions: [include()] });
     const path = fileURLToPath(new URL("split/main.conf", FIXTURES));
     const loaded = await rendered(processor, path, { overrides: OVERRIDES });
     const targets: [string, string][] = [];
@@ -101,7 +101,7 @@ describe("rasl's configs", () => {
   });
 
   it("edits a line an included file shares between two copies with the natural loop: one handle, set twice", async () => {
-    const processor = villanelle({ source: fileSource(), extensions: [include()] });
+    const processor = knobly({ source: fileSource(), extensions: [include()] });
     const path = fileURLToPath(new URL("split/main.conf", FIXTURES));
     const loaded = await rendered(processor, path);
     // sink.conf is included twice: both rendered `max_count`s share the one written `$pixels` of its line, and a

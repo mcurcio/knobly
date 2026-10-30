@@ -124,10 +124,10 @@ class Driver(unittest.TestCase):
 
     def test_a_stalled_adapter_times_out_as_a_fault(self) -> None:
         # The driver runs in its own process with a 1 s request timeout; the test's own guard (20 s) fails it if the
-        # driver blocks instead (vil-p5x).
+        # driver blocks instead (kno-p5x).
         command = [sys.executable, str(HERE / "run.py"), "--corpus", "syntax", "--case", "empty", "--"]
         command += [sys.executable, str(HERE / "stub_adapter.py"), "stall"]
-        environment = {**os.environ, "VILLANELLE_DRIVER_TIMEOUT": "1"}
+        environment = {**os.environ, "KNOBLY_DRIVER_TIMEOUT": "1"}
         try:
             done = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=20)
         except subprocess.TimeoutExpired:

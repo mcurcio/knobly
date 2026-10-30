@@ -1,14 +1,14 @@
-# Milestone 3, frozen for the binding lanes (beads vil-j80, vil-033)
+# Milestone 3, frozen for the binding lanes (beads kno-j80, kno-033)
 
 This page is what the TypeScript lane (`ts/`) and the Python lane (`py/`) build in milestone 3. It is frozen: a lane
 that finds it wrong appends the finding to `.claude/errata.md` and does not diverge silently. The rules live in
 `spec/` (canonical): `spec/conformance.md` (the levels, the adapter protocol, the driver), `spec/spec.md` 2.8 (the
-check of a values text, with the comment rule of vil-033) and 9 (the corpora). Where this page and `spec/` differ,
+check of a values text, with the comment rule of kno-033) and 9 (the corpora). Where this page and `spec/` differ,
 `spec/` wins and the difference is an erratum.
 
 Scope: the rest of round 13 root cause 5 (`.claude/design/consumer-api/round13/review.md`): "Every binding passes
 the same corpora through one shared driver"; "a binding writes one small adapter (load files, find a target, apply
-a neutral op, dump); one shared driver runs every case; the "rasl" key rule becomes data". Plus bug vil-033 (a
+a neutral op, dump); one shared driver runs every case; the "rasl" key rule becomes data". Plus bug kno-033 (a
 comment in a values text swallows the statement's `;`). Not in scope: the high level, L4 shared cases (adapters that
 write files), the type skeletons of `spec/codegen.md`, and every "Proposed (pending owner)" note.
 
@@ -34,25 +34,25 @@ write files), the type skeletons of `spec/codegen.md`, and every "Proposed (pend
 | `conformance/corpora.json`, `conformance/keys.json` (new) | the manifest of corpora; the key rules as data (`rasl`, `pins`) |
 | `conformance/rendered/` (new corpus) | 9 cases: address text and people forms with escapes, occurrences, empty and absent keys, a parent rule; diff order, unknown, alone, keyed and positional moves, block presence, a duplicate key |
 | `conformance/contract/cases.json` | 41 new cases: every reader of spec 2.9 beyond the number readers (`word-*`, `string-*`, `boolean-*`, `list-*`, `slice-*`, more `number-*`, `integer-*`, `plain-*`), and `format-tab-before`, `format-astral-before` (by unit), `format-crlf`, `format-no-graph` |
-| `conformance/written/cases.json` | 7 new cases for vil-033 (section 7) |
+| `conformance/written/cases.json` | 7 new cases for kno-033 (section 7) |
 | format pages | `conformance/format.md`, `load/format.md`, `written/format.md`, `contract/format.md` say the driver does what each runner did; `rendered/format.md` is new |
 | `tools/check.sh` | step 5: the driver's own test |
 | `.github/workflows/ci.yml` | the driver for each binding (section 6) |
 | `.claude/design/consumer-api/round14/m3-adapter.py`, `m3-adapter.mts` | the two proof adapters (section 4): each lane moves its own into its package |
-| `docs/low-level-api.md`, `README.md`, `.claude/skills/villanelle-binding/SKILL.md` | the comment rule; the driver; the skill's new-binding path and running the shared cases |
+| `docs/low-level-api.md`, `README.md`, `.claude/skills/knobly-binding/SKILL.md` | the comment rule; the driver; the skill's new-binding path and running the shared cases |
 
 `spec/schema/` did not change, so `tools/gen-api.py` did not either (it still generates what each lane needs).
 
 Proof, on this branch before any lane: the driver with `m3-adapter.py` (Python binding) and with `m3-adapter.mts`
 (TypeScript binding, after `pnpm build`) runs 308 tests (5 corpus checks, 303 cases); each binding passes every case
-but the five red vil-033 cases (section 7), at every level up to L3, in about a second.
+but the five red kno-033 cases (section 7), at every level up to L3, in about a second.
 
 ## 2. The adapter protocol, message by message
 
 Transport (`spec/conformance.md` 3): the driver starts the adapter once per run; one JSON request per line on its
 standard input, one JSON response per line on its standard output, in order; the adapter exits when its input closes.
 Responses: `{"id", "ok": value}`, `{"id", "thrown": {"group", "code"?, "diagnostics"?}}` for the binding's own errors
-(`villanelle error` and below), `{"id", "fault": text}` for anything else. A position is `[line, column, offset]` in
+(`knobly error` and below), `{"id", "fault": text}` for anything else. A position is `[line, column, offset]` in
 the binding's own unit; the adapter never converts. Every dumped binding object has an `id` (text; an index into
 the adapter's list of dumped objects is enough). Dump shapes: `spec/conformance.md` 4.2.
 
@@ -96,13 +96,13 @@ python3 conformance/driver/run.py [--level N] [--corpus NAME]... [--case NAME]..
 ## 4. What each binding adapter implements
 
 Each lane moves its proof adapter into its package, adds its package's types and lint, and changes nothing about
-what it sends: with them, every case passes today but the five red vil-033 cases.
+what it sends: with them, every case passes today but the five red kno-033 cases.
 
 | | TypeScript | Python |
 |---|---|---|
 | File | `ts/conformance/adapter.ts`, from `round14/m3-adapter.mts` | `py/conformance/adapter.py`, from `round14/m3-adapter.py` |
 | Run (from the package directory) | `node conformance/adapter.ts`, after `corepack pnpm build` | `uv run --locked python conformance/adapter.py`, after `tools/gen.sh py` |
-| Imports | `../dist/index.js`, `../dist/include.js` at run time (Node 24 strips types; so erasable syntax only: no `enum`, no parameter properties); types from `../src/index.js` with `import type` only | `villanelle`, `villanelle.written`, `villanelle.include` |
+| Imports | `../dist/index.js`, `../dist/include.js` at run time (Node 24 strips types; so erasable syntax only: no `enum`, no parameter properties); types from `../src/index.js` with `import type` only | `knobly`, `knobly.written`, `knobly.include` |
 | Checks | it typechecks and lints with the package (it is not in `dist/` or the published files; `tsc` for it runs where `dist/` exists, or against `import type`s only) | `ruff check`, `ruff format --check` and `mypy` cover it (add `conformance` to mypy's `files`) |
 | Size | under 200 lines | under 300 lines (about 220 of code) |
 | `hello` | `{"protocol":1,"binding":"typescript","unit":"utf-16","level":3}` | `{"protocol":1,"binding":"python","unit":"code point","level":3}` |
@@ -132,9 +132,9 @@ Each lane deletes its four runners and whatever only they use; its unit tests st
   python conformance/adapter.py` (pytest has generated the parser by then).
 - The `grammar` job runs `tools/check.sh`, which now runs the driver's own test.
 - Each leg adds about one second. Until both lanes land, these two steps fail: the adapters do not exist yet in
-  `ts/` and `py/`, and the vil-033 cases are red.
+  `ts/` and `py/`, and the kno-033 cases are red.
 
-## 7. Bug vil-033: a comment in a values text
+## 7. Bug kno-033: a comment in a values text
 
 `stmt.set("1 # note")` on `port 80;` writes `port 1 # note;`: the comment runs to the end of the line, so the `;` is
 inside it. Both bindings accept it today. Rule (spec 2.8): **a values text that ends in a comment is refused with
@@ -156,7 +156,7 @@ allowed inside one).
 
 Red first: the five red cases were seen failing through the driver with both proof adapters on this branch. Each
 lane makes them pass in its check of a values text (`valuesTextProblems` in `ts/src/written/document.ts`, its twin
-in `py/src/villanelle/written/_document.py`; the override check calls it). Note the list item case: the check parses
+in `py/src/knobly/written/_document.py`; the override check calls it). Note the list item case: the check parses
 the item inside a probe (`x [<text>];`), whose `]` the comment swallows, so the comment must be found before the
 probe's syntax diagnostics are reported (for example, parse the probe with a line break before its closing `;` or
 `]`, which the line-break scan never sees because it reads only the given text's tokens). The expected outputs above
@@ -166,7 +166,7 @@ are the contract; how the check finds the comment is the lane's.
 
 For programs using the library:
 
-1. **A values text that ends in a comment is refused** (vil-033): `set`, a value's `replace with text`, `set
+1. **A values text that ends in a comment is refused** (kno-033): `set`, a value's `replace with text`, `set
    override` and `load`'s overrides raise `bad text error` with E2001 at the comment. Before, the first three wrote a
    statement whose `;` (or a list's `,` / `]`) was inside the comment, and an override took the text; a list item's
    `replace with text` was refused with E2004 at the text's end instead.
@@ -199,5 +199,5 @@ holding a lone surrogate. Follow-up beads are the orchestrator's to file (this l
    `# claimed L3 extensions: holds`.
 3. The four runner files are gone; `grep -rln "conformance/" ts/src py/tests` finds no test that reads an expected
    file.
-4. The five red vil-033 cases were seen failing before the fix (say so in the commit or the lane's report).
+4. The five red kno-033 cases were seen failing before the fix (say so in the commit or the lane's report).
 5. Its adapter is under the size in section 4 and imports only the package's public entry points.

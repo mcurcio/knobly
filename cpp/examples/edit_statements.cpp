@@ -2,14 +2,14 @@
 // directive), see a bad edit refused, and save. ctest examples_edit_statements compares what it prints with
 // examples/expected/edit_statements.txt.
 // --8<-- [start:main]
-#include <villanelle/written.hpp>
+#include <knobly/written.hpp>
 
 #include <iostream>
 #include <memory>
 #include <string>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
+namespace vl = knobly;
+namespace vw = knobly::written;
 
 int main() {
     const auto files = std::make_shared<vl::ordered_map<std::string, std::string>>();

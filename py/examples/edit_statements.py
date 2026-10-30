@@ -2,8 +2,8 @@
 # save. The user guide includes the regions between the --8<-- markers; py/tests/test_examples.py runs this file and
 # compares what it prints with examples/expected/edit_statements.txt.
 # --8<-- [start:main]
-import villanelle as vl
-from villanelle import written
+import knobly as vl
+from knobly import written
 
 files = {"main.conf": "server {\n    host a;\n    # the port\n    port 80;\n}\n"}
 graph = written.Processor(source=vl.memory_source(files)).load("main.conf")

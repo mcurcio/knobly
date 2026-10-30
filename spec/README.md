@@ -1,7 +1,7 @@
 # Language bindings
 
-A **language binding** is villanelle's API in one programming language: a package that parses
-villanelle text, loads a config's files, lets a program edit and save them, and builds the rendered
+A **language binding** is knobly's API in one programming language: a package that parses
+knobly text, loads a config's files, lets a program edit and save them, and builds the rendered
 tree a program reads. TypeScript (`ts/`) and Python (`py/`) are the two bindings today.
 
 Each binding exposes the same layers:
@@ -11,7 +11,7 @@ Each binding exposes the same layers:
 | Syntax | parse one text into tokens and a lossless tree, with syntax diagnostics | [spec.md 3](spec.md#3-syntax-layer) |
 | Low level | load the config as written (every file, variable and include), edit it, save it back | [spec.md 6](spec.md#6-low-level-the-config-as-written) |
 | Rendered tree | `render(graph)`, then read directives after expansion, with origins, addresses, value readers and change lists | [spec.md 7](spec.md#7-rendered-tree-the-middle-layer) |
-| High level | idiomatic sugar per language (bead vil-xlo) | not built; [spec.md 8](spec.md#8-high-level-future) |
+| High level | idiomatic sugar per language (bead kno-xlo) | not built; [spec.md 8](spec.md#8-high-level-future) |
 
 The core does no I/O: files come in through a document source and go out through a writer that the
 program supplies ([spec.md 4](spec.md#4-ports-where-files-come-from-and-go-to)). Include is an
@@ -25,7 +25,7 @@ graph (owner, 2026-10-29: "The low level shouldn't "depend on" the middle layer 
 
 ```mermaid
 flowchart LR
-  G["grammar/Villanelle.g4<br/>the language"] -->|"tools/gen.sh<br/>(ANTLR, or tools/parser/gen.py)"| P["generated parser<br/>(per language, not committed)"]
+  G["grammar/Knobly.g4<br/>the language"] -->|"tools/gen.sh<br/>(ANTLR, or tools/parser/gen.py)"| P["generated parser<br/>(per language, not committed)"]
   S["spec.md<br/>what every binding must do"] --> DG["binding-guide.md<br/>how to make it idiomatic"]
   W["glossary.md<br/>one word per concept"] --> S
   SC["schema/<br/>api.json, diagnostics.json, protocol.json"] -->|tools/gen.sh| GL["generated declarations<br/>(interfaces, records, errors, kinds, codes, rules, names; not committed)"]
@@ -64,10 +64,10 @@ proves the spec wrong; then the spec is corrected and the finding reported.
   which corpus covers which section).
 - [codegen.md](codegen.md): what is generated from the schema, where it goes, and what stays
   hand-written.
-- The skill `.claude/skills/villanelle-binding/SKILL.md` is the agent's entry point for adding a
+- The skill `.claude/skills/knobly-binding/SKILL.md` is the agent's entry point for adding a
   binding or changing the API. It points here.
 
-The user guide for programs using villanelle is separate: [https://mcurcio.github.io/villanelle/](https://mcurcio.github.io/villanelle/), built from
+The user guide for programs using knobly is separate: [https://mcurcio.github.io/knobly/](https://mcurcio.github.io/knobly/), built from
 [`docs/site/pages/`](../docs/site/pages/) (the language is [language.md](../docs/site/pages/language.md)).
 
 ## Conformance levels
@@ -86,8 +86,8 @@ A binding claims one level; it holds it when every shared case at that level and
 ## A new binding's path
 
 1. **Generate**: add the language to `tools/gen.sh` (the parser) and `tools/gen-api.py` (the fixed lists). A parser
-   comes by one of two routes from `grammar/Villanelle.g4`: ANTLR 4.13.2 with its runtime (TypeScript, Python), or
-   villanelle's own parser generator, `tools/parser/gen.py`, with no runtime (C++). Either way the generator must
+   comes by one of two routes from `grammar/Knobly.g4`: ANTLR 4.13.2 with its runtime (TypeScript, Python), or
+   knobly's own parser generator, `tools/parser/gen.py`, with no runtime (C++). Either way the generator must
    accept the grammar (`tools/check.sh`) and the adapter must pass every syntax case (L0); ANTLR has no official Rust
    target, an open question in [binding-guide.md 5](binding-guide.md#5-checklist-a-new-binding-start-to-finish).
    The adapter of step 2 can come first, with a stub `parse`.
@@ -100,7 +100,7 @@ A binding claims one level; it holds it when every shared case at that level and
 
 ## Status
 
-Milestone 1 (bead vil-fy4) settles the round 13 review's root cause 1 (the glossary), root cause 2
+Milestone 1 (bead kno-fy4) settles the round 13 review's root cause 1 (the glossary), root cause 2
 (where each operation lives) and the schema half of root cause 5, with the owner's three answers of
 2026-10-29 on the round 13 gate page ([review.md](../.claude/design/consumer-api/round13/review.md)):
 
@@ -111,18 +111,18 @@ Milestone 1 (bead vil-fy4) settles the round 13 review's root cause 1 (the gloss
 3. Values going in: "A Keep text only, make misuse impossible" (spec 6.9), and "Can "set_values"
    become simply "set"?": the edit that replaces values is `set(text)` (spec 6.5).
 
-Milestone 2 (beads vil-0vz, vil-9fy, vil-5ya, vil-gxu) settles root cause 3 (types that carry the kinds: spec
+Milestone 2 (beads kno-0vz, kno-9fy, kno-5ya, kno-gxu) settles root cause 3 (types that carry the kinds: spec
 2.10), root cause 4 (the contract at the edges: [contract.md](contract.md)), and the owner's "Yes" of 2026-10-29 to
 the rendered layer building only on the low level's public objects (spec 6.10, 7.0). Its exact old-to-new list is
 `.claude/design/consumer-api/round14/frozen-m2.md`; the bindings carry the older names until its binding work
 lands.
 
-Milestone 3 (beads vil-j80, vil-033) settles the rest of root cause 5: one shared driver and an adapter per binding
+Milestone 3 (beads kno-j80, kno-033) settles the rest of root cause 5: one shared driver and an adapter per binding
 ([conformance.md](conformance.md)), the key rule as data, new corpora for rendered addresses, diff order, the
 readers and `format diagnostic`, and the comment in a values text (spec 2.8). Its exact list is
 `.claude/design/consumer-api/round14/frozen-m3.md`.
 
-Milestone 4 (beads vil-umh.1 to vil-umh.8 and vil-umh.12) carries out the round 15 review's next steps
+Milestone 4 (beads kno-umh.1 to kno-umh.8 and kno-umh.12) carries out the round 15 review's next steps
 (`.claude/design/consumer-api/round15/review.md`) with the owner's answers of 2026-10-29: Q1, "';' is required and a
 line break is plain whitespace (nginx); directive names cannot start with a digit or '-'" (the grammar); Q2, "Keep
 today's model and write it down in the spec" ([expansion.md](expansion.md)). It also moves the text-only rules into
@@ -131,7 +131,7 @@ rebuilds the error classes on the two sorts (2.8, contract 4), makes the low lev
 6.10, 7), and fixes three Python defects (2.9, 4.1, 5). Its exact list is
 `.claude/design/consumer-api/round15/frozen-m4.md`.
 
-Milestone 5 (beads vil-umh.6, vil-umh.12 and vil-umh.14) applies the owner's answers of 2026-10-29 on the smaller
+Milestone 5 (beads kno-umh.6, kno-umh.12 and kno-umh.14) applies the owner's answers of 2026-10-29 on the smaller
 language fixes, each put to him in plain words: single quotes are raw strings ("yes"); the `plain` reader is deleted
 ("agreed. the raw strings are raw/plain/tokens until some schema-aware layer decides "this one is a number" or "this
 is a string""); the slice separator leaves the word alphabet, so `:` is a word character again, and a variable may be
@@ -142,7 +142,7 @@ type ("Yes, its own type", spec 6.9), and settles three milestone 4 leftovers (s
 a `set` text with no value, `render` given a non-graph). Its exact list is
 `.claude/design/consumer-api/round15/frozen-m5.md`.
 
-Milestone 6 (beads vil-umh.9, vil-umh.10, vil-umh.11 and vil-umh.13) applies the owner's answers of 2026-10-29 on Q3
+Milestone 6 (beads kno-umh.9, kno-umh.10, kno-umh.11 and kno-umh.13) applies the owner's answers of 2026-10-29 on Q3
 ("Yes, with idiom expressed as typed per-language traits; start after the scoping and layer decisions"), on
 enumerations ("Yes, generate both") and on namespaces ("Yes, rename now"): the schema is typed and is the source of
 every public signature, generated per language by one loader and one emitter each ([codegen.md](codegen.md)); kind

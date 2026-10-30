@@ -628,7 +628,7 @@ wheels = [
 ]
 
 [[package]]
-name = "villanelle-docs"
+name = "knobly-docs"
 version = "0"
 source = { virtual = "." }
 dependencies = [

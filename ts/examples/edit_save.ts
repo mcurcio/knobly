@@ -3,13 +3,13 @@
 // --8<-- [start:main]
 import { readFileSync } from "node:fs";
 
-import { text } from "villanelle";
-import { villanelle, VariableKind } from "villanelle/written";
-import { render } from "villanelle/rendered";
-import { include } from "villanelle/include";
-import { fileSource, fileWriter } from "villanelle/node";
+import { text } from "knobly";
+import { knobly, VariableKind } from "knobly/written";
+import { render } from "knobly/rendered";
+import { include } from "knobly/include";
+import { fileSource, fileWriter } from "knobly/node";
 
-const graph = await villanelle({ source: fileSource(), extensions: [include()] }).load("main.conf");
+const graph = await knobly({ source: fileSource(), extensions: [include()] }).load("main.conf");
 
 // --8<-- [start:edit]
 for (const variable of graph.variables("pixels")) {

@@ -31,7 +31,7 @@ def format_files(formatter: Optional[Formatter], files: Dict[str, str]) -> Dict[
     picked = sorted(name for name in files if name.endswith(formatter.suffix))
     if not picked:
         return dict(files)
-    with tempfile.TemporaryDirectory(prefix="villanelle-format.") as tmp:
+    with tempfile.TemporaryDirectory(prefix="knobly-format.") as tmp:
         root = Path(tmp)
         for name in picked:
             path = root / name

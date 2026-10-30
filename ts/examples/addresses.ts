@@ -2,12 +2,12 @@
 // each node by its id. ts/examples/examples.test.ts runs this file and compares what it prints with
 // examples/expected/addresses.txt.
 // --8<-- [start:main]
-import { villanelle } from "villanelle/written";
-import { render, type Address, type Directive, type KeyRule } from "villanelle/rendered";
-import { include } from "villanelle/include";
-import { fileSource } from "villanelle/node";
+import { knobly } from "knobly/written";
+import { render, type Address, type Directive, type KeyRule } from "knobly/rendered";
+import { include } from "knobly/include";
+import { fileSource } from "knobly/node";
 
-const tree = render(await villanelle({ source: fileSource(), extensions: [include()] }).load("main.conf"));
+const tree = render(await knobly({ source: fileSource(), extensions: [include()] }).load("main.conf"));
 
 function showTargets(title: string, addresses: ReadonlyMap<Directive, Address>): void {
   console.log(title);

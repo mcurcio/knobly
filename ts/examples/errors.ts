@@ -2,12 +2,12 @@
 // the wrong kind. ts/examples/examples.test.ts runs this file and compares what it prints with
 // examples/expected/errors.txt.
 // --8<-- [start:main]
-import { DiagnosticError, ReadError } from "villanelle";
-import { villanelle } from "villanelle/written";
-import { render } from "villanelle/rendered";
-import { fileSource } from "villanelle/node";
+import { DiagnosticError, ReadError } from "knobly";
+import { knobly } from "knobly/written";
+import { render } from "knobly/rendered";
+import { fileSource } from "knobly/node";
 
-const config = villanelle({ source: fileSource() });
+const config = knobly({ source: fileSource() });
 
 // --8<-- [start:read_error]
 try {

@@ -1,4 +1,4 @@
-"""The kind lint (spec 2.10; owner, 2026-10-29: "Yes, generate both"; bead vil-umh.11): no ``.kind``, ``.reason`` or
+"""The kind lint (spec 2.10; owner, 2026-10-29: "Yes, generate both"; bead kno-umh.11): no ``.kind``, ``.reason`` or
 ``.code`` of the package or its adapter is compared with a string literal, only with an enum member. It runs
 tools/lint/kind_lint.py (its own planted cases run in tools/check.sh) under this interpreter, Python 3.11, so a
 ``match`` statement is read too."""

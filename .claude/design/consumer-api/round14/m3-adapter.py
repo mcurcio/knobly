@@ -15,9 +15,9 @@ import sys
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
-import villanelle as vl
-from villanelle import written
-from villanelle.include import include
+import knobly as vl
+from knobly import written
+from knobly.include import include
 
 handles: list[object] = []
 
@@ -269,7 +269,7 @@ OPS: dict[str, Callable[..., Any]] = {
 }
 
 
-def group(error: vl.VillanelleError) -> dict[str, Any]:
+def group(error: vl.KnoblyError) -> dict[str, Any]:
     """The error's group by its spec name (PascalCase back to words), with its code or diagnostics."""
     out: dict[str, Any] = {"group": re.sub(r"(?<!^)(?=[A-Z])", " ", type(error).__name__).lower()}
     if isinstance(error, vl.DiagnosticError):
@@ -285,7 +285,7 @@ def main() -> None:
         id_, op = request.pop("id"), request.pop("op")
         try:
             response = {"id": id_, "ok": OPS[op](**request)}
-        except vl.VillanelleError as error:
+        except vl.KnoblyError as error:
             response = {"id": id_, "thrown": group(error)}
         except Exception as error:
             response = {"id": id_, "fault": f"{type(error).__name__}: {error}"}

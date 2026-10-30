@@ -8,13 +8,13 @@ import { include } from "./include.js";
 import { rendered } from "./rendered/testing.js";
 import { fileSource, fileWriter } from "./node.js";
 import { LostUpdateError, SaveError, text } from "./index.js";
-import { villanelle } from "./written/index.js";
+import { knobly } from "./written/index.js";
 
-describe("villanelle/node", () => {
+describe("knobly/node", () => {
   let dir = "";
 
   beforeAll(async () => {
-    dir = await mkdtemp(join(tmpdir(), "villanelle-node-"));
+    dir = await mkdtemp(join(tmpdir(), "knobly-node-"));
     await mkdir(join(dir, "conf.d"));
     await mkdir(join(dir, "conf.d", "sub.conf"));
     await writeFile(join(dir, "root.conf"), '@include "conf.d/*.conf";\n@include "plain.conf";\n');
@@ -30,7 +30,7 @@ describe("villanelle/node", () => {
 
   it("resolves specs against the including file's directory and splices glob matches in code-point order", async () => {
     const root = join(dir, "root.conf");
-    const loaded = await rendered(villanelle({ source: fileSource(), extensions: [include()] }), root);
+    const loaded = await rendered(knobly({ source: fileSource(), extensions: [include()] }), root);
     expect(loaded.diagnostics).toEqual([]);
     // Files only (the sub.conf directory is skipped); the [ ] in a file name match themselves.
     const [glob, plain] = loaded.graph.edges();
@@ -41,7 +41,7 @@ describe("villanelle/node", () => {
 
   it("resolves a relative root through the source, so the root has one path and is read once", async () => {
     await writeFile(join(dir, "self.conf"), 'x "1\n;\n@include "self.conf";\ny 1;\n');
-    const loaded = await rendered(villanelle({ source: fileSource(), extensions: [include()] }), relative(process.cwd(), join(dir, "self.conf")));
+    const loaded = await rendered(knobly({ source: fileSource(), extensions: [include()] }), relative(process.cwd(), join(dir, "self.conf")));
     expect([...loaded.graph.documents.keys()]).toEqual([join(dir, "self.conf")]);
     expect(loaded.diagnostics.map((d) => d.code)).toEqual(["E1001", "E5006"]);
     expect([...loaded.block].map((d) => d.name)).toEqual(["y"]);
@@ -60,10 +60,10 @@ describe("villanelle/node", () => {
     expect(await source.resolve("nodir/*.conf", context)).toEqual([]);
     expect(await source.resolve("conf.d/sub.conf", context)).toEqual([]);
     await expect(source.read(join(dir, "missing.conf"))).rejects.toThrow(/ENOENT/);
-    const loaded = await rendered(villanelle({ source, extensions: [include()] }), join(dir, "plain.conf"));
+    const loaded = await rendered(knobly({ source, extensions: [include()] }), join(dir, "plain.conf"));
     expect(loaded.diagnostics).toEqual([]);
     await writeFile(join(dir, "missing-include.conf"), '@include "missing.conf";\n');
-    const missing = await rendered(villanelle({ source, extensions: [include()] }), join(dir, "missing-include.conf"));
+    const missing = await rendered(knobly({ source, extensions: [include()] }), join(dir, "missing-include.conf"));
     expect(missing.diagnostics.map((d) => d.code)).toEqual(["E3001"]);
   });
 
@@ -71,7 +71,7 @@ describe("villanelle/node", () => {
     const path = join(dir, "written.conf");
     await fileWriter().write([{ resolvedPath: path, text: "w 1;\n", savedText: "" }]);
     expect(await readFile(path, "utf8")).toBe("w 1;\n");
-    const graph = await villanelle({ source: fileSource() }).load(path);
+    const graph = await knobly({ source: fileSource() }).load(path);
     expect(await graph.save(fileWriter())).toEqual([]);
     expect(await readFile(path, "utf8")).toBe("w 1;\n");
   });
@@ -86,7 +86,7 @@ describe("villanelle/node", () => {
     await mkdir(directory);
     await writeFile(join(directory, "main.conf"), '@include "part.conf";\nm 1;\n');
     await writeFile(join(directory, "part.conf"), "p 1;\n");
-    const graph = await villanelle({ source: fileSource(), extensions: [include()] }).load(join(directory, "main.conf"));
+    const graph = await knobly({ source: fileSource(), extensions: [include()] }).load(join(directory, "main.conf"));
     const [main, part] = [...graph.documents.values()];
     const m = main?.block.at(1);
     const p = part?.block.at(0);
@@ -106,7 +106,7 @@ describe("villanelle/node", () => {
     const [a, b] = [join(directory, "a.conf"), join(directory, "b.conf")];
     await writeFile(a, "a 1;\n");
     await writeFile(b, "b 1;\n");
-    const graph = await villanelle({ source: fileSource() }).load(a);
+    const graph = await knobly({ source: fileSource() }).load(a);
     const statement = graph.root.block.at(0);
     if (statement?.kind !== "directive") throw new Error("fixture");
     statement.set(text("2"));

@@ -1,7 +1,7 @@
 # The contract at the edges
 
 Status: canonical, like the rest of `spec/` (owner, 2026-10-27: "Within villanelle I want the spec to win over a
-reference language"). Written in milestone 2 (bead vil-0vz) from the round 13 review's root cause 4
+reference language"). Written in milestone 2 (bead kno-0vz) from the round 13 review's root cause 4
 ([review.md](../.claude/design/consumer-api/round13/review.md#root-cause-4-the-contract-at-the-edges-is-not-written-down-neutrally)).
 The rules below are design choices adopted with the milestone, not the owner's words; each is revisable. The exact
 per-binding classes, names and old-to-new list are on the milestone's frozen page,
@@ -76,7 +76,7 @@ Conformance: `conformance/contract/cases.json` cases `print-place`, `print-overr
 
 ## 3. Numbers
 
-The spelling of number and integer words is spec 2.9 (`NumberText`, `IntegerText` in `grammar/villanelle.ebnf`).
+The spelling of number and integer words is spec 2.9 (`NumberText`, `IntegerText` in `grammar/knobly.ebnf`).
 The values are ruled here, the same in every binding:
 
 | Rule | `number` | `integer` |
@@ -127,8 +127,8 @@ Each binding maps these groups onto its own classes (the list is `error groups` 
   error and a save error chain the port's failure as the cause; a lost update error has no cause. A missing root
   file is a `read error` with no diagnostic and no code: it is not an extension line's failure, so it is never
   E3004 ("include resolver failed"), which stays an extension line's code.
-- **One package base class per binding**, `villanelle error`, is the parent of every expected-outcome class and of
-  nothing else, so one clause catches every outcome and no bug (vil-umh.7; before milestone 4 `DetachedError` sat
+- **One package base class per binding**, `knobly error`, is the parent of every expected-outcome class and of
+  nothing else, so one clause catches every outcome and no bug (kno-umh.7; before milestone 4 `DetachedError` sat
   under it, against this rule).
 
 `read error` `paths`: the root path as given to `load`, alone. `save error` `paths`: the resolved paths handed to
@@ -144,14 +144,14 @@ TypeScript:
 
 ```text
 Error
-└─ VillanelleError  (expected outcomes)
+└─ KnoblyError  (expected outcomes)
    ├─ DiagnosticError  (diagnostic)
    ├─ ReadError  (paths, cause)
    ├─ BadTextError  (diagnostics)
    └─ SaveError  (paths, cause)
       └─ LostUpdateError  (paths)
 
-program bugs, not under VillanelleError:
+program bugs, not under KnoblyError:
 DetachedError extends ReferenceError  (detached error)
 TypeError  (argument type error)
 MisuseError extends Error  (misuse error)
@@ -162,14 +162,14 @@ Python:
 
 ```text
 Exception
-└─ VillanelleError  (expected outcomes)
+└─ KnoblyError  (expected outcomes)
    ├─ DiagnosticError  (diagnostic)
    ├─ ReadError  (paths, __cause__)
    ├─ BadTextError  (diagnostics)
    └─ SaveError  (paths, __cause__)
       └─ LostUpdateError  (paths)
 
-program bugs, not under VillanelleError:
+program bugs, not under KnoblyError:
 DetachedError subclass of ReferenceError  (detached error)
 TypeError  (argument type error)
 ValueError  (misuse error)
@@ -180,14 +180,14 @@ C++:
 
 ```text
 std::runtime_error
-└─ villanelle_error  (expected outcomes)
+└─ knobly_error  (expected outcomes)
    ├─ diagnostic_error  (diagnostic)
    ├─ read_error  (paths, std::nested_exception (std::rethrow_if_nested))
    ├─ bad_text_error  (diagnostics)
    └─ save_error  (paths, std::nested_exception (std::rethrow_if_nested))
       └─ lost_update_error  (paths)
 
-program bugs, not under villanelle_error:
+program bugs, not under knobly_error:
 detached_error derives from std::logic_error  (detached error)
 argument_type_error derives from std::logic_error  (argument type error)
 misuse_error derives from std::invalid_argument  (misuse error)
@@ -201,7 +201,7 @@ index_out_of_range derives from std::out_of_range  (index out of range)
   TypeScript the error for a name that cannot be reached): a detached handle is a reference that no longer leads
   anywhere, and a program bug.
 - TypeScript's `MisuseError` is the package's own class because JavaScript has no `ValueError`; it is outside
-  `VillanelleError` like the native classes, and it is not a `TypeError`, so a misuse and an argument type error
+  `KnoblyError` like the native classes, and it is not a `TypeError`, so a misuse and an argument type error
   are told apart.
 - `no set line error` is gone: `set` and `rename` exist only on the variable kinds where they can succeed (spec
   6.7), so there is nothing left to refuse at run time.
@@ -231,12 +231,12 @@ import paths):
 <!-- generated: adapters (tools/gen-api.py docs) -->
 | Spec name | Port | TypeScript | Python | C++ |
 |---|---|---|---|---|
-| `memory source` | document source | `memorySource(files)` from `villanelle` | `memory_source(files)` from `villanelle` | `memory_source(files)` from `villanelle` |
-| `memory writer` | document writer | `memoryWriter(files)` from `villanelle` | `memory_writer(files)` from `villanelle` | `memory_writer(files)` from `villanelle` |
-| `file source` | document source | `fileSource()` from `villanelle/node` | `file_source()` from `villanelle.files` | `file_source()` from `villanelle::files` |
-| `file writer` | document writer | `fileWriter()` from `villanelle/node` | `file_writer()` from `villanelle.files` | `file_writer()` from `villanelle::files` |
-| `fetch source` | document source | `fetchSource(fetch)` from `villanelle/browser` | none | none |
-| `fetch writer` | document writer | `fetchWriter(fetch, options)` from `villanelle/browser` | none | none |
+| `memory source` | document source | `memorySource(files)` from `knobly` | `memory_source(files)` from `knobly` | `memory_source(files)` from `knobly` |
+| `memory writer` | document writer | `memoryWriter(files)` from `knobly` | `memory_writer(files)` from `knobly` | `memory_writer(files)` from `knobly` |
+| `file source` | document source | `fileSource()` from `knobly/node` | `file_source()` from `knobly.files` | `file_source()` from `knobly::files` |
+| `file writer` | document writer | `fileWriter()` from `knobly/node` | `file_writer()` from `knobly.files` | `file_writer()` from `knobly::files` |
+| `fetch source` | document source | `fetchSource(fetch)` from `knobly/browser` | none | none |
+| `fetch writer` | document writer | `fetchWriter(fetch, options)` from `knobly/browser` | none | none |
 <!-- end generated -->
 
 - **The memory pair shares one map.** `memory source (files)` reads the map it is given at every call, never a

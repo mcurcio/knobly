@@ -16,7 +16,7 @@
       "what": "misuse error class",
       "ts": "TypeError",
       "py": "ValueError",
-      "spec picks": "MisuseError in TypeScript, outside VillanelleError; ValueError in Python (milestone 4, spec 2.8): TypeError is now only the argument type error"
+      "spec picks": "MisuseError in TypeScript, outside KnoblyError; ValueError in Python (milestone 4, spec 2.8): TypeError is now only the argument type error"
     },
     {
       "what": "walk",
@@ -64,7 +64,7 @@
       "what": "a values text holding a line break outside a list",
       "ts": "set (\"1\\n2\") on port 80; writes port 1\\n2; (two statements)",
       "py": "the same",
-      "spec picks": "refused with bad text error E2001 (vil-5ya; spec 2.8): one check of a values text, the one an override's text goes through"
+      "spec picks": "refused with bad text error E2001 (kno-5ya; spec 2.8): one check of a values text, the one an override's text goes through"
     }
   ],
   "removed in milestone 1": [
@@ -128,7 +128,7 @@
     },
     {
       "name": "Python reader names as_word, as_str, as_number, as_int, as_bool, as_list, as_slice",
-      "now": "word, string, number, integer, boolean, list, slice: casing only (vil-gxu)"
+      "now": "word, string, number, integer, boolean, list, slice: casing only (kno-gxu)"
     },
     {
       "name": "TypeScript kind constant objects (NodeKind, ValueKind, StepKind, UnreadableReason, ChangeKind, TokenKind)",
@@ -140,7 +140,7 @@
     },
     {
       "name": "read error as a diagnostic error (its diagnostic, E3004 at the root path)",
-      "now": "read error under villanelle error, with paths and a cause"
+      "now": "read error under knobly error, with paths and a cause"
     },
     {
       "name": "save error files",
@@ -148,7 +148,7 @@
     },
     {
       "name": "detached error as an edit error (and in Python a ValueError)",
-      "now": "under villanelle error (Python: and ReferenceError)"
+      "now": "under knobly error (Python: and ReferenceError)"
     },
     {
       "name": "createFileSource, createFsWriter, createFetchSource, createFetchWriter (TypeScript); fs_writer (Python)",
@@ -160,7 +160,7 @@
     },
     {
       "name": "Python List, String, Word, Slice, Index, Reference at the package root",
-      "now": "villanelle.written only"
+      "now": "knobly.written only"
     },
     {
       "name": "Python's UTF-16 positions",
@@ -186,15 +186,15 @@
     },
     {
       "name": "edit error",
-      "now": "nothing: bad text error is the only edit refusal and sits directly under villanelle error"
+      "now": "nothing: bad text error is the only edit refusal and sits directly under knobly error"
     },
     {
-      "name": "detached error under villanelle error",
-      "now": "detached error is a program bug, outside villanelle error"
+      "name": "detached error under knobly error",
+      "now": "detached error is a program bug, outside knobly error"
     },
     {
       "name": "misuse error as TypeError (TypeScript)",
-      "now": "MisuseError, outside VillanelleError, so it is told apart from an argument type error"
+      "now": "MisuseError, outside KnoblyError, so it is told apart from an argument type error"
     },
     {
       "name": "the render-only diagnostic codes (E4xxx, E5001, E5003, E5004, E5008 left out of the graph's diagnostics)",
@@ -231,5 +231,5 @@
       "now": "a single-quoted string is raw; only a double-quoted string has the six escapes"
     }
   ],
-  "$comment": "Moved out of spec/schema/api.json in milestone 6 (bead vil-umh.9): the names each milestone removed and the disagreements between the bindings that the spec settled. History, not a rule: nothing reads it."
+  "$comment": "Moved out of spec/schema/api.json in milestone 6 (bead kno-umh.9): the names each milestone removed and the disagreements between the bindings that the spec settled. History, not a rule: nothing reads it."
 }

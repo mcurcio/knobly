@@ -1,6 +1,6 @@
 # Design history
 
-Moved here from `js/packages/config/design/grammar/` in mcurcio/rasl (PR #2). The grammar files now live in `grammar/` (`Rasl.g4` became `Villanelle.g4`; `config.ebnf` became `villanelle.ebnf`).
+Moved here from `js/packages/config/design/grammar/` in mcurcio/rasl (PR #2). The grammar files now live in `grammar/` (`Rasl.g4` became `Knobly.g4`; `config.ebnf` became `knobly.ebnf`).
 
 ## Original index
 

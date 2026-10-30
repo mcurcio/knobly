@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { type Processor, villanelle } from "../written/index.js";
+import { type Processor, knobly } from "../written/index.js";
 import { addresses, loadText, only, processorOf, rendered } from "./testing.js";
 import { type DocumentSource, memorySource } from "../index.js";
 import type { Directive, KeyRule } from "./index.js";
@@ -18,7 +18,7 @@ function changing(text: () => string): Processor {
     resolve: (spec, context) => memorySource({ "main.conf": text() }).resolve(spec, context),
     read: (path) => memorySource({ "main.conf": text() }).read(path),
   };
-  return villanelle({ source });
+  return knobly({ source });
 }
 
 /** `diff` of two texts as `[kind, address]` pairs. */

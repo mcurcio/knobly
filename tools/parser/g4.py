@@ -1,4 +1,4 @@
-"""Reads grammar/Villanelle.g4 into the generator's model (design.md 1.5; frozen-m1.md section 3.1).
+"""Reads grammar/Knobly.g4 into the generator's model (design.md 1.5; frozen-m1.md section 3.1).
 
 The .g4 subset read: a combined `grammar` header, lexer and parser rules, `fragment`, literals, character sets and
 their negation (`~`), `( | )`, `?`, `*`, `+`, `EOF` and comments. Anything else (a semantic predicate, an action, a
@@ -376,7 +376,7 @@ def _annotations(g: Grammar, notes: List[Tuple[int, str, int]]) -> Dict[str, str
 
 
 def ebnf_annotations(src: str) -> Dict[str, str]:
-    """The `/* cst: kind */` annotations of grammar/villanelle.ebnf, rule names lowered at the first letter."""
+    """The `/* cst: kind */` annotations of grammar/knobly.ebnf, rule names lowered at the first letter."""
     out: Dict[str, str] = OrderedDict()
     for m in re.finditer(r"^(\w+)\s*::=.*?/\*\s*cst:\s*(\w+)\s*\*/", src, re.M):
         out[m.group(1)[0].lower() + m.group(1)[1:]] = m.group(2)

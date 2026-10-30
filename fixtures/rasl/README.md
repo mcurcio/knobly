@@ -1,7 +1,7 @@
 # rasl's real configs, for the low-level API's tests
 
 These are rasl's own configuration files, kept here so each language's tests load a real file through the file
-source and the include extension (owner answer vil-m8w.5, 2026-10-23: "Neutral here, real ones to rasl
+source and the include extension (owner answer kno-m8w.5, 2026-10-23: "Neutral here, real ones to rasl
 (Recommended)": the neutral cases live in `conformance/`, these do not). No conformance runner reads them.
 
 | File | What it is |
@@ -13,7 +13,7 @@ source and the include extension (owner answer vil-m8w.5, 2026-10-23: "Neutral h
 
 ## Differences from the syntax rasl reads today
 
-Since villanelle's milestone 5 the files also use its spellings where rasl's differ: `@set`, `@snippet`, `@use` and
+Since knobly's milestone 5 the files also use its spellings where rasl's differ: `@set`, `@snippet`, `@use` and
 `@include` for the language and extension statements, and `~` between a slice's bounds (`hyperhdr_color[144~152]`,
 where rasl writes `[144:152]`); commented-out lines were respelled the same way.
 

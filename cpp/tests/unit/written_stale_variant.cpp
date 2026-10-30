@@ -1,14 +1,14 @@
 // A stale variant view (finding F4, D16; frozen-m2.md 3.3 rule 3): a value's set keeps its handle and the node takes
 // the new kind, so kind() and as<V>() follow it; a member only the old variant has raises misuse_error, and the
 // shared members work.
-#include <villanelle/written.hpp>
+#include <knobly/written.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include "written_fixture.hpp"
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
+namespace vl = knobly;
+namespace vw = knobly::written;
 
 TEST_CASE("a list set to a word: the list view's own members raise misuse_error", "[stale]") {
     const vw::document_graph graph = fixture::load("x [1, 2] tail;\n");

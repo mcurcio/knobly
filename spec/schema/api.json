@@ -1,8 +1,8 @@
 {
   "$schema": "./api.schema.json",
-  "$comment": "The one home of villanelle's public API: every concept with its typed members, the kind lists, keywords, limits, patterns, error groups and free functions (spec/spec.md and spec/contract.md are canonical for behaviour; this file for the shapes). Types are written in the closed type grammar of spec/codegen.md section 2 and every name must resolve; spec/schema/api.schema.json checks the shape and tools/api/loader.py the rest. Names are spec names (lowercase words); each binding's spelling is derived from them by its casing rule (spec/binding-guide.md rule 1), never stored. Idiom that differs by language is a typed trait (spec/codegen.md section 3), never prose. History (removed names, settled disagreements) is in .claude/design/consumer-api/round15/schema-history.json.",
+  "$comment": "The one home of knobly's public API: every concept with its typed members, the kind lists, keywords, limits, patterns, error groups and free functions (spec/spec.md and spec/contract.md are canonical for behaviour; this file for the shapes). Types are written in the closed type grammar of spec/codegen.md section 2 and every name must resolve; spec/schema/api.schema.json checks the shape and tools/api/loader.py the rest. Names are spec names (lowercase words); each binding's spelling is derived from them by its casing rule (spec/binding-guide.md rule 1), never stored. Idiom that differs by language is a typed trait (spec/codegen.md section 3), never prose. History (removed names, settled disagreements) is in .claude/design/consumer-api/round15/schema-history.json.",
   "version": 3,
-  "package": "villanelle",
+  "package": "knobly",
   "layers": [
     {
       "name": "shared",
@@ -269,12 +269,12 @@
       "constant": "program code",
       "layer": "shared",
       "regex": "^[^/\\t\\n\u000b\f\\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/[^\\t\\n\u000b\f\\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$",
-      "means": "<namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out); villanelle's codes start with E"
+      "means": "<namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out); knobly's codes start with E"
     }
   },
   "error groups": [
     {
-      "name": "villanelle error",
+      "name": "knobly error",
       "sort": "base",
       "raised when": "never by itself: the base class of every expected-outcome class, so one except or catch clause catches every outcome the input or the outside world decides, and no program bug",
       "message": {
@@ -284,7 +284,7 @@
     {
       "name": "diagnostic error",
       "sort": "expected outcome",
-      "parent": "villanelle error",
+      "parent": "knobly error",
       "raised when": "a reader is given a value of the wrong kind or spelling, or a program's error(...); carries one located diagnostic as 'diagnostic'",
       "fields": [
         {
@@ -299,7 +299,7 @@
     {
       "name": "read error",
       "sort": "expected outcome",
-      "parent": "villanelle error",
+      "parent": "knobly error",
       "raised when": "load cannot resolve the root path to exactly one file, or cannot read it. No diagnostic and no code",
       "fields": [
         {
@@ -315,7 +315,7 @@
     {
       "name": "bad text error",
       "sort": "expected outcome",
-      "parent": "villanelle error",
+      "parent": "knobly error",
       "raised when": "the text given to an edit, or an override's text, is not what that place takes; 'diagnostics' are located in that text, in the binding's string unit, and its message is built from them",
       "fields": [
         {
@@ -331,7 +331,7 @@
     {
       "name": "save error",
       "sort": "expected outcome",
-      "parent": "villanelle error",
+      "parent": "knobly error",
       "raised when": "the writer failed",
       "fields": [
         {
@@ -466,7 +466,7 @@
           "when": "given anything but text"
         }
       ],
-      "doc": "the text written as a villanelle string, escapes included, as config text: 10.0.60.31 becomes \"10.0.60.31\", ready for an edit. The canonical string text an expanded value has",
+      "doc": "the text written as a knobly string, escapes included, as config text: 10.0.60.31 becomes \"10.0.60.31\", ready for an edit. The canonical string text an expanded value has",
       "rationale": "returns config text since milestone 5"
     },
     {
@@ -485,8 +485,8 @@
           "when": "given anything but text"
         }
       ],
-      "doc": "raw as config text, unchanged and unchecked: the program's promise that raw is already villanelle text (8080 as a value, [1, 2] as a list); the edit it is given checks it. With quote, the only maker of config text",
-      "rationale": "milestone 5 (vil-umh.6)"
+      "doc": "raw as config text, unchanged and unchecked: the program's promise that raw is already knobly text (8080 as a value, [1, 2] as a list); the edit it is given checks it. With quote, the only maker of config text",
+      "rationale": "milestone 5 (kno-umh.6)"
     },
     {
       "name": "render",
@@ -689,8 +689,8 @@
       "members": [],
       "is": "text",
       "brand": true,
-      "doc": "villanelle text a program hands to an edit or an override, made only by quote or text; every edit's and override's text parameter takes it, so a plain string there is a type error the checker reports. Still the language's string at run time",
-      "rationale": "milestone 5 (vil-umh.6; owner, 2026-10-29: \"Yes, its own type\")"
+      "doc": "knobly text a program hands to an edit or an override, made only by quote or text; every edit's and override's text parameter takes it, so a plain string there is a type error the checker reports. Still the language's string at run time",
+      "rationale": "milestone 5 (kno-umh.6; owner, 2026-10-29: \"Yes, its own type\")"
     },
     {
       "name": "source position",
@@ -967,7 +967,7 @@
           "doc": "the text path:line:col: CODE: message, the first line of format diagnostic"
         }
       ],
-      "doc": "one problem of a load, villanelle's or a program's, always at a place in a file. A problem caused by an override is placed at the $name that used it, and its message names the variable"
+      "doc": "one problem of a load, knobly's or a program's, always at a place in a file. A problem caused by an override is placed at the $name that used it, and its message names the variable"
     },
     {
       "name": "locatable",
@@ -2253,7 +2253,7 @@
             "detached error"
           ],
           "doc": "replaces this value with exactly one value and keeps the handle: the same object stays where it was (its statement's values, its list's items, its slice's bound or name), now holding the new value and of the new value's kind (a word set to [1, 2] is a list). Its old items, bounds and name detach. The text must be exactly one value; a bound's text, one integer or $name; a slice or index name's, one word, @word or $name",
-          "rationale": "milestone 5 (vil-umh.12). Python: the object's class becomes the new kind's class"
+          "rationale": "milestone 5 (kno-umh.12). Python: the object's class becomes the new kind's class"
         },
         {
           "name": "replace with text",
@@ -2336,7 +2336,7 @@
           "member": "property",
           "type": "written value[]",
           "doc": "the list's items, in order",
-          "rationale": "a tuple in Python, in both layers (vil-gxu: list items have one shape)"
+          "rationale": "a tuple in Python, in both layers (kno-gxu: list items have one shape)"
         }
       ],
       "variant of": "written value",
@@ -3152,7 +3152,7 @@
             "diagnostic error"
           ],
           "doc": "a list's items (its items), each with its own origin and links; E4002 for any other kind",
-          "rationale": "was items () (vil-gxu: items is now the list variant's property). Python: inside a class body that defines list, annotate the builtin as builtins.list"
+          "rationale": "was items () (kno-gxu: items is now the list variant's property). Python: inside a class body that defines list, annotate the builtin as builtins.list"
         },
         {
           "name": "slice",

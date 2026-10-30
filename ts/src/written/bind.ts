@@ -642,7 +642,7 @@ class Walk implements BindingWithNeeds {
       if (error instanceof DiagnosticError) throw new Problem(UnreadableReason.Extension, error.diagnostic);
       throw fail(DiagnosticCode.ExtensionFailed, `${extension.directive}: ${reasonOf(error)}`);
     }
-    // The port's result is checked at run time (spec 5, vil-umh.12): a list of texts, nothing else.
+    // The port's result is checked at run time (spec 5, kno-umh.12): a list of texts, nothing else.
     if (!isTexts(given)) throw fail(DiagnosticCode.ExtensionFailed, `${extension.directive}: specs returned ${typeNameOf(given)}, not an array of strings`);
     specs.push(...given);
     /** A copy whose files are not resolved or read yet: unreadable with reason `unread`, E3007 (spec 6.10). */
@@ -861,7 +861,7 @@ class Walk implements BindingWithNeeds {
   }
 }
 
-/** A statement's problem with villanelle's code: its message and its unreadable reason, from the code (`describe`). */
+/** A statement's problem with knobly's code: its message and its unreadable reason, from the code (`describe`). */
 function located(code: DiagnosticCode, place: Place, via: readonly Step[], detail?: string): Problem {
   const { message, reason } = describe(code, detail);
   if (reason === null) throw new Error(`${code} makes no statement unreadable`);

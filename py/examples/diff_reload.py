@@ -5,9 +5,9 @@
 import re
 from pathlib import Path
 
-from villanelle import rendered, written
-from villanelle.files import file_source
-from villanelle.include import include
+from knobly import rendered, written
+from knobly.files import file_source
+from knobly.include import include
 
 
 def node_id(directive: rendered.Directive) -> str | None:

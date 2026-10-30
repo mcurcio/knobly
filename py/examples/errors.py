@@ -2,9 +2,9 @@
 # wrong kind. The user guide includes the regions between the --8<-- markers; py/tests/test_examples.py runs this file
 # and compares what it prints with examples/expected/errors.txt.
 # --8<-- [start:main]
-import villanelle as vl
-from villanelle import rendered, written
-from villanelle.files import file_source
+import knobly as vl
+from knobly import rendered, written
+from knobly.files import file_source
 
 config = written.Processor(source=file_source())
 # --8<-- [start:read_error]

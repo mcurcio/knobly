@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Build the C++ release assets for one version into a directory (default dist/release/, ignored by git):
-#   villanelle-cpp-<version>.tar.gz   the C++ source archive: cpp/CMakeLists.txt, cpp/include/ with the generated
-#                                     headers, cpp/README.md and LICENSE, under villanelle-cpp-<version>/. A program
+#   knobly-cpp-<version>.tar.gz   the C++ source archive: cpp/CMakeLists.txt, cpp/include/ with the generated
+#                                     headers, cpp/README.md and LICENSE, under knobly-cpp-<version>/. A program
 #                                     takes it with FetchContent or add_subdirectory (CMake 3.24+, a C++20 compiler):
 #                                     no Python, no network beyond the download, nothing installed.
-#   villanelle.hpp                    the single header (tools/amalgamate.py), from the archive's headers
-# The version is stamped into the archive's copy of include/villanelle/support/config.hpp (the C++ version's one
+#   knobly.hpp                    the single header (tools/amalgamate.py), from the archive's headers
+# The version is stamped into the archive's copy of include/knobly/support/config.hpp (the C++ version's one
 # home), never into the repository. Run by .github/release-build.sh (semantic-release's prepare step, and the
 # dry-run release job) and by the C++ package job in .github/workflows/ci.yml (cpp/tests/consumer/check.sh).
 # Needs: python3 (3.9+) and uv (tools/gen.sh cpp, for the pinned clang-format), tar.
@@ -21,7 +21,7 @@ bash tools/gen.sh cpp
 
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
-name="villanelle-cpp-$version"
+name="knobly-cpp-$version"
 dir="$stage/$name"
 mkdir -p "$dir"
 cp cpp/CMakeLists.txt cpp/README.md LICENSE "$dir/"
@@ -31,22 +31,22 @@ cp cpp/CMakeLists.txt cpp/README.md LICENSE "$dir/"
   cp "cpp/$file" "$dir/$file"
 done
 
-config="$dir/include/villanelle/support/config.hpp"
+config="$dir/include/knobly/support/config.hpp"
 python3 - "$config" "$major" "$minor" "$patch" <<'EOF'
 import re, sys
 path, *parts = sys.argv[1:]
 text = open(path, encoding="utf-8").read()
 for name, value in zip(("MAJOR", "MINOR", "PATCH"), parts):
-    text, count = re.subn(rf"^#define VILLANELLE_VERSION_{name} \d+$", f"#define VILLANELLE_VERSION_{name} {value}",
+    text, count = re.subn(rf"^#define KNOBLY_VERSION_{name} \d+$", f"#define KNOBLY_VERSION_{name} {value}",
                           text, flags=re.M)
     if count != 1:
-        sys.exit(f"release-cpp.sh: {path}: expected one VILLANELLE_VERSION_{name}, found {count}")
+        sys.exit(f"release-cpp.sh: {path}: expected one KNOBLY_VERSION_{name}, found {count}")
 open(path, "w", encoding="utf-8").write(text)
 EOF
 
 mkdir -p "$out"
 # No extended attributes or macOS metadata files (._*): a second top-level entry stops FetchContent from stripping
-# the villanelle-cpp-<version>/ folder.
+# the knobly-cpp-<version>/ folder.
 COPYFILE_DISABLE=1 tar --no-xattrs -C "$stage" -czf "$out/$name.tar.gz" "$name"
-python3 tools/amalgamate.py --include "$dir/include" --output "$out/villanelle.hpp"
-ls -l "$out/$name.tar.gz" "$out/villanelle.hpp"
+python3 tools/amalgamate.py --include "$dir/include" --output "$out/knobly.hpp"
+ls -l "$out/$name.tar.gz" "$out/knobly.hpp"

@@ -15,15 +15,15 @@
   "options": [
    {"id": "every-copy", "label": "A. The edit lands on the written line; every place that reads it changes (recommended)", "what": "statement.copies() tells the program how many places read the line before it edits", "cost": "A program that meant \"only porch\" must notice and write that change itself (for example a set line in porch's include block)", "recommended": true},
    {"id": "name-copies", "label": "B. The edit fails unless the program names the places it accepts", "what": "Each edit method takes the copies it is allowed to change; a mismatch throws", "cost": "An extra argument on every edit method, in both languages", "recommended": false},
-   {"id": "this-copy", "label": "C. Villanelle changes only the chosen place", "what": "It writes a set line into that include's block and a $name into the shared line, so only that place changes", "cost": "A refactoring tool, which belongs to the high level; impossible inside a snippet body", "recommended": false}
+   {"id": "this-copy", "label": "C. Knobly changes only the chosen place", "what": "It writes a set line into that include's block and a $name into the shared line, so only that place changes", "cost": "A refactoring tool, which belongs to the high level; impossible inside a snippet body", "recommended": false}
   ]
  },
  {
   "id": "values",
   "title": "How does a program write new values?",
-  "ask": "setValues and replaceWithText take new values. Should they take villanelle text or plain program values?",
+  "ask": "setValues and replaceWithText take new values. Should they take knobly text or plain program values?",
   "options": [
-   {"id": "text", "label": "A. As villanelle text (recommended)", "what": "setValues(\"2400\"), setValues(quote(host)), setValues(\"[1, 2] dev\"): the same rule handed-in variables already use; the text says whether a value is a word or a string", "cost": "A program calls quote() to write a string", "recommended": true},
+   {"id": "text", "label": "A. As knobly text (recommended)", "what": "setValues(\"2400\"), setValues(quote(host)), setValues(\"[1, 2] dev\"): the same rule handed-in variables already use; the text says whether a value is a word or a string", "cost": "A program calls quote() to write a string", "recommended": true},
    {"id": "plain", "label": "B. As plain program values", "what": "setValues(2400); setValues(\"10.0.60.31\") is written quoted", "cost": "A second rule for which kind a plain value becomes (is \"sine\" a word or a string?), a choice that belongs to the high level", "recommended": false}
   ]
  }

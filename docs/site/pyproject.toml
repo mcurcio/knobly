@@ -1,7 +1,7 @@
-# The user guide's static site generator: a build-time tool only, never a dependency of any villanelle package.
+# The user guide's static site generator: a build-time tool only, never a dependency of any knobly package.
 # Build: cd docs/site && uv run --locked mkdocs build --strict (CI's docs job). Serve while writing: uv run --locked mkdocs serve.
 [project]
-name = "villanelle-docs"
+name = "knobly-docs"
 version = "0"
 requires-python = ">=3.11"
 dependencies = [

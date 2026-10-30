@@ -4,7 +4,7 @@ import { fetchSource, fetchWriter } from "./browser.js";
 import { include } from "./include.js";
 import { rendered } from "./rendered/testing.js";
 import { LostUpdateError } from "./index.js";
-import { villanelle } from "./written/index.js";
+import { knobly } from "./written/index.js";
 
 /** A fetch over a map of URL to body that records every call. */
 const fakeFetch = (
@@ -21,14 +21,14 @@ const fakeFetch = (
   return { calls, fetchImpl };
 };
 
-describe("villanelle/browser", () => {
+describe("knobly/browser", () => {
   it("loads specs as URLs relative to the including file", async () => {
     const { fetchImpl } = fakeFetch({
       "https://h.test/root.conf": '@include "conf/a.conf";',
       "https://h.test/conf/a.conf": '@include "../b.conf";',
       "https://h.test/b.conf": "b 1;",
     });
-    const loaded = await rendered(villanelle({ source: fetchSource(fetchImpl), extensions: [include()] }), "https://h.test/root.conf");
+    const loaded = await rendered(knobly({ source: fetchSource(fetchImpl), extensions: [include()] }), "https://h.test/root.conf");
     expect(loaded.diagnostics).toEqual([]);
     expect([...loaded.graph.documents.keys()]).toEqual(["https://h.test/root.conf", "https://h.test/conf/a.conf", "https://h.test/b.conf"]);
     expect([...loaded.block].map((d) => d.name)).toEqual(["b"]);

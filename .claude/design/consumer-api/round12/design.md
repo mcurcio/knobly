@@ -8,11 +8,11 @@ under the rendered tree, plus three questions where they belong.
 `load` returns the files **as written**; `render` (PR 3's tree, renamed) is a second, pure step.
 
 ```ts
-import { save, villanelle } from "villanelle";
-import { include } from "villanelle/include";
-import { createFileSource, createFsWriter } from "villanelle/node";
+import { save, knobly } from "knobly";
+import { include } from "knobly/include";
+import { createFileSource, createFsWriter } from "knobly/node";
 
-const config = villanelle({ source: createFileSource(), extensions: [include()] }); // the key rule goes to diff (O4)
+const config = knobly({ source: createFileSource(), extensions: [include()] }); // the key rule goes to diff (O4)
 const graph = await config.load("split/main.conf", { variables: { leds_host: '"10.0.70.1"' } });
 const rendered = config.render(graph);               // the middle layer
 ```
@@ -90,7 +90,7 @@ await save(graph, createFsWriter());                   // []: saving twice write
 >   many. Cost: a program that meant "only porch" must notice and write C's edit itself.
 > - B: such an edit fails unless the program names the copies it accepts. Cost: a copies argument on every edit
 >   method, in both languages.
-> - C: villanelle does "this copy only" by writing a `set` into that include line's block and a `$name` into the
+> - C: knobly does "this copy only" by writing a `set` into that include line's block and a `$name` into the
 >   line. Cost: a refactoring tool (the high level's); impossible inside a snippet body.
 
 ## 2. Requirements (his words)
@@ -338,7 +338,7 @@ interface IDocumentWriter {
  * rejects, none changes. Returns the paths written. @throws SaveError { files: IFileWrite[]; cause: unknown }
  */
 declare function save(graph: IDocumentGraph, writer: IDocumentWriter): Promise<readonly string[]>;
-/** A plain string as a villanelle string, escapes included: quote("10.0.60.31") is `"10.0.60.31"`. */
+/** A plain string as a knobly string, escapes included: quote("10.0.60.31") is `"10.0.60.31"`. */
 declare function quote(text: string): string;
 
 // --- Edit errors (nothing changed when one is thrown) ---
@@ -349,7 +349,7 @@ type EditError =
 ```
 
 > **Question 2. How a program writes new values.**
-> - **A (recommended): as villanelle text**, the rule handed-in variables already use: `setValues("2400")`,
+> - **A (recommended): as knobly text**, the rule handed-in variables already use: `setValues("2400")`,
 >   `setValues(quote(host))`, `setValues("[1, 2] dev")`. The text says whether a value is a word or a string.
 >   Cost: a program calls `quote` for a string.
 > - B: as plain values: `setValues(2400)`, `setValues("10.0.60.31")` written quoted. Cost: a second rule for which
@@ -434,7 +434,7 @@ A gives up "nothing changes under you" and whole-graph undo (A's is per document
 | read-only graph; edges stored at load | live documents; edges derived; edge `directive`, `origin` → `copy` | medium |
 | `Scope.lookup` in `expand.ts`, `_expand.py` | the low layer binds (rule 3); expansion reads it | **large**, both languages |
 | `load` returns `ILoaded` | `load` → graph, `render` → `IRendered` | every caller; docs/low-level-api.md |
-| `IDirective.node` ("for editing, vil-uji") | `written`, `IArgument.resolutions` | small; closes vil-uji |
+| `IDirective.node` ("for editing, kno-uji") | `written`, `IArgument.resolutions` | small; closes kno-uji |
 | `save` TS only, a write per file | one batch, updates `source`; Python gains it | small; writers change |
 
 ## 12. New terms

@@ -1,18 +1,18 @@
 """The C++ emitter (spec/codegen.md section 4; .claude/design/cpp/design.md 1.1 to 1.4): renders the loader's model as
 the header-only C++ binding's public headers.
 
-    cpp/include/villanelle/villanelle.hpp   the shared and io layers (namespace villanelle); includes the four below
-    cpp/include/villanelle/kinds.hpp        every kind list as an enum class with to_string
-    cpp/include/villanelle/codes.hpp        diagnostic_code, to_string, message, code_facts, facts_of, describe
-    cpp/include/villanelle/limits.hpp       the limits and the reserved names, each in its layer's namespace
-    cpp/include/villanelle/errors.hpp       the exception class tree (spec 2.8), included by villanelle.hpp after the
+    cpp/include/knobly/knobly.hpp   the shared and io layers (namespace knobly); includes the four below
+    cpp/include/knobly/kinds.hpp        every kind list as an enum class with to_string
+    cpp/include/knobly/codes.hpp        diagnostic_code, to_string, message, code_facts, facts_of, describe
+    cpp/include/knobly/limits.hpp       the limits and the reserved names, each in its layer's namespace
+    cpp/include/knobly/errors.hpp       the exception class tree (spec 2.8), included by knobly.hpp after the
                                             records its classes hold
-    cpp/include/villanelle/<layer>.hpp      one header per layer with its own namespace (syntax, written, rendered);
+    cpp/include/knobly/<layer>.hpp      one header per layer with its own namespace (syntax, written, rendered);
                                             each pattern's matcher over code points sits in its layer's header
-                                            (villanelle::is_program_code, written::is_variable_name)
-    cpp/include/villanelle/<module>.hpp     one header per adapter module (files, extensions)
-    cpp/include/villanelle/implementation.hpp   compiled mode: every layer's definitions, compiled once
-    cpp/include/villanelle/format.hpp       opt-in: a std::formatter and an operator<< for every type with a to_string
+                                            (knobly::is_program_code, written::is_variable_name)
+    cpp/include/knobly/<module>.hpp     one header per adapter module (files, extensions)
+    cpp/include/knobly/implementation.hpp   compiled mode: every layer's definitions, compiled once
+    cpp/include/knobly/format.hpp       opt-in: a std::formatter and an operator<< for every type with a to_string
                                             (each people form, each kind list, diagnostic_code), written whole
     cpp/conformance/shapes.hpp              the adapter protocol's version, spellings and error_group_of
     cpp/tests/generated/api_contract_<header>.cpp  odr-uses every hand-defined function and member of one header
@@ -21,12 +21,12 @@ the header-only C++ binding's public headers.
                                               compile with every other header's definitions left out (spec 7.0)
 
 Idiom lives here and only here (design.md 1.3; frozen-m1.md section 4): snake_case names, every type spelled fully
-qualified from ``::villanelle``, ``std::string_view`` in and ``std::string`` out, ``villanelle::sequence`` for lists,
-``villanelle::ordered_map`` for maps, ``std::optional`` for absent, ``std::variant`` for any other union, a view class
+qualified from ``::knobly``, ``std::string_view`` in and ``std::string`` out, ``knobly::sequence`` for lists,
+``knobly::ordered_map`` for maps, ``std::optional`` for absent, ``std::variant`` for any other union, a view class
 (one ``detail::view``) for each handle and snapshot, an immutable class for each record, an abstract class held by
 ``std::shared_ptr`` for each port, a C++20 concept for each interface, an aggregate for each options record, Doxygen
 ``///`` comments from the schema's docs. What the generator writes whole is inline here; every free function and every
-handle's or snapshot's member is declared with ``VILLANELLE_API`` and defined by the hand code in ``detail/``.
+handle's or snapshot's member is declared with ``KNOBLY_API`` and defined by the hand code in ``detail/``.
 
 Layout does not live here: the output goes through the pinned clang-format (CLANG_FORMAT) with cpp/.clang-format.
 """
@@ -99,7 +99,7 @@ LANGUAGE = Language(
     extends_word="derives from",
     cause_field="std::nested_exception (std::rethrow_if_nested)",
     error_roots={
-        "villanelle error": {"base": "std::runtime_error"},
+        "knobly error": {"base": "std::runtime_error"},
         "detached error": {"base": "std::logic_error"},
         "argument type error": {"base": "std::logic_error"},
         "misuse error": {"base": "std::invalid_argument"},
@@ -119,9 +119,9 @@ LANGUAGE = Language(
     constant_case=snake,
     pattern_form=lambda constant: f"is_{snake(constant)}",
     member_spelling=_member_spelling,
-    kinds_in_package=True,  # one kinds.hpp, which the generated parser includes (::villanelle::token_kind)
+    kinds_in_package=True,  # one kinds.hpp, which the generated parser includes (::knobly::token_kind)
     trait_forms={
-        "people form": "`to_string(x)`, a free function (`<villanelle/format.hpp>` adds `std::format` and `<<`)",
+        "people form": "`to_string(x)`, a free function (`<knobly/format.hpp>` adds `std::format` and `<<`)",
         "iterate": "`begin()` and `end()`: a range",
         "count": "`size()`",
         "index": "`at(i)`, `index_out_of_range` out of range",
@@ -132,17 +132,17 @@ LANGUAGE = Language(
         "passed: option": "an options aggregate (`load(path, {.overrides = ...})`)",
         "brand": "a class of its own holding the text (`config_text`)",
         "template": "a class checked when made (a `program_code` literal is checked at compile time)",
-        "list": "`villanelle::sequence<T>`, an immutable shared list",
-        "map": "`villanelle::ordered_map<K, V>` (`writable`: held by `std::shared_ptr`, shared with the caller)",
+        "list": "`knobly::sequence<T>`, an immutable shared list",
+        "map": "`knobly::ordered_map<K, V>` (`writable`: held by `std::shared_ptr`, shared with the caller)",
     },
     property_form=lambda name: f"{name}()",  # every property is read through an accessor
     call_params=_call_params,
 )
 
 KEY = LANGUAGE.key
-API = "VILLANELLE_API"
-VIEW = "::villanelle::detail::view"
-ACCESS = "::villanelle::detail::access"
+API = "KNOBLY_API"
+VIEW = "::knobly::detail::view"
+ACCESS = "::knobly::detail::access"
 
 # Every identifier the generator writes from a spec name is checked against these: a schema name that spells one
 # cannot be a C++ name (a contextual keyword such as `override` or `final` can).
@@ -170,8 +170,8 @@ def head(source: str) -> List[str]:
 
 
 def guard(name: str) -> str:
-    """The include guard of a generated header: VILLANELLE_<STEM>_HPP (layers_<header>.cpp predefines them)."""
-    return f"VILLANELLE_{name.upper().replace('.', '_')}"
+    """The include guard of a generated header: KNOBLY_<STEM>_HPP (layers_<header>.cpp predefines them)."""
+    return f"KNOBLY_{name.upper().replace('.', '_')}"
 
 
 def lit(text: str) -> str:
@@ -208,7 +208,7 @@ def member_doc(model: Model, text: str, params: Sequence[Param], raised: Sequenc
     if order:
         text = f"{sentence(text)} Order: {order}.".strip()
     tags = [f"@param {'options' if p.passed == 'option' else ident(snake(p.name))} {p.doc}" for p in params if p.doc]
-    tags += [f"@throws villanelle::{error_class(model, g)} {why}" for g, why in raised]
+    tags += [f"@throws knobly::{error_class(model, g)} {why}" for g, why in raised]
     return doc(text, tags)
 
 
@@ -232,7 +232,7 @@ def template_param(name: str) -> str:
 
 
 def namespace(model: Model, c: Concept) -> str:
-    """The concept's namespace, fully qualified from the global namespace (``::villanelle::written``)."""
+    """The concept's namespace, fully qualified from the global namespace (``::knobly::written``)."""
     return "::" + model.concept_module(c, KEY)
 
 
@@ -288,7 +288,7 @@ def value_type(t: Type, ctx: Ctx) -> str:
             return f"{base}<{', '.join(value_type(a, ctx) for a in t.args)}>"
         return base
     if t.form == "list":
-        return f"::villanelle::sequence<{value_type(t.item, ctx)}>"
+        return f"::knobly::sequence<{value_type(t.item, ctx)}>"
     if t.form == "union":
         if t.may_be_absent:
             return f"std::optional<{value_type(t.without_absent(), ctx)}>"
@@ -298,7 +298,7 @@ def value_type(t: Type, ctx: Ctx) -> str:
         return f"std::variant<{', '.join(value_type(a, ctx) for a in t.args)}>"
     if t.form == "map":
         key, val = t.args
-        mapped = f"::villanelle::ordered_map<{value_type(key, ctx)}, {value_type(val, ctx)}>"
+        mapped = f"::knobly::ordered_map<{value_type(key, ctx)}, {value_type(val, ctx)}>"
         return f"std::shared_ptr<{mapped}>" if t.writable else mapped
     if t.form == "function":
         *params, result = t.args
@@ -440,8 +440,8 @@ def signature(ps: List[Tuple[str, str]]) -> str:
 
 def hand_member(model: Model, c: Concept, m: Member, ctx: Ctx, out: Out, cls: str, name: Optional[str] = None,
                 template: bool = False) -> List[str]:
-    """A handle's, snapshot's or view record's member: declared here, defined by the hand code (``VILLANELLE_API``),
-    one declaration per overload. A member of a class template is a template itself, so it takes no VILLANELLE_API
+    """A handle's, snapshot's or view record's member: declared here, defined by the hand code (``KNOBLY_API``),
+    one declaration per overload. A member of a class template is a template itself, so it takes no KNOBLY_API
     and the contract cannot take its address."""
     name = name or member_name(c, m)
     lines = member_doc(model, m.doc, m.params, model.raised(m.errors, m.when), m.order)
@@ -469,7 +469,7 @@ def hand_member(model: Model, c: Concept, m: Member, ctx: Ctx, out: Out, cls: st
         return lines
     if m.trait == "walk":
         item = value_type(m.type.item, ctx)
-        view = f"::villanelle::walk_view<{item}>"
+        view = f"::knobly::walk_view<{item}>"
         lines += [f"{api}{view} walk() const;", f"{api}{view} walk(std::function<bool(const {item}&)> descend) const;"]
         use(view, [], "self.walk()")
         use(view, [f"std::function<bool(const {item}&)>"], "self.walk(a0)")
@@ -505,7 +505,7 @@ def base_types(model: Model, c: Concept, ctx: Ctx) -> List[str]:
         bases.append(qual(model, c.variant_of))
     if c.extends is not None:
         if extends_shape(model, c):  # the shape is the support template (support/block.hpp)
-            bases.append(f"::villanelle::{ident(snake(c.extends.name))}<{', '.join(value_type(a, ctx) for a in c.extends.args)}>")
+            bases.append(f"::knobly::{ident(snake(c.extends.name))}<{', '.join(value_type(a, ctx) for a in c.extends.args)}>")
         else:
             bases.append(value_type(c.extends, ctx))
     return bases
@@ -741,8 +741,8 @@ def named_type(model: Model, c: Concept, out: Out) -> List[str]:
                  "compile."),
             "template <std::size_t N>",
             f"consteval {name}(const char (&literal)[N]) : view_(literal, N - 1) {{",
-            f"if (!{namespace(model, c)}::{match}(view_)) {{ ::villanelle::detail::{refused}(); }}", "}",
-            *doc("A code known at run time.", [f"@throws villanelle::misuse_error when it does not match the "
+            f"if (!{namespace(model, c)}::{match}(view_)) {{ ::knobly::detail::{refused}(); }}", "}",
+            *doc("A code known at run time.", [f"@throws knobly::misuse_error when it does not match the "
                                                f"{c.pattern} pattern"]),
             f"{API} explicit {name}(std::string_view code);",
             *doc("The code's text, valid while this value lives."),
@@ -1044,7 +1044,7 @@ def matcher(model: Model, c: Constant) -> List[str]:
             "int state = 0;",
             "for (std::size_t at = 0; at < text.size();) {",
             "char32_t cp = 0;",
-            "const std::size_t length = ::villanelle::detail::decode_utf8(text, at, cp);",
+            "const std::size_t length = ::knobly::detail::decode_utf8(text, at, cp);",
             "if (length == 0) { return false; }",
             "at += length;",
             "switch (state) {", *cases, "default:", "return false;", "}", "}",
@@ -1070,7 +1070,7 @@ def header(name: str, source: str, includes: List[str], body: List[str], tail: S
 
 
 def kinds_header(model: Model) -> str:
-    body = ["VILLANELLE_NAMESPACE_BEGIN", ""]
+    body = ["KNOBLY_NAMESPACE_BEGIN", ""]
     for k in model.kinds:
         if KEY not in k.languages:
             continue
@@ -1081,9 +1081,9 @@ def kinds_header(model: Model) -> str:
         body += [f"constexpr std::string_view to_string({name} kind) noexcept {{", "switch (kind) {"]
         body += [f"case {name}::{spelled}: return {lit(v)};" for v, spelled in zip(k.values, values)]
         body += ["}", "return {};", "}", ""]
-    body.append("VILLANELLE_NAMESPACE_END")
-    return header("kinds.hpp", 'spec/schema/api.json "kinds" (token kind: grammar/Villanelle.g4)',
-                  ["<cstdint>", "<string_view>", "", "<villanelle/support/config.hpp>"], body)
+    body.append("KNOBLY_NAMESPACE_END")
+    return header("kinds.hpp", 'spec/schema/api.json "kinds" (token kind: grammar/Knobly.g4)',
+                  ["<cstdint>", "<string_view>", "", "<knobly/support/config.hpp>"], body)
 
 
 def codes_header(model: Model) -> str:
@@ -1095,10 +1095,10 @@ def codes_header(model: Model) -> str:
         message = PLACEHOLDER.sub(lambda m: str(model.limit[m.group(1)].value), c.message)
         messages.append(f"case diagnostic_code::{name}: return {lit(message)};")
         found.append(f"inline constexpr std::string_view found_by_{c.code}[] = {{{', '.join(lit(f) for f in c.found_by)}}};")
-        reason = "std::nullopt" if c.reason is None else f"::villanelle::unreadable_reason::{ident(snake(c.reason))}"
+        reason = "std::nullopt" if c.reason is None else f"::knobly::unreadable_reason::{ident(snake(c.reason))}"
         facts.append(f"case diagnostic_code::{name}: return {{{lit(c.name)}, {lit(c.layer)}, detail::found_by_{c.code}, {reason}}};")
-    body = ["VILLANELLE_NAMESPACE_BEGIN", "",
-            *doc("villanelle's diagnostic codes, by name; each value is its code's number (E1001 is 1001)."),
+    body = ["KNOBLY_NAMESPACE_BEGIN", "",
+            *doc("knobly's diagnostic codes, by name; each value is its code's number (E1001 is 1001)."),
             "enum class diagnostic_code : std::uint16_t {", *entries, "};", "",
             *doc("The code as the spec writes it: \"E1001\"."),
             "inline std::string to_string(diagnostic_code code) {", "switch (code) {", *strings, "}", "return {};", "}", "",
@@ -1109,7 +1109,7 @@ def codes_header(model: Model) -> str:
                  "who finds it, and the unreadable reason it gives (none: a reader's code, which makes nothing "
                  "unreadable)."),
             "struct code_facts {", "std::string_view name;", "std::string_view layer;",
-            "std::span<const std::string_view> found_by;", "std::optional<::villanelle::unreadable_reason> reason;", "};",
+            "std::span<const std::string_view> found_by;", "std::optional<::knobly::unreadable_reason> reason;", "};",
             "", "namespace detail {", *found, "}  // namespace detail", "",
             *doc("Each code's facts."),
             "constexpr code_facts facts_of(diagnostic_code code) noexcept {", "switch (code) {", *facts, "}",
@@ -1117,7 +1117,7 @@ def codes_header(model: Model) -> str:
             *doc("One diagnostic's code, message and reason, built from the registry, so a raise site cannot pair a code "
                  "with the wrong reason or message."),
             "struct described {", "diagnostic_code code;", "std::string message;",
-            "std::optional<::villanelle::unreadable_reason> reason;", "};", "",
+            "std::optional<::knobly::unreadable_reason> reason;", "};", "",
             *doc("A code's description with its base message."),
             "inline described describe(diagnostic_code code) {",
             "return {code, std::string(message(code)), facts_of(code).reason};", "}", "",
@@ -1125,10 +1125,10 @@ def codes_header(model: Model) -> str:
             "inline described describe(diagnostic_code code, std::string_view detail) {",
             "std::string text(message(code));", "text += \": \";", "text += detail;",
             "return {code, std::move(text), facts_of(code).reason};", "}", "",
-            "VILLANELLE_NAMESPACE_END"]
+            "KNOBLY_NAMESPACE_END"]
     return header("codes.hpp", "spec/schema/diagnostics.json",
                   ["<cstdint>", "<optional>", "<span>", "<string>", "<string_view>", "<utility>", "",
-                   "<villanelle/kinds.hpp>", "<villanelle/support/config.hpp>"], body)
+                   "<knobly/kinds.hpp>", "<knobly/support/config.hpp>"], body)
 
 
 def layer_namespace(model: Model, layer: str) -> Optional[str]:
@@ -1137,7 +1137,7 @@ def layer_namespace(model: Model, layer: str) -> Optional[str]:
 
 
 def limits_header(model: Model) -> str:
-    body = ["VILLANELLE_NAMESPACE_BEGIN", ""]
+    body = ["KNOBLY_NAMESPACE_BEGIN", ""]
     for c in model.constants:
         if c.sort == "pattern":
             continue  # a matcher, in its layer's header
@@ -1151,9 +1151,9 @@ def limits_header(model: Model) -> str:
             lines.append(f"inline constexpr std::array<std::string_view, {len(words_)}> {name} = "
                          f"{{{', '.join(lit(w) for w in words_)}}};")
         body += ([f"namespace {ns} {{", *lines, f"}}  // namespace {ns}"] if ns else lines) + [""]
-    body.append("VILLANELLE_NAMESPACE_END")
+    body.append("KNOBLY_NAMESPACE_END")
     return header("limits.hpp", 'spec/schema/api.json "limits" and "reserved names"',
-                  ["<array>", "<cstdint>", "<string_view>", "", "<villanelle/support/config.hpp>"], body)
+                  ["<array>", "<cstdint>", "<string_view>", "", "<knobly/support/config.hpp>"], body)
 
 
 def concat(parts: List[str]) -> str:
@@ -1172,7 +1172,7 @@ def template_expr(g: ErrorGroup) -> str:
         if ph.endswith(" message"):
             parts.append(f"{ident(snake(ph[: -len(' message')]))}.message()")
         else:
-            parts.append(f"::villanelle::detail::join_for_message({ident(snake(ph))}, {lit(sep)})")
+            parts.append(f"::knobly::detail::join_for_message({ident(snake(ph))}, {lit(sep)})")
         pos = m.end()
     if template[pos:]:
         parts.append(f"std::string({lit(template[pos:])})")
@@ -1192,10 +1192,10 @@ def errors_header(model: Model) -> str:
         pos = m.end()
     if tmpl[pos:]:
         parts.append(f"std::string({lit(tmpl[pos:])})")
-    body = ["VILLANELLE_NAMESPACE_BEGIN", "", "namespace detail {", "",
+    body = ["KNOBLY_NAMESPACE_BEGIN", "", "namespace detail {", "",
             *doc("A list field in an error's message: texts as they are, anything else by its people form."),
             "template <class T>",
-            "std::string join_for_message(const ::villanelle::sequence<T>& items, std::string_view separator) {",
+            "std::string join_for_message(const ::knobly::sequence<T>& items, std::string_view separator) {",
             "std::string out;", "for (std::size_t i = 0; i < items.size(); ++i) {",
             "if (i != 0) { out += separator; }",
             "if constexpr (std::is_same_v<T, std::string>) { out += items.at(i); } else { out += to_string(items.at(i)); }",
@@ -1206,7 +1206,7 @@ def errors_header(model: Model) -> str:
     for g in model.groups:
         name = error_class(model, g.name)
         parent = model.group[g.parent] if g.parent else None
-        base = f"::villanelle::{error_class(model, parent.name)}" if parent else g.base[KEY]["base"]
+        base = f"::knobly::{error_class(model, parent.name)}" if parent else g.base[KEY]["base"]
         inherited = {f for f, _ in parent.fields} if parent else set()
         params = ["std::string message"] if g.message.get("given") else []
         params += [f"{value_type(t, ctx)} {ident(snake(f))}" for f, t in g.fields]
@@ -1219,25 +1219,25 @@ def errors_header(model: Model) -> str:
         own = [(f, t) for f, t in g.fields if f not in inherited]
         inits = [sup] + [f"{snake(f)}_(std::move({ident(snake(f))}))" for f, _ in own]
         explicit = "explicit " if len(params) == 1 else ""
-        cls = [*doc(g.class_doc()), f"class VILLANELLE_DETAIL_VISIBLE {name} : public {base} {{", "public:",
+        cls = [*doc(g.class_doc()), f"class KNOBLY_DETAIL_VISIBLE {name} : public {base} {{", "public:",
                f"{explicit}{name}({', '.join(params)}) : {', '.join(inits)} {{}}"]
         cls += [f"{value_type(t, ctx)} {ident(snake(f))}() const {{ return {snake(f)}_; }}" for f, t in own]
         if own:
             cls += ["private:", *(f"{value_type(t, ctx)} {snake(f)}_;" for f, t in own)]
         body += [*cls, "};", ""]
-    body.append("VILLANELLE_NAMESPACE_END")
+    body.append("KNOBLY_NAMESPACE_END")
     g = guard("errors.hpp")
     package = guard(f"{model.package}.hpp")
     return "\n".join([
         *head('spec/schema/api.json "error groups"'),
         "// The classes hold records the package header declares, so the package header includes this one after them;",
         "// included first, this header includes the package header, which includes it back.",
-        f"#ifndef {package}", f"#include <villanelle/{model.package}.hpp>", "#else", f"#ifndef {g}", f"#define {g}", "",
+        f"#ifndef {package}", f"#include <knobly/{model.package}.hpp>", "#else", f"#ifndef {g}", f"#define {g}", "",
         "#include <cstddef>", "#include <stdexcept>", "#include <string>", "#include <string_view>", "#include <type_traits>",
-        "#include <utility>", "", "#include <villanelle/support/config.hpp>", "#include <villanelle/support/sequence.hpp>",
+        "#include <utility>", "", "#include <knobly/support/config.hpp>", "#include <knobly/support/sequence.hpp>",
         "", "// Default visibility, so a catch in one shared library sees a throw from another (design.md 2.5).",
-        "#if defined(__GNUC__) || defined(__clang__)", '#define VILLANELLE_DETAIL_VISIBLE [[gnu::visibility("default")]]',
-        "#else", "#define VILLANELLE_DETAIL_VISIBLE", "#endif", "", *body, "", f"#endif  // {g}", f"#endif  // {package}",
+        "#if defined(__GNUC__) || defined(__clang__)", '#define KNOBLY_DETAIL_VISIBLE [[gnu::visibility("default")]]',
+        "#else", "#define KNOBLY_DETAIL_VISIBLE", "#endif", "", *body, "", f"#endif  // {g}", f"#endif  // {package}",
         ""])
 
 
@@ -1297,7 +1297,7 @@ def union_templates(model: Model, c: Concept) -> List[str]:
     lines += [f"case {k}: return std::forward<F>(f)({ACCESS}::make<{v}>(view_));" for v, k in variants]
     if c.except_kinds:  # kinds of the list no variant has (an expanded value is never a reference)
         lines.append("default: break;")
-    lines += ["}", "::villanelle::detail::bad_kind();", "}"]
+    lines += ["}", "::knobly::detail::bad_kind();", "}"]
     return lines
 
 
@@ -1328,7 +1328,7 @@ def instantiations(model: Model, text: str) -> List[str]:
     Specializations over a template's own parameters are left out."""
     generated = [qual(model, c.name) for c in model.concepts if c.type_parameters and KEY in c.languages]
     params = {template_param(p) for c in model.concepts for p in c.type_parameters}
-    heads = [f"::villanelle::{t}<" for t in SUPPORT_TEMPLATES] + [f"{g}<" for g in generated]
+    heads = [f"::knobly::{t}<" for t in SUPPORT_TEMPLATES] + [f"{g}<" for g in generated]
     found: List[str] = []
 
     def add(spec: str) -> None:
@@ -1351,10 +1351,10 @@ def instantiations(model: Model, text: str) -> List[str]:
         for inner in instantiations(model, spec[len(h):-1]):
             add(inner)
         add(spec)
-        if h == "::villanelle::block<":
+        if h == "::knobly::block<":
             item, directive = split_args(spec[len(h):-1])
-            add(f"::villanelle::walk_view<{item}>")
-            add(f"::villanelle::sequence<{directive}>")
+            add(f"::knobly::walk_view<{item}>")
+            add(f"::knobly::sequence<{directive}>")
         at = start + len(h)
 
 
@@ -1375,7 +1375,7 @@ def extern_templates(specs: Sequence[str]) -> List[str]:
     """Compiled mode: the specializations this header spells first, instantiated once in implementation.hpp."""
     if not specs:
         return []
-    return ["#if !VILLANELLE_HEADER_ONLY  // compiled mode: instantiated once, in <villanelle/implementation.hpp>",
+    return ["#if !KNOBLY_HEADER_ONLY  // compiled mode: instantiated once, in <knobly/implementation.hpp>",
             *(f"extern template class {s};" for s in specs), "#endif", ""]
 
 
@@ -1397,13 +1397,13 @@ def layer_header(model: Model, name: str, layers: List[str], module: Optional[st
         where = f"::{model.package}::{ns}"
     includes = list(STD)
     if package:
-        includes += ["", *(f"<villanelle/support/{s}.hpp>" for s in SUPPORT), "<villanelle/detail/text_in.hpp>",
-                     "<villanelle/kinds.hpp>", "<villanelle/codes.hpp>", "<villanelle/limits.hpp>"]
+        includes += ["", *(f"<knobly/support/{s}.hpp>" for s in SUPPORT), "<knobly/detail/text_in.hpp>",
+                     "<knobly/kinds.hpp>", "<knobly/codes.hpp>", "<knobly/limits.hpp>"]
     else:
         allowed = allowed_layers(model, mine)
         deps = dict.fromkeys(header_of_layer(model, layer.name) for layer in model.layers if layer.name in allowed)
-        includes += ["", *(f"<villanelle/{d}>" for d in deps if d != name)]
-    body: List[str] = ["VILLANELLE_NAMESPACE_BEGIN"]
+        includes += ["", *(f"<knobly/{d}>" for d in deps if d != name)]
+    body: List[str] = ["KNOBLY_NAMESPACE_BEGIN"]
     if package:
         body += ["", "// The error classes, defined in errors.hpp (included at the end, after the records they hold).",
                  *(f"class {error_class(model, g.name)};" for g in model.groups if not g.builtin(KEY))]
@@ -1429,19 +1429,19 @@ def layer_header(model: Model, name: str, layers: List[str], module: Optional[st
             body += ["", *function_lines(model, f, out, where)]
     if ns:
         body += ["", f"}}  // namespace {ns}"]
-    body += ["", "VILLANELLE_NAMESPACE_END"]
+    body += ["", "KNOBLY_NAMESPACE_END"]
     hashes = [line for c in concepts for line in ["", *hash_lines(model, c)] if hash_lines(model, c)]
     if hashes:
         body += ["", "// Each view class hashes as it compares, so it can key an unordered container (design.md 2.3).",
                  "namespace std {", *hashes, "", "}  // namespace std"]
-    tail = ["#include <villanelle/errors.hpp>  // after the records its classes hold", ""] if package else []
-    tail += [*(f"#include <villanelle/detail/{d}/templates.hpp>  // templates and block traits: both modes"
+    tail = ["#include <knobly/errors.hpp>  // after the records its classes hold", ""] if package else []
+    tail += [*(f"#include <knobly/detail/{d}/templates.hpp>  // templates and block traits: both modes"
                for d in template_layers(model, concepts)), ""]
     if seen is not None:
         mine = [s for s in instantiations(model, "\n".join(body)) if s not in seen]
         seen.extend(mine)
         tail += extern_templates(mine)
-    tail += ["#if VILLANELLE_HEADER_ONLY", *(f"#include <villanelle/detail/{d}/definitions.hpp>" for d in detail_dirs(layers, module)),
+    tail += ["#if KNOBLY_HEADER_ONLY", *(f"#include <knobly/detail/{d}/definitions.hpp>" for d in detail_dirs(layers, module)),
              "#endif"]
     what = (f"the {' and '.join(layers)} layer{'s' if len(layers) > 1 else ''}" if module is None
             else f"the {module} adapter module")
@@ -1453,11 +1453,11 @@ def implementation_header(model: Model, specs: Sequence[str] = ()) -> str:
     every = [d for layers, module in hs.values() for d in detail_dirs(layers, module)]
     instantiated = ["", "// Every support and class template specialization the headers spell, instantiated once here (each header",
                     "// declares its own extern in compiled mode).", *(f"template class {s};" for s in specs)] if specs else []
-    return header("implementation.hpp", "spec/schema/api.json layers", ["<villanelle/support/config.hpp>"],
-                  ["#if VILLANELLE_HEADER_ONLY",
-                   '#error "<villanelle/implementation.hpp> is for compiled mode: define VILLANELLE_HEADER_ONLY=0"',
-                   "#endif", "", *(f"#include <villanelle/{name}>" for name in hs), "",
-                   *(f"#include <villanelle/detail/{d}/definitions.hpp>" for d in every), *instantiated])
+    return header("implementation.hpp", "spec/schema/api.json layers", ["<knobly/support/config.hpp>"],
+                  ["#if KNOBLY_HEADER_ONLY",
+                   '#error "<knobly/implementation.hpp> is for compiled mode: define KNOBLY_HEADER_ONLY=0"',
+                   "#endif", "", *(f"#include <knobly/{name}>" for name in hs), "",
+                   *(f"#include <knobly/detail/{d}/definitions.hpp>" for d in every), *instantiated])
 
 
 def format_header(model: Model) -> str:
@@ -1469,30 +1469,30 @@ def format_header(model: Model) -> str:
     for c in model.concepts:
         if KEY in c.languages and c.module is None and any(m.trait == "people form" for m in c.members):
             by_ns.setdefault(namespace(model, c), []).append(qual(model, c.name))
-            includes[f"<villanelle/{header_of_layer(model, c.layer)}>"] = None
+            includes[f"<knobly/{header_of_layer(model, c.layer)}>"] = None
     for k in model.kinds:
         if KEY in k.languages:
             by_ns.setdefault("::" + model.kind_module(k, KEY), []).append(qual(model, k.name))
     by_ns.setdefault(f"::{model.package}", []).append(qual(model, "diagnostic code"))
     every = [t for types in by_ns.values() for t in types]
-    body = ["VILLANELLE_NAMESPACE_BEGIN", "namespace detail {", "",
+    body = ["KNOBLY_NAMESPACE_BEGIN", "namespace detail {", "",
             *doc("A formatter that formats a value's to_string as a string (width, fill and alignment included)."),
             "template <class T>", "struct people_formatter : std::formatter<std::string_view, char> {",
             "template <class Context>", "auto format(const T& value, Context& context) const {",
             "const auto text = to_string(value);",
             "return std::formatter<std::string_view, char>::format(std::string_view(text), context);", "}", "};", "",
-            "}  // namespace detail", "VILLANELLE_NAMESPACE_END", ""]
+            "}  // namespace detail", "KNOBLY_NAMESPACE_END", ""]
     for ns, types in by_ns.items():
         inner = ns[len(f"::{model.package}"):].lstrip(":")
-        body += ["VILLANELLE_NAMESPACE_BEGIN", *([f"namespace {inner} {{"] if inner else []), ""]
+        body += ["KNOBLY_NAMESPACE_BEGIN", *([f"namespace {inner} {{"] if inner else []), ""]
         for t in types:
             body += [*doc("Writes `to_string(value)`."),
                      f"inline std::ostream& operator<<(std::ostream& out, const {t}& value) {{ return out << to_string(value); }}", ""]
-        body += [*([f"}}  // namespace {inner}"] if inner else []), "VILLANELLE_NAMESPACE_END", ""]
-    body += [f"template <> struct std::formatter<{t}, char> : ::villanelle::detail::people_formatter<{t}> {{}};" for t in every]
+        body += [*([f"}}  // namespace {inner}"] if inner else []), "KNOBLY_NAMESPACE_END", ""]
+    body += [f"template <> struct std::formatter<{t}, char> : ::knobly::detail::people_formatter<{t}> {{}};" for t in every]
     return header("format.hpp", "spec/schema/api.json (every people form, kind list and diagnostic_code)",
-                  ["<format>", "<ostream>", "<string_view>", "", f"<villanelle/{model.package}.hpp>",
-                   *(i for i in includes if i != f"<villanelle/{model.package}.hpp>")], body)
+                  ["<format>", "<ostream>", "<string_view>", "", f"<knobly/{model.package}.hpp>",
+                   *(i for i in includes if i != f"<knobly/{model.package}.hpp>")], body)
 
 
 def render_with_hands(model: Model) -> Tuple[Dict[str, str], Dict[str, List[Hand]]]:
@@ -1532,7 +1532,7 @@ def render_shapes(model: Model) -> Dict[str, str]:
     for g in model.groups:
         if g.parent is None:
             down(g)
-    checks = [f"if (dynamic_cast<const ::villanelle::{error_class(model, g.name)}*>(&error) != nullptr) {{ return {lit(g.name)}; }}"
+    checks = [f"if (dynamic_cast<const ::knobly::{error_class(model, g.name)}*>(&error) != nullptr) {{ return {lit(g.name)}; }}"
               for g in order]
     body = ["namespace adapter::shapes {", "",
             *doc("The protocol version an adapter's hello answers."),
@@ -1560,7 +1560,7 @@ def render_shapes(model: Model) -> Dict[str, str]:
             "}  // namespace adapter::shapes"]
     return {"shapes.hpp": header("shapes.hpp", "spec/schema/protocol.json (spec/conformance.md 4) and api.json's error groups",
                                  ["<array>", "<exception>", "<optional>", "<string_view>", "<utility>", "",
-                                  f"<villanelle/{model.package}.hpp>"], body)}
+                                  f"<knobly/{model.package}.hpp>"], body)}
 
 
 # --- the test contract -----------------------------------------------------------------------------------------------
@@ -1573,12 +1573,12 @@ def render_contract(model: Model) -> Dict[str, str]:
     for name, (layers, module) in hs.items():
         stem = name[: -len(".hpp")]
         files[f"api_contract_{stem}.cpp"] = "\n".join([
-            *head(f"spec/schema/api.json, <villanelle/{name}>"),
+            *head(f"spec/schema/api.json, <knobly/{name}>"),
             "// Odr-uses every hand-defined function and member of the header, each through a volatile function pointer",
             "// no optimizer drops: a declaration whose definition is missing fails to link. The file also compiles",
             "// before a layer's definitions exist, so a missing inline definition is the linker's to report.",
             "#if defined(__clang__)", '#pragma clang diagnostic ignored "-Wundefined-inline"', "#endif", "",
-            f"#include <villanelle/{name}>", "",
+            f"#include <knobly/{name}>", "",
             "int main() {", *(h.line(i) for i, h in enumerate(hands[name])), "return 0;", "}", ""])
         allowed = allowed_layers(model, own_layers(model, layers, module))
         # A header holds a layer this one may import (the package header holds shared and io together), or it is
@@ -1586,17 +1586,17 @@ def render_contract(model: Model) -> Dict[str, str]:
         forbidden = [other for other, (olayers, omodule) in hs.items()
                      if other != name and (omodule is not None or not set(olayers) & allowed)]
         files[f"layers_{stem}.cpp"] = "\n".join([
-            *head(f"spec/schema/api.json \"may import\", <villanelle/{name}>"),
+            *head(f"spec/schema/api.json \"may import\", <knobly/{name}>"),
             "// The layer-direction check: every header this one's layers may not import is marked as already included,",
             "// so an include of one leaves its names undeclared and this file fails to compile.",
             *(f"#define {guard(f)}" for f in forbidden), "",
-            f"#include <villanelle/{name}>", ""])
+            f"#include <knobly/{name}>", ""])
         files[f"layers_{stem}_definitions.cpp"] = "\n".join([
-            *head(f"spec/schema/api.json, the definitions of <villanelle/{name}>"),
+            *head(f"spec/schema/api.json, the definitions of <knobly/{name}>"),
             "// The layer-boundary check (spec 7.0: render builds on the written layer's public objects only; the",
             "// binding guide's second check): this header's definitions compiled in compiled mode, where no public",
             "// header includes its layer's definitions, so every other layer's detail types are undeclared and a",
             "// definition here that reaches into one fails to compile. Compiled, never linked.",
-            "#define VILLANELLE_HEADER_ONLY 0", "",
-            *(f"#include <villanelle/detail/{d}/definitions.hpp>" for d in detail_dirs(layers, module)), ""])
+            "#define KNOBLY_HEADER_ONLY 0", "",
+            *(f"#include <knobly/detail/{d}/definitions.hpp>" for d in detail_dirs(layers, module)), ""])
     return files

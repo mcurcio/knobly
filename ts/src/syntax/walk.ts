@@ -3,7 +3,7 @@
  * ranges; grammar-internal rules are transparent. Ported from design/experiments/v4/antlr/ts/cst.ts.
  */
 
-import VillanelleParser from "../gen/VillanelleParser.js";
+import KnoblyParser from "../gen/KnoblyParser.js";
 import type { Node } from "../gen/api/syntax.js";
 import { NodeKind } from "../gen/api/kinds.js";
 
@@ -42,7 +42,7 @@ const CONCEPTS: Readonly<Record<string, NodeKind>> = {
 /** Rule index -> concept kind, built once; throws at load if the grammar lost a concept rule. */
 const CONCEPT_BY_RULE: ReadonlyMap<number, NodeKind> = new Map(
   Object.entries(CONCEPTS).map(([rule, kind]) => {
-    const index = VillanelleParser.ruleNames.indexOf(rule);
+    const index = KnoblyParser.ruleNames.indexOf(rule);
     if (index < 0) throw new Error(`grammar has no rule "${rule}" for CST node kind "${kind}"`);
     return [index, kind];
   }),
@@ -57,7 +57,7 @@ type Item =
   | { readonly tag: "error"; readonly start: number; readonly end: number; readonly parent: unknown }
   | { readonly tag: "token"; readonly index: number };
 
-const BLOCK_RULE = VillanelleParser.ruleNames.indexOf("block");
+const BLOCK_RULE = KnoblyParser.ruleNames.indexOf("block");
 
 /** EOF (type -1) and tokens conjured by error recovery (tokenIndex < 0) are not source tokens. */
 function isSourceToken(token: AntlrToken): boolean {

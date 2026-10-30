@@ -1,4 +1,4 @@
-# Milestone 6, frozen for the binding lanes (beads vil-umh.9, vil-umh.10, vil-umh.11, vil-umh.13)
+# Milestone 6, frozen for the binding lanes (beads kno-umh.9, kno-umh.10, kno-umh.11, kno-umh.13)
 
 This page is what the TypeScript lane (`ts/`) and the Python lane (`py/`) build in milestone 6. It is frozen: a lane
 that finds it wrong appends the finding to `.claude/errata.md` and does not diverge silently. The rules live in
@@ -10,21 +10,21 @@ The owner's answers of 2026-10-29, quoted, not widened:
 
 - **Q3** on the round 15 review page, "Should the schema become the source of every public signature?": "Yes, with
   idiom expressed as typed per-language traits; start after the scoping and layer decisions". The scoping and layer
-  decisions landed in milestones 4 and 5. Beads vil-umh.9 (type the schema) and vil-umh.10 (generate the
+  decisions landed in milestones 4 and 5. Beads kno-umh.9 (type the schema) and kno-umh.10 (generate the
   declarations, errors, diagnostics and tables; delete the hand copies and most of the name tests).
 - **Enumerations**: "Yes, generate both": TypeScript `as const` objects plus derived string-literal unions (this
   reverses spec 2.10's milestone 2 rule, rewritten); Python internals compare enum members; one generated keyword
   list and dispatch table; a lint refuses `.kind`, `.reason` or `.code` compared with a string literal. Bead
-  vil-umh.11.
-- **Namespaces**: "Yes, rename now": per-layer namespaces, TypeScript subpath exports `villanelle/syntax`,
-  `villanelle/written`, `villanelle/rendered` with no `I` prefix on types; Python subpackages as the namespace; one
-  block shape (iterate, index, `directives(name)`, walk) in every layer. Bead vil-umh.13. No aliases or re-exports of
+  kno-umh.11.
+- **Namespaces**: "Yes, rename now": per-layer namespaces, TypeScript subpath exports `knobly/syntax`,
+  `knobly/written`, `knobly/rendered` with no `I` prefix on types; Python subpackages as the namespace; one
+  block shape (iterate, index, `directives(name)`, walk) in every layer. Bead kno-umh.13. No aliases or re-exports of
   old names.
 - His first ask (2026-10-28): "clean, easy to comprehend API design", "idiomatic in each language", "consistent
   across layers", and codegen "so we dont have to maintain n languages by hand".
 
-Not in this milestone: the open question vil-umh.15 (may `:` start a word; the grammar is unchanged) and the high
-level (vil-xlo).
+Not in this milestone: the open question kno-umh.15 (may `:` start a word; the grammar is unchanged) and the high
+level (kno-xlo).
 
 Design calls of this milestone (revisable; each in "Behaviour changes" or the errata): the package root holds the
 shared and io layers; `walk` moves onto the block (not kept on the render and the directive); the block shape is
@@ -64,7 +64,7 @@ freshness check.
 | `spec/conformance.md` | 4.1 and 4.2 generated from `protocol.json`; section 6 (generated shapes, `SPELLING`, `ERROR_GROUP_OF_CLASS`); section 7 |
 | `spec/glossary.md`, `spec/README.md`, `README.md` | no `I` prefix; import paths; milestone 6 terms |
 | `docs/language.md`, `docs/low-level-api.md`, `docs/rendered-tree.md` | the milestone 5 leftovers (`@set`); new import lines; no `I` prefix; `written.X` / `rendered.X` in Python; block shape (`[...block]`, `block.at(i)`, `block.walk`); the generated error-code table |
-| `.claude/skills/villanelle-binding/SKILL.md` | a new binding is an emitter and an adapter; schema first; the new traps |
+| `.claude/skills/knobly-binding/SKILL.md` | a new binding is an emitter and an adapter; schema first; the new traps |
 
 **Checks at this commit.** `bash tools/check.sh`: green (0 conflicts; 21 token kinds, 0 overlapping; 13 planted
 grammars caught; "schema checked; 12 planted breakages caught; ts and py rendered; docs tables current"; "3 files
@@ -88,7 +88,7 @@ reports the switch-over itself; mypy checks the Protocols when the lane subclass
 
 ## 2. Per item
 
-### A. The typed schema (vil-umh.9)
+### A. The typed schema (kno-umh.9)
 
 - **Type grammar** (spec/codegen.md section 2): `type = postfix {" or " postfix}`, `postfix = primary {"[]"}`,
   `primary = (type) | function [of T {and T}] to T | [writable] map of T [to T] | name [of T {and T}]`; names are
@@ -106,19 +106,19 @@ reports the switch-over itself; mypy checks the Protocols when the lane subclass
 - **Spellings** derived by one casing rule (`tools/api/loader.py`): types `PascalCase`; members `camelCase` /
   `snake_case`; enum members `PascalCase` / `UPPER_SNAKE_CASE` (token kinds keep the grammar's names); constants
   `UPPER_SNAKE_CASE`; free functions `camelCase` / `snake_case`; a `package function` factory is named after the
-  package (`villanelle`).
+  package (`knobly`).
 - **Error groups** carry `sort` (`base`, `expected outcome`, `program bug`) and each root its per-language base:
-  `villanelle error` `Error` / `Exception`; `detached error` `ReferenceError` / `ReferenceError`; `misuse error`
+  `knobly error` `Error` / `Exception`; `detached error` `ReferenceError` / `ReferenceError`; `misuse error`
   `Error` (class `MisuseError`) / builtin `ValueError`; `argument type error` builtin `TypeError` / `TypeError`;
   `index out of range` builtin `RangeError` / `IndexError`.
 - **Moved out:** `removed in milestone N` and `disagreements` to `round15/schema-history.json`; `layer check`, `kind
   rule`, `error fields`, `naming` to the spec pages that already state them (binding guide rule 8, spec 2.10, the
   typed `fields`, spec/codegen.md section 3).
 
-### B. The generator and what each binding does with it (vil-umh.10)
+### B. The generator and what each binding does with it (kno-umh.10)
 
 `tools/gen.sh ts` and `tools/gen.sh py` run the loader and the language's emitter. Output paths: TypeScript
-`ts/src/gen/api/` (unchanged) and `ts/conformance/shapes.ts` (new); Python `py/src/villanelle/_api/` (unchanged) and
+`ts/src/gen/api/` (unchanged) and `ts/conformance/shapes.ts` (new); Python `py/src/knobly/_api/` (unchanged) and
 `py/conformance/shapes.py` (new). All git-ignored; nothing to commit.
 
 **Generated modules and their exact names** (each name is generated from the schema; doc comments omitted):
@@ -126,7 +126,7 @@ reports the switch-over itself; mypy checks the Protocols when the lane subclass
 | Module | Exported names |
 |---|---|
 | `ts/src/gen/api/codes.ts` | `DiagnosticCode`, `MESSAGES`, `CodeFacts`, `CODE_FACTS`, `ReasonOf`, `describe` |
-| `ts/src/gen/api/errors.ts` | `VillanelleError`, `DiagnosticError`, `ReadError`, `BadTextError`, `SaveError`, `LostUpdateError`, `DetachedError`, `MisuseError`, `argumentTypeMessage` |
+| `ts/src/gen/api/errors.ts` | `KnoblyError`, `DiagnosticError`, `ReadError`, `BadTextError`, `SaveError`, `LostUpdateError`, `DetachedError`, `MisuseError`, `argumentTypeMessage` |
 | `ts/src/gen/api/io.ts` | `LoadContext`, `DocumentSource`, `FileWrite`, `DocumentWriter`, `FetchWriterOptions`, `IoFunctions`, `BrowserFunctions`, `NodeFunctions` |
 | `ts/src/gen/api/kinds.ts` | `TokenKind`, `NodeKind`, `StatementKind`, `ValueKind`, `VariableKind`, `StepKind`, `PlaceKind`, `UnreadableReason`, `ChangeKind`, `WalkControl`, `Keyword`, `STATEMENT_OF_KEYWORD`, `statementOfKeyword` |
 | `ts/src/gen/api/limits.ts` | `MAX_NESTING`, `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`, `PROGRAM_CODE` |
@@ -139,16 +139,16 @@ reports the switch-over itself; mypy checks the Protocols when the lane subclass
 
 | Module | Public names |
 |---|---|
-| `py/src/villanelle/_api/codes.py` | `DiagnosticCode`, `MESSAGES`, `CodeFacts`, `CODE_FACTS`, `Described`, `describe` |
-| `py/src/villanelle/_api/errors.py` | `VillanelleError`, `DiagnosticError`, `ReadError`, `BadTextError`, `SaveError`, `LostUpdateError`, `DetachedError`, `argument_type_message` |
-| `py/src/villanelle/_api/io.py` | `LoadContext`, `DocumentSource`, `FileWrite`, `DocumentWriter`, `IoFunctions`, `FilesFunctions` |
-| `py/src/villanelle/_api/kinds.py` | `TokenKind`, `NodeKind`, `StatementKind`, `ValueKind`, `VariableKind`, `StepKind`, `PlaceKind`, `UnreadableReason`, `ChangeKind`, `Keyword`, `STATEMENT_OF_KEYWORD`, `statement_of_keyword` |
-| `py/src/villanelle/_api/limits.py` | `MAX_NESTING`, `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`, `PROGRAM_CODE` |
-| `py/src/villanelle/_api/names.py` | `PUBLIC_NAMES`, `ERROR_GROUP_OF_CLASS`, `MATCH_ARGS` |
-| `py/src/villanelle/_api/rendered.py` | `Rendered`, `Directive`, `RenderedBlock`, `AddressStep`, `Address`, `Added`, `Removed`, `Changed`, `Unknown`, `KeyRule`, `Change`, `RenderedFunctions` |
-| `py/src/villanelle/_api/shared.py` | `ConfigText`, `SourcePosition`, `SourceSpan`, `Place`, `Override`, `Step`, `Origin`, `DirectiveOrigin`, `Diagnostic`, `LocatedDiagnostic`, `Locatable`, `Diagnostics`, `Block`, `ProgramCode`, `SharedFunctions` |
-| `py/src/villanelle/_api/syntax.py` | `TokenRange`, `Token`, `Node`, `Syntax`, `SyntaxFunctions` |
-| `py/src/villanelle/_api/written.py` | `Extension`, `ExtensionUse`, `Processor`, `DocumentGraph`, `Document`, `DocumentEdge`, `Copy`, `WrittenDirective`, `ExtensionLine`, `SetLine`, `SnippetLine`, `UseLine`, `UnreadableLine`, `WrittenBlock`, `Word`, `String`, `List`, `Slice`, `Index`, `Reference`, `SetVariable`, `Parameter`, `OverrideVariable`, `Resolution`, `ReferenceResolution`, `Expansion`, `ExpansionBlock`, `DirectiveExpansion`, `UnreadableExpansion`, `SliceValue`, `IndexValue`, `ExpandedWord`, `ExpandedString`, `ExpandedList`, `ExpandedSlice`, `ExpandedIndex`, `Statement`, `WrittenValue`, `Variable`, `ExpandedValue`, `IncludeFunctions`, `WrittenFunctions` |
+| `py/src/knobly/_api/codes.py` | `DiagnosticCode`, `MESSAGES`, `CodeFacts`, `CODE_FACTS`, `Described`, `describe` |
+| `py/src/knobly/_api/errors.py` | `KnoblyError`, `DiagnosticError`, `ReadError`, `BadTextError`, `SaveError`, `LostUpdateError`, `DetachedError`, `argument_type_message` |
+| `py/src/knobly/_api/io.py` | `LoadContext`, `DocumentSource`, `FileWrite`, `DocumentWriter`, `IoFunctions`, `FilesFunctions` |
+| `py/src/knobly/_api/kinds.py` | `TokenKind`, `NodeKind`, `StatementKind`, `ValueKind`, `VariableKind`, `StepKind`, `PlaceKind`, `UnreadableReason`, `ChangeKind`, `Keyword`, `STATEMENT_OF_KEYWORD`, `statement_of_keyword` |
+| `py/src/knobly/_api/limits.py` | `MAX_NESTING`, `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`, `PROGRAM_CODE` |
+| `py/src/knobly/_api/names.py` | `PUBLIC_NAMES`, `ERROR_GROUP_OF_CLASS`, `MATCH_ARGS` |
+| `py/src/knobly/_api/rendered.py` | `Rendered`, `Directive`, `RenderedBlock`, `AddressStep`, `Address`, `Added`, `Removed`, `Changed`, `Unknown`, `KeyRule`, `Change`, `RenderedFunctions` |
+| `py/src/knobly/_api/shared.py` | `ConfigText`, `SourcePosition`, `SourceSpan`, `Place`, `Override`, `Step`, `Origin`, `DirectiveOrigin`, `Diagnostic`, `LocatedDiagnostic`, `Locatable`, `Diagnostics`, `Block`, `ProgramCode`, `SharedFunctions` |
+| `py/src/knobly/_api/syntax.py` | `TokenRange`, `Token`, `Node`, `Syntax`, `SyntaxFunctions` |
+| `py/src/knobly/_api/written.py` | `Extension`, `ExtensionUse`, `Processor`, `DocumentGraph`, `Document`, `DocumentEdge`, `Copy`, `WrittenDirective`, `ExtensionLine`, `SetLine`, `SnippetLine`, `UseLine`, `UnreadableLine`, `WrittenBlock`, `Word`, `String`, `List`, `Slice`, `Index`, `Reference`, `SetVariable`, `Parameter`, `OverrideVariable`, `Resolution`, `ReferenceResolution`, `Expansion`, `ExpansionBlock`, `DirectiveExpansion`, `UnreadableExpansion`, `SliceValue`, `IndexValue`, `ExpandedWord`, `ExpandedString`, `ExpandedList`, `ExpandedSlice`, `ExpandedIndex`, `Statement`, `WrittenValue`, `Variable`, `ExpandedValue`, `IncludeFunctions`, `WrittenFunctions` |
 | `py/conformance/shapes.py` | `Json`, `PROTOCOL`, `Position`, `PlaceDump`, `OverrideDump`, `StepDump`, `OriginDump`, `SyntaxDiagnosticDump`, `LocatedDiagnosticDump`, `TokenDump`, `NodeDump`, `SyntaxDump`, `VariableReferenceDump`, `ReferencePlaceDump`, `ResolutionDump`, `WrittenValueDump`, `StatementDump`, `BlockDump`, `CopyDump`, `DocumentDump`, `EdgeDump`, `GraphVariableDump`, `GraphDump`, `AddressDump`, `UnreadableDump`, `ExpandedValueDump`, `DirectiveDump`, `RenderDump`, `ChangeDump`, `HandleDump`, `KeyRuleDump`, `ReaderResultDumpText`, `ReaderResultDumpBoolean`, `ReaderResultDumpNumber`, `ReaderResultDumpSlice`, `ReaderResultDumpIndex`, `ReaderResultDumpValue`, `ReaderResultDumpList`, `ReaderResultDump`, `HelloResultDump`, `LoadedDump`, `EditedDump`, `SavedDump`, `SPELLING` |
 
 Signatures worth quoting exactly (the rest are in the generated files; `python3 tools/gen-api.py ts` and `py`
@@ -188,7 +188,7 @@ export function statementOfKeyword(word: string): StatementKind | undefined;
 // codes.ts
 export function describe<C extends DiagnosticCode>(code: C, detail?: string): { readonly code: C; readonly message: string; readonly reason: ReasonOf<C> };
 // errors.ts
-export class ReadError extends VillanelleError { constructor(message: string, readonly paths: readonly string[], options?: ErrorOptions) }
+export class ReadError extends KnoblyError { constructor(message: string, readonly paths: readonly string[], options?: ErrorOptions) }
 export class LostUpdateError extends SaveError { constructor(paths: readonly string[]) }
 export function argumentTypeMessage(member: string, parameter: string, got: string): string;
 ```
@@ -220,7 +220,7 @@ def statement_of_keyword(word: str, /) -> StatementKind | None: ...
 # codes.py
 def describe(code: DiagnosticCode, detail: str | None = None, /) -> Described: ...
 # errors.py
-class ReadError(VillanelleError):
+class ReadError(KnoblyError):
     paths: tuple[str, ...]
     def __init__(self, message: str, paths: Sequence[str]) -> None: ...
 def argument_type_message(member: str, parameter: str, got: str, /) -> str: ...
@@ -271,8 +271,8 @@ TypeScript lane:
 
 Python lane:
 
-- Public modules: `villanelle/__init__.py` exports only the root names of section D; `villanelle.syntax`,
-  `villanelle.written`, `villanelle.rendered` export theirs; each `__all__` equals `PUBLIC_NAMES[module]`.
+- Public modules: `knobly/__init__.py` exports only the root names of section D; `knobly.syntax`,
+  `knobly.written`, `knobly.rendered` export theirs; each `__all__` equals `PUBLIC_NAMES[module]`.
 - Each hand-written handle and port class subclasses its generated Protocol (`class Document(_api.written.Document)`,
   the six statement classes their variant, the six value classes theirs, `DocumentGraph`, `Processor`,
   `Diagnostics`, `Rendered`, `Directive`, the three blocks); mypy then checks every member at the class.
@@ -300,7 +300,7 @@ Python lane:
 - **Adapter:** `py/conformance/adapter.py` types its dumps with `shapes`, spells with `SPELLING`, names groups with
   `ERROR_GROUP_OF_CLASS[type(e).__name__]`.
 
-### C. Enumerations and the lint (vil-umh.11)
+### C. Enumerations and the lint (kno-umh.11)
 
 - Spec 2.10 rewritten: TypeScript `as const` object plus derived union under one name; Python `StrEnum`; inside a
   binding, members only. `DiagnosticCode` the same in both forms.
@@ -316,31 +316,31 @@ Python lane:
 - Verified on probes: the TypeScript selectors flag `s.kind === "set"`, `"use" !== s.kind`, `s.reason == "value"`
   and `case "E1001":`, and leave `s.kind === K.Set` and `case K.Set:` alone.
 
-### D. Namespaces and the block shape (vil-umh.13)
+### D. Namespaces and the block shape (kno-umh.13)
 
-**Import paths per layer** (binding guide rule 9): shared and io `villanelle`; syntax `villanelle/syntax` /
-`villanelle.syntax`; written `villanelle/written` / `villanelle.written`; rendered `villanelle/rendered` /
-`villanelle.rendered`; adapters unchanged (`villanelle/node`, `villanelle/browser`, `villanelle/include`;
-`villanelle.files`, `villanelle.include`). Every public name, per path (generated `PUBLIC_NAMES`):
+**Import paths per layer** (binding guide rule 9): shared and io `knobly`; syntax `knobly/syntax` /
+`knobly.syntax`; written `knobly/written` / `knobly.written`; rendered `knobly/rendered` /
+`knobly.rendered`; adapters unchanged (`knobly/node`, `knobly/browser`, `knobly/include`;
+`knobly.files`, `knobly.include`). Every public name, per path (generated `PUBLIC_NAMES`):
 
 | Import path | TypeScript values | TypeScript types only |
 |---|---|---|
-| `villanelle` | `BadTextError`, `DetachedError`, `DiagnosticCode`, `DiagnosticError`, `Diagnostics`, `LostUpdateError`, `MisuseError`, `PROGRAM_CODE`, `PlaceKind`, `ReadError`, `SaveError`, `StepKind`, `VillanelleError`, `WalkControl`, `checkLostUpdates`, `memorySource`, `memoryWriter`, `quote`, `text` | `ConfigText`, `Diagnostic`, `DirectiveOrigin`, `DocumentSource`, `DocumentWriter`, `FileWrite`, `LoadContext`, `Locatable`, `LocatedDiagnostic`, `Origin`, `Override`, `Place`, `ProgramCode`, `SourcePosition`, `SourceSpan`, `Step` |
-| `villanelle/browser` | `fetchSource`, `fetchWriter` | `FetchWriterOptions` |
-| `villanelle/include` | `include` | — |
-| `villanelle/node` | `fileSource`, `fileWriter` | — |
-| `villanelle/rendered` | `ChangeKind`, `render` | `Added`, `Address`, `AddressStep`, `Change`, `Changed`, `Directive`, `KeyOptions`, `KeyRule`, `Removed`, `Rendered`, `RenderedBlock`, `Unknown` |
-| `villanelle/syntax` | `MAX_NESTING`, `NodeKind`, `TokenKind`, `parse`, `spanOf`, `textOf` | `Node`, `Syntax`, `Token`, `TokenRange` |
-| `villanelle/written` | `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED`, `StatementKind`, `UnreadableReason`, `VARIABLE_NAME`, `ValueKind`, `VariableKind`, `formatDiagnostic`, `villanelle` | `Copy`, `DirectiveExpansion`, `Document`, `DocumentEdge`, `DocumentGraph`, `ExpandedIndex`, `ExpandedList`, `ExpandedSlice`, `ExpandedString`, `ExpandedValue`, `ExpandedWord`, `Expansion`, `ExpansionBlock`, `Extension`, `ExtensionLine`, `ExtensionUse`, `Index`, `IndexValue`, `List`, `LoadOptions`, `OverrideVariable`, `Parameter`, `Processor`, `ProcessorOptions`, `Reference`, `ReferenceResolution`, `Resolution`, `SetLine`, `SetVariable`, `Slice`, `SliceValue`, `SnippetLine`, `Statement`, `String`, `UnreadableExpansion`, `UnreadableLine`, `UseLine`, `Variable`, `Word`, `WrittenBlock`, `WrittenDirective`, `WrittenValue` |
+| `knobly` | `BadTextError`, `DetachedError`, `DiagnosticCode`, `DiagnosticError`, `Diagnostics`, `LostUpdateError`, `MisuseError`, `PROGRAM_CODE`, `PlaceKind`, `ReadError`, `SaveError`, `StepKind`, `KnoblyError`, `WalkControl`, `checkLostUpdates`, `memorySource`, `memoryWriter`, `quote`, `text` | `ConfigText`, `Diagnostic`, `DirectiveOrigin`, `DocumentSource`, `DocumentWriter`, `FileWrite`, `LoadContext`, `Locatable`, `LocatedDiagnostic`, `Origin`, `Override`, `Place`, `ProgramCode`, `SourcePosition`, `SourceSpan`, `Step` |
+| `knobly/browser` | `fetchSource`, `fetchWriter` | `FetchWriterOptions` |
+| `knobly/include` | `include` | — |
+| `knobly/node` | `fileSource`, `fileWriter` | — |
+| `knobly/rendered` | `ChangeKind`, `render` | `Added`, `Address`, `AddressStep`, `Change`, `Changed`, `Directive`, `KeyOptions`, `KeyRule`, `Removed`, `Rendered`, `RenderedBlock`, `Unknown` |
+| `knobly/syntax` | `MAX_NESTING`, `NodeKind`, `TokenKind`, `parse`, `spanOf`, `textOf` | `Node`, `Syntax`, `Token`, `TokenRange` |
+| `knobly/written` | `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED`, `StatementKind`, `UnreadableReason`, `VARIABLE_NAME`, `ValueKind`, `VariableKind`, `formatDiagnostic`, `knobly` | `Copy`, `DirectiveExpansion`, `Document`, `DocumentEdge`, `DocumentGraph`, `ExpandedIndex`, `ExpandedList`, `ExpandedSlice`, `ExpandedString`, `ExpandedValue`, `ExpandedWord`, `Expansion`, `ExpansionBlock`, `Extension`, `ExtensionLine`, `ExtensionUse`, `Index`, `IndexValue`, `List`, `LoadOptions`, `OverrideVariable`, `Parameter`, `Processor`, `ProcessorOptions`, `Reference`, `ReferenceResolution`, `Resolution`, `SetLine`, `SetVariable`, `Slice`, `SliceValue`, `SnippetLine`, `Statement`, `String`, `UnreadableExpansion`, `UnreadableLine`, `UseLine`, `Variable`, `Word`, `WrittenBlock`, `WrittenDirective`, `WrittenValue` |
 
 | Module | Python `__all__` |
 |---|---|
-| `villanelle` | `BadTextError`, `Collecting`, `ConfigText`, `DetachedError`, `Diagnostic`, `DiagnosticCode`, `DiagnosticError`, `Diagnostics`, `DirectiveOrigin`, `DocumentSource`, `DocumentWriter`, `FileWrite`, `LoadContext`, `Locatable`, `LocatedDiagnostic`, `LostUpdateError`, `Origin`, `Override`, `PROGRAM_CODE`, `Place`, `PlaceKind`, `ProgramCode`, `ReadError`, `SaveError`, `SourcePosition`, `SourceSpan`, `Step`, `StepKind`, `VillanelleError`, `check_lost_updates`, `memory_source`, `memory_writer`, `quote`, `text` |
-| `villanelle.files` | `file_source`, `file_writer` |
-| `villanelle.include` | `include` |
-| `villanelle.rendered` | `Added`, `Address`, `AddressStep`, `Change`, `ChangeKind`, `Changed`, `Directive`, `KeyRule`, `Removed`, `Rendered`, `RenderedBlock`, `Unknown`, `render` |
-| `villanelle.syntax` | `MAX_NESTING`, `Node`, `NodeKind`, `Syntax`, `Token`, `TokenKind`, `TokenRange`, `parse`, `span_of`, `text_of` |
-| `villanelle.written` | `Copy`, `DirectiveExpansion`, `Document`, `DocumentEdge`, `DocumentGraph`, `ExpandedIndex`, `ExpandedList`, `ExpandedSlice`, `ExpandedString`, `ExpandedValue`, `ExpandedWord`, `Expansion`, `ExpansionBlock`, `Extension`, `ExtensionLine`, `ExtensionUse`, `Index`, `IndexValue`, `List`, `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `OverrideVariable`, `Parameter`, `Processor`, `RESERVED`, `Reference`, `ReferenceResolution`, `Resolution`, `SetLine`, `SetVariable`, `Slice`, `SliceValue`, `SnippetLine`, `Statement`, `StatementKind`, `String`, `UnreadableExpansion`, `UnreadableLine`, `UnreadableReason`, `UseLine`, `VARIABLE_NAME`, `ValueKind`, `Variable`, `VariableKind`, `Word`, `WrittenBlock`, `WrittenDirective`, `WrittenValue`, `format_diagnostic` |
+| `knobly` | `BadTextError`, `Collecting`, `ConfigText`, `DetachedError`, `Diagnostic`, `DiagnosticCode`, `DiagnosticError`, `Diagnostics`, `DirectiveOrigin`, `DocumentSource`, `DocumentWriter`, `FileWrite`, `LoadContext`, `Locatable`, `LocatedDiagnostic`, `LostUpdateError`, `Origin`, `Override`, `PROGRAM_CODE`, `Place`, `PlaceKind`, `ProgramCode`, `ReadError`, `SaveError`, `SourcePosition`, `SourceSpan`, `Step`, `StepKind`, `KnoblyError`, `check_lost_updates`, `memory_source`, `memory_writer`, `quote`, `text` |
+| `knobly.files` | `file_source`, `file_writer` |
+| `knobly.include` | `include` |
+| `knobly.rendered` | `Added`, `Address`, `AddressStep`, `Change`, `ChangeKind`, `Changed`, `Directive`, `KeyRule`, `Removed`, `Rendered`, `RenderedBlock`, `Unknown`, `render` |
+| `knobly.syntax` | `MAX_NESTING`, `Node`, `NodeKind`, `Syntax`, `Token`, `TokenKind`, `TokenRange`, `parse`, `span_of`, `text_of` |
+| `knobly.written` | `Copy`, `DirectiveExpansion`, `Document`, `DocumentEdge`, `DocumentGraph`, `ExpandedIndex`, `ExpandedList`, `ExpandedSlice`, `ExpandedString`, `ExpandedValue`, `ExpandedWord`, `Expansion`, `ExpansionBlock`, `Extension`, `ExtensionLine`, `ExtensionUse`, `Index`, `IndexValue`, `List`, `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `OverrideVariable`, `Parameter`, `Processor`, `RESERVED`, `Reference`, `ReferenceResolution`, `Resolution`, `SetLine`, `SetVariable`, `Slice`, `SliceValue`, `SnippetLine`, `Statement`, `StatementKind`, `String`, `UnreadableExpansion`, `UnreadableLine`, `UnreadableReason`, `UseLine`, `VARIABLE_NAME`, `ValueKind`, `Variable`, `VariableKind`, `Word`, `WrittenBlock`, `WrittenDirective`, `WrittenValue`, `format_diagnostic` |
 
 **The block shape** (spec 2.11): every block is iterated (`Symbol.iterator` / `__iter__`), counted (`length` /
 `len`), indexed (`at(i)`, absent out of range / `block[i]`, `IndexError`), has `directives(name?)` and `walk` (a
@@ -367,33 +367,33 @@ control`, keyword / `Keyword`, type grammar, trait, rules module.
 Every public rename and import-path change, generated from the old entry points and the new `PUBLIC_NAMES`; then
 every member and type change.
 
-**TypeScript** (every name below was exported by `"villanelle"`; it is now exported only by the path heading its row):
+**TypeScript** (every name below was exported by `"knobly"`; it is now exported only by the path heading its row):
 
 | New import path | Renamed (old → new) | Moved unchanged |
 |---|---|---|
-| `villanelle` | `IDiagnostic` → `Diagnostic`, `IDirectiveOrigin` → `DirectiveOrigin`, `IDocumentSource` → `DocumentSource`, `IDocumentWriter` → `DocumentWriter`, `IFileWrite` → `FileWrite`, `ILoadContext` → `LoadContext`, `ILocatable` → `Locatable`, `ILocatedDiagnostic` → `LocatedDiagnostic`, `IOrigin` → `Origin`, `IOverride` → `Override`, `IPlace` → `Place`, `ISourcePosition` → `SourcePosition`, `ISourceSpan` → `SourceSpan`, `IStep` → `Step` | `BadTextError`, `ConfigText`, `DetachedError`, `DiagnosticCode`, `DiagnosticError`, `Diagnostics`, `LostUpdateError`, `MisuseError`, `PlaceKind`, `ProgramCode`, `ReadError`, `SaveError`, `StepKind`, `VillanelleError`, `WalkControl`, `checkLostUpdates`, `memorySource`, `memoryWriter`, `quote`, `text` |
-| `villanelle/rendered` | `IAdded` → `Added`, `IAddress` → `Address`, `IAddressStep` → `AddressStep`, `IChanged` → `Changed`, `IDirective` → `Directive`, `IKeyOptions` → `KeyOptions`, `IRemoved` → `Removed`, `IRendered` → `Rendered`, `IUnknown` → `Unknown` | `Change`, `ChangeKind`, `KeyRule`, `render` |
-| `villanelle/syntax` | `INode` → `Node`, `ISyntax` → `Syntax`, `IToken` → `Token`, `ITokenRange` → `TokenRange` | `NodeKind`, `TokenKind`, `parse`, `spanOf`, `textOf` |
-| `villanelle/written` | `ICopy` → `Copy`, `IDirectiveExpansion` → `DirectiveExpansion`, `IDocument` → `Document`, `IDocumentEdge` → `DocumentEdge`, `IDocumentGraph` → `DocumentGraph`, `IExpandedIndex` → `ExpandedIndex`, `IExpandedList` → `ExpandedList`, `IExpandedSlice` → `ExpandedSlice`, `IExpandedString` → `ExpandedString`, `IExpandedWord` → `ExpandedWord`, `IExpansion` → `Expansion`, `IExtension` → `Extension`, `IExtensionLine` → `ExtensionLine`, `IExtensionUse` → `ExtensionUse`, `IIndex` → `Index`, `IIndexValue` → `IndexValue`, `IList` → `List`, `ILoadOptions` → `LoadOptions`, `IOverrideVariable` → `OverrideVariable`, `IParameter` → `Parameter`, `IProcessor` → `Processor`, `IProcessorOptions` → `ProcessorOptions`, `IReference` → `Reference`, `IReferenceResolution` → `ReferenceResolution`, `IResolution` → `Resolution`, `ISetLine` → `SetLine`, `ISetVariable` → `SetVariable`, `ISlice` → `Slice`, `ISliceValue` → `SliceValue`, `ISnippetLine` → `SnippetLine`, `IString` → `String`, `IUnreadableExpansion` → `UnreadableExpansion`, `IUnreadableLine` → `UnreadableLine`, `IUseLine` → `UseLine`, `IWord` → `Word`, `IWrittenBlock` → `WrittenBlock`, `IWrittenDirective` → `WrittenDirective` | `ExpandedValue`, `Statement`, `StatementKind`, `UnreadableReason`, `ValueKind`, `Variable`, `VariableKind`, `WrittenValue`, `formatDiagnostic`, `villanelle` |
+| `knobly` | `IDiagnostic` → `Diagnostic`, `IDirectiveOrigin` → `DirectiveOrigin`, `IDocumentSource` → `DocumentSource`, `IDocumentWriter` → `DocumentWriter`, `IFileWrite` → `FileWrite`, `ILoadContext` → `LoadContext`, `ILocatable` → `Locatable`, `ILocatedDiagnostic` → `LocatedDiagnostic`, `IOrigin` → `Origin`, `IOverride` → `Override`, `IPlace` → `Place`, `ISourcePosition` → `SourcePosition`, `ISourceSpan` → `SourceSpan`, `IStep` → `Step` | `BadTextError`, `ConfigText`, `DetachedError`, `DiagnosticCode`, `DiagnosticError`, `Diagnostics`, `LostUpdateError`, `MisuseError`, `PlaceKind`, `ProgramCode`, `ReadError`, `SaveError`, `StepKind`, `KnoblyError`, `WalkControl`, `checkLostUpdates`, `memorySource`, `memoryWriter`, `quote`, `text` |
+| `knobly/rendered` | `IAdded` → `Added`, `IAddress` → `Address`, `IAddressStep` → `AddressStep`, `IChanged` → `Changed`, `IDirective` → `Directive`, `IKeyOptions` → `KeyOptions`, `IRemoved` → `Removed`, `IRendered` → `Rendered`, `IUnknown` → `Unknown` | `Change`, `ChangeKind`, `KeyRule`, `render` |
+| `knobly/syntax` | `INode` → `Node`, `ISyntax` → `Syntax`, `IToken` → `Token`, `ITokenRange` → `TokenRange` | `NodeKind`, `TokenKind`, `parse`, `spanOf`, `textOf` |
+| `knobly/written` | `ICopy` → `Copy`, `IDirectiveExpansion` → `DirectiveExpansion`, `IDocument` → `Document`, `IDocumentEdge` → `DocumentEdge`, `IDocumentGraph` → `DocumentGraph`, `IExpandedIndex` → `ExpandedIndex`, `IExpandedList` → `ExpandedList`, `IExpandedSlice` → `ExpandedSlice`, `IExpandedString` → `ExpandedString`, `IExpandedWord` → `ExpandedWord`, `IExpansion` → `Expansion`, `IExtension` → `Extension`, `IExtensionLine` → `ExtensionLine`, `IExtensionUse` → `ExtensionUse`, `IIndex` → `Index`, `IIndexValue` → `IndexValue`, `IList` → `List`, `ILoadOptions` → `LoadOptions`, `IOverrideVariable` → `OverrideVariable`, `IParameter` → `Parameter`, `IProcessor` → `Processor`, `IProcessorOptions` → `ProcessorOptions`, `IReference` → `Reference`, `IReferenceResolution` → `ReferenceResolution`, `IResolution` → `Resolution`, `ISetLine` → `SetLine`, `ISetVariable` → `SetVariable`, `ISlice` → `Slice`, `ISliceValue` → `SliceValue`, `ISnippetLine` → `SnippetLine`, `IString` → `String`, `IUnreadableExpansion` → `UnreadableExpansion`, `IUnreadableLine` → `UnreadableLine`, `IUseLine` → `UseLine`, `IWord` → `Word`, `IWrittenBlock` → `WrittenBlock`, `IWrittenDirective` → `WrittenDirective` | `ExpandedValue`, `Statement`, `StatementKind`, `UnreadableReason`, `ValueKind`, `Variable`, `VariableKind`, `WrittenValue`, `formatDiagnostic`, `knobly` |
 
 Removed from TypeScript, no replacement: `IExpandedValueBase`, `IStatementBase`, `IValueBase`, `IVariableBase`, `ValueRef` (the `*Base` interfaces were the hand-written bases of the unions: the generated variants are flat; `ValueRef` was an internal type that leaked, round 15).
 
-**Python** (each name below was in `villanelle.__all__`; it leaves the root and stays only in its subpackage's `__all__`):
+**Python** (each name below was in `knobly.__all__`; it leaves the root and stays only in its subpackage's `__all__`):
 
-| Import from | Names that leave `villanelle` |
+| Import from | Names that leave `knobly` |
 |---|---|
-| `villanelle.rendered` | `Added`, `Address`, `AddressStep`, `Change`, `ChangeKind`, `Changed`, `Directive`, `KeyRule`, `Removed`, `Rendered`, `Unknown`, `render` |
-| `villanelle.syntax` | `Node`, `NodeKind`, `Syntax`, `Token`, `TokenKind`, `TokenRange`, `parse`, `span_of`, `text_of` |
-| `villanelle.written` | `Copy`, `DirectiveExpansion`, `Document`, `DocumentEdge`, `DocumentGraph`, `ExpandedIndex`, `ExpandedList`, `ExpandedSlice`, `ExpandedString`, `ExpandedValue`, `ExpandedWord`, `Expansion`, `Extension`, `ExtensionLine`, `ExtensionUse`, `IndexValue`, `OverrideVariable`, `Parameter`, `Processor`, `ReferenceResolution`, `Resolution`, `SetLine`, `SetVariable`, `SliceValue`, `SnippetLine`, `Statement`, `StatementKind`, `UnreadableExpansion`, `UnreadableLine`, `UnreadableReason`, `UseLine`, `ValueKind`, `Variable`, `VariableKind`, `WrittenBlock`, `WrittenDirective`, `WrittenValue`, `format_diagnostic` |
+| `knobly.rendered` | `Added`, `Address`, `AddressStep`, `Change`, `ChangeKind`, `Changed`, `Directive`, `KeyRule`, `Removed`, `Rendered`, `Unknown`, `render` |
+| `knobly.syntax` | `Node`, `NodeKind`, `Syntax`, `Token`, `TokenKind`, `TokenRange`, `parse`, `span_of`, `text_of` |
+| `knobly.written` | `Copy`, `DirectiveExpansion`, `Document`, `DocumentEdge`, `DocumentGraph`, `ExpandedIndex`, `ExpandedList`, `ExpandedSlice`, `ExpandedString`, `ExpandedValue`, `ExpandedWord`, `Expansion`, `Extension`, `ExtensionLine`, `ExtensionUse`, `IndexValue`, `OverrideVariable`, `Parameter`, `Processor`, `ReferenceResolution`, `Resolution`, `SetLine`, `SetVariable`, `SliceValue`, `SnippetLine`, `Statement`, `StatementKind`, `UnreadableExpansion`, `UnreadableLine`, `UnreadableReason`, `UseLine`, `ValueKind`, `Variable`, `VariableKind`, `WrittenBlock`, `WrittenDirective`, `WrittenValue`, `format_diagnostic` |
 
 Removed from Python: `ValueRef` (internal, leaked).
 
-TypeScript, in `villanelle/browser`: `IFetchWriterOptions` → `FetchWriterOptions`. Unchanged paths:
-`villanelle/include` (`include`), `villanelle/node` (`fileSource`, `fileWriter`), `villanelle/browser`
-(`fetchSource`, `fetchWriter`); Python `villanelle.files`, `villanelle.include`.
+TypeScript, in `knobly/browser`: `IFetchWriterOptions` → `FetchWriterOptions`. Unchanged paths:
+`knobly/include` (`include`), `knobly/node` (`fileSource`, `fileWriter`), `knobly/browser`
+(`fetchSource`, `fetchWriter`); Python `knobly.files`, `knobly.include`.
 
-**New public names** (both bindings unless marked): the rules module (`villanelle/syntax` `MAX_NESTING`;
-`villanelle/written` `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`; `villanelle`
+**New public names** (both bindings unless marked): the rules module (`knobly/syntax` `MAX_NESTING`;
+`knobly/written` `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`; `knobly`
 `PROGRAM_CODE`); `ExpansionBlock` (written), `RenderedBlock` (rendered); Python `ProgramCode` (a `str` alias, root).
 Each TypeScript kind list name is now a value too (`StatementKind.Set`), and so is `WalkControl`.
 
@@ -412,8 +412,8 @@ Each TypeScript kind list name is now a value too (`StatementKind.Set`), and so 
    Comparing with `"set"` still compiles and narrows for programs; inside the bindings the lint refuses it.
 6. TypeScript `ValueRef`, `IStatementBase`, `IValueBase`, `IVariableBase`, `IExpandedValueBase` are no longer
    exported; Python `ValueRef` likewise.
-7. Python's root `villanelle` exports only the shared and io names (34 names; was 92): `from villanelle import
-   render` becomes `from villanelle.rendered import render` (or `from villanelle import rendered`, then
+7. Python's root `knobly` exports only the shared and io names (34 names; was 92): `from knobly import
+   render` becomes `from knobly.rendered import render` (or `from knobly import rendered`, then
    `rendered.render`), and so on per the table.
 8. Python records generated as dataclasses: a snapshot (`Copy`, `DocumentEdge`, `Resolution`,
    `ReferenceResolution`, `Expansion`, `DirectiveExpansion`, `UnreadableExpansion`) compares by identity
@@ -425,7 +425,7 @@ Each TypeScript kind list name is now a value too (`StatementKind.Set`), and so 
 
 **Unchanged:** every behaviour the shared cases check (all 375 pass before this commit's generated output and with
 it), every diagnostic code, name and message, every error class name and tree, every member name except
-`statements` and the two `walk`s above, `villanelle(...)` and `Processor(...)`.
+`statements` and the two `walk`s above, `knobly(...)` and `Processor(...)`.
 
 ## 4. Costs, and what this leaves
 
@@ -438,5 +438,5 @@ it), every diagnostic code, name and message, every error class name and tree, e
   names to export).
 - The driver still checks dumps only as far as it reads them; the generated shapes move that check into each
   adapter's compiler (spec/conformance.md 7).
-- Deferred: the owner's question vil-umh.15 (`:` as a word's first character), the high level (vil-xlo), a
+- Deferred: the owner's question kno-umh.15 (`:` as a word's first character), the high level (kno-xlo), a
   syntax-layer block view, and generators for `walk` in TypeScript (spec 7.5, still proposed).

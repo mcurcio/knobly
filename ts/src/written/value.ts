@@ -1,6 +1,6 @@
 /**
  * The expanded value and its readers (spec 2.9): one value after expansion, with kind, canonical text, origin, its
- * links to the lines it came through, and the readers. The low level owns it (vil-umh.8, spec 6.10): an extension use
+ * links to the lines it came through, and the readers. The low level owns it (kno-umh.8, spec 6.10): an extension use
  * holds expanded values, a directive expansion's `values` are expanded values, and a rendered directive's values are
  * the very same objects. A snapshot (worked out once per expansion) that holds live handles.
  *

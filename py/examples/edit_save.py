@@ -4,10 +4,10 @@
 # --8<-- [start:main]
 from pathlib import Path
 
-import villanelle as vl
-from villanelle import rendered, written
-from villanelle.files import file_source, file_writer
-from villanelle.include import include
+import knobly as vl
+from knobly import rendered, written
+from knobly.files import file_source, file_writer
+from knobly.include import include
 
 graph = written.Processor(source=file_source(), extensions=[include()]).load("main.conf")
 # --8<-- [start:edit]

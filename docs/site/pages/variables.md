@@ -3,7 +3,7 @@
 The low level shows what the rendered tree works out: which files were read and from where, every variable, and
 which definition each `$name` reads at each place. The rules themselves (which `@set` a `$name` reaches, and which
 definition wins) are taught in [the language](language.md) and specified, with one precedence table, in
-[`spec/expansion.md`](https://github.com/mcurcio/villanelle/blob/main/spec/expansion.md).
+[`spec/expansion.md`](https://github.com/mcurcio/knobly/blob/main/spec/expansion.md).
 
 ## Which files were read, and where each variable wins
 
@@ -86,7 +86,7 @@ config text. `set_override(name, text)` adds or changes one, and `set_override(n
 name for the graph's life, so a program can hold on to it. Overrides are never saved.
 
 `load` and `set_override` run the same check of an override
-([`spec/spec.md`](https://github.com/mcurcio/villanelle/blob/main/spec/spec.md) 6.3), so they refuse the same texts
+([`spec/spec.md`](https://github.com/mcurcio/knobly/blob/main/spec/spec.md) 6.3), so they refuse the same texts
 with the same errors. The text is parsed with the grammar's `valuesText` rule: one or more values without a `$name`,
 over any number of lines (`"1\n2"` is two values), not ending in a comment. Anything else is a bad text error located
 in the text, and nothing changes: `1;` is E2001 at its `;`, `1 $b` is E2001 at the `$b`, and the empty text is E2001

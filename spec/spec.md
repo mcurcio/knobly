@@ -1,14 +1,14 @@
-# villanelle language-binding specification
+# knobly language-binding specification
 
 Status: this page is canonical (owner, 2026-10-27: "Within villanelle I want the spec to win over a
-reference language"). It describes the API after milestone 6 (beads vil-umh.9, vil-umh.10, vil-umh.11 and
-vil-umh.13: the schema is the source of every public signature, kind lists are generated enumerations (2.10), one
+reference language"). It describes the API after milestone 6 (beads kno-umh.9, kno-umh.10, kno-umh.11 and
+kno-umh.13: the schema is the source of every public signature, kind lists are generated enumerations (2.10), one
 namespace per layer without an `I` prefix (binding guide rules 1 and 2), one block shape in every layer (2.11);
-`.claude/design/consumer-api/round15/frozen-m6.md`), milestone 5 (beads vil-umh.6, vil-umh.12 and vil-umh.14: raw single
+`.claude/design/consumer-api/round15/frozen-m6.md`), milestone 5 (beads kno-umh.6, kno-umh.12 and kno-umh.14: raw single
 quotes, no `plain` reader, the `~` slice separator and subscripts on variables, `@` statements, a value's `set` that
-keeps its handle, config text as its own type) and milestone 4 (beads vil-umh.1 to vil-umh.8 and vil-umh.12, the
-round 15 review's next steps: `.claude/design/consumer-api/round15/`), built on milestone 2 (beads vil-0vz, vil-9fy,
-vil-5ya, vil-gxu): the words of
+keeps its handle, config text as its own type) and milestone 4 (beads kno-umh.1 to kno-umh.8 and kno-umh.12, the
+round 15 review's next steps: `.claude/design/consumer-api/round15/`), built on milestone 2 (beads kno-0vz, kno-9fy,
+kno-5ya, kno-gxu): the words of
 [glossary.md](glossary.md), the operation homes and layer direction the owner settled on the
 round 13 gate page (2026-10-29, 6.2), types that carry their kinds (2.10, round 13 root cause 3), the rendered
 layer built only on the low level's public members (6.10, 7.0), and the edge contract of
@@ -27,7 +27,7 @@ error groups, limits, reserved names, diagnostic codes) and every public signatu
 [schema/](schema/): each binding's declarations are generated from it ([codegen.md](codegen.md)), the code table of
 2.4 is generated, the other tables on this page are copies for reading, and the schema wins where they differ. How to turn the
 rules into a binding in a given language (names, idiom, what may differ) is in
-[binding-guide.md](binding-guide.md). The syntax is [grammar/Villanelle.g4](../grammar/Villanelle.g4); which
+[binding-guide.md](binding-guide.md). The syntax is [grammar/Knobly.g4](../grammar/Knobly.g4); which
 definition a `$name` or a `use` reaches, and which one wins, is [expansion.md](expansion.md) (normative); the
 language for people writing configs is the user guide's [language page](../docs/site/pages/language.md), which teaches both and is not a
 source of rules.
@@ -54,7 +54,7 @@ source of rules.
   nothing does.
 - "In order" lists are ordered as stated. When a list's order is stated, a binding MUST keep it:
   the conformance outputs depend on it.
-- "Text" means the language's string type. Values going into edits are `config text` (6.9): villanelle text in a
+- "Text" means the language's string type. Values going into edits are `config text` (6.9): knobly text in a
   type of its own, made only by `quote` or `text`.
 - Error groups are named here (for example "misuse error"); which native class each group maps to
   is the binding's choice within the rules of 2.8 and the binding guide.
@@ -136,7 +136,7 @@ language's to-text conversion ([contract.md 2](contract.md#2-people-forms-the-te
   between bindings.
 - A `program code` is a program's own code, `<namespace>/<name>` (for example `rasl/unknown-node`): both parts
   non-empty and without whitespace, the `program code` pattern of `spec/schema/api.json`.
-  It never collides with villanelle's codes, which start with `E`. Every operation that takes a
+  It never collides with knobly's codes, which start with `E`. Every operation that takes a
   program code MUST refuse one without `/` with a misuse error.
 - Every code is an error. There are no warning codes.
 - A `diagnostic` and a `located diagnostic` each have a `people form`: `line:col: CODE: message` and
@@ -218,7 +218,7 @@ layer owns each code.
 
 `limits`, `keywords`, `reserved names` and `patterns` in [schema/api.json](schema/api.json) are their one home.
 Each binding exports them from the layer that owns them, generated as the **rules module** (milestone 6, bead
-vil-umh.10; codegen.md); the list below is generated from the schema too. The keywords are one generated list
+kno-umh.10; codegen.md); the list below is generated from the schema too. The keywords are one generated list
 (`Keyword`) with one dispatch table from keyword to statement kind (`STATEMENT_OF_KEYWORD`), which every binding's
 statement classification reads; no binding compares a keyword's text by hand.
 
@@ -229,10 +229,10 @@ statement classification reads; no binding compares a keyword's text by hand.
 - `MAX_SAFE_INTEGER` (integer range; the written layer): 9,007,199,254,740,991, integer words and slice or index bounds lie within plus or minus this (2^53-1) (E4005).
 - `RESERVED` (reserved names; the written layer): `set`, `snippet`, `use`: the language statements' names, written @set, @snippet and @use: no extension may take one. No directive name is reserved: a directive's name is a WORD, which never starts with @.
 - `VARIABLE_NAME` (variable name pattern; the written layer): `^[A-Za-z0-9_]+$`, a $name without its $, an override name, a variable rename.
-- `PROGRAM_CODE` (program code pattern; the shared layer): `^[^/\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/[^\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$`, <namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out); villanelle's codes start with E.
+- `PROGRAM_CODE` (program code pattern; the shared layer): `^[^/\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/[^\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$`, <namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out); knobly's codes start with E.
 <!-- end generated -->
 
-- **No directive name is reserved** (milestone 5; owner, 2026-10-29, bead vil-umh.14: "yes" to language
+- **No directive name is reserved** (milestone 5; owner, 2026-10-29, bead kno-umh.14: "yes" to language
   statements behind one sigil). A statement written `@name` is a language statement (`@set`, `@snippet`, `@use`) or
   an extension statement (`@include`); a directive's name is a `WORD` token, which never starts with `@` (3.1). So
   `events { use epoll; }` is a plain directive `use`.
@@ -265,13 +265,13 @@ It MUST read text only from the graph it is given and MUST NOT do I/O.
 Every binding maps these groups onto its own error classes (a copy of `error groups` in
 [schema/api.json](schema/api.json); the class tree and the fields are [contract.md 4](contract.md#4-errors)):
 
-The groups fall into **two sorts**, decided here once (round 15, vil-umh.7):
+The groups fall into **two sorts**, decided here once (round 15, kno-umh.7):
 
 - **An expected outcome**: only the input or the outside world decides it, so a correct program still meets it and
-  handles it. Every expected-outcome class is under the package's one base class, `villanelle error`, and nothing
-  else is: one `catch` or `except` clause for `VillanelleError` catches every outcome and no bug.
+  handles it. Every expected-outcome class is under the package's one base class, `knobly error`, and nothing
+  else is: one `catch` or `except` clause for `KnoblyError` catches every outcome and no bug.
 - **A program bug**: the program could have checked first. These raise the language's own classes, or a package
-  class outside the base; never a `villanelle error`.
+  class outside the base; never a `knobly error`.
 
 Problems in the config text are no group: they are never raised, only reported as diagnostics. The table is
 generated from the schema:
@@ -279,11 +279,11 @@ generated from the schema:
 <!-- generated: error groups (tools/gen-api.py docs) -->
 | Group | Sort | Raised when | TypeScript | Python | C++ |
 |---|---|---|---|---|---|
-| `villanelle error` | base | never by itself: the base class of every expected-outcome class, so one except or catch clause catches every outcome the input or the outside world decides, and no program bug | `VillanelleError`, extends `Error` | `VillanelleError`, subclass of `Exception` | `villanelle_error`, derives from `std::runtime_error` |
-| `diagnostic error` | expected outcome, under `villanelle error` | a reader is given a value of the wrong kind or spelling, or a program's error(...); carries one located diagnostic as 'diagnostic' | `DiagnosticError` | `DiagnosticError` | `diagnostic_error` |
-| `read error` | expected outcome, under `villanelle error` | load cannot resolve the root path to exactly one file, or cannot read it. No diagnostic and no code | `ReadError` | `ReadError` | `read_error` |
-| `bad text error` | expected outcome, under `villanelle error` | the text given to an edit, or an override's text, is not what that place takes; 'diagnostics' are located in that text, in the binding's string unit, and its message is built from them | `BadTextError` | `BadTextError` | `bad_text_error` |
-| `save error` | expected outcome, under `villanelle error` | the writer failed | `SaveError` | `SaveError` | `save_error` |
+| `knobly error` | base | never by itself: the base class of every expected-outcome class, so one except or catch clause catches every outcome the input or the outside world decides, and no program bug | `KnoblyError`, extends `Error` | `KnoblyError`, subclass of `Exception` | `knobly_error`, derives from `std::runtime_error` |
+| `diagnostic error` | expected outcome, under `knobly error` | a reader is given a value of the wrong kind or spelling, or a program's error(...); carries one located diagnostic as 'diagnostic' | `DiagnosticError` | `DiagnosticError` | `diagnostic_error` |
+| `read error` | expected outcome, under `knobly error` | load cannot resolve the root path to exactly one file, or cannot read it. No diagnostic and no code | `ReadError` | `ReadError` | `read_error` |
+| `bad text error` | expected outcome, under `knobly error` | the text given to an edit, or an override's text, is not what that place takes; 'diagnostics' are located in that text, in the binding's string unit, and its message is built from them | `BadTextError` | `BadTextError` | `bad_text_error` |
+| `save error` | expected outcome, under `knobly error` | the writer failed | `SaveError` | `SaveError` | `save_error` |
 | `lost update error` | expected outcome, under `save error` | a file the save would write changed since it was read or last saved: its current text differs from its saved text. Check lost updates raises it inside every writer, and save passes it on unchanged | `LostUpdateError` | `LostUpdateError` | `lost_update_error` |
 | `detached error` | program bug | any member but kind of a detached handle is used | `DetachedError`, extends `ReferenceError` | `DetachedError`, subclass of `ReferenceError` | `detached_error`, derives from `std::logic_error` |
 | `argument type error` | program bug | an argument of the wrong type: anything but text where config text or a name is taken (an extension's name when the processor is made included), and to quote and text; a writer that is not a document writer; a render given something that is not a document graph (no callable expand); a key rule that returns anything but text or absent | `TypeError` | `TypeError` | `argument_type_error`, derives from `std::logic_error` |
@@ -301,7 +301,7 @@ MUST leave every document unchanged. A `detached error` is raised by every membe
 handle, edits included, before any other check.
 
 **Every bad name is a misuse error**, through one check per kind of name, the same from every member that takes
-one (vil-umh.7): a variable or override name that does not match the `variable name` pattern (`load`'s `overrides`,
+one (kno-umh.7): a variable or override name that does not match the `variable name` pattern (`load`'s `overrides`,
 `set override`, a variable's `rename`); a name the grammar's `nameText` entry rule refuses (a name that is not one
 `WORD`: not one word, or a word that starts with a digit, `-` or `@`), for a directive's `rename` and for an
 extension's name at `make processor` (5); and an extension name that is reserved (2.5) or already taken. Since
@@ -316,8 +316,8 @@ from the document. Its message is built from them: a summary, then each diagnost
 `; ` (Python `str (error)`, TypeScript `error.message`): `bad text: 1:2: E2001: unexpected token: ";"`. It never
 shows text the program did not give.
 
-**Entry rules** (vil-umh.3). Every check of a given text's **shape** (which tokens it may hold and in what order) is
-the grammar's: a binding parses the text with the entry rule of [grammar/Villanelle.g4](../grammar/Villanelle.g4) the
+**Entry rules** (kno-umh.3). Every check of a given text's **shape** (which tokens it may hold and in what order) is
+the grammar's: a binding parses the text with the entry rule of [grammar/Knobly.g4](../grammar/Knobly.g4) the
 table names, with the generated parser, never by splicing it into a probe document and never with a scanner of its
 own. What a text **means** is checked after that, on the entry rule's tree, by the **text-alone rules** of this page,
 each with one home here: the statement rules E5002, E5005 and E5009 to E5011 (6.5), the rule that a values text with
@@ -345,12 +345,12 @@ codes each edit checks, and where it places them:
 **A values text and line breaks** (milestone 4). A line break is whitespace (owner, 2026-10-29, round 15 question
 1: "';' is required and a line break is plain whitespace (nginx); directive names cannot start with a digit or
 '-'"), so a values text may hold line breaks anywhere: `set ("1\n2")` on `port 80;` writes `port 1\n2;`, one
-statement with two values. The line-break half of the old check of a values text (vil-5ya) is deleted. Cases:
+statement with two values. The line-break half of the old check of a values text (kno-5ya) is deleted. Cases:
 `set-line-break`, `set-line-break-trailing`, `set-line-break-leading`, `set-line-break-in-list`,
 `value-replace-line-break`, `set-override-line-break`, `set-override-trailing-line-break`, `set-wrapped-values`;
 `set-override-blank-line-break` (`"  \n"` holds no value: E2001 at 0:0).
 
-**A comment the text ends in** (vil-033) is still refused: a comment runs to the end of its line, so the statement's
+**A comment the text ends in** (kno-033) is still refused: a comment runs to the end of its line, so the statement's
 `;` (or a list's `,` or `]`) written after it would become part of the comment. The grammar says so: in a `gap` a
 `COMMENT` is always followed by a `NEWLINE`, so the entry rules refuse a text whose last token is a comment, with
 E2001 at the text's end (the token the rule wanted is missing there), or E2004 inside an open `[`. A comment a line
@@ -380,7 +380,7 @@ A `diagnostic error`, `read error`, `save error` and `lost update error` have th
 ### 2.9 Expanded value and its readers
 
 An `expanded value` is one value after expansion: a `$name` has already become its value or values. The low level
-owns it (vil-umh.8: the low level is the one owner of expansion): it is what an `extension use` holds (5), what a
+owns it (kno-umh.8: the low level is the one owner of expansion): it is what an `extension use` holds (5), what a
 `directive expansion`'s `values` are (6.10), and the very objects a rendered directive's `values` are (7.2), so the
 readers have one home. (Before milestone 4 it sat in a shared layer beside two more families, `value expansion` and
 the rendered `argument`, that copied it: round 15, root cause C.) It is a union of five variants (2.10), one per
@@ -422,7 +422,7 @@ its raw text, so `'C:\new'` is `"C:\\new"`); a slice `name[start~end]` (either s
 `name[i]` with decimal integers, `name` the word the slice's name holds; a list
 `[`, its items' texts joined by `, `, then `]`. Comments and line breaks are never part of it. Two
 values are the same exactly when their texts are equal: a language with an equality operator that a type defines
-MUST make it compare the texts (Python `==` and `hash ()` on `text`, vil-umh.12; before milestone 4 Python compared
+MUST make it compare the texts (Python `==` and `hash ()` on `text`, kno-umh.12; before milestone 4 Python compared
 identity). TypeScript has no such operator: a program compares `a.text === b.text`.
 
 Readers are on **every** variant (each raises a `diagnostic error` with the code shown). They are the one place a
@@ -446,14 +446,14 @@ that guesses (milestone 5 deletes `plain`; owner, 2026-10-29: "agreed. the raw s
 some schema-aware layer decides "this one is a number" or "this is a string""). The typed readers stay, since they
 are the program deciding.
 
-The readers' names are the spec words in each binding's casing, and nothing else (vil-gxu): `word`, `string`,
+The readers' names are the spec words in each binding's casing, and nothing else (kno-gxu): `word`, `string`,
 `number`, `integer`, `boolean`, `list`, `slice`, in Python as in TypeScript. (Before milestone 2, Python
 spelled them `as_word` ... `as_slice`, and the list reader was `items ()`; `items` is now the list variants'
 property, the same shape as the written `list`'s `items`, 6.6.) In Python, inside a class body that defines `list`
 or `slice`, annotate the builtins as `builtins.list` and `builtins.slice`, as for `set` (6.5).
 
 **Number and integer words.** Their spelling is `NumberText` and `IntegerText` in
-`grammar/villanelle.ebnf` (copied here for reading); the range and the result types are ruled here, and the values
+`grammar/knobly.ebnf` (copied here for reading); the range and the result types are ruled here, and the values
 at the edges (zero, beyond 2^53-1, beyond the double range) in [contract.md 3](contract.md#3-numbers).
 
 - A number word is a JSON number (RFC 8259 section 6), the whole word: `-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][-+]?[0-9]+)?`.
@@ -473,7 +473,7 @@ at the edges (zero, beyond 2^53-1, beyond the double range) in [contract.md 3](c
 Every closed set of the API is one named list in [schema/api.json](schema/api.json) (`kinds`), with lowercase
 values (round 13 root cause 3). The one exception is `token kind`, whose values are the grammar's token names
 (`WORD`, `BAD_CHAR`) because the grammar is their one home. Each list is generated into each binding as a real
-enumeration (milestone 6, bead vil-umh.11; owner, 2026-10-29, asked for "proper enumerations instead of hardcoded
+enumeration (milestone 6, bead kno-umh.11; owner, 2026-10-29, asked for "proper enumerations instead of hardcoded
 strings" and picked "Yes, generate both"):
 
 - **TypeScript:** an `as const` object and the string-literal union derived from it, under one name:
@@ -525,7 +525,7 @@ since TypeScript infers the predicate: `[...block].filter((s) => s.kind === Stat
 
 ### 2.11 Blocks: one shape in every layer
 
-A block is the statements or directives of one level, in written order (milestone 6, bead vil-umh.13; owner,
+A block is the statements or directives of one level, in written order (milestone 6, bead kno-umh.13; owner,
 2026-10-29, "Yes, rename now", for "one block shape (iterate, index, directives(name), walk) in every layer"). Every
 block has the same members, whatever it holds:
 
@@ -557,7 +557,7 @@ Read-only, one text at a time, no I/O. Covered by the syntax conformance cases (
 ### 3.1 Tokens
 
 - A `token` has `kind` (from the `token kind` list), `text` and `span`.
-- `token kind` values are the token names of `grammar/Villanelle.g4`: `BOM`, `SPACE`, `NEWLINE`,
+- `token kind` values are the token names of `grammar/Knobly.g4`: `BOM`, `SPACE`, `NEWLINE`,
   `COMMENT`, `VARIABLE`, `WORD`, `AT_WORD`, `INTEGER`, `DIGIT_WORD`, `STRING`, `LBRACE`, `RBRACE`, `LBRACK`,
   `RBRACK`, `SEMI`, `COMMA`, `TILDE`, and the error tokens `UNTERMINATED_STRING`, `BAD_ESCAPE`, `LONE_DOLLAR`,
   `BAD_CHAR` (21 kinds). The grammar is the one source of these names. (Milestone 5: `AT_WORD` and `TILDE` are new,
@@ -570,7 +570,7 @@ Read-only, one text at a time, no I/O. Covered by the syntax conformance cases (
   2.9). After its first character every word may hold letters, digits and `_ . / @ # + : * ? -`: so `:` is a word
   character in every word (`07:30`, `00:1a:2b:3c:4d:5e`, `127.0.0.1:3000`), and a word cannot start with `:`
   (`:80` is E1003 at the `:`); a value that starts with `:` is quoted (nginx `listen "[::]:80";`, `"::1:80"`;
-  owner, 2026-10-30, bead vil-umh.15: "If the tradeoff is that those strings require quotes, let's go with that"). Milestone 5 (owner, 2026-10-29, bead vil-umh.14: "yes" to a slice separator outside
+  owner, 2026-10-30, bead kno-umh.15: "If the tradeoff is that those strings require quotes, let's go with that"). Milestone 5 (owner, 2026-10-29, bead kno-umh.14: "yes" to a slice separator outside
   the word alphabet); before it `:` was the slice separator and could not follow a digit word's digits.
 - A slice or index is a **slice name** touching `[`, its bounds, then `]` (grammar `slicedWord : sliceName '['
   bounds ']'`). The slice name is a `WORD`, an `AT_WORD` or a `VARIABLE` (milestone 5: a variable may be
@@ -583,7 +583,7 @@ Read-only, one text at a time, no I/O. Covered by the syntax conformance cases (
   (`~/conf` must be quoted).
 - A double-quoted `STRING` holds only the six escapes `\\ \" \' \n \t \r`; a closed double-quoted string with any
   other is one `BAD_ESCAPE` token (E1005). A **single-quoted** string is raw (TOML's literal string; owner,
-  2026-10-29, bead vil-umh.14: "yes"): its text is exactly what is typed between the quotes, a backslash is a plain
+  2026-10-29, bead kno-umh.14: "yes"): its text is exactly what is typed between the quotes, a backslash is a plain
   character, and it cannot hold `'`, a line break or a control character (`'C:\new'` is the text `C:\new`; `'x\'`
   is the text `x\`). Its unterminated form runs to the end of the line (E1001).
 - The tokens of one parse MUST be contiguous and in source order, and their texts joined MUST equal
@@ -645,7 +645,7 @@ writer` that the program supplies.
   turn. Code-point order is not UTF-16 code-unit order (a character above U+FFFF sorts after U+FFFF
   here, before U+E000 in a plain JavaScript sort). No conformance case has such a path yet.
 - In a binding whose I/O is asynchronous, both operations MAY be asynchronous.
-- **Results are checked at run time** (vil-umh.12): `resolve` MUST return a list of texts. Anything else, a bare
+- **Results are checked at run time** (kno-umh.12): `resolve` MUST return a list of texts. Anything else, a bare
   text included (in Python a `str` is a sequence of one-letter strings), is the source's failure: E3004 at the
   extension line, or a `read error` for the root. `read` MUST return a text, the same way. Python types these
   results `tuple[str, ...]` and `str` and refuses a bare `str` where a tuple is due; a type checker alone does not
@@ -703,7 +703,7 @@ ports; the names in each binding are [contract.md 5](contract.md#5-adapters).
 
 An `extension` owns one directive name and turns each use of it into specs of files to splice in its
 place. It is not part of the core; a program turns it on when it makes the processor. The extension port, the
-`extension use` and the include extension belong to the low level (the written layer, vil-umh.8): an extension is
+`extension use` and the include extension belong to the low level (the written layer, kno-umh.8): an extension is
 pure, and the low level is the one owner of expansion. (Before milestone 4 they sat in the io layer, beside the
 ports that do I/O.)
 
@@ -716,7 +716,7 @@ ports that do I/O.)
 - An `extension use` has `values` (the line's values, expanded, as `expanded value`s, 2.9: each one of the five
   variants, with its links) and `origin` (a directive origin). It names no rendered type.
 - `specs` MUST return a list of texts; anything else, a bare text included, is a failure: E3006 at the directive's
-  name (vil-umh.12). Python types it `tuple[str, ...]` and refuses a bare `str` at run time.
+  name (kno-umh.12). Python types it `tuple[str, ...]` and refuses a bare `str` at run time.
 - `specs` throws a `diagnostic error` for a located failure. Any other failure becomes E3006 at the
   directive's name. (In a language with error values, a returned error that is not a diagnostic
   error; whether a panic is also caught is the binding's stated choice, binding guide section 3.)
@@ -789,7 +789,7 @@ statement detach with it. Per edit:
 | document `replace with text` | the whole text | the document | every other handle into it | nothing |
 | `set override` | no text | | nothing | nothing |
 
-**A value's `set` keeps its handle** (milestone 5, the rest of bead vil-umh.12; owner, 2026-10-29: "the natural loop
+**A value's `set` keeps its handle** (milestone 5, the rest of bead kno-umh.12; owner, 2026-10-29: "the natural loop
 should work. i figured that they were references anyway, so both nodes essentially held the same pointer and editing
 either was fine"). `set (text)` on a written value replaces it with exactly one value (the `valueText` entry rule,
 2.8) and edits in place: the same object stays in its statement's `values` (or its list's `items`, or as its slice's
@@ -865,7 +865,7 @@ first picked "B graph.render()", then clarified: "The low level shouldn't "depen
 | `unread ()` | method | the edges naming a spec not resolved or a file not read yet; each such copy is an `unreadable expansion` with reason `unread` and E3007 in `diagnostics` (6.10) |
 | `variables (name?)` | method | every variable (of that name when given): set variables and parameters in document order (documents in `documents` order), then override variables in `overrides` order. Each is one of the three variable types (6.7) |
 | `expand ()` | method | the `expansion` of the graph's current texts and overrides (6.10): every copy as read, with each value expanded and linked to the lines it came through. Pure: reads no file. What `render (graph)` builds on |
-| `diagnostics` | property | each document's syntax diagnostics (documents in order), then every problem the low level finds, in walk order: **the one list** (vil-umh.8). The `expansion`'s and the `rendered` tree's `diagnostics` are this same list (6.10, 7.1); `x $nope;` shows E5001 here. No binding keeps a list of codes to leave out (round 12 decision D11, which made E4xxx, E5001, E5003, E5004 and E5008 render-only, is retired). A property, as on the render (glossary, "Properties and methods") |
+| `diagnostics` | property | each document's syntax diagnostics (documents in order), then every problem the low level finds, in walk order: **the one list** (kno-umh.8). The `expansion`'s and the `rendered` tree's `diagnostics` are this same list (6.10, 7.1); `x $nope;` shows E5001 here. No binding keeps a list of codes to leave out (round 12 decision D11, which made E4xxx, E5001, E5003, E5004 and E5008 render-only, is retired). A property, as on the render (glossary, "Properties and methods") |
 
 **No render member.** The graph has no `render` member and names no rendered type. A program
 renders it with the rendered layer's `render (graph)` (7.0), which turns the graph's public `expand ()` into the
@@ -943,7 +943,7 @@ Per kind, each its own type (2.10):
 A statement's `parent` is a `written directive`, an `extension line` or a `snippet line`. A block's `directives
 (name?)` lists `written directive`s only (kind `directive`), never extension lines.
 
-**Which kind a statement is** (milestone 5, bead vil-umh.14; owner, 2026-10-29: "yes" to language statements behind
+**Which kind a statement is** (milestone 5, bead kno-umh.14; owner, 2026-10-29: "yes" to language statements behind
 one sigil). Its first token decides, and nothing else does: a `WORD` heads a `written directive`, whatever the word
 (`use epoll;` is a directive named `use`); an `AT_WORD` heads a language or extension statement: `@set $name
 value...;` a `set line`, `@snippet name $p... { ... }` a `snippet line`, `@use name value...;` a `use line`, `@`
@@ -1044,8 +1044,8 @@ Per kind:
 | `index` | `name` (a word or reference value) and `index` (a word or reference value) | `("name", "index")` |
 | `reference` | `name` (without `$`), `declaration` (by where written: the nearest `set` above it in its file, a `set variable`, or its snippet's `parameter`; absent when free) and `resolutions ()` (one `reference resolution` per copy of its statement, in walk order) | `("name",)` |
 
-In Python the six value classes are exported from `villanelle.written` only, not from the package root: `List`
-replaced `typing.List` on `from villanelle import *`, and a bare `String` or `Index` reads as a general type, not a
+In Python the six value classes are exported from `knobly.written` only, not from the package root: `List`
+replaced `typing.List` on `from knobly import *`, and a bare `String` or `Index` reads as a general type, not a
 written value. The glossary keeps the words, so the module gives the context (`written.List`, `written.String`;
 binding guide rule 2), the same rule for all six.
 
@@ -1104,12 +1104,12 @@ so a writer that never ran is not reported as one that failed.
 
 ### 6.9 Values going in: config text, `quote` and `text`
 
-Every edit takes villanelle text, not program values (owner, 2026-10-28: "values: A, new values
+Every edit takes knobly text, not program values (owner, 2026-10-28: "values: A, new values
 written as villanelle text, with quote()"; kept on 2026-10-29, round 13 question 3: "A Keep text
 only, make misuse impossible").
 
-**`config text` is its own type** (milestone 5, bead vil-umh.6; owner, 2026-10-29: he picked "Yes, its own type"):
-villanelle text a program hands to an edit or an override, made only by `quote (text)` or by an explicit `text
+**`config text` is its own type** (milestone 5, bead kno-umh.6; owner, 2026-10-29: he picked "Yes, its own type"):
+knobly text a program hands to an edit or an override, made only by `quote (text)` or by an explicit `text
 (raw)`, so passing a program's plain string where config text is due is a type error the checker reports. In
 TypeScript it is a branded string, `ConfigText` (`string & { readonly [configTextBrand]: true }`, a `unique symbol`
 brand that no other module can write); in Python a `NewType`, `ConfigText = NewType("ConfigText", str)`. Both are
@@ -1118,15 +1118,15 @@ branded types of TypeScript's own handbook and Zod's `.brand()`, Python's `typin
 trusted-types idea of the browser's `TrustedHTML`: a string is safe in a sink only when a named factory made it.
 The schema names it as the concept `config text` ([schema/api.json](schema/api.json)).
 
-- Every member that takes new villanelle text names that parameter `text` and types it `config text`: `set
+- Every member that takes new knobly text names that parameter `text` and types it `config text`: `set
   (text)` (statement, variable, value), `replace with text (text)` (statement, value, document), `insert statements
   (index, text)`, `add statements (text)`, `insert before (text)`, `insert after (text)`, `set override (name,
   text)`, and each value of `load`'s `overrides` (and of the graph's `overrides`, which hold what the program gave).
   A name is not config text: `rename (name)`, `set override`'s `name` and the override names take the language's
   text, checked by the one check per kind of name (2.8).
-- `quote (text)` takes a program's plain text and returns `config text`, written as a villanelle string (below).
+- `quote (text)` takes a program's plain text and returns `config text`, written as a knobly string (below).
   `text (raw)` takes plain text and returns it as `config text` unchanged, checking nothing: it is the program's
-  statement that `raw` is already written as villanelle text (`text("8080 udp")`, `text("[1, 2]")`). The edit it
+  statement that `raw` is already written as knobly text (`text("8080 udp")`, `text("[1, 2]")`). The edit it
   is given checks it, as for any config text. Nothing else makes config text: no reading member returns it (a
   statement's or value's `text` is plain text; pass it on with `text (...)`).
 - At run time the check is unchanged: given anything that is not text (a number, a boolean, a list, a null), each
@@ -1145,8 +1145,8 @@ the raise):
 <!-- generated: argument type messages (tools/gen-api.py docs) -->
 | Binding | Message |
 |---|---|
-| TypeScript | `{member}(): argument "{parameter}" must be a string, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, String() a number first` |
-| Python | `{member}() argument '{parameter}' must be str, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, str() a number first` |
+| TypeScript | `{member}(): argument "{parameter}" must be a string, not {got}; knobly edits take config text: quote() a program string, text() one already written as knobly text, String() a number first` |
+| Python | `{member}() argument '{parameter}' must be str, not {got}; knobly edits take config text: quote() a program string, text() one already written as knobly text, str() a number first` |
 | C++ | `{member}(): argument '{parameter}' must be a live object, not {got}` |
 <!-- end generated -->
 
@@ -1154,14 +1154,14 @@ Costs: every literal a program writes into an edit needs `text (...)` (`statemen
 `text` read from one line must be wrapped to be written into another. A cast (`as ConfigText`, `cast(ConfigText,
 s)`) gets past the checker, as any cast does.
 
-`quote (text)` returns `config text` written as a villanelle string, escapes included:
+`quote (text)` returns `config text` written as a knobly string, escapes included:
 `quote("10.0.60.31")` is `"10.0.60.31"`. It MUST give the same canonical string text an expanded
 value has (2.9). A program writes a number or a boolean as its text (`text("2400")`, `text("true")`); text with a
 space in it written without `quote` is two values (`text("my host")` sets `my` and `host`).
 
 `quote` escapes only what canonical text escapes (backslash, `"`, newline, tab, carriage return).
 A string cannot hold, raw, any other character from U+0000 to U+001F, DEL (U+007F) or a lone
-surrogate (`STRING` in `grammar/Villanelle.g4`): the parser ends the string before it (E1001) and
+surrogate (`STRING` in `grammar/Knobly.g4`): the parser ends the string before it (E1001) and
 reads it as `BAD_CHAR` (syntax cases `edge-ctrl-str`, `edge-del-str`, `nul`). Today `quote`
 passes such a character through, so the edit given its result raises a `bad text error`, and no
 rendered value can hold one.
@@ -1177,7 +1177,7 @@ object (a snapshot, worked out once, holding live handles), and it is all the re
 render needs nothing private (owner, 2026-10-29, answering "Yes" to: the rendered layer builds only on the low
 level's public objects, and the low level makes public what each set reaches and what wins over it). It is pure:
 it reads no file. An extension copy not read yet (its edge is in `unread ()`) expands to an `unreadable expansion`
-with reason `unread`, placed at the extension line, with E3007 in `diagnostics` (vil-umh.4), so a render shows it
+with reason `unread`, placed at the extension line, with E3007 in `diagnostics` (kno-umh.4), so a render shows it
 and `diff` reports what it held as `unknown`, not `removed` (7.6). (Before milestone 4 it expanded to nothing.) It
 follows [expansion.md](expansion.md).
 
@@ -1193,7 +1193,7 @@ follows [expansion.md](expansion.md).
 
 | Member | Contract |
 |---|---|
-| `written` | the `written directive` it is a copy of (was `statement`: one name for the link, vil-umh.8) |
+| `written` | the `written directive` it is a copy of (was `statement`: one name for the link, kno-umh.8) |
 | `origin` | a directive origin: its name's place and the copy's `via` |
 | `values` | its values, expanded, as `expanded value`s with their links (2.9), in order (a reference gives every value it reaches) |
 | `block` | its block's readable directive copies, an `expansion block` (2.11); absent when written without a block |
@@ -1210,7 +1210,7 @@ Python `__match_args__`: `directive expansion` `("written", "values", "block")`,
 
 Cost: the rendered directive still mirrors the directive expansion (it adds `parent`, `name`, `closest`,
 an address and `error`), so two directive types of one shape exist, one per layer. The values and unreadables are
-one family each, shared by both (vil-umh.8; before milestone 4 there were three value families, 22 types).
+one family each, shared by both (kno-umh.8; before milestone 4 there were three value families, 22 types).
 
 ## 7. Rendered tree (the middle layer)
 
@@ -1229,7 +1229,7 @@ here (6.2; owner, 2026-10-29). It is pure: it reads no file, and an unread exten
 unreadable with reason `unread` (its edge is in the graph's `unread ()`). It MUST be synchronous, in every binding.
 
 It builds the tree from the graph's public `expand ()` (6.10) and nothing else of the low level that is not
-public, and it builds on the expansion's own objects instead of copying them (vil-umh.8): each `directive
+public, and it builds on the expansion's own objects instead of copying them (kno-umh.8): each `directive
 expansion` becomes a `directive` whose `written`, `origin` and `values` are the expansion's (the same objects), and
 whose `unreadable` lists the expansion's `unreadable expansion`s; the `rendered` tree's `unreadable` are the
 expansion's top-level ones, its `origin` is the root file at 0:0 (from `graph.root`'s `resolved path`) and its
@@ -1283,7 +1283,7 @@ everywhere, so the reason has its own word: glossary.) The rendered `unreadable`
 
 A rendered directive's values are `expanded value`s (2.9), the very objects of its directive expansion: the five
 variants, the readers, `error`, and the links `written`, `definition` and `chain`. The rendered layer adds no value
-type (vil-umh.8; before milestone 4 it had an `argument` family of five types that copied them: the old names are
+type (kno-umh.8; before milestone 4 it had an `argument` family of five types that copied them: the old names are
 in `frozen-m4.md`).
 
 ### 7.4 Address and key rule
@@ -1362,7 +1362,7 @@ idiom for "run this block, catching one kind of error".
 
 ## 8. High level (future)
 
-Idiomatic sugar per language (bead vil-xlo) is not built. It stays per language. When it is built,
+Idiomatic sugar per language (bead kno-xlo) is not built. It stays per language. When it is built,
 it MUST use the spec names of the concepts it exposes and the error groups of 2.8, and MUST be
 buildable purely on top of the layers above.
 

@@ -2,7 +2,7 @@
 
 The cases for the edge contract ([`spec/contract.md`](../../spec/contract.md)) and the readers (spec 2.9): every
 reader, positions in each binding's string unit, people forms and `format diagnostic`. Added in milestone 2 (bead
-vil-0vz); milestone 3 (bead vil-j80) added the readers other than the number readers and more `format` cases. The
+kno-0vz); milestone 3 (bead kno-j80) added the readers other than the number readers and more `format` cases. The
 expected results were derived by hand from the contract, not produced by an implementation; an output that disagrees
 has found a bug in the binding or in the contract, never a reason to change a case.
 

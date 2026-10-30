@@ -3,7 +3,7 @@
  * `render (graph)`. Not shipped (tsconfig.build.json leaves it out).
  */
 
-import { type Extension, type Processor, villanelle } from "../written/index.js";
+import { type Extension, type Processor, knobly } from "../written/index.js";
 import { render } from "./render.js";
 import { type ConfigText, type DocumentSource, type LocatedDiagnostic, memorySource, type Origin, type Place, PlaceKind, type Step, text } from "../index.js";
 import type { Directive, KeyOptions, Rendered } from "./index.js";
@@ -20,7 +20,7 @@ export interface TestOptions {
 
 /** A processor over these files. */
 export function processorOf(files: Readonly<Record<string, string>>, options: TestOptions = {}): Processor {
-  return villanelle({
+  return knobly({
     source: memorySource(files),
     ...(options.extensions === undefined ? {} : { extensions: options.extensions }),
   });

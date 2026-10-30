@@ -1,5 +1,5 @@
 {
-  "name": "villanelle-release",
+  "name": "knobly-release",
   "private": true,
   "description": "Release tooling only (semantic-release, see .releaserc.json); the packages are ts/ and py/",
   "license": "MIT",

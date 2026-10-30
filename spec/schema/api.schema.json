@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/mcurcio/villanelle/spec/schema/api.schema.json",
-  "title": "villanelle API schema",
+  "$id": "https://github.com/mcurcio/knobly/spec/schema/api.schema.json",
+  "title": "knobly API schema",
   "description": "Checks the shape of spec/schema/api.json, diagnostics.json and protocol.json (spec/codegen.md). Every object is closed (no key it does not list), every closed set is an enum, and every type is text in the type grammar's alphabet, so free prose cannot stand where a type goes. What a shape check cannot see (every name resolves, variants cover their kind list, the layer direction, the error tree) tools/api/loader.py checks; tools/check.sh runs both.",
   "oneOf": [
     {"$ref": "#/$defs/api"},

@@ -10,7 +10,7 @@
  */
 import { createInterface } from "node:readline";
 
-import type * as Villanelle from "../src/index.js";
+import type * as Knobly from "../src/index.js";
 import type * as Include from "../src/include.js";
 import type * as Rendered from "../src/rendered/index.js";
 import type * as Syntax from "../src/syntax/index.js";
@@ -48,7 +48,7 @@ import {
 
 const dist = new URL("../dist/", import.meta.url);
 const load = async <T>(path: string): Promise<T> => (await import(new URL(path, dist).href)) as T;
-const vl = await load<typeof Villanelle>("index.js");
+const vl = await load<typeof Knobly>("index.js");
 const syntaxLayer = await load<typeof Syntax>("syntax/index.js");
 const written = await load<typeof Written>("written/index.js");
 const renderedLayer = await load<typeof Rendered>("rendered/index.js");
@@ -60,14 +60,14 @@ const handles: unknown[] = [];
 const ref = (o: unknown): string => String(handles.push(o) - 1);
 const get = <T>(id: string): T => handles[Number(id)] as T;
 
-const pos = (p: Villanelle.SourcePosition): Position => [p.line, p.column, p.offset];
-const place = (p: Villanelle.Place | Villanelle.Override): PlaceDump | OverrideDump =>
+const pos = (p: Knobly.SourcePosition): Position => [p.line, p.column, p.offset];
+const place = (p: Knobly.Place | Knobly.Override): PlaceDump | OverrideDump =>
   p.kind === PlaceKind.File ? { id: ref(p), path: p.resolvedPath, start: pos(p.span.start), end: pos(p.span.end) } : { id: ref(p), override: p.variable };
-const filePlace = (p: Villanelle.Place): PlaceDump => ({ id: ref(p), path: p.resolvedPath, start: pos(p.span.start), end: pos(p.span.end) });
-const steps = (via: readonly Villanelle.Step[]): StepDump[] => via.map((s) => ({ id: ref(s), kind: s.kind, name: s.name, place: filePlace(s.place) }));
-const origin = (o: Villanelle.Origin): OriginDump => ({ place: place(o.place), via: steps(o.via) });
-const diagnostic = (d: Villanelle.Diagnostic): SyntaxDiagnosticDump => ({ id: ref(d), code: d.code, message: d.message, start: pos(d.span.start), end: pos(d.span.end) });
-const located = (d: Villanelle.LocatedDiagnostic): LocatedDiagnosticDump => ({ id: ref(d), code: d.code, message: d.message, ...origin(d) });
+const filePlace = (p: Knobly.Place): PlaceDump => ({ id: ref(p), path: p.resolvedPath, start: pos(p.span.start), end: pos(p.span.end) });
+const steps = (via: readonly Knobly.Step[]): StepDump[] => via.map((s) => ({ id: ref(s), kind: s.kind, name: s.name, place: filePlace(s.place) }));
+const origin = (o: Knobly.Origin): OriginDump => ({ place: place(o.place), via: steps(o.via) });
+const diagnostic = (d: Knobly.Diagnostic): SyntaxDiagnosticDump => ({ id: ref(d), code: d.code, message: d.message, start: pos(d.span.start), end: pos(d.span.end) });
+const located = (d: Knobly.LocatedDiagnostic): LocatedDiagnosticDump => ({ id: ref(d), code: d.code, message: d.message, ...origin(d) });
 
 function syntax(s: Syntax.Syntax): SyntaxDump {
   const node = (n: Syntax.Node): SyntaxDump["root"] => [n.kind, n.start, n.end, n.children.map(node)];
@@ -225,7 +225,7 @@ const ops: Handlers = {
   hello: () => ({ protocol: PROTOCOL, binding: "typescript", unit: "utf-16", level: 3 }),
   parse: (p) => syntax(syntaxLayer.parse(p.text)),
   load: async (p) => {
-    const processor = written.villanelle({ source: vl.memorySource(p.files), ...(p.extensions.includes("include") ? { extensions: [include()] } : {}) });
+    const processor = written.knobly({ source: vl.memorySource(p.files), ...(p.extensions.includes("include") ? { extensions: [include()] } : {}) });
     const overrides = p.overrides === undefined ? undefined : Object.fromEntries(Object.entries(p.overrides).map(([name, text]) => [name, vl.text(text)]));
     return { graph: ref(await processor.load(p.root, overrides === undefined ? undefined : { overrides })) };
   },
@@ -246,7 +246,7 @@ const ops: Handlers = {
       return { files: Object.keys(disk).sort().map((path) => [path, disk[path] ?? ""] as const) };
     }
     const batches: (readonly (readonly [string, string])[])[] = [];
-    const write = (files: readonly Villanelle.FileWrite[]): Promise<void> => (batches.push(files.map((f) => [f.resolvedPath, f.text] as const)), Promise.resolve());
+    const write = (files: readonly Knobly.FileWrite[]): Promise<void> => (batches.push(files.map((f) => [f.resolvedPath, f.text] as const)), Promise.resolve());
     await get<Written.DocumentGraph>(p.graph).save({ write });
     return { batches };
   },

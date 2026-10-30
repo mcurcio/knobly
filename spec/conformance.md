@@ -1,7 +1,7 @@
 # Conformance: the shared driver and the adapter protocol
 
 Status: canonical, like the rest of `spec/` (owner, 2026-10-27: "Within villanelle I want the spec to win over a
-reference language"). Written in milestone 3 (bead vil-j80) from the round 13 review's root cause 5
+reference language"). Written in milestone 3 (bead kno-j80) from the round 13 review's root cause 5
 ([review.md](../.claude/design/consumer-api/round13/review.md#root-cause-5-no-neutral-spec-and-nothing-generated-from-one-source):
 "a binding writes one small adapter (load files, find a target, apply a neutral op, dump); one shared driver runs
 every case; the "rasl" key rule becomes data"). Everything on this page beyond that sentence is a design choice of the
@@ -168,7 +168,7 @@ them (section 7), so an extra or wrong member there is not yet caught: build to 
 | saved | `{"batches"?: [[[text, text], ...], ...], "files"?: [[text, text], ...]}` (batches without disk; files with disk) |
 <!-- end generated -->
 
-A token's kind is its token name as written in [grammar/Villanelle.g4](../grammar/Villanelle.g4), in capitals
+A token's kind is its token name as written in [grammar/Knobly.g4](../grammar/Knobly.g4), in capitals
 (`WORD`, `SPACE`, `BAD_CHAR`; all 21 are listed in spec 3.1). Every other kind (a node's,
 a statement's, a value's, a step's), and reasons, are the generated lists' lowercase values (spec 2.10); codes are
 their text (`E2001`).

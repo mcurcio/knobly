@@ -1,7 +1,7 @@
-// villanelle::ordered_map<K, V> (design.md 1.3; frozen-m2.md 3.1): insertion order, lookup by ==, copy on write, at()
+// knobly::ordered_map<K, V> (design.md 1.3; frozen-m2.md 3.1): insertion order, lookup by ==, copy on write, at()
 // of a missing key raising index_out_of_range, a repeated key in the initializer list keeping its first place and its
 // last value.
-#include <villanelle/villanelle.hpp>
+#include <knobly/knobly.hpp>
 
 #include <iterator>
 #include <string>
@@ -10,7 +10,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-using map = villanelle::ordered_map<std::string, int>;
+using map = knobly::ordered_map<std::string, int>;
 
 namespace {
 
@@ -33,7 +33,7 @@ TEST_CASE("insertion order, and a changed key keeps its place", "[ordered_map]")
     CHECK_FALSE(m.find("c").has_value());
     CHECK(m.contains("a"));
     CHECK_FALSE(m.contains("c"));
-    CHECK_THROWS_AS(m.at("c"), villanelle::index_out_of_range);
+    CHECK_THROWS_AS(m.at("c"), knobly::index_out_of_range);
     CHECK(m.erase("b"));
     CHECK_FALSE(m.erase("b"));
     m.insert_or_assign("b", 4);  // removed, then added again: at the end

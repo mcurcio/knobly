@@ -1,4 +1,4 @@
-// The samples of the user guide (examples/samples.json) import the package as a program does ("villanelle/written");
+// The samples of the user guide (examples/samples.json) import the package as a program does ("knobly/written");
 // in the tests those names resolve to the source, by the package's own export map: each export's "./dist/<x>.js"
 // becomes "./src/<x>.ts", so the map stays the one list of entry points.
 import { readFileSync } from "node:fs";

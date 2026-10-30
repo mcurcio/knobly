@@ -2,7 +2,7 @@
 // at begin(), and a walk takes each block's snapshot when it enters it, both ways: a statement removed after the
 // snapshot is still yielded (kind() works, other members raise detached_error) and not descended; one inserted into a
 // block already entered is not visited, one inserted into a block not yet entered is.
-#include <villanelle/written.hpp>
+#include <knobly/written.hpp>
 
 #include <string>
 #include <vector>
@@ -11,8 +11,8 @@
 
 #include "written_fixture.hpp"
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
+namespace vl = knobly;
+namespace vw = knobly::written;
 
 namespace {
 

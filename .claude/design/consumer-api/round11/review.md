@@ -2,7 +2,7 @@
 
 Note: the revise step did not see this review (the reviewer cannot write files). The build's code architect weighs it.
 
-Review of the round 11 low-level API design. Mode: design mode, system layer (R15 tiers 1-2). The villanelle repo has no `.claude/gates.json` and its CLAUDE.md lists no standards, so I reviewed against the brief, requirements.md (R1-R36), beads vil-9ze and vil-stq, and the owner-design vocabulary.
+Review of the round 11 low-level API design. Mode: design mode, system layer (R15 tiers 1-2). The knobly repo has no `.claude/gates.json` and its CLAUDE.md lists no standards, so I reviewed against the brief, requirements.md (R1-R36), beads kno-9ze and kno-stq, and the owner-design vocabulary.
 
 **Verdict: FAIL.** The main split is sound and I would keep it: Syntax, load, Directive/Arg, Origin, Address, diff, Extension. On top of it, five integrations type-check, and the rasl reader that replaces about 724 lines of loader.py and connect_parser.py is 255 lines. But all five integrators hit the same three problems, each from their own direction. That pattern means the model is missing three concepts. These are not small fixes, and they are what must change.
 
@@ -33,7 +33,7 @@ Review of the round 11 low-level API design. Mode: design mode, system layer (R1
 - **What every consumer wrote:**
   - a collector: rasl-py reader.py:282-298 (it had to be a class because of how pyright treats `@contextmanager`); rasl-ts errors.ts:5 (`collect`);
   - `.error(...).diagnostic` without ever throwing: rasl-py validate.py:33,39; third-party py/vlschema.py:78,123,129 and ts/vlschema.ts:69,120.
-- **A requirement dropped without saying so:** R14 (vil-bzv) asks for a "report(directive, message, code?) helper". The design never mentions it.
+- **A requirement dropped without saying so:** R14 (kno-bzv) asks for a "report(directive, message, code?) helper". The design never mentions it.
 - **A cost understated:** §8 lists the "try per node" cost for TypeScript only. Python pays it too: design §3 itself uses a try/except per node, and so does rasl-py.
 - **Prior art:** PostCSS, the model §4 picks, has exactly this half: `Result.messages`, `result.warn()` and `node.warn(result, …)`. HCL returns `hcl.Diagnostics` from every decode rather than raising.
 - **Fix:** collecting diagnostics is its own concept: one sink that load, readers and programs all report into. Throwing should be one way to reach it, not the only one.
@@ -101,7 +101,7 @@ Review of the round 11 low-level API design. Mode: design mode, system layer (R1
 
 ### 8. The guarantees the design claims are conventions
 - **Rule:** guarantees, strongest first; separate what is structurally guaranteed from what is merely true today.
-- **"Typed in TS, checked when made in Python" (§6) does not stop collisions with villanelle's codes:**
+- **"Typed in TS, checked when made in Python" (§6) does not stop collisions with knobly's codes:**
   - Python's `Diagnostic` is a public, unchecked dataclass (__init__.pyi:111-116).
   - In TypeScript, `Diagnostic` is a plain interface whose code type accepts `` `E${number}` ``. sugar-ts invents E6001 and up with `satisfies Record<string, DiagnosticCode>` (app.ts:42-58).
   - The two sugars picked different schemes (`vl/…` against E6xxx), which already breaks R17 (identical codes in both languages) at tier 3.
@@ -136,7 +136,7 @@ Review of the round 11 low-level API design. Mode: design mode, system layer (R1
 - `body or ()` is written 7 times in rasl_vl. need() and noMore() are called 17 times in read.ts.
 - No "first child named X" helper: rasl-py reader.py:125 and :251; design rasl.ts:118.
 - There is no limits option, so round 10's `maxDepth` knob cannot be honoured (sugar-ts friction 11).
-- If the delegator answer is A, the vil-stq.3 and vil-stq.4 bead titles, which still say "delegator", need rewording.
+- If the delegator answer is A, the kno-stq.3 and kno-stq.4 bead titles, which still say "delegator", need rewording.
 
 ## What I attacked that held up
 - **The split itself:** origin separate from address (§7 rule 2), expansion done once in load, read-only directives, include as an extension (R20). Third-party says `origin.via` came through `arg.error()` with no extension code, and the probes print the use line and the definition correctly in both languages.

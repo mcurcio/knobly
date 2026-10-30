@@ -50,9 +50,9 @@ from shapes import (
     WrittenValueDump,
 )
 
-import villanelle as vl
-from villanelle import rendered, syntax, written
-from villanelle.include import include
+import knobly as vl
+from knobly import rendered, syntax, written
+from knobly.include import include
 
 handles: list[object] = []
 
@@ -305,7 +305,7 @@ def result(x: Any) -> ReaderResultDump:
 
 
 # Where each edit takes config text (the driver's OPS parameters): the adapter wraps the text the driver sends with
-# text(), as a program does with a text already written as villanelle text (spec 6.9). Names stay plain text.
+# text(), as a program does with a text already written as knobly text (spec 6.9). Names stay plain text.
 TEXT_AT = {
     "set": 0,
     "replace with text": 0,

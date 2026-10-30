@@ -1,4 +1,4 @@
-# Designing a villanelle language binding
+# Designing a knobly language binding
 
 This page is about **how** to design a binding: the goals, the naming and structure rules, what may
 differ between languages and what may not, and the steps from an empty package to passing every
@@ -8,7 +8,7 @@ worked examples.
 
 Status: the goals in section 1 are the owner's words. The naming and structure rules in section 2
 come from the round 13 review ([review.md](../.claude/design/consumer-api/round13/review.md)); each
-rule says whether milestone 1 (bead vil-fy4) or milestone 2 (bead vil-0vz) adopted it, or it is still **proposed,
+rule says whether milestone 1 (bead kno-fy4) or milestone 2 (bead kno-0vz) adopted it, or it is still **proposed,
 pending the owner**. Section 4 shows the names before milestone 1, with each milestone's new name, and where they
 still break those rules. API
 shape changes need the owner's approval; nothing is locked (2026-10-27: "Nothing is locked until I
@@ -72,7 +72,7 @@ where TypeScript or Python break one, section 4 says so.
    | type `document graph` | `DocumentGraph` | `DocumentGraph` | `DocumentGraph` |
    | member `replace with text` | `replaceWithText` | `replace_with_text` | `ReplaceWithText` |
    | kind value `set` | `"set"` | `StatementKind.SET` (value `"set"`) | `StatementKindSet` |
-   | factory `make processor` | `villanelle(...)` (rule 3) | `Processor(...)` | `NewProcessor(...)` |
+   | factory `make processor` | `knobly(...)` (rule 3) | `Processor(...)` | `NewProcessor(...)` |
 
 2. **No language prefixes on type names** (adopted, milestone 6). No `I` on interfaces: `DocumentGraph`,
    `WrittenDirective`, `Rendered`. Where a short name would clash with a built-in, the module gives the context
@@ -137,11 +137,11 @@ where TypeScript or Python break one, section 4 says so.
      from every file under `ts/src/` except `ts/src/rendered/**` and tests (`*.test.ts`). The package entry
      `ts/src/index.ts` is no exception: it holds only the shared and io layers (rule 9). The rule covers `import
      type` too, so even a type name cannot leak.
-   - **Python.** The rendered layer is the package `villanelle.rendered`. A test
-     (`py/tests/test_layers.py`) reads every module under `src/villanelle/` with `ast` and fails when
-     one outside `villanelle/rendered/` (the top-level `villanelle/__init__.py` included) imports
-     `villanelle.rendered` or anything in it, absolute or relative, `if TYPE_CHECKING:` imports
-     included. Importing `villanelle.written` runs `villanelle/__init__.py`, which loads only the shared
+   - **Python.** The rendered layer is the package `knobly.rendered`. A test
+     (`py/tests/test_layers.py`) reads every module under `src/knobly/` with `ast` and fails when
+     one outside `knobly/rendered/` (the top-level `knobly/__init__.py` included) imports
+     `knobly.rendered` or anything in it, absolute or relative, `if TYPE_CHECKING:` imports
+     included. Importing `knobly.written` runs `knobly/__init__.py`, which loads only the shared
      and io layers.
    - **Go, Rust:** one package or crate per layer; the compiler then refuses a cycle.
 
@@ -154,9 +154,9 @@ where TypeScript or Python break one, section 4 says so.
      group `["**/written/*", "!**/written/index.js"]`, and `no-restricted-syntax` refusing a cast through `unknown`
      (`TSAsExpression[typeAnnotation.type="TSUnknownKeyword"]` and `TSAsExpression > TSAsExpression`), the one way
      to reach a member the public interface does not declare. A planted lint fixture shows each fires.
-   - **Python.** `py/tests/test_layers.py` also reads every module under `villanelle/rendered/` and fails when it
-     imports the low level other than `from villanelle.written import <name>` with `<name>` in
-     `villanelle.written.__all__` (no submodule such as `villanelle.written._bind` or `.model`, no name starting
+   - **Python.** `py/tests/test_layers.py` also reads every module under `knobly/rendered/` and fails when it
+     imports the low level other than `from knobly.written import <name>` with `<name>` in
+     `knobly.written.__all__` (no submodule such as `knobly.written._bind` or `.model`, no name starting
      with `_`, relative forms included), or reads an attribute starting with one `_` (dunders aside) on anything but
      `self` or `cls`, `getattr(x, "_name")` included. Rendered code reads another rendered object through its
      public members too. A planted source string shows the test bites.
@@ -177,17 +177,17 @@ where TypeScript or Python break one, section 4 says so.
 
    | Layer | TypeScript | Python |
    |---|---|---|
-   | shared, io | `villanelle` | `villanelle` |
-   | syntax | `villanelle/syntax` (package subpath export) | `villanelle.syntax` (subpackage) |
-   | written (the low level) | `villanelle/written` | `villanelle.written` |
-   | rendered | `villanelle/rendered` | `villanelle.rendered` |
-   | file adapters | `villanelle/node` | `villanelle.files` |
-   | fetch adapters | `villanelle/browser` | none (MAY, spec 4.3) |
-   | include extension | `villanelle/include` | `villanelle.include` |
+   | shared, io | `knobly` | `knobly` |
+   | syntax | `knobly/syntax` (package subpath export) | `knobly.syntax` (subpackage) |
+   | written (the low level) | `knobly/written` | `knobly.written` |
+   | rendered | `knobly/rendered` | `knobly.rendered` |
+   | file adapters | `knobly/node` | `knobly.files` |
+   | fetch adapters | `knobly/browser` | none (MAY, spec 4.3) |
+   | include extension | `knobly/include` | `knobly.include` |
 
    The exact names per path are generated (`PUBLIC_NAMES`, codegen.md section 4), and each binding's name test
    compares every path's exports with them, both ways. Python users import the subpackage as the namespace (`from
-   villanelle import rendered, written`, then `written.Processor`, `rendered.render`), which also keeps
+   knobly import rendered, written`, then `written.Processor`, `rendered.render`), which also keeps
    `written.List` from shadowing `typing.List`.
 
 ## 3. What may differ, and what must not
@@ -199,7 +199,7 @@ where TypeScript or Python break one, section 4 says so.
 | Casing | `camelCase` members, `PascalCase` types | `snake_case` members, `PascalCase` types | the language's style |
 | I/O | `load`, `read`, `save`, sources and writers are async | plain calls | the language's I/O habit. `render` and `diff` are always plain calls |
 | Absent | `undefined` | `None` | the language's no-value |
-| Misuse error | `MisuseError` (outside `VillanelleError`) | `ValueError` | TypeScript has no built-in class for a bad argument value that is not `TypeError`, the argument type error's class (spec 2.8) |
+| Misuse error | `MisuseError` (outside `KnoblyError`) | `ValueError` | TypeScript has no built-in class for a bad argument value that is not `TypeError`, the argument type error's class (spec 2.8) |
 | Index out of range | `RangeError` | `IndexError` | the language's own classes (spec 2.8) |
 | Config text (M5) | `ConfigText`, a branded string (`string & { readonly [brand]: true }`, the brand a `unique symbol`) | `ConfigText = NewType("ConfigText", str)` | each language's named-string idiom (spec 6.9); a language with neither (Go) uses a defined type, `type ConfigText string` |
 | A value handle that changes kind under `set` (M5) | the same object reports the new `kind`; a narrowed variable is stale | the object's class becomes the new kind's (`__class__` assignment; the six value classes share one slot layout) | spec 6.1: one object, a type per kind; each language keeps both as far as it can |
@@ -207,7 +207,7 @@ where TypeScript or Python break one, section 4 says so.
 | How a variant is matched | `switch (x.kind)` or `if (x.kind === StatementKind.Set)` narrows | `match x: case SetVariable(): ...`, `__match_args__` | the language's own pattern |
 | Options | an options object (`{ key }`) | keyword-only arguments (`key=`) | the language's habit |
 | Iteration | iterators and `for...of` (today: a walk callback) | generators and `for` | the language's habit |
-| Reader names | `word()`, `string()`, `number()`, `integer()`, `boolean()`, `list()`, `slice()` (milestone 5 deleted `plain()`) | the same words (casing only, vil-gxu, milestone 2) | not a difference in TypeScript and Python: a method named `list` or `string` shadows nothing for the caller (the only trap is an annotation inside the class body, as for `set`: write `builtins.list`). A name a language's conventions give another meaning does differ: in Go, `String()` is `fmt.Stringer` (the `people form`) and `Error()` is the `error` interface, so the readers become `AsString()` and the like, and `error (...)` becomes `Fail(...)` or similar |
+| Reader names | `word()`, `string()`, `number()`, `integer()`, `boolean()`, `list()`, `slice()` (milestone 5 deleted `plain()`) | the same words (casing only, kno-gxu, milestone 2) | not a difference in TypeScript and Python: a method named `list` or `string` shadows nothing for the caller (the only trap is an annotation inside the class body, as for `set`: write `builtins.list`). A name a language's conventions give another meaning does differ: in Go, `String()` is `fmt.Stringer` (the `people form`) and `Error()` is the `error` interface, so the readers become `AsString()` and the like, and `error (...)` becomes `Fail(...)` or similar |
 | People form | `toString()` | `__str__` | the language's to-text conversion (contract 2) |
 | Positions | UTF-16 code units | code points | the language's string unit (contract 1); conformance stays UTF-16 |
 | Chained errors | `cause` | `__cause__` | the language's mechanism |
@@ -256,7 +256,7 @@ names. The exact old-to-new tables, with signatures, are the milestones' frozen 
 
 | Spec name | TypeScript | Python | Note |
 |---|---|---|---|
-| `make processor` | `villanelle({ source, extensions })` returns `IProcessor` | `Processor(source=..., extensions=...)` | |
+| `make processor` | `knobly({ source, extensions })` returns `IProcessor` | `Processor(source=..., extensions=...)` | |
 | `load` | `await processor.load(path, { variables })` | `processor.load(path, variables=...)` | M1: `{ overrides }`, `overrides=` |
 | `read` | `await processor.read(graph)` | `processor.read(graph)` | M1: `graph.read()` |
 | `render` | `processor.render(graph)` | `processor.render(graph)` | M1: `render(graph)`, the rendered module's function |
@@ -267,14 +267,14 @@ names. The exact old-to-new tables, with signatures, are the milestones' frozen 
 | `document source` | `IDocumentSource` | `DocumentSource` (a `Protocol`) | rule 2: `I` prefix |
 | `load context` | `ILoadContext` | `LoadContext` | rule 2 |
 | `memory source` | `memorySource(files)` | `memory_source(files)` | rule 3 (Python: a class). M2: reads the map live; new `memoryWriter(files)`, `memory_writer(files)` |
-| `file source` | `createFileSource()` from `villanelle/node` | `file_source()` from `villanelle.files` | rule 3. M2: `fileSource()` |
-| `file writer` | `createFsWriter()` from `villanelle/node` | `fs_writer()` | rule 3; medium named `fs` here, `file` in the source. M2: `fileWriter()`, `file_writer()` |
-| `fetch source`, `fetch writer` | `createFetchSource(fetch)`, `createFetchWriter(fetch, options)` from `villanelle/browser` | none | MAY in spec 4.3. M2: `fetchSource`, `fetchWriter` |
+| `file source` | `createFileSource()` from `knobly/node` | `file_source()` from `knobly.files` | rule 3. M2: `fileSource()` |
+| `file writer` | `createFsWriter()` from `knobly/node` | `fs_writer()` | rule 3; medium named `fs` here, `file` in the source. M2: `fileWriter()`, `file_writer()` |
+| `fetch source`, `fetch writer` | `createFetchSource(fetch)`, `createFetchWriter(fetch, options)` from `knobly/browser` | none | MAY in spec 4.3. M2: `fetchSource`, `fetchWriter` |
 | `document writer` | `IDocumentWriter` | `DocumentWriter` (a `Protocol`) | rule 2 |
 | `file write` | `IFileWrite` | `FileWrite` | |
 | `extension` | `IExtension` | `Extension` (a `Protocol`) | |
 | `extension use` | `IExtensionUse` (`args`, rendered arguments) | `ExtensionUse` (`args`) | M1: `values`, as `expanded value`s |
-| include extension | `include()` from `villanelle/include` | `include()` from `villanelle.include` | rule 3 (Python: a class) |
+| include extension | `include()` from `knobly/include` | `include()` from `knobly.include` | rule 3 (Python: a class) |
 
 ### Low level
 
@@ -289,7 +289,7 @@ names. The exact old-to-new tables, with signatures, are the milestones' frozen 
 | `written directive` | `IWrittenDirective` (`kind` `"directive"` or `"extension"`; `setValues`) | `WrittenDirective` (`set_values`) | include lines share the type. M1: `set` on it and on `set line`, `use line`, `variable`. M2: `IExtensionLine` / `ExtensionLine` for kind `extension`, without `rename` |
 | `set line`, `snippet line`, `use line`, `unreadable line` | `ISetLine`, `ISnippetLine`, `IUseLine`, `IUnreadableLine` | `SetLine`, `SnippetLine`, `UseLine`, `UnreadableLine` | |
 | `written block` | `IWrittenBlock` (`.statements`, `directives()`, `insertStatements()`, `addStatements()`) | `WrittenBlock` (a `Sequence`, `directives()`, `insert_statements()`, `add_statements()`) | rule 5 |
-| `written value` | `WrittenValue` (union) of `IWord`, `IString`, `IList`, `ISlice`, `IIndex`, `IReference` | `WrittenValue` of `Word`, `String`, `List`, `Slice`, `Index`, `Reference` | Python's flat namespace makes `List` clash with `typing.List` on `import *`. M2: the six classes from `villanelle.written` only |
+| `written value` | `WrittenValue` (union) of `IWord`, `IString`, `IList`, `ISlice`, `IIndex`, `IReference` | `WrittenValue` of `Word`, `String`, `List`, `Slice`, `Index`, `Reference` | Python's flat namespace makes `List` clash with `typing.List` on `import *`. M2: the six classes from `knobly.written` only |
 | `variable` | `IVariable` (one type, `kind` `"set"`, `"parameter"`, `"handed"`) | `Variable` | `setValues` on all kinds; `NoSetLineError`. M1: kind `"override"`. M2: union `Variable` of `ISetVariable`, `IParameter`, `IOverrideVariable` (Python `SetVariable`, `Parameter`, `OverrideVariable`); `NoSetLineError` gone |
 | `resolution`, `reference resolution` | `IResolution<T>`, `IReferenceResolution` | `Resolution[T]`, `ReferenceResolution` | `overridden` here is a list; on a variable it is a method. M1: `shadowed` |
 | `reaches ()`, `overridden ()` | methods | methods | M1: `wins()`, `shadowedAt()` |
@@ -319,7 +319,7 @@ names. The exact old-to-new tables, with signatures, are the milestones' frozen 
 | kind lists | `TokenKind`, `NodeKind`, `ValueKind`, `StepKind`, `UnreadableKind`, `ChangeKind` (constant objects) | `StrEnum`s, literal strings on the low level, classes for changes | four mechanisms in Python. M2: a generated string-literal type (TypeScript) and `StrEnum` (Python) for every list |
 | `diagnostic`, `located diagnostic` | `IDiagnostic`, `ILocatedDiagnostic` | `Diagnostic`, `LocatedDiagnostic` | |
 | diagnostic codes | `DiagnosticCode.UnterminatedString` | `DiagnosticCode.UNTERMINATED_STRING` | copied by hand: see codegen.md |
-| `diagnostic error`, edit errors, `save error`, `read error` | as spec 2.8 | as spec 2.8; `EditError` is a `ValueError` | no package base error. M2: `VillanelleError` base; `DetachedError` off `EditError` (Python: a `ReferenceError`); `ReadError` not a diagnostic error; `ReadError` and `SaveError` with `paths` (contract 4) |
+| `diagnostic error`, edit errors, `save error`, `read error` | as spec 2.8 | as spec 2.8; `EditError` is a `ValueError` | no package base error. M2: `KnoblyError` base; `DetachedError` off `EditError` (Python: a `ReferenceError`); `ReadError` not a diagnostic error; `ReadError` and `SaveError` with `paths` (contract 4) |
 | `format diagnostic` | `formatDiagnostic(d, graph?)` | `format_diagnostic(d, graph=None)` | |
 | diagnostics sink (`make diagnostics`, `add`, `report`, `count`, `collect`) | `new Diagnostics(initial)`, `add`, `report`, `length`, `collect(read)` | `Diagnostics(initial)`, `add`, `report`, `len()`, `with problems.collecting():` | `collect` as a context manager is the Python idiom |
 | `error (message, code)` | `error(message, code)` | `error(message, code=...)` | |
@@ -336,21 +336,21 @@ Work in this order. Each step ends with shared cases passing, so progress is mea
    page that leads with the first-hour program (rule 2.7) written against the planned API, before
    building the layers.
 3. **Generate the parser.** Add your target to `tools/gen.sh` and keep generated code out of git. There are two
-   routes, both from `grammar/Villanelle.g4`:
+   routes, both from `grammar/Knobly.g4`:
    - **ANTLR 4.13.2** (TypeScript, Python): `tools/gen.sh` runs the pinned ANTLR jar; the binding links its
      language's ANTLR runtime. Wrap the generated parser in an adapter so its types never cross into your API, as
-     `ts/src/syntax/parse.ts` and `py/src/villanelle/syntax/_parse.py` do, and bend ANTLR's error strategy into
+     `ts/src/syntax/parse.ts` and `py/src/knobly/syntax/_parse.py` do, and bend ANTLR's error strategy into
      spec 3.2's recovery. ANTLR has official targets for Go, Java, C#, C++, Swift, PHP, Dart, JavaScript,
      TypeScript and Python, but not Rust (`antlr4rust` is a third-party runtime and lags the official releases).
-   - **villanelle's own parser generator** (`tools/parser/gen.py`, C++): Python standard library only, no runtime
+   - **knobly's own parser generator** (`tools/parser/gen.py`, C++): Python standard library only, no runtime
      library. It writes a longest-match lexer and an LL(*) recursive-descent parser whose tree hooks, error codes
      (spec 2.4) and per-statement recovery (spec 3.2) the binding writes by hand
-     (`cpp/include/villanelle/detail/syntax/parse.hpp`). A new language needs a backend beside `tools/parser/cpp.py`.
+     (`cpp/include/knobly/detail/syntax/parse.hpp`). A new language needs a backend beside `tools/parser/cpp.py`.
 
    Either way, a generated parser passes the same checks: the generator accepts the grammar (`tools/check.sh`:
-   ANTLR through the Bison and token checks, villanelle's generator through check 8, which also proves it refuses
+   ANTLR through the Bison and token checks, knobly's generator through check 8, which also proves it refuses
    every planted grammar in `tools/planted-parser/`), and the binding's adapter passes every syntax case (L0,
-   step 5). Which route a binding with no official ANTLR target takes (villanelle's generator with a new backend, a
+   step 5). Which route a binding with no official ANTLR target takes (knobly's generator with a new backend, a
    third-party runtime, or a parser written by hand and held to the syntax corpus) is the owner's call; ask before
    choosing.
 4. **Write your emitter** ([codegen.md](codegen.md) section 10): `tools/api/emit_<lang>.py`, rendering the

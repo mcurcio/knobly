@@ -1,16 +1,16 @@
 // Sample "load_render" (examples/samples.json): load a config split over two files, list the files read, render it
 // and walk the nodes. ctest examples_load_render compares what it prints with examples/expected/load_render.txt.
 // --8<-- [start:main]
-#include <villanelle/extensions.hpp>
-#include <villanelle/files.hpp>
-#include <villanelle/rendered.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/extensions.hpp>
+#include <knobly/files.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/written.hpp>
 
 #include <iostream>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 int main() {
     // --8<-- [start:processor]

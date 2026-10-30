@@ -1,12 +1,12 @@
 // Sample "sink" (examples/samples.json): one sink collects the render's problems, a reader's error and the program's
 // own checks. ts/examples/examples.test.ts runs this file and compares what it prints with examples/expected/sink.txt.
 // --8<-- [start:main]
-import { Diagnostics, memorySource } from "villanelle";
-import { villanelle } from "villanelle/written";
-import { render } from "villanelle/rendered";
+import { Diagnostics, memorySource } from "knobly";
+import { knobly } from "knobly/written";
+import { render } from "knobly/rendered";
 
 const source = memorySource({ "main.conf": "port eighty;\nnode Mystery m;\nfps $x;\n" });
-const tree = render(await villanelle({ source }).load("main.conf"));
+const tree = render(await knobly({ source }).load("main.conf"));
 const sink = new Diagnostics(tree.diagnostics);
 
 // --8<-- [start:collect]

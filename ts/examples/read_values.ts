@@ -2,11 +2,11 @@
 // reader reads it. ts/examples/examples.test.ts runs this file and compares what it prints with
 // examples/expected/read_values.txt.
 // --8<-- [start:main]
-import { villanelle, ValueKind, type ExpandedValue, type IndexValue, type SliceValue } from "villanelle/written";
-import { render } from "villanelle/rendered";
-import { fileSource } from "villanelle/node";
+import { knobly, ValueKind, type ExpandedValue, type IndexValue, type SliceValue } from "knobly/written";
+import { render } from "knobly/rendered";
+import { fileSource } from "knobly/node";
 
-const tree = render(await villanelle({ source: fileSource() }).load("values.conf"));
+const tree = render(await knobly({ source: fileSource() }).load("values.conf"));
 
 function first(name: string): ExpandedValue {
   const value = tree.block.directives(name)[0]?.values[0];

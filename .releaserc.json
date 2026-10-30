@@ -16,9 +16,9 @@
         "assets": [
           { "path": "dist/release/*.tgz", "label": "npm package (${nextRelease.gitTag})" },
           { "path": "dist/release/*.whl", "label": "Python wheel (${nextRelease.gitTag})" },
-          { "path": "dist/release/villanelle-[0-9]*.tar.gz", "label": "Python sdist (${nextRelease.gitTag})" },
-          { "path": "dist/release/villanelle-cpp-*.tar.gz", "label": "C++ source archive with the generated headers (${nextRelease.gitTag})" },
-          { "path": "dist/release/villanelle.hpp", "label": "C++ single header (${nextRelease.gitTag})" }
+          { "path": "dist/release/knobly-[0-9]*.tar.gz", "label": "Python sdist (${nextRelease.gitTag})" },
+          { "path": "dist/release/knobly-cpp-*.tar.gz", "label": "C++ source archive with the generated headers (${nextRelease.gitTag})" },
+          { "path": "dist/release/knobly.hpp", "label": "C++ single header (${nextRelease.gitTag})" }
         ],
         "successCommentCondition": false,
         "failCommentCondition": false,

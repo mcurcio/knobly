@@ -1,6 +1,6 @@
 // extensions::include() (spec 5.1): its name, and E3005 on the @include when the line has no value. The paths that
 // read values (not a string, a second value, the spec) are proven by the L3 conformance cases (frozen-m2.md 5).
-#include <villanelle/extensions.hpp>
+#include <knobly/extensions.hpp>
 
 #include <memory>
 #include <optional>
@@ -8,7 +8,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-namespace vl = villanelle;
+namespace vl = knobly;
 
 TEST_CASE("include owns the include directive", "[include]") {
     const std::shared_ptr<vl::written::extension> include = vl::extensions::include();

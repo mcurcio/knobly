@@ -1,7 +1,7 @@
 // Detached handles (contract 4.3; design.md 2.3): every member but kind() of a removed statement, value or variable
 // raises detached_error, before any other check; and a handle shares ownership of its graph, which lives while any
 // handle of it does (owner, 2026-10-30, Q2).
-#include <villanelle/written.hpp>
+#include <knobly/written.hpp>
 
 #include <optional>
 #include <string>
@@ -10,8 +10,8 @@
 
 #include "written_fixture.hpp"
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
+namespace vl = knobly;
+namespace vw = knobly::written;
 
 TEST_CASE("every member of a removed directive raises detached_error; kind() works", "[detached]") {
     const vw::document_graph graph = fixture::load("x [1, 2] {\n    y;\n}\nz;\n");

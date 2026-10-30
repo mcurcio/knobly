@@ -67,17 +67,17 @@ LANGUAGE = Language(
     extends_word="extends",
     cause_field="cause",
     error_roots={
-        "villanelle error": {"base": "Error"},
+        "knobly error": {"base": "Error"},
         "detached error": {"base": "ReferenceError"},
         "argument type error": {"builtin": "TypeError"},
         "misuse error": {"base": "Error"},
         "index out of range": {"builtin": "RangeError"},
     },
-    argument_type_message=('{member}(): argument "{parameter}" must be a string, not {got}; villanelle edits take config '
-                           "text: quote() a program string, text() one already written as villanelle text, String() a "
+    argument_type_message=('{member}(): argument "{parameter}" must be a string, not {got}; knobly edits take config '
+                           "text: quote() a program string, text() one already written as knobly text, String() a "
                            "number first"),  # {got}: null, array or typeof
     modules={"files": "node", "fetch": "browser", "include": "include"},
-    factory_forms={"processor": "package function"},  # villanelle({ source }); every other factory is a class
+    factory_forms={"processor": "package function"},  # knobly({ source }); every other factory is a class
     native={"platform fetch": "typeof globalThis.fetch"},  # a native type is the platform's, never declared here
     # Prettier, pinned exactly in ts/package.json and installed by pnpm install; its options are here (no config file,
     # so the hand-written code's editors do not pick them up) and otherwise its defaults.
@@ -370,7 +370,7 @@ def layer_module(model: Model, layer: str) -> str:
 
 
 def kinds_module(model: Model) -> str:
-    out = head('spec/schema/api.json "kinds" and "keywords" (token kind: grammar/Villanelle.g4)')
+    out = head('spec/schema/api.json "kinds" and "keywords" (token kind: grammar/Knobly.g4)')
     for k in model.kinds:
         if "ts" not in k.languages:
             continue
@@ -424,7 +424,7 @@ def codes_module(model: Model) -> str:
     if imports:
         out.append(f"import {{ {', '.join(sorted(imports))} }} from \"./limits.js\";")
     out += ["",
-            "/** villanelle's diagnostic codes, by name. */",
+            "/** knobly's diagnostic codes, by name. */",
             "export const DiagnosticCode = {", *entries, "} as const;",
             "export type DiagnosticCode = (typeof DiagnosticCode)[keyof typeof DiagnosticCode];", "",
             "/** The base message of each code (for people, not part of the contract). */",

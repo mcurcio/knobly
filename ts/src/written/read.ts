@@ -79,7 +79,7 @@ export async function readUnread(graph: DocumentGraph, source: DocumentSource): 
 }
 
 /**
- * The source's results are checked at run time (spec 4.1, vil-umh.12): `resolve` gives an array of strings and `read`
+ * The source's results are checked at run time (spec 4.1, kno-umh.12): `resolve` gives an array of strings and `read`
  * a string; anything else is the source's failure. @throws Error naming the port and the type it got
  */
 function checkedPaths(paths: unknown): readonly string[] {

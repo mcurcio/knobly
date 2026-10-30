@@ -1,4 +1,4 @@
-# Milestone 1, frozen for the binding lanes (bead vil-fy4)
+# Milestone 1, frozen for the binding lanes (bead kno-fy4)
 
 This page is what the TypeScript lane (`ts/`) and the Python lane (`py/`) build in milestone 1. It
 is frozen: a lane that finds it wrong reports the finding (append to `.claude/errata.md`) and does
@@ -25,7 +25,7 @@ Round 13 gate page, 2026-10-29 (the dates are as the gate page records them):
    injected document source (the core still does no I/O).
 2. **The word for values a program passes in:** "A overrides".
 3. **Values going in:** "A Keep text only, make misuse impossible", and "Can "set_values" become
-   simply "set"?". So every edit that takes new values takes villanelle text only, raises a clear
+   simply "set"?". So every edit that takes new values takes knobly text only, raises a clear
    `TypeError` for anything else, names that parameter `text`, and the edit that replaces values is
    `set(text)` everywhere, with no alias.
 
@@ -45,7 +45,7 @@ compatibility"). "same" means the name does not change.
 |---|---|---|---|
 | `ILoadOptions.variables` | `Processor.load(..., variables=)` | `ILoadOptions.overrides` | `Processor.load(..., overrides=)` |
 | `IProcessor.read(graph)` | `Processor.read(graph)` | `IDocumentGraph.read()` | `DocumentGraph.read()` |
-| `IProcessor.render(graph)` | `Processor.render(graph)` | `render(graph)`, exported from `ts/src/rendered/` and re-exported by `"villanelle"` | `villanelle.rendered.render(graph)`, re-exported as `villanelle.render` |
+| `IProcessor.render(graph)` | `Processor.render(graph)` | `render(graph)`, exported from `ts/src/rendered/` and re-exported by `"knobly"` | `knobly.rendered.render(graph)`, re-exported as `knobly.render` |
 | `IProcessor.diff(before, after, options?)` | `Processor.diff(before, after, key=)` | `IRendered.diff(after, options?)` | `Rendered.diff(after, key=)` |
 | `save(graph, writer)` (free function) | `save(graph, writer)` (free function) | `IDocumentGraph.save(writer)` | `DocumentGraph.save(writer)` |
 | `IDocumentGraph.handed` | `DocumentGraph.handed` | `IDocumentGraph.overrides` | `DocumentGraph.overrides` |
@@ -101,13 +101,13 @@ compatibility"). "same" means the name does not change.
 
 | Old TypeScript | Old Python | New TypeScript | New Python |
 |---|---|---|---|
-| `ts/src/load/` (rendered tree, processor and shared pieces mixed) | `villanelle.processor`, `villanelle.directives`, `villanelle._render` | `ts/src/rendered/` (rendered), `ts/src/written/processor.ts` (processor), shared modules in `ts/src/` (below) | `villanelle.rendered` (package: rendered), `villanelle.written.processor` (processor), shared modules in `villanelle/` |
+| `ts/src/load/` (rendered tree, processor and shared pieces mixed) | `knobly.processor`, `knobly.directives`, `knobly._render` | `ts/src/rendered/` (rendered), `ts/src/written/processor.ts` (processor), shared modules in `ts/src/` (below) | `knobly.rendered` (package: rendered), `knobly.written.processor` (processor), shared modules in `knobly/` |
 
-The package entry points do not change: TypeScript keeps `"villanelle"`, `"villanelle/include"`,
-`"villanelle/node"` and `"villanelle/browser"`, and `"villanelle"` re-exports every public name it
-does today under its new name, plus `render` and `IExpandedValue`. Python's `villanelle` keeps
+The package entry points do not change: TypeScript keeps `"knobly"`, `"knobly/include"`,
+`"knobly/node"` and `"knobly/browser"`, and `"knobly"` re-exports every public name it
+does today under its new name, plus `render` and `IExpandedValue`. Python's `knobly` keeps
 re-exporting everything, plus `render`, `ExpandedValue`, `Override` and `UnreadableReason`; the
-old module paths `villanelle.processor` and `villanelle.directives` go with no stub module left.
+old module paths `knobly.processor` and `knobly.directives` go with no stub module left.
 
 Internal names follow the words too (`HandedVariable` becomes `OverrideVariable`, `handedTexts`
 becomes `overrideTexts`, and so on); they are not listed because no program sees them. Comments and
@@ -122,13 +122,13 @@ Every name in `spec/schema/api.json` is the spec name of one of the above; the p
 
 ```ts
 // ts/src/written/processor.ts (low level)
-export function villanelle(options: IProcessorOptions): IProcessor;   // unchanged
+export function knobly(options: IProcessorOptions): IProcessor;   // unchanged
 export interface IProcessor {
   /** The processor's only operation. */
   load(path: string, options?: ILoadOptions): Promise<IDocumentGraph>;
 }
 export interface ILoadOptions {
-  /** By name without `$`, each villanelle text; checked one by one, in order, with the check of an override. */
+  /** By name without `$`, each knobly text; checked one by one, in order, with the check of an override. */
   readonly overrides?: Readonly<Record<string, string>>;
 }
 
@@ -188,12 +188,12 @@ export interface IRendered {
 ### Python
 
 ```python
-# villanelle/written/processor.py (low level)
+# knobly/written/processor.py (low level)
 class Processor:
     def __init__(self, *, source: DocumentSource, extensions: Sequence[Extension] = ()) -> None: ...  # unchanged
     def load(self, path: str, *, overrides: Mapping[str, str] | None = None) -> DocumentGraph: ...
 
-# villanelle/written/model.py (low level)
+# knobly/written/model.py (low level)
 class DocumentGraph:
     @property
     def overrides(self) -> Mapping[str, str]: ...          # read-only view, in order
@@ -207,7 +207,7 @@ class DocumentGraph:
 # on WrittenDirective, SetLine, UseLine and Variable:
     def set(self, text: str, /) -> None: ...
 
-# villanelle/value.py (shared)
+# knobly/value.py (shared)
 class ExpandedValue:
     __match_args__ = ("kind", "text")
     kind: ValueKind        # never REFERENCE
@@ -223,13 +223,13 @@ class ExpandedValue:
     def plain(self) -> PlainValue: ...
     def error(self, message: str, *, code: str) -> DiagnosticError: ...
 
-# villanelle/extension.py (shared)
+# knobly/extension.py (shared)
 @dataclass(frozen=True, slots=True)
 class ExtensionUse:
     values: tuple[ExpandedValue, ...]
     origin: DirectiveOrigin
 
-# villanelle/rendered/ (rendered)
+# knobly/rendered/ (rendered)
 def render(graph: DocumentGraph, /) -> Rendered: ...
 class Argument(ExpandedValue):
     written: WrittenValue              # the same line; never None
@@ -254,7 +254,7 @@ class Directive:
 
 ## 3. Text-only edits and the TypeError
 
-Every member below takes villanelle text, only text. It runs, in this order: the detached check
+Every member below takes knobly text, only text. It runs, in this order: the detached check
 (spec 2.8: a detached handle raises `DetachedError` before anything else); then the type check of
 each text parameter; then everything else. The type check is `typeof value !== "string"` in
 TypeScript and `not isinstance(value, str)` in Python, and raises the language's own `TypeError`.
@@ -274,8 +274,8 @@ The message has one home per binding (one helper) and the exact format is in
 `spec/schema/api.json`, `argument type error message`:
 
 ```text
-Python:     TypeError: set() argument 'text' must be str, not int; villanelle edits take text: quote() a program string, str() a number
-TypeScript: TypeError: set(): argument "text" must be a string, not number; villanelle edits take text: quote() a program string, String() a number
+Python:     TypeError: set() argument 'text' must be str, not int; knobly edits take text: quote() a program string, str() a number
+TypeScript: TypeError: set(): argument "text" must be a string, not number; knobly edits take text: quote() a program string, String() a number
 ```
 
 `member` is the member as the caller wrote it in that binding (`set`, `replace_with_text`,
@@ -307,17 +307,17 @@ the package entry point imports, names or returns a rendered type, not even in a
 
 | Concept | TypeScript | Python |
 |---|---|---|
-| shared: place, override, step, origin | `ts/src/origin.ts` (from `load/origin.ts`) | `villanelle/origin.py` (as today) |
-| shared: located diagnostic, program code, the diagnostics sink, locatable | `ts/src/report.ts` (from `load/report.ts`) | `villanelle/report.py` |
-| shared: document source, load context, memory source | `ts/src/source.ts` (from `load/source.ts`) | `villanelle/source.py` |
-| shared: extension, extension use | `ts/src/extension.ts` (from `load/processor.ts`) | `villanelle/extension.py` (from `processor.py`) |
-| shared: value kind, slice and index value, plain value, expanded value and its readers | `ts/src/value.ts` | `villanelle/value.py` |
+| shared: place, override, step, origin | `ts/src/origin.ts` (from `load/origin.ts`) | `knobly/origin.py` (as today) |
+| shared: located diagnostic, program code, the diagnostics sink, locatable | `ts/src/report.ts` (from `load/report.ts`) | `knobly/report.py` |
+| shared: document source, load context, memory source | `ts/src/source.ts` (from `load/source.ts`) | `knobly/source.py` |
+| shared: extension, extension use | `ts/src/extension.ts` (from `load/processor.ts`) | `knobly/extension.py` (from `processor.py`) |
+| shared: value kind, slice and index value, plain value, expanded value and its readers | `ts/src/value.ts` | `knobly/value.py` |
 | shared helpers (anatomy, value decoding, located errors) | `ts/src/anatomy.ts`, `values.ts`, `locate.ts` (from `load/`) | `_anatomy.py`, `_values.py` (as today) |
-| generated lists | `ts/src/gen/api/` | `villanelle/_api/` |
-| low level, with the processor | `ts/src/written/` (+ `processor.ts`) | `villanelle/written/` (+ `processor.py`) |
+| generated lists | `ts/src/gen/api/` | `knobly/_api/` |
+| low level, with the processor | `ts/src/written/` (+ `processor.ts`) | `knobly/written/` (+ `processor.py`) |
 | `format diagnostic` (takes a graph) | low level: `ts/src/written/format.ts` or kept in `report.ts` importing only written types | low level, or `report.py` importing `DocumentGraph` under `TYPE_CHECKING` |
-| rendered tree: `render`, rendered, directive, argument, unreadable, address, key rule, change, diff | `ts/src/rendered/` (from `load/directive.ts`, `tree.ts`, `render.ts`, `diff.ts`, and `IRendered`, `Change`, `IKeyOptions` from `load/processor.ts`) | `villanelle/rendered/` (from `directives.py`, `_render.py`, and `Rendered`, the change classes from `processor.py`) |
-| the include extension | `ts/src/include.ts`: imports `IExpandedValue` and shared helpers only | `villanelle/include.py`: the same |
+| rendered tree: `render`, rendered, directive, argument, unreadable, address, key rule, change, diff | `ts/src/rendered/` (from `load/directive.ts`, `tree.ts`, `render.ts`, `diff.ts`, and `IRendered`, `Change`, `IKeyOptions` from `load/processor.ts`) | `knobly/rendered/` (from `directives.py`, `_render.py`, and `Rendered`, the change classes from `processor.py`) |
+| the include extension | `ts/src/include.ts`: imports `IExpandedValue` and shared helpers only | `knobly/include.py`: the same |
 
 `ts/src/load/` disappears.
 
@@ -351,10 +351,10 @@ accessor (so nothing is worked out twice); no low-level module ever calls into i
   in `pnpm lint`, which CI runs. Add one planted check: a test or a lint fixture showing the rule
   fires on `import type { IRendered } from "../rendered/..."` from `src/written/`, so the check is
   known to bite.
-- **Python:** `py/tests/test_layers.py`: read every `*.py` under `src/villanelle/` with `ast`
-  (`_api/` and `_gen/` included); for every module outside `villanelle/rendered/` and other than
-  `villanelle/__init__.py`, fail when it has `import villanelle.rendered[...]`, `from
-  villanelle.rendered[...] import ...`, `from villanelle import rendered`, or the relative
+- **Python:** `py/tests/test_layers.py`: read every `*.py` under `src/knobly/` with `ast`
+  (`_api/` and `_gen/` included); for every module outside `knobly/rendered/` and other than
+  `knobly/__init__.py`, fail when it has `import knobly.rendered[...]`, `from
+  knobly.rendered[...] import ...`, `from knobly import rendered`, or the relative
   equivalent (resolve `level` against the module's package), `if TYPE_CHECKING:` blocks included.
   Include one planted case (a source string with a forbidden import) to show the test bites. It runs
   in `pytest`, which CI runs.
@@ -363,8 +363,8 @@ Both are allow-lists (every module but the rendered ones and the entry point), s
 through a shared module is caught as well. Prior art is import-linter's layers contract and
 eslint-plugin-boundaries; the smaller tools give the same guarantee here with no new dependency.
 
-Costs: Python still loads the rendered package whenever any part of `villanelle` is imported,
-because `villanelle/__init__.py` re-exports it; the rule governs what the low level's code depends
+Costs: Python still loads the rendered package whenever any part of `knobly` is imported,
+because `knobly/__init__.py` re-exports it; the rule governs what the low level's code depends
 on, not import-time loading. The check does not police shared-to-written imports; the module table
 above keeps them clean by placement only.
 
@@ -373,7 +373,7 @@ above keeps them clean by placement only.
 - `IProcessor.read`, `IProcessor.render`, `IProcessor.diff`; `Processor.read`, `Processor.render`,
   `Processor.diff`, `Processor._check`.
 - The round 12 ownership check (D27): TypeScript's `graphs` and `renders` `WeakSet`s and `own()` in
-  `villanelle()`; Python's `DocumentGraph(..., owner)` parameter and `graph._owner is not self`. No
+  `knobly()`; Python's `DocumentGraph(..., owner)` parameter and `graph._owner is not self`. No
   "takes only graphs this processor loaded" error remains anywhere.
 - The free `save(graph, writer)` in both bindings (and TypeScript's `asSaved` duck-typing helper:
   `save` is a graph method that can reach the document's private setter directly).
@@ -386,7 +386,7 @@ above keeps them clean by placement only.
   hand-written limit, reserved-name and variable-name constants (replaced by generated modules,
   section 6).
 - The low level's imports of `load/tree.js` `Argument`, `load/directive.js` `UnreadableKind`, and
-  Python's `villanelle.directives` `Argument` and `UnreadableKind` in `written/_bind.py`.
+  Python's `knobly.directives` `Argument` and `UnreadableKind` in `written/_bind.py`.
 
 Kept (later milestones): `NoSetLineError` (root cause 3 deletes it), the `I` prefix on TypeScript
 interfaces (binding guide rule 2), factory names such as `createFileSource` and `file_source` (rule 3),
@@ -411,9 +411,9 @@ go against his stated rule for no gain.)
   unreadable reason, change kind; union types for statement kind, variable kind, place kind),
   `limits.ts` (`MAX_NESTING`, `MAX_DEPTH`, `MAX_DIRECTIVES`, `RESERVED`, `VARIABLE_NAME`). Under
   `src/gen/`, already ignored by git and ESLint, still typechecked (no `@ts-nocheck`).
-- **Python output:** `py/src/villanelle/_api/codes.py`, `kinds.py` (`StrEnum`s; `Literal` aliases for
+- **Python output:** `py/src/knobly/_api/codes.py`, `kinds.py` (`StrEnum`s; `Literal` aliases for
   the three inline lists), `limits.py`. A new folder, not `_gen/`, because mypy skips
-  `villanelle._gen` (`follow_imports = "skip"`) and would see the enums as `Any`. Add `_api/` to
+  `knobly._gen` (`follow_imports = "skip"`) and would see the enums as `Any`. Add `_api/` to
   `py/.gitignore` and to both hatchling `artifacts` lists (as `_gen/`), and keep ruff and mypy
   checking it (the generator emits clean code).
 - The binding's public `DiagnosticCode` stays where users import it today (re-exported from the

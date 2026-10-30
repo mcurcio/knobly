@@ -40,10 +40,10 @@ one below it, does not exist. Design it.
 4. Save: only changed files are written, through the program's writer (the core does no I/O).
 
 ## Read (code is evidence, not a template: the Architects rule)
-- Merged code: /Volumes/Dock/Home/Code/villanelle/.claude/worktrees/consumer-api-build (same tree as main):
-  ts/src/syntax/cst.ts (read-only token trees), ts/src/load/*, ts/src/graph/save.ts, py/src/villanelle/*,
+- Merged code: /Volumes/Dock/Home/Code/knobly/.claude/worktrees/consumer-api-build (same tree as main):
+  ts/src/syntax/cst.ts (read-only token trees), ts/src/load/*, ts/src/graph/save.ts, py/src/knobly/*,
   docs/language.md, docs/low-level-api.md, fixtures/rasl/ (real configs, including split/).
-- Requirements and history: /Volumes/Dock/Home/Code/villanelle/.claude/worktrees/consumer-api/.claude/design/consumer-api/requirements.md
+- Requirements and history: /Volumes/Dock/Home/Code/knobly/.claude/worktrees/consumer-api/.claude/design/consumer-api/requirements.md
   (its last two sections are the newest).
 - Prior art to name and weigh: tomlkit, ruamel.yaml (round-trip config editing), LibCST, recast (lossless editable
   trees), language-server symbol indexes (definitions and references).
