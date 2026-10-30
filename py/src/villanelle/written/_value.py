@@ -71,8 +71,6 @@ class _Expanded:
 
     @property
     def text(self) -> str:
-        """The canonical text, the same in every binding (spec 2.9). Comments and line breaks are never part of it.
-        Two values are the same exactly when their texts are equal."""
         return self._text
 
     @property
@@ -81,26 +79,16 @@ class _Expanded:
 
     @property
     def written(self) -> WrittenValue:
-        """The written value on the same line: for a value that came through a variable, the ``$name`` there
-        (``chain[0].reference``; a list item shares its list's); otherwise the value itself, also its ``definition``.
-        Never None. Editing it edits that one written line, which every copy of the line shares: a file included
-        twice has one line read in both copies (``written.statement.copies()``), so the edit shows in both. To change
-        one copy only, edit what that copy is given instead (its include block's ``set``, at the include step of
-        ``chain``). A live handle: the value itself is a snapshot of one expansion."""
         written = self._chain[0].reference if self._chain else self._definition
         assert written is not None, "an expanded value a program reads always has a line"
         return written
 
     @property
     def definition(self) -> WrittenValue | None:
-        """The written value at the end of its chain (for ``$pixels``, the ``2284`` of its ``set``); None for an
-        override. Editing it changes every use."""
         return self._definition
 
     @property
     def chain(self) -> tuple[ReferenceResolution, ...]:
-        """One per variable step of ``origin.via``, from this value's own line toward where it is written:
-        ``[0]`` is the ``$name`` written on the directive's line. Empty for a value read where it is written."""
         return self._chain
 
     def _moved(self, drop: int, append: tuple[Step, ...], resolution: ReferenceResolution | None) -> ExpandedValue:
@@ -123,11 +111,9 @@ class _Expanded:
         raise NotImplementedError
 
     def word(self) -> str:
-        """A bare word. Raises DiagnosticError E4002 for any other kind."""
         return self._word("a word")
 
     def string(self) -> str:
-        """A word or a string, decoded. Raises DiagnosticError E4002 for a list, slice or index."""
         if isinstance(self, ExpandedString):
             return self._value
         if isinstance(self, ExpandedWord):
@@ -135,36 +121,29 @@ class _Expanded:
         raise self._problem(DiagnosticCode.WRONG_VALUE_KIND, f"expected a word or a string, not a {self.kind}")
 
     def number(self) -> int | float:
-        """A word spelling a NumberText (spec/contract.md 3): an int without fraction or exponent within
-        ±(2**53 - 1), else a float, never ``-0.0``. E4002; E4004, also for a value beyond the double range
-        (``1e400``)."""
         number = _values.number_of(self._word("a number"))
         if number is None:
             raise self._problem(DiagnosticCode.NOT_A_NUMBER, self._text)
         return number
 
     def integer(self) -> int:
-        """A word spelling an IntegerText within ±(2**53 - 1). E4002, E4005."""
         integer = _values.integer_of(self._word("an integer"))
         if integer is None:
             raise self._problem(DiagnosticCode.NOT_AN_INTEGER, self._text)
         return integer
 
     def boolean(self) -> bool:
-        """The word ``true`` or ``false``. E4002, E4006."""
         boolean = _values.boolean_of(self._word("true or false"))
         if boolean is None:
             raise self._problem(DiagnosticCode.NOT_A_BOOLEAN, self._text)
         return boolean
 
     def list(self) -> tuple[ExpandedValue, ...]:
-        """A list's items (its ``items``), each with its own origin. E4002 for any other kind."""
         if isinstance(self, ExpandedList):
             return self._items
         raise self._problem(DiagnosticCode.WRONG_VALUE_KIND, f"expected a list, not a {self.kind}")
 
     def slice(self) -> SliceValue | IndexValue:
-        """A slice or an index. E4002 for any other kind."""
         if isinstance(self, ExpandedSlice):
             return SliceValue(self._name, self._start, self._end)
         if isinstance(self, ExpandedIndex):
@@ -172,8 +151,6 @@ class _Expanded:
         raise self._problem(DiagnosticCode.WRONG_VALUE_KIND, f"expected a slice or an index, not a {self.kind}")
 
     def error(self, message: str, *, code: str) -> DiagnosticError:
-        """A located error to raise or report, placed on this value (for an override's value: on the ``$name`` that
-        used it). Raises ValueError at once when ``code`` has no "/" (villanelle's codes are its own)."""
         check_program_code(code)
         return value_error(self, code, message)
 
@@ -188,8 +165,6 @@ class _Expanded:
 
 
 class ExpandedWord(_Expanded, api.ExpandedWord):
-    """A bare word. Match it: ``case ExpandedWord("true"):``."""
-
     __slots__ = ()
 
     @property
@@ -208,8 +183,6 @@ class ExpandedWord(_Expanded, api.ExpandedWord):
 
 
 class ExpandedString(_Expanded, api.ExpandedString):
-    """A quoted string: ``text`` is its canonical quoted text, ``string()`` the decoded text."""
-
     __slots__ = ("_value",)
 
     _value: str
@@ -241,8 +214,6 @@ class ExpandedString(_Expanded, api.ExpandedString):
 
 
 class ExpandedList(_Expanded, api.ExpandedList):
-    """A list: ``items`` are its values, each with its own origin and links."""
-
     __slots__ = ("_items",)
 
     _items: tuple[ExpandedValue, ...]
@@ -278,9 +249,6 @@ class ExpandedList(_Expanded, api.ExpandedList):
 
 
 class ExpandedSlice(_Expanded, api.ExpandedSlice):
-    """``name[start~end]``; an absent side is None. ``name`` is the word it slices (a ``$name`` written as the slice
-    name is expanded to the one word it holds)."""
-
     __slots__ = ("_end", "_name", "_start")
 
     _name: str
@@ -329,8 +297,6 @@ class ExpandedSlice(_Expanded, api.ExpandedSlice):
 
 
 class ExpandedIndex(_Expanded, api.ExpandedIndex):
-    """``name[index]``: one element."""
-
     __slots__ = ("_index", "_name")
 
     _name: str

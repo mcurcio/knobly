@@ -934,6 +934,7 @@ class Model:
         self._languages()
         self._docs()
         self._spellings()
+        self._documented()
 
     def _languages(self) -> None:
         """Each emitter's own facts name only what the schema has, and leave out nothing a member it keeps still uses."""
@@ -1002,6 +1003,17 @@ class Model:
             word = next((n for n in names if re.search(rf"\b{re.escape(n)}\b", text)), None)
             if bad or word:
                 raise SchemaError(f"{where}: its doc names {(bad.group() if bad else word)!r}; move it to 'rationale'")
+
+    def _documented(self) -> None:
+        """Every concept, member, free function and kind list carries a user doc, so nothing reaches a binding's users
+        undocumented: the schema's doc is the one home of each declaration's doc comment (spec/codegen.md section 3)."""
+        missing = [f"concept {c.name!r}" for c in self.concepts if not c.doc]
+        missing += [f"concept {c.name!r}, member {m.name!r}" for c in self.concepts for m in c.members if not m.doc]
+        missing += [f"free function {f.name!r}" for f in self.functions if not f.doc]
+        missing += [f"kind list {k.name!r}" for k in self.kinds if not k.doc]
+        if missing:
+            raise SchemaError(f"{missing[0]}: has no doc (every concept, member, free function and kind list needs one)"
+                              + (f", and {len(missing) - 1} more" if len(missing) > 1 else ""))
 
     def _direction(self, layer: str, t: Type, where: str, type_params: Sequence[str]) -> None:
         allowed = {layer, *self.layer[layer].may_import}
@@ -1260,6 +1272,9 @@ def planted(api: dict, diagnostics: dict, protocol: dict, languages: Sequence[La
         "bead id in a doc": lambda a, d, p: member(a, "document", "block").__setitem__("doc", "the top block (vil-umh.6)"),
         "history in a doc": lambda a, d, p: concept(a, "document").__setitem__("doc", "a file (milestone 5)"),
         "language in a doc": lambda a, d, p: d["codes"][0].__setitem__("meaning", f"a bad token, as {languages[0].name} reads it"),
+        "undocumented member": lambda a, d, p: member(a, "document", "block").pop("doc"),
+        "undocumented concept": lambda a, d, p: concept(a, "document").pop("doc"),
+        "undocumented free function": lambda a, d, p: next(f for f in a["free functions"] if f["name"] == "parse").pop("doc"),
     }
     # The refusal each newer plant must give, so it is caught by its own check and not by an earlier one by chance.
     reason = {
@@ -1281,6 +1296,10 @@ def planted(api: dict, diagnostics: dict, protocol: dict, languages: Sequence[La
         "bead id in a doc": "names 'vil-umh.6'",
         "history in a doc": "names 'milestone 5'",
         "language in a doc": f"names {languages[0].name!r}",
+        "spelling collision": "both spell",
+        "undocumented member": "member 'block': has no doc",
+        "undocumented concept": "concept 'document': has no doc",
+        "undocumented free function": "free function 'parse': has no doc",
         "a root without a class": "must give it one of",
         "a language leaves out a used concept": "still uses",
         "an unknown module": "is not one of",

@@ -99,10 +99,6 @@ function tooDeep(tokens: readonly Token[]): RawDiagnostic | undefined {
   return { code, range: { start: at, end: at + 1 }, message: describe(code).message };
 }
 
-/**
- * Parse one text. Synchronous, pure and total: it never throws for any input string, and never reads files.
- * Errors are reported in `diagnostics`; the tree still covers every token.
- */
 export function parse(text: string): Syntax {
   const { tokens, parser, raw } = prepare(text);
   const n = tokens.length;

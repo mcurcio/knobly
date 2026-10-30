@@ -646,3 +646,17 @@
   layer` and `adapter layer`; the key rule's type is `function of directive to (text or absent)`; schema patterns
   are I-Regexps (the program code pattern holds its characters as JSON escapes); `tests/test_api_names.py` no longer
   lists the `<Module>Functions` / `<Class>Constructor` assignments (the generated contract holds them).
+
+## 2026-10-30, schema docs (vil-umh.19)
+
+- **spec/schema/api.json's `errors` lists missed two misuse errors the spec states.** `check lost updates` raises a
+  misuse error when `current` is not as long as `files` (spec 4.2; both bindings do), and a written value's `remove`
+  refuses a slice's or index's name or only bound with one (spec 6.6). Both lists now name `misuse error`; `errors`
+  feeds only the generated `@throws` / `Raises:` docs, so no behaviour changes.
+- **The brief called spec/codegen.md section 11 a "deferred list"**: it is "Costs". The deferred item (most schema
+  entries undocumented, hand docstrings repeating schema docs) was one of its bullets; it is replaced by the costs of
+  the new rule (section 3, "The schema's doc is the one home of each public doc").
+- **frozen-m7.md differs from spec/ after this change** (spec wins): Python's `<Module>Functions` and
+  `<Class>Constructor` Protocols moved from `py/tests/api_contract.py` into the layer modules of `villanelle._api`
+  (as TypeScript's are in `gen/api/`), and `_api/docs.py` is new; TypeScript's public functions and `Diagnostics`
+  are constants typed by their generated signatures.

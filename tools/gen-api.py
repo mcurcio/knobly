@@ -70,8 +70,8 @@ def check_layers(schema: tuple) -> None:
     render that record in each emitter and in the stub (a layer list kept by hand in an emitter would drop it)."""
     api, diagnostics, protocol = (json.loads(json.dumps(x)) for x in schema)
     api["layers"].append({"name": "planted", "holds": "a planted layer", "may import": [api["registry layer"]], "namespace": "own"})
-    api["concepts"].append({"name": "widget", "layer": "planted", "nature": "record",
-                            "members": [{"name": "size", "member": "property", "type": "integer"}]})
+    api["concepts"].append({"name": "widget", "layer": "planted", "nature": "record", "doc": "a planted record",
+                            "members": [{"name": "size", "member": "property", "type": "integer", "doc": "its size"}]})
     model = Model(api, diagnostics, protocol, [*LANGUAGES, stub.LANGUAGE])
     for key, emitter in [*EMITTERS.items(), ("stub", stub)]:
         files = emitter.render(model)  # type: ignore[attr-defined]

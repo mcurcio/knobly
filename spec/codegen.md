@@ -18,6 +18,9 @@ types name the binding's public classes (section 4), the schema holds no per-lan
 each schema entry's user doc is split from its rationale (section 3, "Docs and rationale"). What each binding builds
 against is [frozen-m7.md](../.claude/design/consumer-api/round15/frozen-m7.md).
 
+Bead vil-umh.19 gives every concept, member, free function and kind list a user doc, and makes the schema's doc the
+one home of each public doc in both bindings (section 3, "Docs and rationale").
+
 Earlier milestones generated only the fixed lists (milestone 1: codes, kinds, limits; milestone 2: one spelling per
 list); milestone 3 wrote the shared conformance driver by hand. What each binding builds against is
 [frozen-m6.md](../.claude/design/consumer-api/round15/frozen-m6.md).
@@ -159,13 +162,15 @@ still satisfies the Protocol, so the generated signature never forbids what a bi
 ### Docs and rationale
 
 Each concept, member, parameter, kind list, error group and free function, and each protocol shape and request
-(whose request carries a `doc` and a `params doc`), carries an optional `doc` and an optional `rationale`. The `doc`
-is for the binding's users: each emitter writes it as the declaration's doc comment (JSDoc, a docstring), and it
-reaches every binding, so it says what the thing is and does, in spec terms. A member's or free function's comment
+(whose request carries a `doc` and a `params doc`), carries a `doc` and an optional `rationale`. The `doc` is for the
+binding's users: each emitter writes it as the declaration's doc comment (JSDoc, a docstring), as a sentence
+(capitalized, ending in a stop), and it reaches every binding, so it says what the thing is and does, in spec terms:
+what it returns or raises, and an example where one helps. A member's or free function's comment
 also holds its `order` ("Order: walk order."), each parameter's doc (`@param`; a docstring's `Args:` section) and each
 error group in its `errors` (`@throws {ReadError}`; `Raises:`, with the group's `raised when`); an error class's and
-a kind list's comment holds the group's or list's `doc`. A declaration with no doc gets no comment in any binding (no
-placeholder). The `rationale` is for the people who maintain the schema: history (renames, what a milestone
+a kind list's comment holds the group's or list's `doc`. **Every concept, member, free function and kind list has a
+doc**: the loader refuses one without (each form planted in `tools/gen-api.py --check`), so nothing ships
+undocumented; a parameter's doc stays optional (the member's doc names its parameters). The `rationale` is for the people who maintain the schema: history (renames, what a milestone
 changed), the owner's words, bead ids, and anything true of one language only. No emitter reads it.
 
 The loader refuses, in every text an emitter writes as a doc (each `doc`, `params doc` and `order`, an error group's
@@ -178,6 +183,27 @@ notes go in comments.
 Prior art: the split between API reference text and design notes in an architecture decision record, and Smithy's
 `@documentation` trait beside comments that never reach generated code.
 
+**The schema's doc is the one home of each public doc**: no hand-written class, member or function carries a doc
+the schema has. What a program reads is the generated doc, in each binding:
+
+- **TypeScript:** the public types are the generated interfaces, so hovering any member shows its doc, and a
+  hand-written class member that implements one inherits its doc in the language service (a class member with no
+  JSDoc of its own takes its interface's). Each public function and constructor is a constant typed by its generated
+  signature (`export const parse: SyntaxFunctions["parse"] = parser.parse`; `export const Diagnostics:
+  DiagnosticsConstructor`, beside `export type Diagnostics`), so hovering a call shows that signature's doc, in the
+  built declarations too. A union's doc is on its type alias. The names test ("public declarations carry the
+  schema's docs") reads every export of every entry and every member of an exported interface through the compiler
+  API and fails on one without a doc.
+- **Python:** each hand-written public class subclasses its generated Protocol, and `villanelle._docs.document`,
+  called at the end of each public module, gives the class, and each function or property it implements, its
+  Protocol's docstring, and gives each public function and constructed class's `__init__` the docstring of its
+  `<Module>Functions` or `<Class>Constructor` Protocol (`_api/docs.py` names them by dotted path, imported only for
+  the module being documented, so the table breaks no layer direction). Prior art: numpy's `add_newdoc`, which gives
+  functions their docstrings from a table at import; a docstring the hand-written code already has is kept, so the
+  names test sees it. `help()` and `__doc__` then show the schema's doc. The names test
+  (`test_public_docs_are_the_schema_docs`, `test_public_functions_take_no_hand_written_doc`) compares every public
+  class's and member's doc with its Protocol's, and fails on a public function whose doc its source holds.
+
 ## 4. What each emitter generates
 
 **TypeScript** (`ts/src/gen/api/`, git-ignored, typechecked, not linted; `ts/conformance/shapes.ts`, git-ignored,
@@ -189,7 +215,7 @@ typechecked and linted with the adapter):
 | `codes.ts` | `DiagnosticCode` (`as const` object and union), `MESSAGES`, `CODE_FACTS` (name, layer, found by, reason, typed per code), `ReasonOf<C>`, `describe(code, detail?)` |
 | `limits.ts` | the rules module: `MAX_NESTING`, `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`, `PROGRAM_CODE` |
 | `errors.ts` | the error class tree (spec 2.8): each class's base, fields, constructor, message and `name`; `argumentTypeMessage(member, parameter, got)` |
-| `shared.ts`, `syntax.ts`, `io.ts`, `written.ts`, `rendered.ts` (one per layer `api.json` lists) | per layer: one interface per handle, port, record and snapshot; each union's shared members once on `<Union>Common`, which each variant extends with `kind` a literal; union types; callback types; options objects; the generic `Block<TItem, TDirective>` (a block that adds nothing is a type alias of it); a `<Module>Functions` interface per import path listing its free functions; a `<Class>Constructor` interface (`new (...)`) per constructor factory |
+| `shared.ts`, `syntax.ts`, `io.ts`, `written.ts`, `rendered.ts` (one per layer `api.json` lists) | per layer: one interface per handle, port, record and snapshot; each union's shared members once on `<Union>Common`, which each variant extends with `kind` a literal; union types; callback types; options objects; the generic `Block<TItem, TDirective>` (a block that adds nothing is a type alias of it); a `<Module>Functions` interface per import path listing its free functions, which types each public function; a `<Class>Constructor` interface (`new (...)`) per constructor factory, which types each public constructor |
 | `ts/conformance/shapes.ts` | every request, result and dump of the adapter protocol as a type; `PROTOCOL`; `SPELLING` (each spec name the driver sends, in camelCase); `ERROR_GROUP_OF_CLASS` |
 | `ts/test/api-contract.ts` (git-ignored, typechecked by `tsc -p test`) | `PUBLIC_NAMES` (every public name per import path, values and types apart), outside `src/`, so the published package never ships it |
 
@@ -203,9 +229,10 @@ ruff is pinned exactly in `py/pyproject.toml`: a ruff upgrade is a generator cha
 | `codes.py` | `DiagnosticCode`, `MESSAGES`, `CodeFacts`, `CODE_FACTS`, `Described`, `describe(code, detail=None)` |
 | `limits.py` | the rules module, as TypeScript's (patterns end in `\Z`, the text's end) |
 | `errors.py` | the error class tree; `argument_type_message(member, parameter, got)` |
-| `shared.py`, `syntax.py`, `io.py`, `written.py`, `rendered.py` (one per layer `api.json` lists) | per layer: a `Protocol` per handle, port and interface (variants with `kind: Literal[...]`, and the schema's `__match_args__`, which a class implementing it inherits); a frozen slotted `@dataclass` per plain record or snapshot (only properties: `eq=False` for a snapshot, field order the match args, `match_args=False` and an explicit `__match_args__` when the schema's are fewer than the fields, a fixed `kind` as a property); each member's doc as its docstring; callback `TypeAlias`es; a union `TypeAlias` only over generated records (`Change`); `ConfigText`; the generic `Block` Protocol (the index trait states `Sequence`'s read methods). Every annotation that names a concept the binding implements by hand names its public class (below) |
+| `shared.py`, `syntax.py`, `io.py`, `written.py`, `rendered.py` (one per layer `api.json` lists) | per layer: a `Protocol` per handle, port and interface (variants with `kind: Literal[...]`, and the schema's `__match_args__`, which a class implementing it inherits); a frozen slotted `@dataclass` per plain record or snapshot (only properties: `eq=False` for a snapshot, field order the match args, `match_args=False` and an explicit `__match_args__` when the schema's are fewer than the fields, a fixed `kind` as a property); each member's doc as its docstring; callback `TypeAlias`es; a union `TypeAlias` only over generated records (`Change`); `ConfigText`; the generic `Block` Protocol (the index trait states `Sequence`'s read methods); a `<Module>Functions` Protocol per module and a `<Class>Constructor` Protocol (`__call__`) per constructor factory, whose docstrings the public functions and constructors take (section 3). Every annotation that names a concept the binding implements by hand names its public class (below) |
+| `docs.py` | `FUNCTIONS` (each public module's `<Module>Functions` Protocols) and `CONSTRUCTORS` (each constructed class's `<Class>Constructor`), by dotted path: what `villanelle._docs` reads (section 3) |
 | `py/conformance/shapes.py` | the protocol's `TypedDict`s, `PROTOCOL`, `SPELLING` (in snake_case), `ERROR_GROUP_OF_CLASS` |
-| `py/tests/api_contract.py` | what the tests check the binding against, every type named through its public module: `PUBLIC_NAMES` (each module's `__all__`), `MATCH_ARGS`, `UNIONS` (each public union's variant classes), a `<Module>Functions` Protocol per module, a `<Class>Constructor` Protocol (`__call__`) per constructor factory; and a type checker's block (`if TYPE_CHECKING:`) that mypy checks and nothing runs: each module assigned to its `<Module>Functions`, each constructed class to its `<Class>Constructor`, and each hand-written public class (a handle, or a snapshot or record with methods) to `type[<its generated Protocol>]`, so a member that drifts from the schema fails mypy even in a class that forgot to subclass its Protocol |
+| `py/tests/api_contract.py` | what the tests check the binding against, every type named through its public module: `PUBLIC_NAMES` (each module's `__all__`), `MATCH_ARGS`, `UNIONS` (each public union's variant classes); and a type checker's block (`if TYPE_CHECKING:`) that mypy checks and nothing runs: each module assigned to its generated `<Module>Functions`, each constructed class to its `<Class>Constructor`, and each hand-written public class (a handle, or a snapshot or record with methods) to `type[<its generated Protocol>]`, so a member that drifts from the schema fails mypy even in a class that forgot to subclass its Protocol |
 
 How a binding uses them (frozen-m6.md has the per-file list):
 
@@ -227,7 +254,7 @@ How a binding uses them (frozen-m6.md has the per-file list):
   alias's parameters), it stays the generated class or a string. A union over the binding's own classes
   (`written.Statement`) is written by hand and is the only one: the generator writes no second union of the same
   name, and the names test compares its members with `api_contract.UNIONS`, by class identity. A module is checked
-  against its `<Module>Functions` Protocol (`_syntax_functions: SyntaxFunctions = villanelle.syntax`, mypy's
+  against its `<Module>Functions` Protocol (`_syntax_functions: villanelle._api.syntax.SyntaxFunctions = villanelle.syntax`, mypy's
   modules-as-protocols), and a constructed class against its `<Class>Constructor`, both in `api_contract`'s
   generated type checker's block. Nothing outside the package (tests, adapter, docs) imports `villanelle._api`, but
   for that block, which imports the generated Protocols for the type checker only. Every
@@ -387,9 +414,16 @@ language either.
   pattern reads less plainly in `api.json` than a `\u` escape would (the generated rules list shows it escaped), and
   the subset has no shorthand classes.
 - Two type forms need parentheses that once read without them (`function of directive to (text or absent)`).
-- The generated docs are only as good as the schema's: most concepts and members have no `doc` yet, so most
-  declarations carry no comment until the schema's docs are filled in. The hand-written classes' own docstrings and
-  JSDoc still repeat many schema docs (a second home); the name tests keep history out of them, not the repetition.
+- A doc is written once per concept member, so where one implementation serves two concepts' members (a written
+  directive's and an extension line's `values`, `block` and `set`, one Python function each), the schema states the
+  same doc twice: the names test fails when the two differ, since one function holds one docstring.
+- Python gives its hand-written objects their docs at import (section 3): `help()` and `__doc__` show them, but a
+  tool that reads the source without running it sees a public function's doc nowhere and a member's only through its
+  Protocol; a frozen dataclass field (a slot) cannot hold a doc, so its doc is its Protocol's property alone; a
+  union alias (`written.Statement`) cannot hold one.
+- In TypeScript a class's own doc is not inherited from its interface, so the one exported class, `Diagnostics`,
+  is a constant typed by its generated constructor beside a type alias of its interface: hovering a call shows the
+  constructor's doc, hovering the alias shows none.
 - Python's generated code is laid out by hand to match `ruff format`, and TypeScript's is not formatted at all; a
   formatter run after generation would be simpler but add a formatter to every generation (section 4).
 - The driver checks dumps only as far as it reads them; the generated shapes move the rest of that check to each

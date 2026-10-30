@@ -50,9 +50,6 @@ def _detached(what: str) -> DetachedError:
 
 @final
 class DocumentGraph(api.DocumentGraph):
-    """The files one load read, and the overrides the program passed in. It keeps the document source it was loaded
-    through, so ``read`` needs nothing else (the core still does no I/O: the source does)."""
-
     __slots__ = (
         "_cache",
         "_documents",
@@ -97,48 +94,29 @@ class DocumentGraph(api.DocumentGraph):
 
     @property
     def documents(self) -> Mapping[str, Document]:
-        """Every file read, by resolved path, root first, then in first-read order. Never shrinks."""
         return MappingProxyType(self._documents)
 
     @property
     def overrides(self) -> Mapping[str, ConfigText]:
-        """The overrides by name (without ``$``), each the config text the program gave, in order; a read-only view
-        (change it with ``set_override``). Never saved."""
         return MappingProxyType(self._override_texts)
 
     @property
     def diagnostics(self) -> tuple[LocatedDiagnostic, ...]:
-        """The one list (spec 6.3): each document's syntax diagnostics (documents in order), then every problem the
-        low level finds, in walk order. The expansion's and the render's ``diagnostics`` are this same list."""
         from villanelle.written import _graph
 
         return _graph.diagnostics(self)
 
     def set_override(self, name: str, text: ConfigText | None, /) -> None:
-        """Add, change or (None) remove one override without a reload; which ``set`` lines it wins over is
-        spec/expansion.md 5. Raises TypeError for a name or text that is not a str (``quote()`` a program string,
-        ``text()`` one already written as villanelle text);
-        ValueError (misuse) for a name that is not letters, digits and ``_``; BadTextError for a text the
-        ``valuesText`` entry rule refuses or that is not one or more values without a ``$name``, located in that
-        text."""
         from villanelle.written import _graph
 
         _graph.set_override(self, name, text)
 
     def read(self) -> tuple[str, ...]:
-        """Resolve and read what ``unread()`` names through the graph's document source, repeating until nothing new
-        is named; keeps every text and every kept rejection (D12). Returns the resolved paths read, in read order."""
         from villanelle.written import _read
 
         return tuple(_read.read_unread(self))
 
     def save(self, writer: DocumentWriter, /) -> tuple[str, ...]:
-        """Hand every document whose ``text`` differs from its ``saved_text`` to ``writer`` in one batch, in
-        ``documents`` order; with none, the writer is not called. When the writer returns, each written document's
-        ``saved_text`` becomes the text given to it; when it raises, nothing changes: a ``LostUpdateError`` (the
-        writer's ``check_lost_updates``) is raised as it is, anything else as a ``SaveError`` (its ``paths`` the
-        batch's resolved paths) from it. Returns the resolved paths given to the writer. Raises TypeError first when
-        ``writer`` is not a document writer (no callable ``write``)."""
         from villanelle._api.errors import LostUpdateError, SaveError
         from villanelle._api.io import FileWrite
 
@@ -164,16 +142,12 @@ class DocumentGraph(api.DocumentGraph):
         return paths
 
     def edges(self) -> tuple[DocumentEdge, ...]:
-        """Every copy of every extension line, in walk order."""
         return self._binding().edges
 
     def unread(self) -> tuple[DocumentEdge, ...]:
-        """The edges naming a spec not resolved or a file not read yet; each such copy expands to an unreadable
-        with reason ``unread`` and E3007 in ``diagnostics`` (spec 6.10)."""
         return self._binding().unread
 
     def variables(self, name: str | None = None) -> tuple[Variable, ...]:
-        """``set`` lines and parameters in document order, then overrides."""
         from villanelle.written import _document
 
         found: list[Variable] = [v for doc in self._documents.values() for v in _document.variables(doc)]
@@ -181,9 +155,6 @@ class DocumentGraph(api.DocumentGraph):
         return tuple(v for v in found if name is None or v.name == name)
 
     def expand(self) -> Expansion:
-        """The current texts and overrides after expansion (spec 6.10): every copy of every directive as read, its
-        values with their links to the written text, and what could not be read. What ``render`` builds the rendered
-        tree from. A snapshot of the graph's one derivation (a new one after any change); pure: reads no file."""
         from villanelle.written import _expand
 
         return _expand.expand(self)
@@ -196,8 +167,6 @@ class DocumentGraph(api.DocumentGraph):
 
 @final
 class Document(api.Document):
-    """One file as written."""
-
     __slots__ = ("_block", "_graph", "_path", "_saved", "_starts", "_statements", "_syntax", "_text", "_values")
 
     _graph: DocumentGraph
@@ -232,12 +201,10 @@ class Document(api.Document):
 
     @property
     def saved_text(self) -> str:
-        """As read, or as last given to a writer that returned."""
         return self._saved
 
     @property
     def text(self) -> str:
-        """Now; differs from ``saved_text`` exactly when unsaved."""
         return self._text
 
     @property
@@ -253,8 +220,6 @@ class Document(api.Document):
         return tuple(e for e in self._graph._binding().edges if self._path in e.targets)
 
     def replace_with_text(self, text: ConfigText, /) -> None:
-        """Replace the whole text; every handle into it detaches; ``saved_text`` is untouched. TypeError for a
-        ``text`` that is not a str."""
         from villanelle.written import _document
 
         _document.replace_document(self, require_text(text, member="replace_with_text", parameter="text"))
@@ -297,7 +262,6 @@ class _Statement:
 
     @property
     def parent(self) -> WrittenDirective | ExtensionLine | SnippetLine | None:
-        """The statement whose block holds it; None at a document's top level."""
         self._live()
         return cast("WrittenDirective | ExtensionLine | SnippetLine | None", self._parent)
 
@@ -310,7 +274,6 @@ class _Statement:
 
     @property
     def text(self) -> str:
-        """Exact, with the comments it owns."""
         from villanelle.written import _document
 
         self._live()
@@ -321,8 +284,6 @@ class _Statement:
         return self._doc._graph._binding().copies_of(cast("Statement", self))
 
     def replace_with_text(self, text: ConfigText, /) -> tuple[Statement, ...]:
-        """Zero or more statements in its place, indented as it is. Raises TypeError for a ``text`` that is not a str,
-        BadTextError for one that is not statements. This handle detaches."""
         from villanelle.written import _document
 
         self._live()
@@ -336,13 +297,9 @@ class _Statement:
         _document.remove_statement(cast("Statement", self))
 
     def insert_before(self, text: ConfigText, /) -> tuple[Statement, ...]:
-        """Statements inserted just before this one in its block: its block's ``insert_statements`` at this one's
-        index. TypeError for a ``text`` that is not a str; BadTextError for one that is not statements."""
         return self._insert(text, "insert_before", 0)
 
     def insert_after(self, text: ConfigText, /) -> tuple[Statement, ...]:
-        """Statements inserted just after this one in its block: its block's ``insert_statements`` at this one's
-        index plus one. TypeError for a ``text`` that is not a str; BadTextError for one that is not statements."""
         return self._insert(text, "insert_after", 1)
 
     def _insert(self, text: ConfigText, member: str, after: int) -> tuple[Statement, ...]:
@@ -368,7 +325,6 @@ class _NamedLine(_Statement):
 
     @property
     def name(self) -> str:
-        """Read-only: a written directive changes it with ``rename``."""
         self._live()
         return self._doc._syntax.tokens[self._node.start].text
 
@@ -383,11 +339,6 @@ class _NamedLine(_Statement):
         return self._block
 
     def set(self, text: ConfigText, /) -> None:
-        """Replace this statement's values with ``text`` (config text: ``stmt.set(quote(host))``,
-        ``stmt.set(text(str(port)))``); the empty text removes them. Not the language's ``@set`` line: this edits any
-        statement's values. TypeError for a ``text`` that is not a str; BadTextError for one the ``valuesText``
-        entry rule refuses (spec 2.8: a ``;``, a block, a comment the text ends in), and E2001 at 0:0 for a text that
-        holds no value and is not empty (``"# c\n"``, ``"  "``); a line break is whitespace."""
         from villanelle.written import _document
 
         self._live()
@@ -397,9 +348,6 @@ class _NamedLine(_Statement):
 
 @final
 class WrittenDirective(_NamedLine, api.WrittenDirective):
-    """A directive as written (``port 8080;``, ``node { ... }``, ``use epoll;``): a statement headed by a word, whatever
-    its text; ``@set``, ``@snippet``, ``@use`` and extension lines are headed by ``@`` (spec 2.5)."""
-
     __slots__ = ()
 
     @property
@@ -407,9 +355,6 @@ class WrittenDirective(_NamedLine, api.WrittenDirective):
         return StatementKind.DIRECTIVE
 
     def rename(self, name: str, /) -> None:
-        """Change its name. TypeError for a ``name`` that is not a str; ValueError (misuse, spec 2.8) for a name the
-        grammar's ``nameText`` entry rule refuses (not one word: starting with a digit, ``-`` or ``@``), and for
-        nothing else: no name is reserved (``use``, ``include`` are directive names like any other)."""
         from villanelle.written import _document
 
         self._live()
@@ -418,9 +363,6 @@ class WrittenDirective(_NamedLine, api.WrittenDirective):
 
 @final
 class ExtensionLine(_NamedLine, api.ExtensionLine):
-    """A line headed by ``@`` and a registered extension's name (``@include "sink.conf";``): its values are the
-    extension's, its block holds ``@set`` lines. No ``rename``: a new name would change its kind."""
-
     __slots__ = ()
 
     @property
@@ -429,14 +371,11 @@ class ExtensionLine(_NamedLine, api.ExtensionLine):
 
     @property
     def name(self) -> str:
-        """The extension's name, without ``@`` (``include``)."""
         return super().name[1:]
 
 
 @final
 class SetLine(_Statement, api.SetLine):
-    """``@set $name values;``."""
-
     __slots__ = ("_variable",)
 
     _variable: SetVariable
@@ -456,12 +395,10 @@ class SetLine(_Statement, api.SetLine):
 
     @property
     def values(self) -> tuple[WrittenValue, ...]:
-        """After the ``$name``."""
         self._live()
         return tuple(self._value_list)
 
     def set(self, text: ConfigText, /) -> None:
-        """Replace the values after the ``$name`` with ``text``, as ``WrittenDirective.set`` does."""
         from villanelle.written import _document
 
         self._live()
@@ -471,8 +408,6 @@ class SetLine(_Statement, api.SetLine):
 
 @final
 class SnippetLine(_Statement, api.SnippetLine):
-    """``@snippet name $param... { body }``."""
-
     __slots__ = ("_parameters",)
 
     _parameters: list[Parameter]
@@ -506,8 +441,6 @@ class SnippetLine(_Statement, api.SnippetLine):
 
 @final
 class UseLine(_Statement, api.UseLine):
-    """``@use name values;``."""
-
     __slots__ = ()
 
     @property
@@ -523,7 +456,6 @@ class UseLine(_Statement, api.UseLine):
 
     @property
     def snippet(self) -> SnippetLine | None:
-        """By where written."""
         from villanelle.written import _document
 
         name = self.snippet_name
@@ -531,7 +463,6 @@ class UseLine(_Statement, api.UseLine):
         return found if isinstance(found, SnippetLine) else None
 
     def snippets(self) -> tuple[Resolution[SnippetLine], ...]:
-        """Per copy."""
         self._live()
         return self._doc._graph._binding().snippets_of(self)
 
@@ -541,7 +472,6 @@ class UseLine(_Statement, api.UseLine):
         return tuple(self._value_list)
 
     def set(self, text: ConfigText, /) -> None:
-        """Replace the values after the snippet name with ``text``, as ``WrittenDirective.set`` does."""
         from villanelle.written import _document
 
         self._live()
@@ -551,9 +481,6 @@ class UseLine(_Statement, api.UseLine):
 
 @final
 class UnreadableLine(_Statement, api.UnreadableLine):
-    """A statement that cannot be read by its text alone: a syntax error, a malformed ``@set``, ``@snippet`` or
-    ``@use`` line, or an ``@name`` no extension owns (E3008)."""
-
     __slots__ = ()
 
     @property
@@ -567,10 +494,6 @@ Statement: TypeAlias = WrittenDirective | ExtensionLine | SetLine | SnippetLine 
 
 @final
 class WrittenBlock(BlockBase["Statement", "WrittenDirective"], api.WrittenBlock):
-    """The statements of a document or a block (spec 2.11): iterate, index, ``len``, ``in``, ``directives(name)``
-    (written directives only: extension lines are not listed) and ``walk`` (every statement at any depth, through
-    written directives', extension lines' and snippet lines' blocks)."""
-
     __slots__ = ("_doc", "_items", "_owner")
 
     _doc: Document
@@ -600,8 +523,6 @@ class WrittenBlock(BlockBase["Statement", "WrittenDirective"], api.WrittenBlock)
         return item._block
 
     def insert_statements(self, index: int, text: ConfigText, /) -> tuple[Statement, ...]:
-        """Raises TypeError for a ``text`` that is not a str; BadTextError for one that is not statements; IndexError
-        for an index outside 0..len."""
         from villanelle.written import _document
 
         self._live()
@@ -609,7 +530,6 @@ class WrittenBlock(BlockBase["Statement", "WrittenDirective"], api.WrittenBlock)
         return _document.insert_statements(self, index, given)
 
     def add_statements(self, text: ConfigText, /) -> tuple[Statement, ...]:
-        """``insert_statements`` at the end."""
         from villanelle.written import _document
 
         items = self._live()
@@ -707,17 +627,10 @@ class _Value:
 
     @property
     def list(self) -> List | None:
-        """The list it is an item of."""
         self._live()
         return self._list
 
     def set(self, text: ConfigText, /) -> None:
-        """Replace this value with exactly one value and keep the handle (spec 6.1, 6.6): the same object stays where
-        it was (its statement's ``values``, its list's ``items``, its slice's bound or name) and now holds the new
-        value, of the new value's kind: its class becomes that kind's class (``Word`` set to ``"[1, 2]"`` is a
-        ``List``). Its old items, bounds and name detach. Setting it again, through any copy that shares it, writes
-        again. TypeError for a ``text`` that is not a str; BadTextError for one its entry rule refuses (spec 2.8):
-        ``valueText`` (exactly one value), a bound's ``boundText``, a slice name's ``sliceNameText``."""
         from villanelle.written import _document
 
         self._live()
@@ -725,10 +638,6 @@ class _Value:
         _document.set_value(cast("WrittenValue", self), given)
 
     def replace_with_text(self, text: ConfigText, /) -> tuple[WrittenValue, ...]:
-        """Zero or more values in its place. TypeError for a ``text`` that is not a str; BadTextError for one its
-        entry rule refuses (spec 2.8): ``valuesText``; a list item's ``itemsText`` (no trailing ``,``); a slice or index
-        bound's ``boundText`` (one integer word or ``$name``); a slice or index name's ``sliceNameText``. This handle
-        detaches."""
         from villanelle.written import _document
 
         self._live()
@@ -781,8 +690,6 @@ class List(_Value, api.List):
 
 @final
 class Slice(_Value, api.Slice):
-    """``name[start~end]``: its name and bounds are written values (a word or a ``$name`` each)."""
-
     __slots__ = ()
 
     @property
@@ -791,7 +698,6 @@ class Slice(_Value, api.Slice):
 
     @property
     def name(self) -> Word | Reference:
-        """The slice name before ``[``: a word, or a ``$name`` holding one (``$src[0~3]``)."""
         self._live()
         assert self._name is not None, "a slice has its name"
         return self._name
@@ -809,8 +715,6 @@ class Slice(_Value, api.Slice):
 
 @final
 class Index(_Value, api.Index):
-    """``name[index]``: its name and bound are written values (a word or a ``$name`` each)."""
-
     __slots__ = ()
 
     @property
@@ -819,7 +723,6 @@ class Index(_Value, api.Index):
 
     @property
     def name(self) -> Word | Reference:
-        """The name before ``[``: a word, or a ``$name`` holding one (``$s[1]``)."""
         self._live()
         assert self._name is not None, "an index has its name"
         return self._name
@@ -833,8 +736,6 @@ class Index(_Value, api.Index):
 
 @final
 class Reference(_Value, api.Reference):
-    """One ``$name`` written as a value."""
-
     __slots__ = ()
 
     @property
@@ -847,7 +748,6 @@ class Reference(_Value, api.Reference):
 
     @property
     def declaration(self) -> SetVariable | Parameter | None:
-        """The variable it binds to by where it is written; None when free (an override, or nothing)."""
         from villanelle.written import _document
 
         self._live()
@@ -883,9 +783,6 @@ class _Variable:
         raise NotImplementedError
 
     def references(self) -> tuple[Reference, ...]:
-        """The ``$name``s written to read it, by where they are written (``Reference.declaration``), in document
-        order. Lexical only: a ``$name`` in an included file has no declaration (it is resolved per copy), so it is
-        not here; every use, per copy, is in ``wins()`` and ``shadowed_at()``."""
         from villanelle.written import _document
 
         graph = self._graph_of()
@@ -893,20 +790,16 @@ class _Variable:
         return tuple(r for doc in graph._documents.values() for r in _document.references(doc) if r.declaration is me)
 
     def wins(self) -> tuple[ReferenceResolution, ...]:
-        """The resolutions it wins: every ``$name`` at a copy that reads it."""
         me: object = self
         return tuple(r for r in self._graph_of()._binding().resolutions if r.winner is me)
 
     def shadowed_at(self) -> tuple[ReferenceResolution, ...]:
-        """The resolutions where it is visible but another definition wins."""
         me: object = self
         return tuple(r for r in self._graph_of()._binding().resolutions if any(v is me for v in r.shadowed))
 
 
 @final
 class SetVariable(_Variable, api.SetVariable):
-    """A ``set`` line's ``$name``. It detaches with its line."""
-
     __slots__ = ("_line",)
 
     _line: SetLine
@@ -940,7 +833,6 @@ class SetVariable(_Variable, api.SetVariable):
 
     @property
     def place(self) -> Place:
-        """Its ``$name``."""
         from villanelle.written import _document
 
         token = self._token()
@@ -952,9 +844,6 @@ class SetVariable(_Variable, api.SetVariable):
         return self._line
 
     def rename(self, name: str, /) -> None:
-        """Change its ``$name`` (only this one; references keep theirs). TypeError for a ``name`` that is not a str;
-        ValueError (misuse) for a name that is not letters, digits and ``_``; BadTextError for one set twice in its
-        block (E5002)."""
         from villanelle.written import _document
 
         token = self._token()
@@ -962,15 +851,12 @@ class SetVariable(_Variable, api.SetVariable):
         _document.rename_variable(self._line, token, given)
 
     def set(self, text: ConfigText, /) -> None:
-        """Replace its ``set`` line's values with ``text``, as ``SetLine.set`` does."""
         self._line._live()
         self._line.set(text)
 
 
 @final
 class Parameter(_Variable, api.Parameter):
-    """A snippet line's ``$param``: no ``set`` (edit a use line's values instead)."""
-
     __slots__ = ("_detached", "_line", "_token")
 
     _line: SnippetLine
@@ -1009,7 +895,6 @@ class Parameter(_Variable, api.Parameter):
 
     @property
     def place(self) -> Place:
-        """Its ``$name`` in the snippet line."""
         from villanelle.written import _document
 
         line = self._owner()
@@ -1020,8 +905,6 @@ class Parameter(_Variable, api.Parameter):
         return self._owner()
 
     def rename(self, name: str, /) -> None:
-        """Change its ``$name`` (only this one). TypeError for a ``name`` that is not a str; ValueError (misuse) for a
-        name that is not letters, digits and ``_``."""
         from villanelle.written import _document
 
         line = self._owner()
@@ -1031,9 +914,6 @@ class Parameter(_Variable, api.Parameter):
 
 @final
 class OverrideVariable(_Variable, api.OverrideVariable):
-    """An override as a variable: no place, no line, no ``rename``, no ``set`` (``DocumentGraph.set_override``
-    changes it). One per name for the graph's life; never detached."""
-
     __slots__ = ("_graph", "_name")
 
     _graph: DocumentGraph
@@ -1059,7 +939,6 @@ class OverrideVariable(_Variable, api.OverrideVariable):
         return self._name
 
     def references(self) -> tuple[Reference, ...]:
-        """None: an override is declared by no written line (its readers are in ``wins()``)."""
         return ()
 
 
@@ -1072,9 +951,6 @@ Variable: TypeAlias = SetVariable | Parameter | OverrideVariable
 
 @final
 class ExpansionBlock(BlockBase[DirectiveExpansion, DirectiveExpansion], api.ExpansionBlock):
-    """The readable directive copies of one block of one copy, in walk order (includes and uses spliced in place):
-    the top level's is ``Expansion.block``, a directive expansion's its ``block``. A snapshot."""
-
     __slots__ = ("_items",)
 
     def __init__(self, items: tuple[DirectiveExpansion, ...]) -> None:

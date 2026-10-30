@@ -17,8 +17,6 @@ _ORIGIN = SourcePosition(offset=0, line=0, column=0)
 
 
 def span_of(syntax: Syntax, rng: TokenRange) -> SourceSpan:
-    """The span of a token range. An empty range at index i is a zero-width span at the start of token i, or at the
-    end of the text when i == len(tokens). Raises IndexError outside [0, len(tokens)] or when start > end."""
     tokens = syntax.tokens
     _check_range(len(tokens), rng)
 
@@ -34,8 +32,6 @@ def span_of(syntax: Syntax, rng: TokenRange) -> SourceSpan:
 
 
 def text_of(syntax: Syntax, rng: TokenRange) -> str:
-    """The exact source text of a token range; ``text_of(syntax, syntax.root)`` is the whole input.
-    Raises IndexError outside [0, len(tokens)] or when start > end."""
     _check_range(len(syntax.tokens), rng)
     return "".join(token.text for token in syntax.tokens[rng.start : rng.end])
 

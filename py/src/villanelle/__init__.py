@@ -10,6 +10,7 @@ gives a filesystem source and writer, ``villanelle.include`` the include extensi
 # Every public signature is generated from spec/schema/api.json (villanelle._api); each module's __all__ equals the
 # generated PUBLIC_NAMES for it (tests/test_api_names.py).
 
+from villanelle import _docs
 from villanelle._api.codes import DiagnosticCode
 from villanelle._api.errors import (
     BadTextError,
@@ -76,3 +77,5 @@ __all__ = [
     "quote",
     "text",
 ]
+
+_docs.document(__name__)

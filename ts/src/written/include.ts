@@ -12,10 +12,6 @@ import { DiagnosticCode, describe } from "../gen/api/codes.js";
 import { DiagnosticError } from "../gen/api/errors.js";
 import { ValueKind } from "../gen/api/kinds.js";
 
-/**
- * The include extension. Its one value must be a quoted path or glob (E3005 otherwise, placed on the value);
- * matching files are spliced in code-point order of resolvedPath.
- */
 // The include ordering both bindings share: vil-bgz.1.
 export function include(): Extension {
   return {

@@ -126,3 +126,69 @@ def public_docs() -> list[tuple[str, str]]:
 def test_public_docs_carry_no_history() -> None:
     bad = [f"{where}: {m.group()!r}" for where, doc in public_docs() if (m := HISTORY.search(doc))]
     assert bad == []
+
+
+def schema_docs() -> list[tuple[str, str | None, str | None]]:
+    """Each public doc that comes from the schema, as (where, what a program reads, what it must be). A hand-written
+    class and each member it implements read their generated Protocol's docs; a public function has a doc, which
+    ``test_public_functions_take_no_hand_written_doc`` shows is not written in its source (the package gives each its
+    ``<Module>Functions`` Protocol's doc at import)."""
+    out: list[tuple[str, str | None, str | None]] = []
+    for path in sorted(PUBLIC_NAMES):
+        module = importlib.import_module(path)
+        for name in sorted(PUBLIC_NAMES[path]):
+            obj = getattr(module, name)
+            here = getattr(obj, "__module__", "") or ""
+            if not here.startswith("villanelle.") or here.startswith("villanelle._api."):
+                continue
+            if inspect.isfunction(obj):
+                out.append((f"{path}.{name}", obj.__doc__, None))
+                continue
+            if not isinstance(obj, type):
+                continue
+            bases = [b for b in obj.__mro__[1:] if b.__module__.startswith("villanelle._api.")]
+            if not bases:
+                continue
+            out.append((f"{path}.{name}", obj.__doc__, bases[0].__doc__))
+            for base in bases:
+                for attr, member in vars(base).items():
+                    if isinstance(member, (types.FunctionType, property)) and member.__doc__:
+                        owner = next(c for c in obj.__mro__ if attr in vars(c))
+                        target = vars(owner)[attr]
+                        if not owner.__module__.startswith("villanelle._api.") and not isinstance(
+                            target, types.MemberDescriptorType
+                        ):
+                            out.append((f"{path}.{name}.{attr}", target.__doc__, member.__doc__))
+    return out
+
+
+def written_in_source(obj: object, doc: str) -> bool:
+    try:
+        return doc.splitlines()[0].strip() in inspect.getsource(obj)  # type: ignore[arg-type]
+    except (OSError, TypeError):
+        return False
+
+
+def test_public_docs_are_the_schema_docs() -> None:
+    """The schema is the one home of each public doc (spec/codegen.md section 3): what ``help()`` shows for a public
+    function, class or member is the generated doc, never a hand-written copy, and nothing the schema describes is
+    left without one."""
+    bad = []
+    for where, doc, expected in schema_docs():
+        if not doc:
+            bad.append(f"{where}: no doc")
+        elif expected is not None and doc != expected:
+            bad.append(f"{where}: not its Protocol's doc")
+    assert bad == []
+
+
+def test_public_functions_take_no_hand_written_doc() -> None:
+    bad = []
+    for path in sorted(PUBLIC_NAMES):
+        module = importlib.import_module(path)
+        for name in sorted(PUBLIC_NAMES[path]):
+            obj = getattr(module, name)
+            hand = inspect.isfunction(obj) and obj.__module__.startswith("villanelle.")
+            if hand and obj.__doc__ and written_in_source(obj, obj.__doc__):
+                bad.append(f"{path}.{name}")
+    assert bad == []

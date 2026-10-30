@@ -79,8 +79,8 @@ def s(text: str) -> str:
 
 
 def doc(text: str, indent: str = "", tags: Optional[List[str]] = None) -> List[str]:
-    """A JSDoc comment: the text wrapped, then each tag (``@param``, ``@throws``) on lines of its own."""
-    blocks = [b.replace("*/", "*\\/").strip() for b in [text, *(tags or [])]]
+    """A JSDoc comment: the text as a sentence, wrapped, then each tag (``@param``, ``@throws``) on lines of its own."""
+    blocks = [b.replace("*/", "*\\/").strip() for b in [sentence(text), *(tags or [])]]
     body, tag_lines = blocks[0], [b for b in blocks[1:] if b]
     if not body and not tag_lines:
         return []
@@ -101,7 +101,7 @@ def error_class(model: Model, group: str) -> str:
 def member_doc(model: Model, text: str, params: List[Param], errors: List[str], order: str, indent: str) -> List[str]:
     """A member's or free function's JSDoc: its doc and order, each documented parameter, each error group it raises."""
     if order:
-        text = f"{text} Order: {order}.".strip()
+        text = f"{sentence(text)} Order: {order}.".strip()
     tags = [f"@param {'options.' if p.passed == 'option' else ''}{camel(p.name)} {p.doc}" for p in params if p.doc]
     tags += [f"@throws {{{error_class(model, e)}}} {model.group[e].raised_when}" for e in errors]
     return doc(text, indent, tags)
@@ -247,10 +247,10 @@ def concept_lines(model: Model, c: Concept, ctx: Ctx) -> List[str]:
     if c.is_union:
         # The members every variant has go once, on <Union>Common, which each variant extends.
         alts = " | ".join(pascal(v) for v in c.variants)
-        common = [f"export interface {common_name(c)} {{"]
+        common = [*doc(f"The members every {c.name} has, whichever its kind."), f"export interface {common_name(c)} {{"]
         for m in c.members:
             common += member_lines(model, c, m, cctx)
-        return out + common + ["}", "", f"export type {name} = {alts};"]
+        return common + ["}", "", *out, f"export type {name} = {alts};"]
     bases = []
     if c.variant_of:
         bases.append(common_name(model.concept[c.variant_of]))
@@ -259,8 +259,7 @@ def concept_lines(model: Model, c: Concept, ctx: Ctx) -> List[str]:
     members = list(c.members)
     if c.nature == "shape":
         iterate = next(m for m in members if m.trait == "iterate")
-        bases.append(f"Iterable<{ts_type(iterate.type.item, cctx)}>")  # Iterable gives the iterate trait
-        members = [m for m in members if m is not iterate]
+        bases.append(f"Iterable<{ts_type(iterate.type.item, cctx)}>")  # a block is Iterable; its own member keeps the doc
     lines: List[str] = []
     if c.kind is not None and c.variant_of:
         lines.append(f"  readonly kind: {s(c.kind)};")
@@ -306,9 +305,9 @@ def constructor_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
         if f.layer != layer or (f.factory or {}).get("ts") != "constructor" or model.function_module(f, "ts") is None:
             continue
         of = pascal(f.factory["of"])  # type: ignore[index]
-        out += member_doc(model, f"The {f.factory['of']} class's constructor ({f.name}): `const _: {of}Constructor = {of}` checks it. {f.doc}",  # type: ignore[index]
-                          f.params, f.errors, "", "")
-        out += [f"export interface {of}Constructor {{", f"  new ({method_params(model, f.params, f.options, ctx)}): {ctx.ref(f.factory['of'])};",  # type: ignore[index]
+        out += doc(f"The {f.factory['of']} class's constructor ({f.name}): `const _: {of}Constructor = {of}` checks it.")  # type: ignore[index]
+        out += [f"export interface {of}Constructor {{", *member_doc(model, f.doc, f.params, f.errors, "", "  "),
+                f"  new ({method_params(model, f.params, f.options, ctx)}): {ctx.ref(f.factory['of'])};",  # type: ignore[index]
                 "}", ""]
     return out
 

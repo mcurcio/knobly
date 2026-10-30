@@ -35,6 +35,7 @@ from .loader import (
     HEADER,
     PLACEHOLDER,
     Concept,
+    Function,
     Language,
     Member,
     Model,
@@ -116,8 +117,9 @@ def _escape(text: str) -> str:
 
 
 def docstring(text: str, indent: str, sections: Optional[List[Tuple[str, List[Tuple[str, str]]]]] = None) -> List[str]:
-    """A docstring: the text wrapped, then each Google-style section (``Args:``, ``Raises:``) with one entry a name."""
-    text = _escape(text)
+    """A docstring: the text as a sentence, wrapped, then each Google-style section (``Args:``, ``Raises:``) with one
+    entry a name."""
+    text = _escape(sentence(text))
     sections = [(title, [(n, _escape(d)) for n, d in entries]) for title, entries in (sections or []) if entries]
     if not text and not sections:
         return []
@@ -149,7 +151,7 @@ def member_docstring(model: Model, text: str, params: List[Param], errors: List[
     """A member's docstring: its doc and order, an ``Args`` section for its documented parameters, and a ``Raises``
     section for the error groups it raises (as TypeScript writes ``@param`` and ``@throws``)."""
     if order:
-        text = f"{text} Order: {order}.".strip()
+        text = f"{sentence(text)} Order: {order}.".strip()
     args = [(snake(p.name), p.doc) for p in params if p.doc]
     raises = [(error_class(model, e), model.group[e].raised_when) for e in errors]
     return docstring(text, indent, [("Args", args), ("Raises", raises)])
@@ -325,7 +327,8 @@ def signature(indent: str, name: str, params: List[str], result: str, body: str 
     hug = f"{indent}    {', '.join(params)}"
     tail = f"{indent}) -> {result}:{body}"
     if len(hug) <= WIDTH and not params[-1].endswith(",") and len(tail) <= WIDTH:
-        return [f"{indent}def {name}(", hug, tail]
+        # ruff format, as black, adds a trailing comma to a split signature that holds no comma (one parameter)
+        return [f"{indent}def {name}(", hug + ("," if len(params) == 1 else ""), tail]
     exploded = [f"{indent}def {name}(", *(f"{indent}    {p}," for p in params)]
     if len(tail) <= WIDTH:
         return exploded + [tail]
@@ -520,6 +523,50 @@ def concept_lines(model: Model, c: Concept, ctx: Ctx) -> Tuple[List[str], List[s
     return out, []
 
 
+def functions_suffix(model: Model, f: Function) -> str:
+    """What names the ``<Module>Functions`` Protocol that lists a free function: its module's last part, or its layer."""
+    mod = model.function_module(f, "py") or ""
+    return mod.split(".", 1)[1] if "." in mod else f.layer
+
+
+def functions_protocol(model: Model, f: Function) -> str:
+    return f"{pascal(functions_suffix(model, f))}Functions"
+
+
+def docs_module(model: Model) -> str:
+    """``_api/docs.py``: where each public module's functions and constructed classes take their docs from (the
+    package's ``_docs`` gives them at import), so a hand-written function or constructor carries the schema's doc. The
+    Protocols are named by their dotted paths, imported only for the module being documented, so no layer imports a
+    layer above it through this table."""
+    imports = Imports()
+    imports.add("typing", "Final")
+    imports.add("collections.abc", "Mapping")
+    imports.add("types", "MappingProxyType")
+    functions: Dict[str, Set[str]] = {}
+    constructors: List[str] = []
+    for f in model.functions:
+        mod = model.function_module(f, "py")
+        if mod is None:
+            continue
+        layer = f"{model.package}._api.{f.layer}"
+        if (f.factory or {}).get("py") == "constructor":
+            of = pascal(f.factory["of"])  # type: ignore[index]
+            constructors.append(f"        {s(mod + '.' + of)}: {s(f'{layer}.{of}Constructor')},")
+        else:
+            functions.setdefault(mod, set()).add(s(f"{layer}.{functions_protocol(model, f)}"))
+    entries = []
+    for mod, protos in sorted(functions.items()):
+        line = f"        {s(mod)}: {tuple_literal(sorted(protos))},"
+        entries += [line] if len(line) <= WIDTH else [f"        {s(mod)}: (", *(f"            {p}," for p in sorted(protos)), "        ),"]
+    body = ["", *frozen_map("FUNCTIONS", "str, tuple[str, ...]", entries,
+                            "Each public module's <Module>Functions Protocols: each of its functions takes its doc from one."),
+            "", *frozen_map("CONSTRUCTORS", "str, str", sorted(constructors),
+                            "Each constructed class's <Class>Constructor Protocol: its __init__ takes the doc of __call__.")]
+    head = [f'"""{HEADER}', "", 'Source: spec/schema/api.json "free functions": the docs of the public functions and constructors.'
+            '"""', ""]
+    return "\n".join(head + imports.render() + body) + "\n"
+
+
 def functions_lines(model: Model, layer: str, ctx: Ctx) -> List[str]:
     by_module: Dict[str, List[str]] = {}
     for f in model.functions:
@@ -582,6 +629,7 @@ def layer_module(model: Model, layer: str) -> str:
         body += ["", "", *block]
     for block in aliases:
         body += ["", *block] if body and body[-1].startswith(tuple(pascal(c.name) for c in model.concepts)) else ["", "", *block]
+    body += functions_lines(model, layer, ctx)
     head = [f'"""{HEADER}', "", f'Source: spec/schema/api.json, the {layer} layer."""', ""]
     out = head + imports.render() + body
     return "\n".join(out).rstrip("\n") + "\n"
@@ -785,8 +833,7 @@ def contract_module(model: Model) -> str:
     """py/tests/api_contract.py: the generated half of the binding's public-name test. It lives beside the tests, not in
     the package, and names every type through its public module, so the tests import nothing private."""
     imports = Imports()
-    for name in ("Final", "Protocol"):
-        imports.add("typing", name)
+    imports.add("typing", "Final")
     imports.add("collections.abc", "Mapping")
     imports.add("types", "MappingProxyType")
     by_mod: Dict[str, List[str]] = {}
@@ -816,8 +863,6 @@ def contract_module(model: Model) -> str:
             "", "", *frozen_map("UNIONS", "str, tuple[str, ...]", unions,
                                 "Each public union's variant classes: the binding's union must hold exactly these.")]
     ctx = Ctx(model, "contract", imports, {}, public=True)
-    for layer in model.layers:
-        body += functions_lines(model, layer.name, ctx)
     body += contract_checks(model, ctx)
     head = [f'"""{HEADER}', "", "Source: spec/schema/api.json: what the binding's tests check it against (spec/codegen.md section 4).",
             "Every type is named through its public module; only the type checker's block at the end names the generated",
@@ -850,15 +895,15 @@ def contract_checks(model: Model, ctx: Ctx) -> List[str]:
         mod = model.function_module(f, "py")
         if mod is None:
             continue
+        api_mod = ctx.imports.module(f"{model.package}._api.{f.layer}")
         if (f.factory or {}).get("py") == "constructor":
             of = f.factory["of"]  # type: ignore[index]
-            assign(f"_{snake(of)}_constructor", f"{pascal(of)}Constructor", ctx.ref(of))
+            assign(f"_{snake(of)}_constructor", f"{api_mod}.{pascal(of)}Constructor", ctx.ref(of))
             continue
-        suffix = mod.split(".", 1)[1] if "." in mod else f.layer
-        proto = f"{pascal(suffix)}Functions"
+        proto = functions_protocol(model, f)
         if proto not in seen:
             seen.add(proto)
-            assign(f"_{snake(suffix)}_functions", proto, ctx.imports.module(mod))
+            assign(f"_{snake(functions_suffix(model, f))}_functions", f"{api_mod}.{proto}", ctx.imports.module(mod))
     for c in model.concepts:
         if checked_by_protocol(model, c):
             api_mod = ctx.imports.module(f"{model.package}._api.{c.layer}")
@@ -961,6 +1006,7 @@ def render(model: Model) -> Dict[str, str]:
         "codes.py": codes_module(model),
         "limits.py": limits_module(model),
         "errors.py": errors_module(model),
+        "docs.py": docs_module(model),
         # The folder is generated and never committed: ignore it from inside, as tools/gen.sh's own output is ignored.
         ".gitignore": f"# {HEADER}\n*\n",
     }

@@ -42,7 +42,6 @@ class BlockBase(Sequence[ItemT], Generic[ItemT, DirectiveT]):
     def __getitem__(self, index: slice, /) -> tuple[ItemT, ...]: ...
 
     def __getitem__(self, index: int | slice, /) -> ItemT | tuple[ItemT, ...]:
-        """``block[i]`` (``IndexError`` out of range), or a slice as a tuple."""
         items = self._members()
         return items[index] if isinstance(index, int) else tuple(items[index])
 
@@ -50,21 +49,16 @@ class BlockBase(Sequence[ItemT], Generic[ItemT, DirectiveT]):
         return len(self._members())
 
     def __iter__(self) -> Iterator[ItemT]:
-        """Over a snapshot of its items, so an edit while iterating never skips or repeats one."""
         return iter(tuple(self._members()))
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({list(self._members())!r})"
 
     def directives(self, name: str | None = None, /) -> tuple[DirectiveT, ...]:
-        """Its directives in order, those named ``name`` when given."""
         found = (self._directive(item) for item in self._members())
         return tuple(d for d in found if d is not None and (name is None or self._name(d) == name))
 
     def walk(self, *, descend: Callable[[ItemT], bool] | None = None) -> Iterator[ItemT]:
-        """Every item in this block and in the blocks its items hold, at any depth, depth-first in written order.
-        ``descend``, when given, is asked of each item yielded that holds a non-empty block; False passes over that
-        block. Stop early with ``break``."""
         stack: list[Iterator[ItemT]] = [iter(self)]
         while stack:
             item = next(stack[-1], _END)

@@ -16,12 +16,6 @@ import type * as api from "../gen/api/rendered.js";
 
 const START = { offset: 0, line: 0, column: 0 } as const;
 
-/**
- * The rendered tree of the graph's current texts and overrides. Pure and synchronous: reads no file; an unread
- * include copy is an unreadable with reason "unread" (its edge is in `graph.unread()`). Takes any object with the
- * document graph's public members.
- * @throws TypeError (the argument type error) when `graph` has no callable `expand`, before any other work
- */
 export function render(graph: DocumentGraph): api.Rendered {
   const given: unknown = graph;
   if (typeof (given as Partial<DocumentGraph> | null)?.expand !== "function") {

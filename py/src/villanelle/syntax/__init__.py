@@ -4,6 +4,7 @@ syntax tree over token ranges, with what went wrong; ``span_of`` and ``text_of``
 # The records (Token, TokenRange, Node, Syntax), the kind lists and MAX_NESTING are generated from spec/schema/api.json
 # (villanelle._api); ANTLR types never leave the adapter (parse).
 
+from villanelle import _docs
 from villanelle._api.kinds import NodeKind, TokenKind
 from villanelle._api.limits import MAX_NESTING
 from villanelle._api.syntax import Node, Syntax, Token, TokenRange
@@ -22,3 +23,5 @@ __all__ = [
     "span_of",
     "text_of",
 ]
+
+_docs.document(__name__)

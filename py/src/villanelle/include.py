@@ -4,6 +4,7 @@ own variables (R22): ``@include "palettes.conf" { @set $hue 0.3; }``. What an in
 
 from __future__ import annotations
 
+from villanelle import _docs
 from villanelle._api.codes import DiagnosticCode, describe
 from villanelle._api.errors import DiagnosticError
 from villanelle._api.written import Extension, ExtensionUse
@@ -12,8 +13,6 @@ from villanelle.written._value import ExpandedString, value_error
 
 
 def include() -> Extension:
-    """The include extension. Its one value must be a quoted path or glob (E3005 otherwise, placed on the value);
-    matching files are spliced in code-point order of resolved path."""
     # The include ordering both bindings share: vil-bgz.1.
     return _Include()
 
@@ -39,3 +38,5 @@ class _Include:
 
 
 __all__ = ["include"]
+
+_docs.document(__name__)

@@ -19,11 +19,6 @@ from villanelle._origin import Place, Step
 
 @dataclass(frozen=True, slots=True)
 class LocatedDiagnostic(shared.LocatedDiagnostic):
-    """One located problem of a load: villanelle's or a program's. Always at a place in a file (design rule 3).
-
-    ``code`` is a DiagnosticCode, or a program's own ``"<namespace>/<name>"`` (``"rasl/unknown-node"``). For an
-    override's value, ``place`` is the ``$name`` that used it and the message names the variable."""
-
     code: DiagnosticCode | str = field()
     message: str = field()
     """For people; not part of the cross-language contract."""
@@ -41,8 +36,6 @@ class LocatedDiagnostic(shared.LocatedDiagnostic):
         check_program_code(self.code)
 
     def __str__(self) -> str:
-        """Its people form (spec/contract.md 2): ``<place>: <code>: <message>``, the first line of
-        ``format_diagnostic``."""
         return f"{self.place}: {self.code}: {self.message}"
 
 
@@ -73,9 +66,6 @@ class Collecting:
 
 
 class Diagnostics(shared.Diagnostics):
-    """The one place problems collect. A program starts it with ``rendered.diagnostics``, reports its own problems into
-    it, and runs reads under ``collecting()`` so a reader's DiagnosticError is recorded instead of ending it."""
-
     __slots__ = ("_items",)
 
     def __init__(self, initial: Iterable[LocatedDiagnostic] | None = None, /) -> None:
@@ -88,15 +78,12 @@ class Diagnostics(shared.Diagnostics):
         return iter(tuple(self._items))
 
     def add(self, diagnostic: LocatedDiagnostic, /) -> None:
-        """Record one problem."""
         self._items.append(diagnostic)
 
     def report(self, at: Locatable, message: str, *, code: str) -> None:
-        """Record a program's problem placed on ``at``. Raises ValueError when ``code`` has no "/"."""
         self.add(at.error(message, code=code).diagnostic)
 
     def collecting(self) -> Collecting:
-        """A context manager that records a DiagnosticError raised inside it into this sink."""
         return Collecting(self)
 
 

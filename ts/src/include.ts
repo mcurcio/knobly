@@ -3,4 +3,8 @@
  * expansion (written/include.ts).
  */
 
-export { include } from "./written/include.js";
+import type { IncludeFunctions } from "./gen/api/written.js";
+import * as extension from "./written/include.js";
+
+// The public function is typed by its generated signature, which carries the schema's doc.
+export const include: IncludeFunctions["include"] = extension.include;

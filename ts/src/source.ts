@@ -11,13 +11,6 @@ import type { DocumentSource, DocumentWriter, FileWrite } from "./gen/api/io.js"
 import { globToRegExp, hasGlob } from "./graph/glob.js";
 import { LostUpdateError, MisuseError } from "./gen/api/errors.js";
 
-/**
- * A source over texts held in memory, keyed by path. It reads `files` itself at every call, never a copy made when it
- * was created, so what a `memoryWriter` over the same object writes, a later load or read sees. `resolve` joins the
- * spec to the directory of `parentPath` with POSIX rules (`/` separators; `.` and `..` segments removed; a spec
- * starting with `/` is taken as is) and returns the path when it is a key; a glob in the last segment returns every
- * key in that directory it matches. `read` of a path that is not a key rejects. Pure: no I/O.
- */
 export function memorySource(files: Readonly<Record<string, string>>): DocumentSource {
   const has = (path: string): boolean => Object.hasOwn(files, path);
   return {
@@ -37,13 +30,6 @@ export function memorySource(files: Readonly<Record<string, string>>): DocumentS
   };
 }
 
-/**
- * The one lost-update check (spec 4.2): `current[i]` is `files[i]`'s text in the medium now, `undefined` when there
- * is none (read as `""`). Every writer calls it before it writes anything; a program's own writer should too. Prior
- * art: HTTP's conditional requests (RFC 9110 13.1.1) and optimistic concurrency.
- * @throws MisuseError when `current` is not as long as `files`; LostUpdateError naming every file whose current text
- * differs from its `savedText`, in batch order
- */
 export function checkLostUpdates(files: readonly FileWrite[], current: readonly (string | undefined)[]): void {
   if (current.length !== files.length) {
     throw new MisuseError(`checkLostUpdates: ${files.length} files but ${current.length} current texts`);
@@ -52,11 +38,6 @@ export function checkLostUpdates(files: readonly FileWrite[], current: readonly 
   if (lost.length > 0) throw new LostUpdateError(lost);
 }
 
-/**
- * A writer into texts held in memory, keyed by path: the writer of `memorySource`, over the same object. A batch is
- * all or nothing: `checkLostUpdates` with each file's text in `files` first (rejects with a LostUpdateError, writing
- * nothing), then it sets every file's text.
- */
 export function memoryWriter(files: Record<string, string>): DocumentWriter {
   return {
     // eslint-disable-next-line @typescript-eslint/require-await -- async so a lost update rejects instead of throwing
