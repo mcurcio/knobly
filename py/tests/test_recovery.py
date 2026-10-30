@@ -70,6 +70,31 @@ def test_reports_the_first_error_of_each_bad_statement_at_its_real_position_and_
     }
 
 
+def test_a_bad_statement_starts_at_its_own_first_token_after_a_finished_directive() -> None:
+    # kno-g8g, spec 3.2: `a`'s block holds an unclosed `[`, but `a` has finished, so its brackets are not the next bad
+    # statement's: `"x" 1;` ends at its own `;` and `c 2;` is read.
+    text = 'a { b [; }\n"x" 1;\nc 2;\nd ];\n'
+    assert [n[:2] for n in shape(text)["tree"][2]] == [
+        ["directive", "a { b [; }"],
+        ["error", '"x" 1;'],
+        ["directive", "c 2;"],
+        ["error", "d ];"],
+    ]
+    assert shape(text)["codes"] == [["E2001", 0, 7], ["E2001", 1, 0], ["E2004", 3, 2]]
+
+
+def test_a_bad_statement_starts_at_the_directive_that_just_failed_so_its_open_bracket_counts() -> None:
+    # The directive `c` failed inside its list: the bad statement starts at `c`, its `[` is open, so recovery skips the
+    # `;` inside the list and resumes after `];`, keeping `f;` with no second diagnostic.
+    text = "a { b; }\nc [d; e];\nf;\n"
+    assert [n[:2] for n in shape(text)["tree"][2]] == [
+        ["directive", "a { b; }"],
+        ["error", "c [d; e];"],
+        ["directive", "f;"],
+    ]
+    assert shape(text)["codes"] == [["E2001", 1, 4]]
+
+
 def test_resumes_after_the_bad_statements_semicolon_never_at_a_line_break() -> None:
     # spec 3.2: an unterminated string's statement runs on to the next `;`, hiding the line after it.
     assert [n[:2] for n in shape('c "x;\nd 2;\ne 3;\n')["tree"][2]] == [["error", 'c "x;\nd 2;'], ["directive", "e 3;"]]

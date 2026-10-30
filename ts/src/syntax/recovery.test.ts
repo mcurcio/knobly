@@ -95,6 +95,35 @@ describe("recovery", () => {
     });
   });
 
+  it("starts a bad statement at its own first token after a finished directive (kno-g8g)", () => {
+    // spec 3.2: `a`'s block holds an unclosed `[`, but `a` has finished, so its brackets are not the next bad
+    // statement's: `"x" 1;` ends at its own `;` and `c 2;` is read.
+    const { tree, codes } = shape('a { b [; }\n"x" 1;\nc 2;\nd ];\n');
+    expect(tree[2].map(([kind, text]) => [kind, text])).toEqual([
+      ["directive", "a { b [; }"],
+      ["error", '"x" 1;'],
+      ["directive", "c 2;"],
+      ["error", "d ];"],
+    ]);
+    expect(codes).toEqual([
+      ["E2001", 0, 7],
+      ["E2001", 1, 0],
+      ["E2004", 3, 2],
+    ]);
+  });
+
+  it("starts a bad statement at the directive that just failed, so its open bracket counts", () => {
+    // `c` failed inside its list: the bad statement starts at `c`, its `[` is open, so recovery skips the `;` inside the
+    // list and resumes after `];`, keeping `f;` with no second diagnostic.
+    const { tree, codes } = shape("a { b; }\nc [d; e];\nf;\n");
+    expect(tree[2].map(([kind, text]) => [kind, text])).toEqual([
+      ["directive", "a { b; }"],
+      ["error", "c [d; e];"],
+      ["directive", "f;"],
+    ]);
+    expect(codes).toEqual([["E2001", 1, 4]]);
+  });
+
   it("resumes after the bad statement's ';' or block, never at a line break", () => {
     expect(shape("a ]\nb 1;\nc 2;\n").tree[2].map((n) => [n[0], n[1]])).toEqual([
       ["error", "a ]\nb 1;"],
