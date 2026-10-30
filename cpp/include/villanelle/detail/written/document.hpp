@@ -1,100 +1,165 @@
-// Documents, copies, edges and the written block (spec 6.4, 6.5, 2.11).
-// STUBS (frozen-m2.md): each body is not_built until slice W defines it.
+// Documents, copies, edges and the written block (spec 6.4, 6.5, 2.11): the public members over the document's nodes
+// (core.hpp) and edits (edits.hpp).
 #ifndef VILLANELLE_DETAIL_WRITTEN_DOCUMENT_HPP
 #define VILLANELLE_DETAIL_WRITTEN_DOCUMENT_HPP
 
-#include <villanelle/detail/not_built.hpp>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include <villanelle/detail/raise.hpp>
+#include <villanelle/detail/written/core.hpp>
+#include <villanelle/detail/written/edits.hpp>
+#include <villanelle/detail/written/host.hpp>
 #include <villanelle/written.hpp>
 
 VILLANELLE_NAMESPACE_BEGIN
 
 namespace written {
 
+namespace detail {
+
+/// A sequence of handles over nodes.
+template <class Handle, class Node>
+::villanelle::sequence<Handle> handles_of(const std::vector<Node*>& nodes) {
+    std::vector<Handle> out;
+    out.reserve(nodes.size());
+    for (Node* n : nodes) {
+        out.push_back(make_handle<Handle>(n));
+    }
+    return out;
+}
+
+/// The edges whose targets include `path`, in walk order.
+inline std::vector<edge_node*> edges_into(graph_core* graph, const std::string& path) {
+    std::vector<edge_node*> out;
+    for (edge_node* edge : binding_of(graph)->edges) {
+        if (std::find(edge->targets.begin(), edge->targets.end(), path) != edge->targets.end()) {
+            out.push_back(edge);
+        }
+    }
+    return out;
+}
+
+}  // namespace detail
+
 VILLANELLE_API std::string document::resolved_path() const {
-    ::villanelle::detail::not_built("written::document::resolved_path");
+    return detail::node_of<detail::document_node>(*this)->path;
 }
 
-VILLANELLE_API std::string document::saved_text() const {
-    ::villanelle::detail::not_built("written::document::saved_text");
-}
+VILLANELLE_API std::string document::saved_text() const { return detail::node_of<detail::document_node>(*this)->saved; }
 
-VILLANELLE_API std::string document::text() const { ::villanelle::detail::not_built("written::document::text"); }
+VILLANELLE_API std::string document::text() const { return detail::node_of<detail::document_node>(*this)->parsed.text; }
 
 VILLANELLE_API ::villanelle::syntax::syntax document::syntax() const {
-    ::villanelle::detail::not_built("written::document::syntax");
+    return detail::node_of<detail::document_node>(*this)->parsed.syntax;
 }
 
 VILLANELLE_API ::villanelle::written::written_block document::block() const {
-    ::villanelle::detail::not_built("written::document::block");
+    return detail::make_handle<::villanelle::written::written_block>(
+        detail::node_of<detail::document_node>(*this)->block);
 }
 
 VILLANELLE_API ::villanelle::sequence<::villanelle::written::document_edge> document::included_by() const {
-    ::villanelle::detail::not_built("written::document::included_by");
+    detail::document_node* doc = detail::node_of<detail::document_node>(*this);
+    return detail::handles_of<::villanelle::written::document_edge>(detail::edges_into(doc->graph, doc->path));
 }
 
-VILLANELLE_API void document::replace_with_text(::villanelle::config_text) const {
-    ::villanelle::detail::not_built("written::document::replace_with_text");
+VILLANELLE_API void document::replace_with_text(::villanelle::config_text text) const {
+    detail::replace_document(detail::node_of<detail::document_node>(*this), text.view());
 }
 
-VILLANELLE_API bool operator==(const ::villanelle::written::document&, const ::villanelle::written::document&) {
-    ::villanelle::detail::not_built("operator== of document");
+VILLANELLE_API bool operator==(const ::villanelle::written::document& a, const ::villanelle::written::document& b) {
+    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
 }
 
 VILLANELLE_API ::villanelle::written::copy document_edge::copy() const {
-    ::villanelle::detail::not_built("written::document_edge::copy");
+    return detail::make_handle<::villanelle::written::copy>(detail::node_of<detail::edge_node>(*this)->copy);
 }
 
 VILLANELLE_API ::villanelle::sequence<std::string> document_edge::specs() const {
-    ::villanelle::detail::not_built("written::document_edge::specs");
+    return detail::node_of<detail::edge_node>(*this)->specs;
 }
 
 VILLANELLE_API ::villanelle::sequence<std::string> document_edge::targets() const {
-    ::villanelle::detail::not_built("written::document_edge::targets");
+    return detail::node_of<detail::edge_node>(*this)->targets;
 }
 
-VILLANELLE_API bool operator==(const ::villanelle::written::document_edge&,
-                               const ::villanelle::written::document_edge&) {
-    ::villanelle::detail::not_built("operator== of document_edge");
+VILLANELLE_API bool operator==(const ::villanelle::written::document_edge& a,
+                               const ::villanelle::written::document_edge& b) {
+    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
 }
 
 VILLANELLE_API ::villanelle::written::statement copy::statement() const {
-    ::villanelle::detail::not_built("written::copy::statement");
+    return detail::make_handle<::villanelle::written::statement>(detail::node_of<detail::copy_node>(*this)->statement);
 }
 
 VILLANELLE_API ::villanelle::sequence<::villanelle::step> copy::via() const {
-    ::villanelle::detail::not_built("written::copy::via");
+    return detail::node_of<detail::copy_node>(*this)->via;
 }
 
-VILLANELLE_API bool operator==(const ::villanelle::written::copy&, const ::villanelle::written::copy&) {
-    ::villanelle::detail::not_built("operator== of copy");
+VILLANELLE_API bool operator==(const ::villanelle::written::copy& a, const ::villanelle::written::copy& b) {
+    return ::villanelle::detail::access::view_of(a) == ::villanelle::detail::access::view_of(b);
 }
 
+/// @throws villanelle::index_out_of_range for an index outside 0..size()
 VILLANELLE_API ::villanelle::sequence<::villanelle::written::statement> written_block::insert_statements(
-    std::int64_t, ::villanelle::config_text) const {
-    ::villanelle::detail::not_built("written::written_block::insert_statements");
+    std::int64_t index, ::villanelle::config_text text) const {
+    detail::block_node* block = static_cast<detail::block_node*>(view_.get());
+    if (block->owner != nullptr) {
+        detail::live(block->owner);
+    }
+    if (index < 0 || static_cast<std::size_t>(index) > block->handles.size()) {
+        ::villanelle::detail::raise(::villanelle::index_out_of_range(
+            "statement index " + std::to_string(index) + " is outside 0.." + std::to_string(block->handles.size())));
+    }
+    return detail::handles_of<::villanelle::written::statement>(
+        detail::insert_statements(block, static_cast<std::size_t>(index), text.view()));
 }
 
 VILLANELLE_API ::villanelle::sequence<::villanelle::written::statement> written_block::add_statements(
-    ::villanelle::config_text) const {
-    ::villanelle::detail::not_built("written::written_block::add_statements");
+    ::villanelle::config_text text) const {
+    detail::block_node* block = static_cast<detail::block_node*>(view_.get());
+    if (block->owner != nullptr) {
+        detail::live(block->owner);
+    }
+    return insert_statements(static_cast<std::int64_t>(block->handles.size()), std::move(text));
 }
 
 }  // namespace written
 
 namespace detail {
 
+/// One snapshot of the block's statements; a detached owner's block raises detached_error.
 VILLANELLE_API ::villanelle::sequence<::villanelle::written::statement>
-block_traits<::villanelle::written::statement>::items(const view&) {
-    not_built("block_traits<written::statement>::items");
+block_traits<::villanelle::written::statement>::items(const view& block) {
+    auto* node = static_cast<::villanelle::written::detail::block_node*>(block.get());
+    if (node->owner != nullptr) {
+        ::villanelle::written::detail::live(node->owner);
+    }
+    return ::villanelle::written::detail::handles_of<::villanelle::written::statement>(node->handles);
 }
+
 VILLANELLE_API std::optional<block_traits<::villanelle::written::statement>::directive>
-block_traits<::villanelle::written::statement>::as_directive(const ::villanelle::written::statement&,
-                                                             std::optional<std::string_view>) {
-    not_built("block_traits<written::statement>::as_directive");
+block_traits<::villanelle::written::statement>::as_directive(const ::villanelle::written::statement& item,
+                                                             std::optional<std::string_view> name) {
+    std::optional<directive> found = item.as<directive>();
+    if (found && name && found->name() != *name) {
+        return std::nullopt;
+    }
+    return found;
 }
+
+/// The statement's own block; empty when it has none or is detached (a walk does not descend into it).
 VILLANELLE_API std::optional<view> block_traits<::villanelle::written::statement>::block_of(
-    const ::villanelle::written::statement&) {
-    not_built("block_traits<written::statement>::block_of");
+    const ::villanelle::written::statement& item) {
+    auto* node = ::villanelle::written::detail::node_of<::villanelle::written::detail::statement_node>(item);
+    if (node->detached || node->block == nullptr) {
+        return std::nullopt;
+    }
+    return view(node->block);
 }
 
 }  // namespace detail

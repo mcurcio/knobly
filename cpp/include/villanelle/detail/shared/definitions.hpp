@@ -10,8 +10,9 @@
 #include <villanelle/detail/raise.hpp>
 #include <villanelle/detail/shared/diagnostics.hpp>
 #include <villanelle/detail/shared/people.hpp>
+#include <villanelle/detail/shared/rules.hpp>
 #include <villanelle/detail/shared/values.hpp>
-#include <villanelle/detail/shared/view.hpp>
+#include <villanelle/support/view.hpp>
 #include <villanelle/villanelle.hpp>
 
 VILLANELLE_NAMESPACE_BEGIN
@@ -20,6 +21,10 @@ namespace detail {
 [[noreturn]] VILLANELLE_API void raise_index_out_of_range(std::size_t index, std::size_t size) {
     raise(::villanelle::index_out_of_range("index " + std::to_string(index) + " is outside a sequence of " +
                                            std::to_string(size)));
+}
+
+[[noreturn]] VILLANELLE_API void raise_missing_key() {
+    raise(::villanelle::index_out_of_range("ordered_map::at: no such key"));
 }
 
 }  // namespace detail
