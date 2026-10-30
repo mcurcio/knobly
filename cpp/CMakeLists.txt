@@ -205,6 +205,12 @@ if(VILLANELLE_BUILD_TESTS)
     endforeach()
   endforeach()
 
+  # The user guide's samples, each run against its expected output (examples/CMakeLists.txt). The release source
+  # archive leaves examples/ out with tests/.
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/CMakeLists.txt")
+    add_subdirectory(examples)
+  endif()
+
   add_executable(villanelle_adapter conformance/adapter.cpp)
   target_link_libraries(villanelle_adapter PRIVATE ${_villanelle_program_libraries})
   villanelle_test_target(villanelle_adapter)

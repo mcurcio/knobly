@@ -1,0 +1,9 @@
+name lobby
+host 10.0.60.30
+path C:\new
+fps 29.97
+count 150
+enabled true
+gains 0.5 1.5 2.25
+pixels slice leds 144~152
+first index leds 0

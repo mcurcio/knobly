@@ -1,0 +1,4 @@
+port unset
+main.conf:3:5: E5001: unknown variable: $x
+main.conf:1:6: E4005: not an integer: eighty
+main.conf:2:1: app/unknown-node: unknown node type Mystery

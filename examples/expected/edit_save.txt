@@ -1,0 +1,4 @@
+saved main.conf
+@set $pixels 2400;
+leds max_count 2400
+porch max_count 2400

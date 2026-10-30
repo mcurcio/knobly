@@ -1,0 +1,6 @@
+read main.conf
+read sink.conf
+node Waveform hue_ramp (main.conf:8:5)
+node Color crossfade_rgb rgb (main.conf:15:5)
+node DdpSink leds (sink.conf:2:1)
+node DdpSink porch (sink.conf:2:1)

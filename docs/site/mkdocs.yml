@@ -1,0 +1,60 @@
+# The villanelle user guide (.claude/design/cpp/frozen-docs.md). One set of pages; every code sample has a
+# TypeScript, Python and C++ tab, pulled from a file the binding's own tests run (examples/samples.json), so a sample
+# cannot rot. Tabs with the same label are linked across the whole site, and the choice is remembered
+# (content.tabs.link). Build: uv run --locked mkdocs build --strict, from this folder.
+site_name: villanelle
+site_description: A small configuration language, with TypeScript, Python and C++ bindings generated from one grammar
+repo_url: https://github.com/mcurcio/villanelle
+edit_uri: edit/main/docs/site/pages/
+docs_dir: pages
+site_dir: build
+strict: true
+
+theme:
+  name: material
+  features:
+    - content.tabs.link
+    - content.code.copy
+    - navigation.sections
+    - navigation.footer
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  # Samples come from the repository's files: `--8<-- "ts/examples/hello.ts:main"` includes the region between
+  # `--8<-- [start:main]` and `--8<-- [end:main]` comments. A missing file or region fails the build.
+  - pymdownx.snippets:
+      base_path: ["../.."]
+      check_paths: true
+      dedent_subsections: true
+
+nav:
+  - Quickstart: index.md
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: warn
+    unrecognized_links: warn

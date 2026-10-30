@@ -1,0 +1,10 @@
+main.conf:7:1: E2001: unexpected token: "}"
+}
+^
+part.conf:1:12: E5001: unknown variable: $n
+target c[0~$n];
+           ^^
+  via extension include at main.conf:2:1
+main.conf:3:6: E5001: unknown variable: $missing
+port $missing;
+     ^^^^^^^^
