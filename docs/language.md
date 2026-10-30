@@ -66,7 +66,7 @@ the text `C:\new` (a double-quoted `"C:\new"` would hold a line break). It canno
 double-quoted string for those.
 
 `:` is an ordinary word character after a word's first character, so times, ports and MAC addresses are words
-(`07:30`, `127.0.0.1:3000`). A slice's two bounds are separated by `~`, which is not a word character: `a[1~3]`.
+(`07:30`, `127.0.0.1:3000`). A word cannot start with `:`, so quote a value that does: `listen "[::]:80";`. A slice's two bounds are separated by `~`, which is not a word character: `a[1~3]`.
 (`a[1:3]` is a bad slice, E2007, because `1:3` is one word.)
 
 Slice and index bounds must be whole numbers written without leading zeros (`0`, `12`, `-3`) or a `$name`. Any other

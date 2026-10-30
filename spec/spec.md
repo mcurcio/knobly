@@ -569,7 +569,8 @@ Read-only, one text at a time, no I/O. Covered by the syntax conformance cases (
   starts with a digit or `-` (`1.5`, `20hz`, `007`, `-x`, `-`, `07:30`). All four are the value kind `word` (6.6,
   2.9). After its first character every word may hold letters, digits and `_ . / @ # + : * ? -`: so `:` is a word
   character in every word (`07:30`, `00:1a:2b:3c:4d:5e`, `127.0.0.1:3000`), and a word cannot start with `:`
-  (`:80` is E1003 at the `:`). Milestone 5 (owner, 2026-10-29, bead vil-umh.14: "yes" to a slice separator outside
+  (`:80` is E1003 at the `:`); a value that starts with `:` is quoted (nginx `listen "[::]:80";`, `"::1:80"`;
+  owner, 2026-10-30, bead vil-umh.15: "If the tradeoff is that those strings require quotes, let's go with that"). Milestone 5 (owner, 2026-10-29, bead vil-umh.14: "yes" to a slice separator outside
   the word alphabet); before it `:` was the slice separator and could not follow a digit word's digits.
 - A slice or index is a **slice name** touching `[`, its bounds, then `]` (grammar `slicedWord : sliceName '['
   bounds ']'`). The slice name is a `WORD`, an `AT_WORD` or a `VARIABLE` (milestone 5: a variable may be
