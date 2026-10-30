@@ -7,7 +7,7 @@ import math
 import re
 from collections.abc import Iterable
 
-from villanelle._api.limits import MAX_SAFE_INTEGER
+from knobly._api.limits import MAX_SAFE_INTEGER
 
 _INTEGER_TEXT = re.compile(r"-?(?:0|[1-9][0-9]*)")
 """IntegerText: ``'-'? Digits``, Digits being ``0`` or a non-zero digit then digits."""

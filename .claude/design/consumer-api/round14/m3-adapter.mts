@@ -140,7 +140,7 @@ const ops: Record<string, (p: Json) => unknown> = {
   hello: () => ({ protocol: 1, binding: "typescript", unit: "utf-16", level: 3 }),
   parse: (p) => syntax(vl.parse(p.text)),
   load: async (p) => {
-    const processor = vl.villanelle({ source: vl.memorySource(p.files), ...(p.extensions.includes("include") ? { extensions: [include()] } : {}) });
+    const processor = vl.knobly({ source: vl.memorySource(p.files), ...(p.extensions.includes("include") ? { extensions: [include()] } : {}) });
     return { graph: ref(await processor.load(p.root, p.overrides === undefined ? undefined : { overrides: p.overrides })) };
   },
   graph: (p) => graph(get(p.graph)),
@@ -176,7 +176,7 @@ for await (const line of createInterface({ input: process.stdin })) {
   try {
     response = { id, ok: await ops[op](params) };
   } catch (error) {
-    response = error instanceof vl.VillanelleError ? { id, thrown: group(error) } : { id, fault: String(error) };
+    response = error instanceof vl.KnoblyError ? { id, thrown: group(error) } : { id, fault: String(error) };
   }
   process.stdout.write(`${JSON.stringify(response)}\n`);
 }

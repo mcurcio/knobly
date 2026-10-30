@@ -1,21 +1,21 @@
 // Design program 4.3 (.claude/design/cpp/design.md section 4.3), verbatim: a third-party lint walks blocks for its own
 // upstream schema and reports diagnostics with places; std::format of a place and an unreadable reason comes from
-// <villanelle/format.hpp>. Built with -Wsign-conversion (and -Wdangling on Clang); the programs_lint test runs it in a
+// <knobly/format.hpp>. Built with -Wsign-conversion (and -Wdangling on Clang); the programs_lint test runs it in a
 // fresh copy of tests/programs/lint/ and compares its output and exit status with tests/programs/lint_expected/. Kept
 // as the design writes it, so clang-format leaves it alone.
 // clang-format off
-#include <villanelle/villanelle.hpp>
-#include <villanelle/format.hpp>                    // std::format of a place and an unreadable reason
-#include <villanelle/files.hpp>
-#include <villanelle/written.hpp>
-#include <villanelle/rendered.hpp>
+#include <knobly/knobly.hpp>
+#include <knobly/format.hpp>                    // std::format of a place and an unreadable reason
+#include <knobly/files.hpp>
+#include <knobly/written.hpp>
+#include <knobly/rendered.hpp>
 
 #include <format>
 #include <iostream>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 template <class... F> struct overloaded : F... { using F::operator()...; };
 

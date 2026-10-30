@@ -163,7 +163,7 @@ graph {
 ```ts
 // The graph: a scope class per kind of block; each method is a directive written in it.
 // A scope class that extends another holds its directives too: graphs, groups and nodes all hold `fps`.
-import { Block, Body, Chosen, Directive, Key, Optional, Scope, Value } from "villanelle";
+import { Block, Body, Chosen, Directive, Key, Optional, Scope, Value } from "knobly";
 import { GroupSpec, type Connection, type NodeHead, type NodeSpec } from "./domain.js";
 import { Endpoint, Rate } from "./values.js";
 
@@ -222,7 +222,7 @@ A third party adds a node type (`rasl-waveform/index.ts`, whole file):
 ```ts
 // A third-party node type for rasl: `node Waveform hue_ramp { shape sine; }`.
 // It places a directive in rasl's `node type` scope and reads rasl's fps; rasl never names it.
-import { Block, Body, ConfigError, Directive, Head, Module, Optional, RangePipe, Scope, choice, type Choice, type DynamicModule } from "villanelle";
+import { Block, Body, ConfigError, Directive, Head, Module, Optional, RangePipe, Scope, choice, type Choice, type DynamicModule } from "knobly";
 import { NodeBody, NodeType, RaslModule, nodeSpec, type NodeHead, type NodeSpec } from "../rasl/index.js";
 
 /** Handed in by the program: WaveformModule.register({ maxFrequencyHz: 50 }). */
@@ -286,7 +286,7 @@ package, as a Nest dynamic module.
 ```ts
 // package webby-gzip: adds `gzip` to webby's blocks, which it does not own, and applies its own
 // changes (nginx: each module reads its own conf). webby never names it.
-import { Directive, Injectable, Module, OnChange, Optional, Scope, Value, type Change } from "villanelle";
+import { Directive, Injectable, Module, OnChange, Optional, Scope, Value, type Change } from "knobly";
 import { RouteBody, WebbyModule } from "../webby/index.js";
 
 /** Joins webby's route scope, so `gzip` may be written in every server and location. */
@@ -324,8 +324,8 @@ change to `gzip`, as Nest's `@OnEvent` does.
 ```ts
 // Two programs, Nest-style: a root module imports the packages it uses and provides the
 // handed-in things (the loader, a package's options); providers react to changes.
-import { ChangeFailed, Injectable, Loader, Module, OnChange, VillanelleFactory, formatDiagnostic, type Change, type Loaded } from "villanelle";
-import { IncludeModule } from "villanelle/include";
+import { ChangeFailed, Injectable, Loader, Module, OnChange, KnoblyFactory, formatDiagnostic, type Change, type Loaded } from "knobly";
+import { IncludeModule } from "knobly/include";
 import { FileLoader } from "./io.js";
 import { GraphBody, RaslModule, RaslRoot, type NodeSpec, type Rate, type UiSpec } from "./rasl/index.js";
 import { WaveformModule } from "./rasl-waveform/index.js";
@@ -370,7 +370,7 @@ function report(file: string, loaded: Loaded): void {
 }
 
 export async function runRasl(host: string): Promise<void> {
-  const app = await VillanelleFactory.create(RaslApp); // throws DeclarationError listing every problem
+  const app = await KnoblyFactory.create(RaslApp); // throws DeclarationError listing every problem
   console.log("── describe()\n" + app.describe());
   for (const file of ["family_room.conf", "family_room.v2.conf", "family_room.bad.conf"]) {
     console.log(`── load ${file}`);
@@ -401,7 +401,7 @@ export class Sites {
 export class WebbyApp {}
 
 export async function runWebby(): Promise<void> {
-  const app = await VillanelleFactory.create(WebbyApp);
+  const app = await KnoblyFactory.create(WebbyApp);
   console.log("── load webby.conf");
   const loaded = await app.load("webby.conf");
   if (loaded.status === "rejected") return report("webby.conf", loaded);
@@ -426,7 +426,7 @@ What a second load prints (`evidence/run-app.txt`, excerpt: the `family_room.v2.
   FAILED /graph/group:fireplace/node:ember: no free output for ember
 ```
 
-- `VillanelleFactory.create` checks every declaration before any config is read and lists every
+- `KnoblyFactory.create` checks every declaration before any config is read and lists every
   problem at once (`evidence/planted-startup.txt`).
 - `load` returns `accepted` or `rejected`; only an accepted load has a `root` to read (tsc refuses
   the other, `planted/p5-program-side.ts`).

@@ -1,9 +1,9 @@
 // What the written-layer unit programs share: a graph loaded from texts in memory, and its statements by name.
-#ifndef VILLANELLE_TESTS_UNIT_WRITTEN_FIXTURE_HPP
-#define VILLANELLE_TESTS_UNIT_WRITTEN_FIXTURE_HPP
+#ifndef KNOBLY_TESTS_UNIT_WRITTEN_FIXTURE_HPP
+#define KNOBLY_TESTS_UNIT_WRITTEN_FIXTURE_HPP
 
-#include <villanelle/villanelle.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/knobly.hpp>
+#include <knobly/written.hpp>
 
 #include <initializer_list>
 #include <memory>
@@ -12,8 +12,8 @@
 
 namespace fixture {
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
+namespace vl = knobly;
+namespace vw = knobly::written;
 
 /// The texts a memory source serves, shared so a memory writer's change is seen.
 inline std::shared_ptr<vl::ordered_map<std::string, std::string>> files(
@@ -39,4 +39,4 @@ inline vw::statement top(const vw::document_graph& graph, std::size_t index) { r
 
 }  // namespace fixture
 
-#endif  // VILLANELLE_TESTS_UNIT_WRITTEN_FIXTURE_HPP
+#endif  // KNOBLY_TESTS_UNIT_WRITTEN_FIXTURE_HPP

@@ -1,9 +1,9 @@
 ---
-name: villanelle-binding
-description: Use when adding a new language binding to villanelle (Go, Rust, Java, any language beyond ts/, py/ and cpp/), or when changing the public API shape of any villanelle binding - renaming or moving a type, member, function, error, kind or module in ts/, py/ or cpp/, adding an operation, or changing what a layer (syntax, low level / written, rendered tree) exposes. Also use when writing or fixing a binding's conformance adapter, the shared conformance driver or a corpus, or when the TypeScript and Python bindings disagree.
+name: knobly-binding
+description: Use when adding a new language binding to knobly (Go, Rust, Java, any language beyond ts/, py/ and cpp/), or when changing the public API shape of any knobly binding - renaming or moving a type, member, function, error, kind or module in ts/, py/ or cpp/, adding an operation, or changing what a layer (syntax, low level / written, rendered tree) exposes. Also use when writing or fixing a binding's conformance adapter, the shared conformance driver or a corpus, or when the TypeScript and Python bindings disagree.
 ---
 
-# villanelle language bindings
+# knobly language bindings
 
 The rules live in `spec/` (canonical). This skill does not repeat them: it says what to read, in
 what order, how to work, and what has gone wrong before.
@@ -50,9 +50,9 @@ member or removed member:
 Follow the checklist in `spec/binding-guide.md` section 5. In short: pick one model and get the
 first-hour program approved, then:
 
-1. **Generate the parser** (`tools/gen.sh`): ANTLR 4.13.2 with its runtime (TypeScript, Python), or villanelle's
+1. **Generate the parser** (`tools/gen.sh`): ANTLR 4.13.2 with its runtime (TypeScript, Python), or knobly's
    own generator `tools/parser/gen.py` with no runtime (C++: the binding hand-writes the tree hooks, error codes and
-   recovery in `cpp/include/villanelle/detail/syntax/parse.hpp`). `spec/binding-guide.md` step 3 has both routes.
+   recovery in `cpp/include/knobly/detail/syntax/parse.hpp`). `spec/binding-guide.md` step 3 has both routes.
 2. **Write an emitter**: `tools/api/emit_<lang>.py`, rendering the loader's model (`tools/api/loader.py`) in your
    language's idiom: kind lists, codes, rules, the error tree, one declaration per concept with each trait of
    `spec/codegen.md` section 3 in your form, the names table, the adapter's message shapes and spelling table. Start
@@ -106,9 +106,9 @@ bash tools/gen.sh py
 
 # C++: configure generates the headers (tools/gen.sh cpp); ctest runs the unit tests, the contract and the driver.
 # Build trees on the owner's Mac go under /Volumes/Dock (Catch2 is fetched at configure time).
-cmake -S cpp -B /Volumes/Dock/tmp/vil-cpp-build -DVILLANELLE_SANITIZE=ON && cmake --build /Volumes/Dock/tmp/vil-cpp-build
-ctest --test-dir /Volumes/Dock/tmp/vil-cpp-build --output-on-failure   # add -DVILLANELLE_COMPILED=ON for compiled mode
-python3 conformance/driver/run.py -- /Volumes/Dock/tmp/vil-cpp-build/villanelle_adapter
+cmake -S cpp -B /Volumes/Dock/tmp/kno-cpp-build -DKNOBLY_SANITIZE=ON && cmake --build /Volumes/Dock/tmp/kno-cpp-build
+ctest --test-dir /Volumes/Dock/tmp/kno-cpp-build --output-on-failure   # add -DKNOBLY_COMPILED=ON for compiled mode
+python3 conformance/driver/run.py -- /Volumes/Dock/tmp/kno-cpp-build/knobly_adapter
 
 # One corpus or case, or the cases up to a level while you climb:
 python3 conformance/driver/run.py --corpus written --case set-comment -- <adapter...>
@@ -206,10 +206,10 @@ its test suite (`corepack pnpm -C ts test`, `cd py && uv run pytest`); lint, for
   generated dataclasses. A name test compares each import path's exports with the generated `PUBLIC_NAMES`, both
   ways; there is no hand-kept list of removed names.
 - **Python's public types and generated types are one** (milestone 7): every generated annotation naming a concept
-  the binding implements names the binding's public class (`villanelle.rendered.Directive`), so a program
+  the binding implements names the binding's public class (`knobly.rendered.Directive`), so a program
   annotating with public classes type-checks against every record, callback and Protocol. A union over hand classes
   (`written.Statement`) is the binding's own, checked against the generated `UNIONS`. Nothing outside the package
-  imports `villanelle._api` (but the contract's type checker's block): the tests' half of the contract is the
+  imports `knobly._api` (but the contract's type checker's block): the tests' half of the contract is the
   generated `py/tests/api_contract.py` (`PUBLIC_NAMES`, `MATCH_ARGS`, `UNIONS`, each `<Module>Functions` and
   `<Class>Constructor`, and the mypy assignments that check every module, constructor and hand class against the
   schema), and the adapter's `ERROR_GROUP_OF_CLASS` is in its `shapes.py`. TypeScript mirrors it: `PUBLIC_NAMES` in
@@ -221,23 +221,23 @@ its test suite (`corepack pnpm -C ts test`, `cd py && uv run pytest`); lint, for
   hand-written public docs. Maintainer notes go in comments.
 - **Schema patterns are I-Regexps** (RFC 9485) between `^` and `$`; a type with a union after a function's result
   or a generic inside an argument list is written in parentheses.
-- **One import path per name** (milestone 6, binding guide rule 9): `villanelle` (shared and io),
-  `villanelle/syntax`, `villanelle/written`, `villanelle/rendered` (Python: subpackages). No re-export under a second
+- **One import path per name** (milestone 6, binding guide rule 9): `knobly` (shared and io),
+  `knobly/syntax`, `knobly/written`, `knobly/rendered` (Python: subpackages). No re-export under a second
   path, no `I` prefix, no alias for an old name.
 - **One block shape** (spec 2.11): a block is iterated and indexed, has `directives (name?)` and `walk`; there is no
   `block.statements`, and `walk` is on the block (`rendered.block.walk(...)`), not on the render or a directive.
-- **`from villanelle import *`** replaced `typing.List` with the low-level `List` in Python; since
-  milestone 2 the six written value classes live in `villanelle.written` only.
+- **`from knobly import *`** replaced `typing.List` with the low-level `List` in Python; since
+  milestone 2 the six written value classes live in `knobly.written` only.
 - **The rendered layer reads only the public low level** (`graph.expand()`, spec 6.10). A
   private accessor, a `_name` attribute or an `instanceof` of a low-level class there fails the
   layer check (binding guide rule 8).
 - **The processor ownership check** (D27) is retired by milestone 1: no operation takes a graph or
   render back to a processor. On PR 4 it still refuses another processor's graph at run time.
-- **Generated code is never committed** (the parser, `ts/src/gen/api/`, `py/src/villanelle/_api/`, the adapters'
+- **Generated code is never committed** (the parser, `ts/src/gen/api/`, `py/src/knobly/_api/`, the adapters'
   `shapes` files, `py/tests/api_contract.py`): `tools/gen.sh` writes it to git-ignored paths. The generated docs tables (spec 2.4,
   docs/site/pages/diagnostics.md, the members tables of docs/tables.json, spec/conformance.md 4.1 and 4.2) are the one committed output; edit `diagnostics.json` or
   `protocol.json`, never the table.
-- **Errors** (contract 4, milestone 4): `VillanelleError` is the base of the expected outcomes only
+- **Errors** (contract 4, milestone 4): `KnoblyError` is the base of the expected outcomes only
   (`DiagnosticError`, `ReadError`, `BadTextError`, `SaveError` and its `LostUpdateError`). Program bugs
   sit outside it: `DetachedError` (a `ReferenceError`), `TypeError`, misuse (`MisuseError` in
   TypeScript, `ValueError` in Python), `RangeError` / `IndexError`. There is no `EditError`. Every bad
@@ -271,6 +271,6 @@ its test suite (`corepack pnpm -C ts test`, `cd py && uv run pytest`); lint, for
 
 ## Tracking
 
-Work is tracked in beads (`bd`, prefix `vil-`), per `AGENTS.md`. File a bead for each finding,
+Work is tracked in beads (`bd`, prefix `kno-`), per `AGENTS.md`. File a bead for each finding,
 divergence or open question you find; record a decided rule in the bead's design field and in the
 spec, not in a new notes file.

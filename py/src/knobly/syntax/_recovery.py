@@ -1,5 +1,5 @@
 """Part of the adapter (see parse.py): error recovery for the generated parser, the error-code classifier and the
-nesting-depth guard. Private to villanelle.syntax. Ported from ts/src/syntax/recovery.ts (itself from
+nesting-depth guard. Private to knobly.syntax. Ported from ts/src/syntax/recovery.ts (itself from
 design/experiments/v4/antlr/ts/recovery.ts; the Python experiment is design/experiments/v4/antlr/py/recovery.py).
 
 Recovery is per statement: the first error of a statement is reported at its real position, the rest of the
@@ -22,10 +22,10 @@ from antlr4 import Token as AntlrToken
 from antlr4.error.Errors import InputMismatchException
 from antlr4.error.ErrorStrategy import DefaultErrorStrategy
 
-from villanelle._api.codes import DiagnosticCode, describe
-from villanelle._api.kinds import TokenKind
-from villanelle._api.limits import MAX_NESTING
-from villanelle._gen.VillanelleParser import VillanelleParser
+from knobly._api.codes import DiagnosticCode, describe
+from knobly._api.kinds import TokenKind
+from knobly._api.limits import MAX_NESTING
+from knobly._gen.KnoblyParser import KnoblyParser
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,7 +112,7 @@ def classify_error(kinds: Sequence[TokenKind], at: int, start: int, in_block: bo
 
 # --- the ANTLR strategy -------------------------------------------------------------------------------------------
 
-P = VillanelleParser
+P = KnoblyParser
 _EOF = AntlrToken.EOF
 
 
@@ -261,7 +261,7 @@ class _Recovery(DefaultErrorStrategy):  # type: ignore[misc]
         return self._kinds
 
 
-def install_recovery(parser: VillanelleParser, report: Callable[[RawDiagnostic], None]) -> None:
+def install_recovery(parser: KnoblyParser, report: Callable[[RawDiagnostic], None]) -> None:
     """Install per-statement recovery on a parser whose token stream is already filled. Each error is passed to
     ``report`` once, in the order found."""
     parser._errHandler = _Recovery(report)

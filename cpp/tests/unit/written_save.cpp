@@ -1,8 +1,8 @@
 // save (spec 4.2, 6.8; design program 4.2): one batch of the changed documents, their saved text moving only when the
 // writer returns; a lost update passes through unchanged; any other failure of the writer is a save_error with the
 // writer's exception nested (std::rethrow_if_nested gives it back).
-#include <villanelle/extensions.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/extensions.hpp>
+#include <knobly/written.hpp>
 
 #include <exception>
 #include <memory>
@@ -14,8 +14,8 @@
 
 #include "written_fixture.hpp"
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
+namespace vl = knobly;
+namespace vw = knobly::written;
 
 namespace {
 

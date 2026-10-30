@@ -6,12 +6,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from villanelle._api.shared import DirectiveOrigin
-from villanelle._api.written import DirectiveExpansion, Expansion, UnreadableExpansion
-from villanelle._origin import Place
-from villanelle.written import _document, _graph
-from villanelle.written._bind import Binding, BoundDirective, BoundItem
-from villanelle.written._model import DocumentGraph, ExpansionBlock, WrittenDirective
+from knobly._api.shared import DirectiveOrigin
+from knobly._api.written import DirectiveExpansion, Expansion, UnreadableExpansion
+from knobly._origin import Place
+from knobly.written import _document, _graph
+from knobly.written._bind import Binding, BoundDirective, BoundItem
+from knobly.written._model import DocumentGraph, ExpansionBlock, WrittenDirective
 
 
 def expand(graph: DocumentGraph) -> Expansion:

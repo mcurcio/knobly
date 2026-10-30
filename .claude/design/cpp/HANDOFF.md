@@ -1,7 +1,7 @@
 # C++ binding: handoff (2026-10-30, overnight build)
 
 Cold-start notes for whoever picks up the C++ binding next. PR 8 (`feat/cpp-binding` into the
-default branch, mcurcio/villanelle) holds all of it; the owner reviews and merges.
+default branch, mcurcio/knobly) holds all of it; the owner reviews and merges.
 
 ## State
 
@@ -13,7 +13,7 @@ default branch, mcurcio/villanelle) holds all of it; the owner reviews and merge
 - TypeScript and Python generated code is byte-identical to before tonight. No run-time change
   for them (see the PR body, "Behaviour changes for TypeScript and Python").
 - Generated code is never committed: `tools/gen.sh cpp` (or the CMake build with
-  `VILLANELLE_REGENERATE=ON`) writes the generated headers.
+  `KNOBLY_REGENERATE=ON`) writes the generated headers.
 
 ## What was decided, and where
 
@@ -45,8 +45,8 @@ default branch, mcurcio/villanelle) holds all of it; the owner reviews and merge
 
 - `tools/api/` (loader, emit_ts, emit_py, emit_cpp, emit_docs) generates every binding's public
   API from `spec/schema/api.json`; `tools/parser/` generates the C++ lexer and parser from
-  `grammar/Villanelle.g4`; `tools/automaton.py` is the shared code-point automaton.
-- `cpp/include/villanelle/`: public headers (some generated), `support/` (sequence, view, block,
+  `grammar/Knobly.g4`; `tools/automaton.py` is the shared code-point automaton.
+- `cpp/include/knobly/`: public headers (some generated), `support/` (sequence, view, block,
   ordered_map, config.hpp with the version macros), `detail/<layer>/` hand-written definitions
   (syntax, shared, io, files, extensions, written, rendered), `detail/arena.hpp`,
   `detail/raise.hpp`.
@@ -60,9 +60,9 @@ default branch, mcurcio/villanelle) holds all of it; the owner reviews and merge
 
 ```bash
 cd <worktree on feat/cpp-binding> && git pull --rebase
-cmake -S cpp -B /Volumes/Dock/tmp/vil-cpp-build-<name> -DVILLANELLE_SANITIZE=ON   # add -DVILLANELLE_COMPILED=ON -DCMAKE_CXX_STANDARD=23 for compiled mode
-cmake --build /Volumes/Dock/tmp/vil-cpp-build-<name> -j && ctest --test-dir /Volumes/Dock/tmp/vil-cpp-build-<name> -j8
-python3 conformance/driver/run.py -- /Volumes/Dock/tmp/vil-cpp-build-<name>/villanelle_adapter
+cmake -S cpp -B /Volumes/Dock/tmp/kno-cpp-build-<name> -DKNOBLY_SANITIZE=ON   # add -DKNOBLY_COMPILED=ON -DCMAKE_CXX_STANDARD=23 for compiled mode
+cmake --build /Volumes/Dock/tmp/kno-cpp-build-<name> -j && ctest --test-dir /Volumes/Dock/tmp/kno-cpp-build-<name> -j8
+python3 conformance/driver/run.py -- /Volumes/Dock/tmp/kno-cpp-build-<name>/knobly_adapter
 bash tools/check.sh
 ```
 
@@ -114,7 +114,7 @@ Docs and generators:
 - Member-doc assembly is triplicated across emitters; the addresses table's people-form cells are
   hand-typed; people forms are hand-ported per binding.
 - Optional: generate Python's expanded-value equality from the schema's `equal by` key.
-- Known elsewhere: vil-g8g (TypeScript/Python recovery), vil-9ao, vil-167, vil-a0y (MSVC).
+- Known elsewhere: kno-g8g (TypeScript/Python recovery), kno-9ao, kno-167, kno-a0y (MSVC).
 
 ## User guides round (2026-10-30)
 
@@ -128,7 +128,7 @@ message now names the extension. The old `docs/language.md`, `low-level-api.md` 
 
 Open:
 - Owner, once: set the repository's Pages source to "GitHub Actions" (`gh api
-  repos/mcurcio/villanelle/pages` returned 404); the `docs-deploy` job publishes from `main` only.
+  repos/mcurcio/knobly/pages` returned 404); the `docs-deploy` job publishes from `main` only.
 - Delete remote `wip/pages` and `wip/py-samples` by hand (refused by the permission system; their
   content is on the branch).
 - `design/RECORD.md` lines 128-129 and 168 link the deleted docs (errata W2, user-guide section;

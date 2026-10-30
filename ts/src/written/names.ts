@@ -1,5 +1,5 @@
 /**
- * The name checks (spec 2.8, vil-umh.7): every bad name a program passes is a misuse error, through one check per
+ * The name checks (spec 2.8, kno-umh.7): every bad name a program passes is a misuse error, through one check per
  * kind of name, the same from every member that takes one. Package-internal.
  */
 

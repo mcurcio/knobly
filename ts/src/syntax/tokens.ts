@@ -1,5 +1,5 @@
 /**
- * Our token vocabulary. `TokenKind` is generated from grammar/Villanelle.g4's lexer rules (tools/gen-api.py), so the
+ * Our token vocabulary. `TokenKind` is generated from grammar/Knobly.g4's lexer rules (tools/gen-api.py), so the
  * grammar is the one source of the names; ANTLR's types never cross the adapter in syntax/parse.ts. The `Token` type
  * is generated (gen/api/syntax.ts). Invariants of every token list `parse` returns: the tokens are contiguous and in
  * source order, and their `text`s concatenated equal the input exactly (valid and broken input alike; there is no

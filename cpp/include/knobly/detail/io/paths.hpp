@@ -1,29 +1,29 @@
 // The path and glob rules every document source shares (spec 4.1, 4.3): memory_source (slice W) and file_source
 // (slice F) both resolve through these, so the rules have one home. Defined whole in the milestone 2 freeze
 // (frozen-m2.md 3.4), because both wave-1 slices call them. Paths are UTF-8 text with '/' separators.
-#ifndef VILLANELLE_DETAIL_IO_PATHS_HPP
-#define VILLANELLE_DETAIL_IO_PATHS_HPP
+#ifndef KNOBLY_DETAIL_IO_PATHS_HPP
+#define KNOBLY_DETAIL_IO_PATHS_HPP
 
 #include <cstddef>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include <villanelle/detail/text_in.hpp>
-#include <villanelle/support/config.hpp>
+#include <knobly/detail/text_in.hpp>
+#include <knobly/support/config.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 namespace detail::io {
 
 /// Everything up to and including the last '/'; empty for a bare name.
-VILLANELLE_API std::string_view directory_of(std::string_view path) noexcept {
+KNOBLY_API std::string_view directory_of(std::string_view path) noexcept {
     const std::size_t slash = path.rfind('/');
     return slash == std::string_view::npos ? std::string_view() : path.substr(0, slash + 1);
 }
 
 /// POSIX rules: empty and "." segments dropped, each ".." removes the segment before it when there is one (and is
 /// kept otherwise), a leading '/' kept.
-VILLANELLE_API std::string normalize(std::string_view path) {
+KNOBLY_API std::string normalize(std::string_view path) {
     std::vector<std::string_view> out;
     std::size_t at = 0;
     while (at <= path.size()) {
@@ -51,7 +51,7 @@ VILLANELLE_API std::string normalize(std::string_view path) {
 
 /// A spec resolved against the file that names it (spec 4.3, memory source): a leading '/' taken as is, else joined
 /// to the directory of parent_path (empty when the root path itself is resolved); then normalized.
-VILLANELLE_API std::string join(std::string_view parent_path, std::string_view spec) {
+KNOBLY_API std::string join(std::string_view parent_path, std::string_view spec) {
     if (!spec.empty() && spec.front() == '/') {
         return normalize(spec);
     }
@@ -61,13 +61,11 @@ VILLANELLE_API std::string join(std::string_view parent_path, std::string_view s
 }
 
 /// Whether a spec is a glob: it holds '*' or '?' (spec 4.3).
-VILLANELLE_API bool has_glob(std::string_view spec) noexcept {
-    return spec.find_first_of("*?") != std::string_view::npos;
-}
+KNOBLY_API bool has_glob(std::string_view spec) noexcept { return spec.find_first_of("*?") != std::string_view::npos; }
 
 /// Whether a file name matches a glob's last segment: '*' any run of code points (empty included), '?' exactly one,
 /// every other character itself; nothing escapes. Bytes that do not decode match only themselves, byte by byte.
-VILLANELLE_API bool glob_match(std::string_view pattern, std::string_view name) {
+KNOBLY_API bool glob_match(std::string_view pattern, std::string_view name) {
     std::size_t p = 0;
     std::size_t n = 0;
     std::size_t star = std::string_view::npos;  // the pattern index after the last '*'
@@ -111,6 +109,6 @@ VILLANELLE_API bool glob_match(std::string_view pattern, std::string_view name) 
 }
 
 }  // namespace detail::io
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_DETAIL_IO_PATHS_HPP
+#endif  // KNOBLY_DETAIL_IO_PATHS_HPP

@@ -2,21 +2,21 @@
 extensions (as ``jinja2.Environment`` is made with its loader and extensions); ``load`` reads a root file and
 everything it includes into a document graph (the files as written), synchronously. Loading is its only operation:
 every later one is a method on what it returned (``graph.read()``, ``graph.save(writer)``), and the rendered layer
-builds on the graph (``villanelle.rendered.render(graph)``)."""
+builds on the graph (``knobly.rendered.render(graph)``)."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from typing import final
 
-from villanelle._api import written as api
-from villanelle._api.io import DocumentSource
-from villanelle._api.limits import RESERVED
-from villanelle._api.shared import ConfigText
-from villanelle._api.written import Extension
-from villanelle._text import require_text
-from villanelle.written import _names
-from villanelle.written._model import DocumentGraph
+from knobly._api import written as api
+from knobly._api.io import DocumentSource
+from knobly._api.limits import RESERVED
+from knobly._api.shared import ConfigText
+from knobly._api.written import Extension
+from knobly._text import require_text
+from knobly.written import _names
+from knobly.written._model import DocumentGraph
 
 
 @final
@@ -34,6 +34,6 @@ class Processor(api.Processor):
             self._extensions[name] = extension
 
     def load(self, path: str, *, overrides: Mapping[str, ConfigText] | None = None) -> DocumentGraph:
-        from villanelle.written import _read
+        from knobly.written import _read
 
         return _read.load_graph(self._source, self._extensions, path, overrides or {})

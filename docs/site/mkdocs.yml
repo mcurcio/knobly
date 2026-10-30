@@ -1,10 +1,10 @@
-# The villanelle user guide (.claude/design/cpp/frozen-docs.md). One set of pages; every code sample has a
+# The knobly user guide (.claude/design/cpp/frozen-docs.md). One set of pages; every code sample has a
 # TypeScript, Python and C++ tab, pulled from a file the binding's own tests run (examples/samples.json), so a sample
 # cannot rot. Tabs with the same label are linked across the whole site, and the choice is remembered
 # (content.tabs.link). Build: uv run --locked mkdocs build --strict, from this folder.
-site_name: villanelle
+site_name: knobly
 site_description: A small configuration language, with TypeScript, Python and C++ bindings generated from one grammar
-repo_url: https://github.com/mcurcio/villanelle
+repo_url: https://github.com/mcurcio/knobly
 edit_uri: edit/main/docs/site/pages/
 docs_dir: pages
 site_dir: build

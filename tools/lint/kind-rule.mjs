@@ -1,4 +1,4 @@
-// The kind lint for TypeScript (bead vil-umh.11; owner, 2026-10-29, "Yes, generate both"; spec 2.10): a `.kind`,
+// The kind lint for TypeScript (bead kno-umh.11; owner, 2026-10-29, "Yes, generate both"; spec 2.10): a `.kind`,
 // `.reason` or `.code` is compared with a generated member (`StatementKind.Set`, `UnreadableReason.Value`,
 // `DiagnosticCode.UnknownVariable`), never with a string literal, so a renamed or misspelled value fails to compile
 // instead of comparing false. ts/eslint.config.js imports it (`import { KIND_RULE } from "../tools/lint/kind-rule.mjs"`) and spreads it into `no-restricted-syntax`; its Python twin is

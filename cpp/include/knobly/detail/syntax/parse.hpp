@@ -2,8 +2,8 @@
 // codes (spec 2.4), per-statement recovery (spec 3.2), the tree hooks and the nesting guard. Everything grammar-shaped
 // is in the generated parser.gen.hpp (tools/parser/gen.py), whose generated_parser this class derives from.
 // No throw, try or RTTI: the syntax layer compiles with -fno-exceptions -fno-rtti, and parse is total.
-#ifndef VILLANELLE_DETAIL_SYNTAX_PARSE_HPP
-#define VILLANELLE_DETAIL_SYNTAX_PARSE_HPP
+#ifndef KNOBLY_DETAIL_SYNTAX_PARSE_HPP
+#define KNOBLY_DETAIL_SYNTAX_PARSE_HPP
 
 #include <cstddef>
 #include <string>
@@ -11,14 +11,14 @@
 #include <utility>
 #include <vector>
 
-#include <villanelle/codes.hpp>
-#include <villanelle/detail/syntax/parser.gen.hpp>
-#include <villanelle/detail/text_in.hpp>
-#include <villanelle/kinds.hpp>
-#include <villanelle/limits.hpp>
-#include <villanelle/support/config.hpp>
+#include <knobly/codes.hpp>
+#include <knobly/detail/syntax/parser.gen.hpp>
+#include <knobly/detail/text_in.hpp>
+#include <knobly/kinds.hpp>
+#include <knobly/limits.hpp>
+#include <knobly/support/config.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 namespace syntax::detail {
 
 inline constexpr std::size_t npos = static_cast<std::size_t>(-1);
@@ -32,7 +32,7 @@ struct raw_token {
 
 /// One node as the parser builds it: a token range, half-open.
 struct raw_node {
-    ::villanelle::node_kind kind;
+    ::knobly::node_kind kind;
     std::size_t start;
     std::size_t end;
     std::vector<raw_node> children;
@@ -40,7 +40,7 @@ struct raw_node {
 
 /// One problem at token index `at` (the token count for the end of the text).
 struct raw_diagnostic {
-    ::villanelle::diagnostic_code code;
+    ::knobly::diagnostic_code code;
     std::size_t at;
     std::string message;
 };
@@ -50,10 +50,10 @@ struct raw_diagnostic {
 inline std::vector<raw_token> lex(std::string_view text) {
     std::vector<raw_token> tokens;
     for (std::size_t at = 0; at < text.size();) {
-        auto [kind, end] = lex_longest(text, at, ::villanelle::detail::decode_utf8);
+        auto [kind, end] = lex_longest(text, at, ::knobly::detail::decode_utf8);
         if (kind < 0) {
             char32_t code_point = 0;
-            const std::size_t length = ::villanelle::detail::decode_utf8(text, at, code_point);
+            const std::size_t length = ::knobly::detail::decode_utf8(text, at, code_point);
             kind = static_cast<int>(tk::BAD_CHAR);
             end = at + (length != 0 ? length : 1);
         }
@@ -72,9 +72,9 @@ inline bool is_slice_name(tk kind) noexcept { return kind == tk::WORD || kind ==
 
 /// Spec 2.4: the code of a syntax error at token `at` in the statement starting at token `start`; the first rule
 /// that applies wins.
-inline ::villanelle::diagnostic_code classify(const std::vector<raw_token>& tokens, std::size_t at, std::size_t start,
-                                              bool in_block) {
-    using code = ::villanelle::diagnostic_code;
+inline ::knobly::diagnostic_code classify(const std::vector<raw_token>& tokens, std::size_t at, std::size_t start,
+                                          bool in_block) {
+    using code = ::knobly::diagnostic_code;
     std::vector<bool> brackets;  // per open '[': whether it opens a slice (it touches a slice name)
     int braces = 0;
     bool closes_value = false;  // the token before `at` is a ']' that closed a list or slice
@@ -134,7 +134,7 @@ inline std::size_t nesting_overflow(const std::vector<raw_token>& tokens) noexce
     for (std::size_t i = 0; i < tokens.size(); ++i) {
         const tk kind = tokens[i].kind;
         if (kind == tk::LBRACE || kind == tk::LBRACK) {
-            if (++depth > static_cast<std::size_t>(::villanelle::syntax::max_nesting)) {
+            if (++depth > static_cast<std::size_t>(::knobly::syntax::max_nesting)) {
                 return i;
             }
         } else if ((kind == tk::RBRACE || kind == tk::RBRACK) && depth > 0) {
@@ -213,11 +213,11 @@ public:
         return false;
     }
     /// A rule annotated "cst: <kind>" starts.
-    void open_node(::villanelle::node_kind kind) {
+    void open_node(::knobly::node_kind kind) {
         open_.push_back({kind, pos_, pos_, {}});
-        if (kind == ::villanelle::node_kind::directive) {
+        if (kind == ::knobly::node_kind::directive) {
             levels_.back().open_directive = pos_;
-        } else if (kind == ::villanelle::node_kind::block) {
+        } else if (kind == ::knobly::node_kind::block) {
             levels_.push_back({});
         }
     }
@@ -226,9 +226,9 @@ public:
         raw_node done = std::move(open_.back());
         open_.pop_back();
         done.end = pos_;
-        if (done.kind == ::villanelle::node_kind::directive) {
+        if (done.kind == ::knobly::node_kind::directive) {
             levels_.back().open_directive = npos;
-        } else if (done.kind == ::villanelle::node_kind::block) {
+        } else if (done.kind == ::knobly::node_kind::block) {
             levels_.pop_back();
         }
         attach(std::move(done));
@@ -237,13 +237,13 @@ public:
     /// makes. Any other node (a directive with its block, an unclosed block, a list, a slice) keeps its node.
     void fail_node() {
         raw_node& failed = open_.back();
-        if (failed.kind == ::villanelle::node_kind::directive) {
+        if (failed.kind == ::knobly::node_kind::directive) {
             level& here = levels_.back();
             here.open_directive = npos;
             here.failed = failed.start;
             bool has_block = false;
             for (const raw_node& child : failed.children) {
-                has_block = has_block || child.kind == ::villanelle::node_kind::block;
+                has_block = has_block || child.kind == ::knobly::node_kind::block;
             }
             here.discarded = !has_block;
             if (!has_block) {
@@ -308,11 +308,11 @@ private:
         in_error_ = true;
         const level& here = levels_.back();
         const std::size_t start = here.open_directive != npos ? here.open_directive : pos_;
-        const ::villanelle::diagnostic_code code = classify(tokens_, at, start, levels_.size() > 1);
+        const ::knobly::diagnostic_code code = classify(tokens_, at, start, levels_.size() > 1);
         const std::string what = at < tokens_.size()
                                      ? quoted(text_.substr(tokens_[at].start, tokens_[at].end - tokens_[at].start))
                                      : std::string("end of input");
-        diagnostics_.push_back({code, at, ::villanelle::describe(code, what).message});
+        diagnostics_.push_back({code, at, ::knobly::describe(code, what).message});
     }
 
     /// Spec 3.2: skip to the end of the bad statement, its ';' outside brackets and braces or a whole block it
@@ -367,7 +367,7 @@ private:
             }
         }
         if (pos_ > error_start) {
-            attach({::villanelle::node_kind::error, error_start, pos_, {}});
+            attach({::knobly::node_kind::error, error_start, pos_, {}});
         }
     }
 
@@ -378,10 +378,10 @@ private:
     std::vector<raw_node> open_;
     std::vector<level> levels_{level{}};
     std::vector<raw_diagnostic> diagnostics_;
-    raw_node root_{::villanelle::node_kind::document, 0, 0, {}};
+    raw_node root_{::knobly::node_kind::document, 0, 0, {}};
 };
 
 }  // namespace syntax::detail
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_DETAIL_SYNTAX_PARSE_HPP
+#endif  // KNOBLY_DETAIL_SYNTAX_PARSE_HPP

@@ -1,11 +1,11 @@
 // PLANTED (must be caught): an entry rule whose gaps can split two ways (gap gap). Proves the entry rules are checked
 // on their own, not only the document rule.
-// villanelle grammar, ported from villanelle.ebnf (draft 2 + rasl-trv: '*' and '?' in words;
+// knobly grammar, ported from knobly.ebnf (draft 2 + rasl-trv: '*' and '?' in words;
 // round 11: variables; milestone 4: ';' ends every statement, the text-only rules as entry rules).
 // Whitespace is explicit: every token is on the default channel, nothing is skipped.
 // A line break is whitespace (owner, 2026-10-29, Q1: "';' is required and a line break is plain whitespace (nginx);
 // directive names cannot start with a digit or '-'").
-grammar Villanelle;
+grammar Knobly;
 
 document      : BOM? statements EOF ;
 statements    : filler* (directive filler*)* ;

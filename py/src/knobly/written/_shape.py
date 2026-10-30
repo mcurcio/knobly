@@ -12,10 +12,10 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import TypeAlias
 
-from villanelle._anatomy import Anatomy, anatomy_of
-from villanelle._api.codes import DiagnosticCode
-from villanelle._api.kinds import NodeKind, StatementKind, TokenKind, statement_of_keyword
-from villanelle._api.syntax import Node, Token
+from knobly._anatomy import Anatomy, anatomy_of
+from knobly._api.codes import DiagnosticCode
+from knobly._api.kinds import NodeKind, StatementKind, TokenKind, statement_of_keyword
+from knobly._api.syntax import Node, Token
 
 ShapeKind: TypeAlias = StatementKind
 

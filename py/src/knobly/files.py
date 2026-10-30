@@ -1,5 +1,5 @@
-"""``villanelle.files``: a document source and a writer over the filesystem, the I/O edges the core leaves out,
-as TypeScript's ``villanelle/node`` entry (``fileSource``, ``fileWriter``)."""
+"""``knobly.files``: a document source and a writer over the filesystem, the I/O edges the core leaves out,
+as TypeScript's ``knobly/node`` entry (``fileSource``, ``fileWriter``)."""
 
 from __future__ import annotations
 
@@ -9,10 +9,10 @@ import stat
 import tempfile
 from collections.abc import Sequence
 
-from villanelle import _docs
-from villanelle._api.io import DocumentSource, DocumentWriter, FileWrite, LoadContext
-from villanelle._glob import glob_pattern, has_glob
-from villanelle._source import check_lost_updates
+from knobly import _docs
+from knobly._api.io import DocumentSource, DocumentWriter, FileWrite, LoadContext
+from knobly._glob import glob_pattern, has_glob
+from knobly._source import check_lost_updates
 
 
 def file_source() -> DocumentSource:

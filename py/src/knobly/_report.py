@@ -1,7 +1,7 @@
 """Located diagnostics (shared by the low level and the rendered layer), and the one sink that load, value readers
 and programs all report into (round 11 review finding 2; R14's report helper). Prior art: HCL's
 ``hcl.Diagnostics``, PostCSS ``Result.messages``. ``Diagnostics`` implements its generated Protocol
-(``villanelle._api.shared``); ``Locatable`` is that module's."""
+(``knobly._api.shared``); ``Locatable`` is that module's."""
 
 from __future__ import annotations
 
@@ -9,12 +9,12 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from types import TracebackType
 
-from villanelle._api import shared
-from villanelle._api.codes import DiagnosticCode
-from villanelle._api.errors import DiagnosticError
-from villanelle._api.limits import PROGRAM_CODE
-from villanelle._api.shared import Locatable
-from villanelle._origin import Place, Step
+from knobly._api import shared
+from knobly._api.codes import DiagnosticCode
+from knobly._api.errors import DiagnosticError
+from knobly._api.limits import PROGRAM_CODE
+from knobly._api.shared import Locatable
+from knobly._origin import Place, Step
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +91,6 @@ _CODES = frozenset(code.value for code in DiagnosticCode)
 
 
 def check_program_code(code: str) -> None:
-    """Raise ValueError unless ``code`` is ``<namespace>/<name>`` (a program's own code; villanelle's are its own)."""
+    """Raise ValueError unless ``code`` is ``<namespace>/<name>`` (a program's own code; knobly's are its own)."""
     if not isinstance(code, str) or PROGRAM_CODE.match(code) is None:
         raise ValueError(f'a program\'s code is "<namespace>/<name>", such as "rasl/unknown-node": {code!r}')

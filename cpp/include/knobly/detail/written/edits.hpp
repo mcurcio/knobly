@@ -2,8 +2,8 @@
 // it. Every edit computes the new text, checks it (spec 2.8), and only then re-parses the whole document and
 // reconciles the handles (spec 6.1), so a refused edit changes nothing (the strong guarantee, frozen-m2.md 3.3 rule 4).
 // Package-internal.
-#ifndef VILLANELLE_DETAIL_WRITTEN_EDITS_HPP
-#define VILLANELLE_DETAIL_WRITTEN_EDITS_HPP
+#ifndef KNOBLY_DETAIL_WRITTEN_EDITS_HPP
+#define KNOBLY_DETAIL_WRITTEN_EDITS_HPP
 
 #include <algorithm>
 #include <cstddef>
@@ -19,13 +19,13 @@
 #include <variant>
 #include <vector>
 
-#include <villanelle/detail/raise.hpp>
-#include <villanelle/detail/text_in.hpp>
-#include <villanelle/detail/written/core.hpp>
-#include <villanelle/detail/written/entry.hpp>
-#include <villanelle/detail/written/shape.hpp>
+#include <knobly/detail/raise.hpp>
+#include <knobly/detail/text_in.hpp>
+#include <knobly/detail/written/core.hpp>
+#include <knobly/detail/written/entry.hpp>
+#include <knobly/detail/written/shape.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 namespace written::detail {
 
 // ---- text helpers with JavaScript's semantics, so offsets agree with the reference binding
@@ -93,7 +93,7 @@ inline bool is_js_space(char32_t cp) noexcept {
 inline bool trims_empty(std::string_view text) noexcept {
     for (std::size_t at = 0; at < text.size();) {
         char32_t cp = 0;
-        const std::size_t length = ::villanelle::detail::decode_utf8(text, at, cp);
+        const std::size_t length = ::knobly::detail::decode_utf8(text, at, cp);
         if (length == 0 || !is_js_space(cp)) {
             return false;
         }
@@ -112,7 +112,7 @@ inline std::string_view leading_blanks(std::string_view text) noexcept {
 }
 
 /// The position of `offset` in `text`: line and column from 0, in bytes.
-inline ::villanelle::source_position position_in(std::string_view text, std::int64_t offset) noexcept {
+inline ::knobly::source_position position_in(std::string_view text, std::int64_t offset) noexcept {
     const std::int64_t at = std::clamp<std::int64_t>(offset, 0, static_cast<std::int64_t>(text.size()));
     std::int64_t line = 0;
     std::int64_t line_start = 0;
@@ -126,10 +126,9 @@ inline ::villanelle::source_position position_in(std::string_view text, std::int
 }
 
 /// A zero-width diagnostic of `code` at `offset` of the text an edit was given.
-inline ::villanelle::diagnostic diagnostic_at(std::string_view given, std::int64_t offset,
-                                              ::villanelle::diagnostic_code code) {
-    const ::villanelle::source_position position = position_in(given, offset);
-    return {code, ::villanelle::describe(code).message, {position, position}};
+inline ::knobly::diagnostic diagnostic_at(std::string_view given, std::int64_t offset, ::knobly::diagnostic_code code) {
+    const ::knobly::source_position position = position_in(given, offset);
+    return {code, ::knobly::describe(code).message, {position, position}};
 }
 
 // ---- what an edit splices in
@@ -169,15 +168,15 @@ inline insert insert_of(std::string_view given) {
 
 // ---- token ranges of the current parse
 
-inline bool is_trivia(::villanelle::token_kind kind) noexcept {
-    return kind == ::villanelle::token_kind::SPACE || kind == ::villanelle::token_kind::NEWLINE;
+inline bool is_trivia(::knobly::token_kind kind) noexcept {
+    return kind == ::knobly::token_kind::SPACE || kind == ::knobly::token_kind::NEWLINE;
 }
 
 using token_span = std::pair<std::int64_t, std::int64_t>;  // a token range [start, end)
 
 /// A statement's owned token range (spec 6.4): from a comment line directly above it to its trailing comment.
-inline token_span owned_range(const parsed_text& p, const ::villanelle::syntax::node& n) {
-    using ::villanelle::token_kind;
+inline token_span owned_range(const parsed_text& p, const ::knobly::syntax::node& n) {
+    using ::knobly::token_kind;
     std::int64_t first = n.start();
     std::int64_t last = n.end() - 1;
     while (last > first && p.has(last) && is_trivia(p.at(last).kind)) {
@@ -223,7 +222,7 @@ inline token_span owned_range(const parsed_text& p, const ::villanelle::syntax::
 }
 
 /// A node's range without trailing spaces and line breaks.
-inline token_span trimmed(const parsed_text& p, const ::villanelle::syntax::node& n) {
+inline token_span trimmed(const parsed_text& p, const ::knobly::syntax::node& n) {
     std::int64_t end = n.end();
     while (end > n.start() + 1 && p.has(end - 1) && is_trivia(p.at(end - 1).kind)) {
         --end;
@@ -239,9 +238,9 @@ inline std::pair<std::int64_t, std::int64_t> offsets_of(const parsed_text& p, to
 /// The values inside a value, in text order: a list's items, a slice's or index's name and bounds.
 inline std::vector<value_node*> inner_handles(const value_node* v) {
     switch (v->kind) {
-        case ::villanelle::value_kind::list:
+        case ::knobly::value_kind::list:
             return v->items;
-        case ::villanelle::value_kind::slice: {
+        case ::knobly::value_kind::slice: {
             std::vector<value_node*> out;
             for (value_node* inner : {v->name, v->start, v->end}) {
                 if (inner != nullptr) {
@@ -250,7 +249,7 @@ inline std::vector<value_node*> inner_handles(const value_node* v) {
             }
             return out;
         }
-        case ::villanelle::value_kind::index: {
+        case ::knobly::value_kind::index: {
             std::vector<value_node*> out;
             for (value_node* inner : {v->name, v->index}) {
                 if (inner != nullptr) {
@@ -386,8 +385,8 @@ private:
 
 // ---- building the handle tree
 
-inline std::string statement_key(::villanelle::statement_kind kind) { return "s:" + std::string(to_string(kind)); }
-inline std::string value_key(::villanelle::value_kind kind) { return "v:" + std::string(to_string(kind)); }
+inline std::string statement_key(::knobly::statement_kind kind) { return "s:" + std::string(to_string(kind)); }
+inline std::string value_key(::knobly::value_kind kind) { return "v:" + std::string(to_string(kind)); }
 
 /// The handles currently in a document's tree, by reconcile key (document.ts entries).
 inline std::map<std::string, old_entry> entries_of(const document_node* doc) {
@@ -408,7 +407,7 @@ inline std::map<std::string, old_entry> entries_of(const document_node* doc) {
         for (value_node* v : s->values) {
             value(v);
         }
-        if (s->kind == ::villanelle::statement_kind::snippet) {
+        if (s->kind == ::knobly::statement_kind::snippet) {
             for (variable_node* param : s->parameters) {
                 add("p", param, {param->token, param->token + 1});
             }
@@ -426,25 +425,25 @@ inline std::map<std::string, old_entry> entries_of(const document_node* doc) {
 }
 
 /// A written value's kind by its tokens.
-inline ::villanelle::value_kind value_kind_of(const parsed_text& p, const value_ref& ref) {
+inline ::knobly::value_kind value_kind_of(const parsed_text& p, const value_ref& ref) {
     if (!ref.is_token()) {
-        if (ref.tree->kind() == ::villanelle::node_kind::list) {
-            return ::villanelle::value_kind::list;
+        if (ref.tree->kind() == ::knobly::node_kind::list) {
+            return ::knobly::value_kind::list;
         }
         for (std::int64_t i = ref.start + 2; i < ref.end - 1; ++i) {
-            if (p.is(i, ::villanelle::token_kind::TILDE)) {
-                return ::villanelle::value_kind::slice;
+            if (p.is(i, ::knobly::token_kind::TILDE)) {
+                return ::knobly::value_kind::slice;
             }
         }
-        return ref.end - ref.start > 3 ? ::villanelle::value_kind::index : ::villanelle::value_kind::slice;
+        return ref.end - ref.start > 3 ? ::knobly::value_kind::index : ::knobly::value_kind::slice;
     }
-    if (p.is(ref.start, ::villanelle::token_kind::STRING)) {
-        return ::villanelle::value_kind::string;
+    if (p.is(ref.start, ::knobly::token_kind::STRING)) {
+        return ::knobly::value_kind::string;
     }
-    if (p.is(ref.start, ::villanelle::token_kind::VARIABLE)) {
-        return ::villanelle::value_kind::reference;
+    if (p.is(ref.start, ::knobly::token_kind::VARIABLE)) {
+        return ::knobly::value_kind::reference;
     }
-    return ::villanelle::value_kind::word;
+    return ::knobly::value_kind::word;
 }
 
 /// Builds a document's handle tree over its current parse (document.ts build).
@@ -459,9 +458,9 @@ public:
     }
 
 private:
-    std::vector<statement_node*> block(const ::villanelle::syntax::node& container, statement_node* owner,
+    std::vector<statement_node*> block(const ::knobly::syntax::node& container, statement_node* owner,
                                        const std::vector<std::string>& claimed) {
-        const std::vector<::villanelle::syntax::node> nodes = statement_nodes(container);
+        const std::vector<::knobly::syntax::node> nodes = statement_nodes(container);
         const std::vector<shape> shapes = block_shapes(p_, nodes, doc_->graph->extension_names, claimed);
         std::vector<statement_node*> out;
         out.reserve(nodes.size());
@@ -471,16 +470,16 @@ private:
         return out;
     }
 
-    statement_node* make_statement(::villanelle::statement_kind kind) {
+    statement_node* make_statement(::knobly::statement_kind kind) {
         statement_node* made = doc_->graph->nodes.make<statement_node>(kind, doc_);
-        if (kind == ::villanelle::statement_kind::set) {
-            made->variable = doc_->graph->nodes.make<variable_node>(::villanelle::variable_kind::set);
+        if (kind == ::knobly::statement_kind::set) {
+            made->variable = doc_->graph->nodes.make<variable_node>(::knobly::variable_kind::set);
             made->variable->line = made;
         }
         return made;
     }
 
-    statement_node* statement(const ::villanelle::syntax::node& n, const shape& s, statement_node* owner) {
+    statement_node* statement(const ::knobly::syntax::node& n, const shape& s, statement_node* owner) {
         handle_node* const kept =
             reconcile_.take(statement_key(s.kind), static_cast<std::int64_t>(p_.start_of(n.start())));
         statement_node* const handle =
@@ -493,7 +492,7 @@ private:
         handle->detached = false;
         doc_->statements_by_token[n.start()] = handle;
         std::optional<anatomy> a;
-        if (n.kind() == ::villanelle::node_kind::directive) {
+        if (n.kind() == ::knobly::node_kind::directive) {
             a = anatomy_of(p_, n);
         }
         const auto values = [&](std::size_t skip) {
@@ -518,17 +517,17 @@ private:
             handle->block->handles = block(*a->block, handle, claimed);
         };
         switch (handle->kind) {
-            case ::villanelle::statement_kind::directive:
-            case ::villanelle::statement_kind::extension:
+            case ::knobly::statement_kind::directive:
+            case ::knobly::statement_kind::extension:
                 handle->values = values(0);
                 inner_block({});
                 break;
-            case ::villanelle::statement_kind::set:
-            case ::villanelle::statement_kind::use:
+            case ::knobly::statement_kind::set:
+            case ::knobly::statement_kind::use:
                 handle->values = values(1);
                 handle->block = nullptr;
                 break;
-            case ::villanelle::statement_kind::snippet: {
+            case ::knobly::statement_kind::snippet: {
                 handle->values.clear();
                 handle->parameters.clear();
                 std::vector<std::string> names;
@@ -539,7 +538,7 @@ private:
                     if (kept_parameter != nullptr && kept_parameter->family == 'p') {
                         parameter = static_cast<variable_node*>(kept_parameter);
                     } else {
-                        parameter = doc_->graph->nodes.make<variable_node>(::villanelle::variable_kind::parameter);
+                        parameter = doc_->graph->nodes.make<variable_node>(::knobly::variable_kind::parameter);
                         parameter->line = handle;
                     }
                     if (kept_parameter == nullptr) {
@@ -553,7 +552,7 @@ private:
                 inner_block(names);
                 break;
             }
-            case ::villanelle::statement_kind::unreadable:
+            case ::knobly::statement_kind::unreadable:
                 handle->values.clear();
                 handle->block = nullptr;
                 break;
@@ -562,7 +561,7 @@ private:
     }
 
     value_node* value(const value_ref& ref, statement_node* statement, value_node* list, value_role role) {
-        const ::villanelle::value_kind kind = value_kind_of(p_, ref);
+        const ::knobly::value_kind kind = value_kind_of(p_, ref);
         handle_node* const kept = reconcile_.take(value_key(kind), static_cast<std::int64_t>(p_.start_of(ref.start)));
         value_node* const handle = kept != nullptr && kept->family == 'v'
                                        ? static_cast<value_node*>(kept)
@@ -585,14 +584,13 @@ private:
         if (role != value_role::name) {
             doc_->values_by_token[ref.start] = handle;
         }
-        if (kind == ::villanelle::value_kind::list && !ref.is_token()) {
+        if (kind == ::knobly::value_kind::list && !ref.is_token()) {
             std::vector<value_node*> items;
             for (const value_ref& item : items_of(p_, *ref.tree)) {
                 items.push_back(value(item, statement, handle, value_role::value));
             }
             handle->items = std::move(items);
-        } else if ((kind == ::villanelle::value_kind::slice || kind == ::villanelle::value_kind::index) &&
-                   !ref.is_token()) {
+        } else if ((kind == ::knobly::value_kind::slice || kind == ::knobly::value_kind::index) && !ref.is_token()) {
             handle->name = value(value_ref::token(ref.start), statement, nullptr, value_role::name);
             std::vector<std::int64_t> inner;
             for (std::int64_t i = ref.start + 2; i < ref.end - 1; ++i) {
@@ -600,7 +598,7 @@ private:
             }
             std::int64_t tilde = -1;
             for (std::size_t i = 0; i < inner.size(); ++i) {
-                if (p_.is(inner[i], ::villanelle::token_kind::TILDE)) {
+                if (p_.is(inner[i], ::knobly::token_kind::TILDE)) {
                     tilde = static_cast<std::int64_t>(i);
                     break;
                 }
@@ -610,13 +608,12 @@ private:
                     return nullptr;
                 }
                 const std::int64_t token = inner[static_cast<std::size_t>(at)];
-                if (p_.is(token, ::villanelle::token_kind::INTEGER) ||
-                    p_.is(token, ::villanelle::token_kind::VARIABLE)) {
+                if (p_.is(token, ::knobly::token_kind::INTEGER) || p_.is(token, ::knobly::token_kind::VARIABLE)) {
                     return value(value_ref::token(token), statement, nullptr, value_role::bound);
                 }
                 return nullptr;
             };
-            if (kind == ::villanelle::value_kind::index) {
+            if (kind == ::knobly::value_kind::index) {
                 handle->index = bound_at(0);
             } else {
                 handle->start = tilde == 0 ? nullptr : bound_at(0);
@@ -664,16 +661,15 @@ inline void replace_document(document_node* doc, std::string_view text) {
 
 /// The text-alone rules a spliced text would break, on the statements the splice touches: located in the caller's
 /// text when the problem lies in what it gave (spec 2.8), else at 0:0.
-inline std::vector<::villanelle::diagnostic> rule_problems(const parsed_text& p,
-                                                           const std::set<std::string>& extensions, std::int64_t from,
-                                                           const insert& ins) {
-    std::vector<::villanelle::diagnostic> out;
+inline std::vector<::knobly::diagnostic> rule_problems(const parsed_text& p, const std::set<std::string>& extensions,
+                                                       std::int64_t from, const insert& ins) {
+    std::vector<::knobly::diagnostic> out;
     const std::int64_t to = from + static_cast<std::int64_t>(ins.text.size());
     const auto overlaps = [&](std::int64_t s, std::int64_t e) {
         return from == to ? s < from && e > from : s < to && e > from;
     };
-    const auto touches = [&](const ::villanelle::syntax::node& n) {
-        const ::villanelle::source_span span = p.span_of(n.start(), n.end());
+    const auto touches = [&](const ::knobly::syntax::node& n) {
+        const ::knobly::source_span span = p.span_of(n.start(), n.end());
         return overlaps(span.start().offset(), span.end().offset());
     };
     const auto report = [&](const shape_fault& fault) {
@@ -682,26 +678,25 @@ inline std::vector<::villanelle::diagnostic> rule_problems(const parsed_text& p,
             offset >= from && offset < to ? ins.origin[static_cast<std::size_t>(offset - from)] : -1;
         out.push_back(diagnostic_at(ins.given, std::max<std::int64_t>(origin, 0), fault.code));
     };
-    std::function<void(const ::villanelle::syntax::node&, const std::vector<std::string>&,
-                       const std::set<std::string>&)>
-        visit = [&](const ::villanelle::syntax::node& container, const std::vector<std::string>& claimed,
+    std::function<void(const ::knobly::syntax::node&, const std::vector<std::string>&, const std::set<std::string>&)>
+        visit = [&](const ::knobly::syntax::node& container, const std::vector<std::string>& claimed,
                     const std::set<std::string>& touched_claims) {
-            const std::vector<::villanelle::syntax::node> nodes = statement_nodes(container);
+            const std::vector<::knobly::syntax::node> nodes = statement_nodes(container);
             const std::vector<shape> shapes = block_shapes(p, nodes, extensions, claimed);
             for (std::size_t i = 0; i < nodes.size(); ++i) {
-                const ::villanelle::syntax::node& n = nodes[i];
+                const ::knobly::syntax::node& n = nodes[i];
                 const shape& s = shapes[i];
                 if (s.fault && is_text_alone(*s.fault)) {
-                    const ::villanelle::diagnostic_code code = s.fault->code;
+                    const ::knobly::diagnostic_code code = s.fault->code;
                     bool involved = touches(n);
-                    if (!involved && (code == ::villanelle::diagnostic_code::variable_set_twice ||
-                                      code == ::villanelle::diagnostic_code::snippet_defined_twice)) {
+                    if (!involved && (code == ::knobly::diagnostic_code::variable_set_twice ||
+                                      code == ::knobly::diagnostic_code::snippet_defined_twice)) {
                         std::string name = s.fault->detail;
                         if (!name.empty() && name.front() == '$') {
                             name.erase(0, 1);
                         }
-                        involved = code == ::villanelle::diagnostic_code::variable_set_twice &&
-                                   touched_claims.count(name) != 0;
+                        involved =
+                            code == ::knobly::diagnostic_code::variable_set_twice && touched_claims.count(name) != 0;
                         for (std::size_t j = 0; j < i && !involved; ++j) {
                             involved = touches(nodes[j]) && shapes[j].claims == name;
                         }
@@ -710,16 +705,15 @@ inline std::vector<::villanelle::diagnostic> rule_problems(const parsed_text& p,
                         report(*s.fault);
                     }
                 }
-                if (n.kind() != ::villanelle::node_kind::directive) {
+                if (n.kind() != ::knobly::node_kind::directive) {
                     continue;
                 }
                 const anatomy a = anatomy_of(p, n);
-                if (!a.block || s.kind == ::villanelle::statement_kind::unreadable) {
+                if (!a.block || s.kind == ::knobly::statement_kind::unreadable) {
                     continue;
                 }
-                const std::vector<std::int64_t> params = s.kind == ::villanelle::statement_kind::snippet
-                                                             ? parameter_tokens(p, n)
-                                                             : std::vector<std::int64_t>();
+                const std::vector<std::int64_t> params =
+                    s.kind == ::knobly::statement_kind::snippet ? parameter_tokens(p, n) : std::vector<std::int64_t>();
                 std::vector<std::string> names;
                 std::set<std::string> touched;
                 for (const std::int64_t t : params) {
@@ -743,26 +737,25 @@ inline std::vector<::villanelle::diagnostic> rule_problems(const parsed_text& p,
 /// and the text-alone rules found nothing wrong; then re-parses, reconciles and tells the graph. Returns the handles
 /// made for the inserted text. @throws bad_text_error, changing nothing
 inline std::vector<handle_node*> splice(document_node* doc, std::int64_t start, std::int64_t end, const insert& ins,
-                                        const std::vector<::villanelle::diagnostic>& given,
-                                        handle_node* keep = nullptr) {
+                                        const std::vector<::knobly::diagnostic>& given, handle_node* keep = nullptr) {
     if (!given.empty()) {
-        ::villanelle::detail::raise(::villanelle::bad_text_error(given));
+        ::knobly::detail::raise(::knobly::bad_text_error(given));
     }
     const std::string& current = doc->parsed.text;
     std::string text(slice(current, 0, start));
     text += ins.text;
     text += slice(current, end, static_cast<std::int64_t>(current.size()));
     parsed_text parsed = parse_document(std::move(text));
-    const std::vector<::villanelle::diagnostic> rules = rule_problems(parsed, doc->graph->extension_names, start, ins);
+    const std::vector<::knobly::diagnostic> rules = rule_problems(parsed, doc->graph->extension_names, start, ins);
     if (!rules.empty()) {
-        ::villanelle::detail::raise(::villanelle::bad_text_error(rules));
+        ::knobly::detail::raise(::knobly::bad_text_error(rules));
     }
     reconcile r(entries_of(doc), edit_range{start, end, static_cast<std::int64_t>(ins.text.size())}, keep);
     return adopt(doc, std::move(parsed), std::move(r));
 }
 
-inline std::vector<::villanelle::diagnostic> diagnostics_of(const parsed_text& p) {
-    const ::villanelle::sequence<::villanelle::diagnostic> found = p.syntax.diagnostics();
+inline std::vector<::knobly::diagnostic> diagnostics_of(const parsed_text& p) {
+    const ::knobly::sequence<::knobly::diagnostic> found = p.syntax.diagnostics();
     return {found.begin(), found.end()};
 }
 
@@ -791,7 +784,7 @@ inline std::string indentation_unit(const document_node* doc) {
         const std::size_t next = line + run.size();
         if (!run.empty() && next < text.size()) {
             char32_t cp = 0;
-            const std::size_t length = ::villanelle::detail::decode_utf8(text, next, cp);
+            const std::size_t length = ::knobly::detail::decode_utf8(text, next, cp);
             if (length == 0 || !is_js_space(cp)) {
                 return std::string(run);
             }
@@ -940,10 +933,10 @@ inline std::vector<statement_node*> created_statements(const std::vector<handle_
 /// replace_with_text of a statement: zero or more statements, indented as it is.
 inline std::vector<statement_node*> replace_statement(statement_node* s, std::string_view text) {
     document_node* doc = s->doc;
-    const std::vector<::villanelle::diagnostic> given = diagnostics_of(parse_entry(text, entry_rule::statements_text));
+    const std::vector<::knobly::diagnostic> given = diagnostics_of(parse_entry(text, entry_rule::statements_text));
     if (is_blank(text)) {
         if (!given.empty()) {
-            ::villanelle::detail::raise(::villanelle::bad_text_error(given));
+            ::knobly::detail::raise(::knobly::bad_text_error(given));
         }
         remove_statement(s);
         return {};
@@ -959,10 +952,10 @@ inline std::vector<statement_node*> replace_statement(statement_node* s, std::st
 /// before handles[index] (its owned comments stay with it), or after the last statement.
 inline std::vector<statement_node*> insert_statements(block_node* block, std::size_t index, std::string_view text) {
     document_node* doc = block->doc;
-    const std::vector<::villanelle::diagnostic> given = diagnostics_of(parse_entry(text, entry_rule::statements_text));
+    const std::vector<::knobly::diagnostic> given = diagnostics_of(parse_entry(text, entry_rule::statements_text));
     if (is_blank(text)) {
         if (!given.empty()) {
-            ::villanelle::detail::raise(::villanelle::bad_text_error(given));
+            ::knobly::detail::raise(::knobly::bad_text_error(given));
         }
         return {};
     }
@@ -1009,7 +1002,7 @@ inline std::vector<statement_node*> insert_statements(block_node* block, std::si
         const std::string open = current.empty() || current.back() == '\n' ? "" : eol;
         pieces = append(append({open}, lines("")), {eol});
     } else {
-        const std::optional<::villanelle::syntax::node> node = anatomy_of(p, block->owner->tree).block;
+        const std::optional<::knobly::syntax::node> node = anatomy_of(p, block->owner->tree).block;
         const auto open = static_cast<std::int64_t>(p.at(node->start()).end);
         const auto close = static_cast<std::int64_t>(p.at(node->end() - 1).start);
         const std::string parent_indentation =
@@ -1062,10 +1055,10 @@ inline std::pair<std::int64_t, std::int64_t> value_offsets(const value_node* v) 
 inline void replace_values(statement_node* s, std::int64_t after, std::string_view text) {
     document_node* doc = s->doc;
     const parsed_text syntax = parse_entry(text, entry_rule::values_text);
-    const std::vector<::villanelle::diagnostic> given = diagnostics_of(syntax);
+    const std::vector<::knobly::diagnostic> given = diagnostics_of(syntax);
     if (given.empty() && !text.empty() && values_of(syntax).empty()) {
-        ::villanelle::detail::raise(
-            ::villanelle::bad_text_error({diagnostic_at(text, 0, ::villanelle::diagnostic_code::unexpected_token)}));
+        ::knobly::detail::raise(
+            ::knobly::bad_text_error({diagnostic_at(text, 0, ::knobly::diagnostic_code::unexpected_token)}));
     }
     const parsed_text& p = doc->parsed;
     const std::vector<value_node*>& values = s->values;
@@ -1084,7 +1077,7 @@ inline void replace_values(statement_node* s, std::int64_t after, std::string_vi
     const std::int64_t end = value_offsets(values.back()).second;
     if (text.empty()) {
         std::int64_t from = values.front()->ref.start;
-        while (p.is(from - 1, ::villanelle::token_kind::SPACE)) {
+        while (p.is(from - 1, ::knobly::token_kind::SPACE)) {
             --from;
         }
         splice(doc, p.has(from) ? static_cast<std::int64_t>(p.at(from).start) : start, end, insert_of(""), given);
@@ -1099,7 +1092,7 @@ inline void set_value(value_node* v, std::string_view text) {
     const entry_rule rule = v->role == value_role::bound  ? entry_rule::bound_text
                             : v->role == value_role::name ? entry_rule::slice_name_text
                                                           : entry_rule::value_text;
-    const std::vector<::villanelle::diagnostic> given = diagnostics_of(parse_entry(text, rule));
+    const std::vector<::knobly::diagnostic> given = diagnostics_of(parse_entry(text, rule));
     const auto [start, end] = value_offsets(v);
     splice(v->doc, start, end, insert_of(text), given, v);
 }
@@ -1108,12 +1101,12 @@ inline void set_value(value_node* v, std::string_view text) {
 inline bool is_only_bound(const value_node* bound) {
     const parsed_text& p = bound->doc->parsed;
     std::int64_t open = bound->ref.start;
-    while (open > 0 && !p.is(open, ::villanelle::token_kind::LBRACK)) {
+    while (open > 0 && !p.is(open, ::knobly::token_kind::LBRACK)) {
         --open;
     }
     int bounds = 0;
-    for (std::int64_t i = open + 1; i < p.size() && !p.is(i, ::villanelle::token_kind::RBRACK); ++i) {
-        if (p.is(i, ::villanelle::token_kind::INTEGER) || p.is(i, ::villanelle::token_kind::VARIABLE)) {
+    for (std::int64_t i = open + 1; i < p.size() && !p.is(i, ::knobly::token_kind::RBRACK); ++i) {
+        if (p.is(i, ::knobly::token_kind::INTEGER) || p.is(i, ::knobly::token_kind::VARIABLE)) {
             ++bounds;
         }
     }
@@ -1123,12 +1116,12 @@ inline bool is_only_bound(const value_node* bound) {
 /// remove() of a value (spec 6.6): with the space before it. In a list, the item and its comma only (the one after
 /// it, else the one before it); comments and line breaks between them stay, and a line left empty goes.
 inline void remove_value(value_node* v) {
-    using ::villanelle::token_kind;
+    using ::knobly::token_kind;
     document_node* doc = v->doc;
     const parsed_text& p = doc->parsed;
     const std::string_view current = p.text;
     if (v->role == value_role::name || (v->role == value_role::bound && is_only_bound(v))) {
-        ::villanelle::detail::raise(::villanelle::misuse_error(
+        ::knobly::detail::raise(::knobly::misuse_error(
             "remove(): a slice's or index's name, and its only bound, cannot be removed: set it, or remove the slice"));
     }
     const auto [start, end] = value_offsets(v);
@@ -1188,13 +1181,13 @@ inline std::vector<value_node*> replace_value(value_node* v, std::string_view te
                             : v->role == value_role::name ? entry_rule::slice_name_text
                             : v->list != nullptr          ? entry_rule::items_text
                                                           : entry_rule::values_text;
-    const std::vector<::villanelle::diagnostic> given = diagnostics_of(parse_entry(text, rule));
+    const std::vector<::knobly::diagnostic> given = diagnostics_of(parse_entry(text, rule));
     if (v->role != value_role::value && !given.empty()) {
-        ::villanelle::detail::raise(::villanelle::bad_text_error(given));
+        ::knobly::detail::raise(::knobly::bad_text_error(given));
     }
     if (is_blank(text)) {
         if (!given.empty()) {
-            ::villanelle::detail::raise(::villanelle::bad_text_error(given));
+            ::knobly::detail::raise(::knobly::bad_text_error(given));
         }
         remove_value(v);
         return {};
@@ -1254,11 +1247,11 @@ inline variable_node* declaration_of(const value_node* reference) {
             (parent != nullptr && parent->block != nullptr ? parent->block : reference->doc->block)->handles;
         for (std::int64_t i = position_of(items, s) - 1; i >= 0; --i) {
             statement_node* const candidate = items[static_cast<std::size_t>(i)];
-            if (candidate->kind == ::villanelle::statement_kind::set && set_variable_name(candidate) == name) {
+            if (candidate->kind == ::knobly::statement_kind::set && set_variable_name(candidate) == name) {
                 return candidate->variable;
             }
         }
-        if (parent != nullptr && parent->kind == ::villanelle::statement_kind::snippet) {
+        if (parent != nullptr && parent->kind == ::knobly::statement_kind::snippet) {
             for (variable_node* parameter : parent->parameters) {
                 if (parameter_name(parameter) == name) {
                     return parameter;
@@ -1287,7 +1280,7 @@ statement_node* above(statement_node* statement, Match&& match) {
 /// Every reference value of a document, in text order.
 inline void references_of(const document_node* doc, std::vector<value_node*>& out) {
     std::function<void(value_node*)> value = [&](value_node* v) {
-        if (v->kind == ::villanelle::value_kind::reference) {
+        if (v->kind == ::knobly::value_kind::reference) {
             out.push_back(v);
         }
         for (value_node* inner : inner_handles(v)) {
@@ -1312,10 +1305,10 @@ inline void references_of(const document_node* doc, std::vector<value_node*>& ou
 /// Every set line's and snippet line's variables of a document, in text order.
 inline void variables_of(const document_node* doc, std::vector<variable_node*>& out) {
     std::function<void(statement_node*)> statement = [&](statement_node* s) {
-        if (s->kind == ::villanelle::statement_kind::set) {
+        if (s->kind == ::knobly::statement_kind::set) {
             out.push_back(s->variable);
         }
-        if (s->kind == ::villanelle::statement_kind::snippet) {
+        if (s->kind == ::knobly::statement_kind::snippet) {
             out.insert(out.end(), s->parameters.begin(), s->parameters.end());
         }
         if (s->block != nullptr) {
@@ -1330,6 +1323,6 @@ inline void variables_of(const document_node* doc, std::vector<variable_node*>& 
 }
 
 }  // namespace written::detail
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_DETAIL_WRITTEN_EDITS_HPP
+#endif  // KNOBLY_DETAIL_WRITTEN_EDITS_HPP

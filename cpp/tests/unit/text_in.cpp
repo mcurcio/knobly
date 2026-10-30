@@ -1,5 +1,5 @@
 // detail::decode_utf8 (design.md 2.4): the provisional rule, well-formed UTF-8 plus WTF-8 surrogates.
-#include <villanelle/detail/text_in.hpp>
+#include <knobly/detail/text_in.hpp>
 
 #include <cstddef>
 #include <string_view>
@@ -13,7 +13,7 @@ struct decoded {
 };
 constexpr decoded decode(std::string_view text, std::size_t at = 0) {
     char32_t code_point = 0xFFFFFFFF;
-    const std::size_t length = villanelle::detail::decode_utf8(text, at, code_point);
+    const std::size_t length = knobly::detail::decode_utf8(text, at, code_point);
     return {length, code_point};
 }
 }  // namespace

@@ -22,7 +22,7 @@ The owner's words, quoted, not widened (`answers.md` has the dates and the quest
 
 Everything else on this page is a design call made against `design.md` (approved), revisable through an erratum.
 
-**Milestone 1 delivers:** `syntax::parse` in C++, generated from `grammar/Villanelle.g4` by villanelle's own parser
+**Milestone 1 delivers:** `syntax::parse` in C++, generated from `grammar/Knobly.g4` by knobly's own parser
 generator, with every public declaration generated from `spec/schema/api.json`; the conformance adapter claims level 0
 and passes all 168 L0 cases through the shared driver, in header-only and compiled mode, on the CI leg; `tools/check.sh`
 and the TypeScript and Python checks stay green and their behaviour does not change.
@@ -46,9 +46,9 @@ landed. Every lane keeps `bash tools/check.sh`, the TypeScript checks and the Py
 
 | Owner | Paths |
 |---|---|
-| **Lane P** | `tools/parser/` (all of it: `gen.py`, `g4.py`, `cpp.py`, and the new `lexer.py`, `lookahead.py`, `test_parser.py`); `tools/planted-parser/` (new); `grammar/Villanelle.g4` (the five `// cst:` comments only, F19); the generated `cpp/include/villanelle/detail/syntax/parser.gen.hpp` (never committed) |
-| **Lane A** | `tools/api/emit_cpp.py`; `tools/api/loader.py`; `tools/gen-api.py`; `tools/api/emit_docs.py`, `tools/api/stub.py`, `tools/api/formatter.py` (only if a loader hook needs them); `tools/api/emit_ts.py` and `tools/api/emit_py.py` (only a one-line descriptor change a new loader hook forces; their output must not change); `spec/schema/api.json` (only a fix an erratum records); `spec/codegen.md`; the generated tables `python3 tools/gen-api.py docs` rewrites (`spec/spec.md`, `spec/glossary.md`, `spec/contract.md`, `spec/conformance.md`, `spec/codegen.md`); `cpp/.clang-format`; the generated `cpp/include/villanelle/*.hpp`, `cpp/conformance/shapes.hpp`, `cpp/tests/generated/` (never committed) |
-| **Slice T** | `cpp/CMakeLists.txt`; `cpp/.gitignore`; `cpp/include/villanelle/support/`; `cpp/include/villanelle/detail/` except `detail/syntax/parser.gen.hpp`; `cpp/conformance/adapter.cpp`, `cpp/conformance/json.hpp`; `cpp/tests/compile/`, `cpp/tests/unit/` (new); `cpp/README.md` (new, optional in M1); `.github/workflows/ci.yml`; `tools/gen.sh`; `tools/check.sh`; `spec/binding-guide.md`; `spec/README.md`; `README.md` (root); `.claude/skills/villanelle-binding/SKILL.md` |
+| **Lane P** | `tools/parser/` (all of it: `gen.py`, `g4.py`, `cpp.py`, and the new `lexer.py`, `lookahead.py`, `test_parser.py`); `tools/planted-parser/` (new); `grammar/Knobly.g4` (the five `// cst:` comments only, F19); the generated `cpp/include/knobly/detail/syntax/parser.gen.hpp` (never committed) |
+| **Lane A** | `tools/api/emit_cpp.py`; `tools/api/loader.py`; `tools/gen-api.py`; `tools/api/emit_docs.py`, `tools/api/stub.py`, `tools/api/formatter.py` (only if a loader hook needs them); `tools/api/emit_ts.py` and `tools/api/emit_py.py` (only a one-line descriptor change a new loader hook forces; their output must not change); `spec/schema/api.json` (only a fix an erratum records); `spec/codegen.md`; the generated tables `python3 tools/gen-api.py docs` rewrites (`spec/spec.md`, `spec/glossary.md`, `spec/contract.md`, `spec/conformance.md`, `spec/codegen.md`); `cpp/.clang-format`; the generated `cpp/include/knobly/*.hpp`, `cpp/conformance/shapes.hpp`, `cpp/tests/generated/` (never committed) |
+| **Slice T** | `cpp/CMakeLists.txt`; `cpp/.gitignore`; `cpp/include/knobly/support/`; `cpp/include/knobly/detail/` except `detail/syntax/parser.gen.hpp`; `cpp/conformance/adapter.cpp`, `cpp/conformance/json.hpp`; `cpp/tests/compile/`, `cpp/tests/unit/` (new); `cpp/README.md` (new, optional in M1); `.github/workflows/ci.yml`; `tools/gen.sh`; `tools/check.sh`; `spec/binding-guide.md`; `spec/README.md`; `README.md` (root); `.claude/skills/knobly-binding/SKILL.md` |
 | skeleton (this commit, then the owners above) | every path in section 1.2 |
 
 Shared rules: no lane edits another lane's paths; a lane that needs a change there writes an erratum and asks the
@@ -68,21 +68,21 @@ orchestrator. `.claude/errata.md` is append-only for every lane. Generated files
 | `tools/gen.sh` | `cpp` case: `tools/parser/gen.py cpp` then `tools/gen-api.py cpp`; no Java |
 | `tools/check.sh` | check 8: `python3 tools/parser/gen.py --check` |
 | `cpp/CMakeLists.txt`, `cpp/.gitignore`, `cpp/.clang-format` | the INTERFACE target, regeneration at configure time, compiled mode, a compile-only check target and the adapter |
-| `cpp/include/villanelle/support/` | `config.hpp` (whole); `sequence.hpp`, `ordered_map.hpp`, `view.hpp`, `block.hpp`, `walk_view.hpp` (declarations) |
-| `cpp/include/villanelle/detail/` | `raise.hpp`, `text_in.hpp` (declarations); `<x>/definitions.hpp` for `shared io syntax written rendered files extensions` (empty entry points); `syntax/parse.hpp` (the hook class, declared) |
+| `cpp/include/knobly/support/` | `config.hpp` (whole); `sequence.hpp`, `ordered_map.hpp`, `view.hpp`, `block.hpp`, `walk_view.hpp` (declarations) |
+| `cpp/include/knobly/detail/` | `raise.hpp`, `text_in.hpp` (declarations); `<x>/definitions.hpp` for `shared io syntax written rendered files extensions` (empty entry points); `syntax/parse.hpp` (the hook class, declared) |
 | `cpp/conformance/adapter.cpp`, `json.hpp` | a `main` that compiles against the public headers and exits 1; the codec declared |
 | `cpp/tests/compile/` | `headers.cpp`, `support.cpp`, `parser_hooks.cpp` (explicit instantiation of the generated parser against the hooks), `implementation.cpp` (compiled mode) |
 
-Build of the skeleton (AppleClang 21): `cmake -S cpp -B /Volumes/Dock/tmp/vil-cpp-build/<dir>` then `cmake --build`,
-green for header-only, `-DVILLANELLE_COMPILED=ON` and `-DCMAKE_CXX_STANDARD=23`.
+Build of the skeleton (AppleClang 21): `cmake -S cpp -B /Volumes/Dock/tmp/kno-cpp-build/<dir>` then `cmake --build`,
+green for header-only, `-DKNOBLY_COMPILED=ON` and `-DCMAKE_CXX_STANDARD=23`.
 
 ## 2. The file map after milestone 1
 
 ```text
 cpp/
   CMakeLists.txt  .gitignore  .clang-format  README.md (optional)                       T, T, A, T
-  include/villanelle/
-    villanelle.hpp syntax.hpp written.hpp rendered.hpp files.hpp extensions.hpp         A, generated
+  include/knobly/
+    knobly.hpp syntax.hpp written.hpp rendered.hpp files.hpp extensions.hpp         A, generated
     kinds.hpp codes.hpp limits.hpp errors.hpp implementation.hpp                        A, generated
     support/config.hpp sequence.hpp ordered_map.hpp view.hpp block.hpp walk_view.hpp    T, hand
     detail/raise.hpp text_in.hpp                                                        T, hand
@@ -99,8 +99,8 @@ tools/planted-parser/*.g4                                                       
 tools/api/emit_cpp.py (+ loader hooks)                                                  A
 ```
 
-`<header>` is a public header's stem: `villanelle syntax written rendered files extensions`. Every header directly in
-`include/villanelle/` is generated, so `tools/gen-api.py` owns that folder (it removes a file it no longer writes);
+`<header>` is a public header's stem: `knobly syntax written rendered files extensions`. Every header directly in
+`include/knobly/` is generated, so `tools/gen-api.py` owns that folder (it removes a file it no longer writes);
 `support/` and `detail/` are hand-written but for `parser.gen.hpp`.
 
 ## 3. Lane P: the parser generator
@@ -108,14 +108,14 @@ tools/api/emit_cpp.py (+ loader hooks)                                          
 ### 3.1 Input and command line
 
 ```text
-python3 tools/parser/gen.py cpp       writes cpp/include/villanelle/detail/syntax/parser.gen.hpp; exit 0, 1 (refused or
+python3 tools/parser/gen.py cpp       writes cpp/include/knobly/detail/syntax/parser.gen.hpp; exit 0, 1 (refused or
                                       failed: one line on stderr naming the rule and line), 2 (usage)
 python3 tools/parser/gen.py --check   exit 0 and one stdout line, or 1 with the failure:
   "grammar accepted: lexer <n> states; <a> one-token choice points, <b> longer (<s> lookahead states);
-   <p> planted grammars refused; tree annotations agree with villanelle.ebnf"
+   <p> planted grammars refused; tree annotations agree with knobly.ebnf"
 ```
 
-- Input: `grammar/Villanelle.g4` only (after F19 the `.ebnf` is read by `--check` alone, for the comparison).
+- Input: `grammar/Knobly.g4` only (after F19 the `.ebnf` is read by `--check` alone, for the comparison).
 - Python 3.9+ standard library; the one exception is the formatter: the output goes through
   `tools/api/formatter.py` with `api.emit_cpp.LANGUAGE.formatter` (the clang-format pin's one home), as `gen.py`
   already does. `--check` does not format.
@@ -140,17 +140,17 @@ python3 tools/parser/gen.py --check   exit 0 and one stdout line, or 1 with the 
 ### 3.2 Output: the generated header's interface (frozen C++)
 
 ```cpp
-// cpp/include/villanelle/detail/syntax/parser.gen.hpp
-#ifndef VILLANELLE_DETAIL_SYNTAX_PARSER_GEN_HPP            // this guard, exactly
+// cpp/include/knobly/detail/syntax/parser.gen.hpp
+#ifndef KNOBLY_DETAIL_SYNTAX_PARSER_GEN_HPP            // this guard, exactly
 #include <cstddef> <cstdint> <string_view>                  // and nothing heavier
-#include <villanelle/kinds.hpp>                             // ::villanelle::token_kind, ::villanelle::node_kind (Lane A)
-#include <villanelle/support/config.hpp>
-VILLANELLE_NAMESPACE_BEGIN
+#include <knobly/kinds.hpp>                             // ::knobly::token_kind, ::knobly::node_kind (Lane A)
+#include <knobly/support/config.hpp>
+KNOBLY_NAMESPACE_BEGIN
 namespace syntax::detail {
 
 enum class tk : std::uint8_t { /* the 21 token kinds in grammar order */, end_of_text };
 inline constexpr std::size_t token_count = 21;
-static_assert(static_cast<int>(tk::WORD) == static_cast<int>(::villanelle::token_kind::WORD));   // one per token kind
+static_assert(static_cast<int>(tk::WORD) == static_cast<int>(::knobly::token_kind::WORD));   // one per token kind
 
 struct lex_match { int kind; std::size_t end; };            // kind: an index into tk, or -1 (no token starts here)
 
@@ -169,7 +169,7 @@ public:
                                                             // r_statementsText, ... (entry rules included)
 };
 }  // namespace syntax::detail
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 ```
 
 **Hooks `Derived` supplies** (Slice T, in `detail/syntax/parse.hpp`; the skeleton declares them):
@@ -180,7 +180,7 @@ VILLANELLE_NAMESPACE_END
 | `std::size_t pos() const noexcept` | the current token index |
 | `bool match(tk kind)` | consume a token of `kind` (`end_of_text` is matched, not consumed), or report at `pos()` and return false |
 | `bool fail(std::size_t at)` | report a syntax error at token index `at`; returns false |
-| `void open_node(::villanelle::node_kind)` | an annotated rule starts (called before its body) |
+| `void open_node(::knobly::node_kind)` | an annotated rule starts (called before its body) |
 | `void close_node()` | that rule's body (or its recovery) succeeded |
 | `void fail_node()` | that rule failed |
 | `bool recover_document()`, `recover_statements()`, `recover_block()` | spec 3.2 recovery, called when that rule's own body fails; its result is the rule's |
@@ -210,7 +210,7 @@ and 5 longer choice points, 57 lookahead states). Slice T, not Lane P, proves th
 | `type_case: Callable[[str], str] = pascal` | `Model.public` and `gen-api.py`'s `check_layers` spell type names with `pascal` (erratum C++ 2) | `snake` |
 | `member_spelling: Callable[[str, str], str]` (class, member) | F2: a member may not share its class's name, own or inherited; the loader checks inherited members | `member + "_"` when `snake(member) == snake(cls)` (`index_()`, `list_()`) |
 | `pattern_form: Callable[[str], str]` | the public name of a pattern's matcher | `is_<snake(constant)>` |
-| `trait_names` (exists) | the support templates are public names | `sequence`, `ordered_map`, `walk_view` in `villanelle` |
+| `trait_names` (exists) | the support templates are public names | `sequence`, `ordered_map`, `walk_view` in `knobly` |
 
 Then `cpp` joins `EMITTERS` (delete `TARGETS`: it equals `EMITTERS` again), `--check` renders it, `check_layers`
 checks the planted record by the language's type spelling, and `python3 tools/gen-api.py docs` gives every
@@ -221,9 +221,9 @@ regenerated tables.
 
 | File | Holds | Defined by |
 |---|---|---|
-| `villanelle.hpp` | includes `kinds codes limits errors`, `<villanelle/support/{config,sequence,ordered_map,view,block,walk_view}.hpp`; declares the shared and io layers in `namespace villanelle`; `is_program_code`; ends `#if VILLANELLE_HEADER_ONLY` including `detail/shared/definitions.hpp` and `detail/io/definitions.hpp` | generator (records, kinds, matchers whole); hand (`to_string` of records, io functions, `diagnostics`) |
-| `syntax.hpp`, `written.hpp`, `rendered.hpp` | includes `villanelle.hpp` and the headers of the layers it may import; declares the layer in `namespace villanelle::syntax` etc.; `written::is_variable_name` in `written.hpp`; ends including `detail/<layer>/definitions.hpp` | as above |
-| `files.hpp`, `extensions.hpp` | the adapter modules (`files`, `include`), namespaces `villanelle::files`, `villanelle::extensions` | hand (slice 2) |
+| `knobly.hpp` | includes `kinds codes limits errors`, `<knobly/support/{config,sequence,ordered_map,view,block,walk_view}.hpp`; declares the shared and io layers in `namespace knobly`; `is_program_code`; ends `#if KNOBLY_HEADER_ONLY` including `detail/shared/definitions.hpp` and `detail/io/definitions.hpp` | generator (records, kinds, matchers whole); hand (`to_string` of records, io functions, `diagnostics`) |
+| `syntax.hpp`, `written.hpp`, `rendered.hpp` | includes `knobly.hpp` and the headers of the layers it may import; declares the layer in `namespace knobly::syntax` etc.; `written::is_variable_name` in `written.hpp`; ends including `detail/<layer>/definitions.hpp` | as above |
+| `files.hpp`, `extensions.hpp` | the adapter modules (`files`, `include`), namespaces `knobly::files`, `knobly::extensions` | hand (slice 2) |
 | `kinds.hpp` | every kind list the binding keeps as `enum class <snake name> : std::uint8_t`, values `snake` (token kinds verbatim, in grammar order), and `std::string_view to_string(<kind>) noexcept` per list, all inline; includes only `<cstdint> <string_view>` and `support/config.hpp` (the generated parser includes it) | generator, whole |
 | `codes.hpp` | `enum class diagnostic_code : std::uint16_t { unterminated_string = 1001, ... }`, `to_string(diagnostic_code)` (`"E1001"`), the messages, `code_facts`, `describe` | generator, whole |
 | `limits.hpp` | `inline constexpr std::int64_t max_nesting = 100;` and every limit; the reserved names | generator, whole |
@@ -233,7 +233,7 @@ regenerated tables.
 | `cpp/tests/generated/api_contract_<header>.cpp` | one `int main()` per public header that odr-uses every hand-defined public function and member of that header (takes each address, calls each free function through a volatile function pointer), so a declaration without a definition fails to link | generator |
 | `cpp/tests/generated/layers_<header>.cpp` | defines the include guards of every header the header's layer may not import (from `may import`), then includes the header; a forbidden include leaves names undeclared and fails to compile | generator |
 
-Header rules: guard `VILLANELLE_<STEM>_HPP`; every type spelled fully qualified from `::villanelle`; Doxygen `///`
+Header rules: guard `KNOBLY_<STEM>_HPP`; every type spelled fully qualified from `::knobly`; Doxygen `///`
 comments from each concept's and member's `doc`, `@throws` from `errors`; layout from clang-format only.
 
 ### 4.3 The generated/hand split (frozen; design 1.3 and 1.4 give the type forms)
@@ -243,11 +243,11 @@ comments from each concept's and member's `doc`, `@throws` from `errors`; layout
   properties in Python's dataclass field order (inherited first, then own, in schema order; `match args` first when
   the schema gives them), a `const` accessor per property returning by value (`noexcept` for scalars), and
   `friend bool operator==(const T&, const T&) = default;`.
-- **Free functions and hand-defined members: declared with `VILLANELLE_API`** (inline in header-only mode, nothing in
-  compiled mode); the hand code defines them with `VILLANELLE_API` in `detail/`. A trailing optional parameter is an
+- **Free functions and hand-defined members: declared with `KNOBLY_API`** (inline in header-only mode, nothing in
+  compiled mode); the hand code defines them with `KNOBLY_API` in `detail/`. A trailing optional parameter is an
   overload without it.
-- **Handles and snapshots:** one private `::villanelle::detail::view view_;`, a private
-  `explicit T(::villanelle::detail::view) noexcept;` and `friend struct ::villanelle::detail::access;`. A union's
+- **Handles and snapshots:** one private `::knobly::detail::view view_;`, a private
+  `explicit T(::knobly::detail::view) noexcept;` and `friend struct ::knobly::detail::access;`. A union's
   view class has the shared members, `kind()`, `as<V>()` and `visit(f)`; each variant derives from it.
 - **People form:** `std::string to_string(const T&)` declared in the concept's namespace (ADL); the hand code defines
   it.
@@ -257,20 +257,20 @@ comments from each concept's and member's `doc`, `@throws` from `errors`; layout
 ### 4.4 Milestone 1 signatures the tracer rests on
 
 ```cpp
-namespace villanelle {
+namespace knobly {
 class source_position { public: source_position(std::int64_t offset, std::int64_t line, std::int64_t column);
     std::int64_t offset() const noexcept; std::int64_t line() const noexcept; std::int64_t column() const noexcept; };
 class source_span { public: source_span(source_position start, source_position end);
     source_position start() const noexcept; source_position end() const noexcept; };
 class diagnostic { public: diagnostic(diagnostic_code code, std::string message, source_span span);
     diagnostic_code code() const noexcept; std::string message() const; source_span span() const noexcept; };
-VILLANELLE_API std::string to_string(const diagnostic& d);         // hand: "4:5: E1001: unterminated string"
+KNOBLY_API std::string to_string(const diagnostic& d);         // hand: "4:5: E1001: unterminated string"
 constexpr std::string_view to_string(token_kind) noexcept;        // generated: "WORD"
 constexpr std::string_view to_string(node_kind) noexcept;         // generated: "directive"
 std::string to_string(diagnostic_code);                           // generated, inline: "E1001"
 class index_out_of_range : public std::out_of_range { public: explicit index_out_of_range(std::string message); };
 }
-namespace villanelle::syntax {
+namespace knobly::syntax {
 class token_range { public: token_range(std::int64_t start, std::int64_t end);
     std::int64_t start() const noexcept; std::int64_t end() const noexcept; };
 class token { public: token(token_kind kind, std::string text, source_span span);
@@ -279,9 +279,9 @@ class node : public token_range { public: node(std::int64_t start, std::int64_t 
     sequence<node> children); node_kind kind() const noexcept; sequence<node> children() const; };
 class syntax { public: syntax(sequence<token> tokens, node root, sequence<diagnostic> diagnostics);
     sequence<token> tokens() const; node root() const; sequence<diagnostic> diagnostics() const; };
-VILLANELLE_API syntax parse(std::string_view text);                                   // total; never throws (but bad_alloc)
-VILLANELLE_API source_span span_of(const syntax& syntax, const token_range& range);  // index_out_of_range
-VILLANELLE_API std::string text_of(const syntax& syntax, const token_range& range);  // index_out_of_range
+KNOBLY_API syntax parse(std::string_view text);                                   // total; never throws (but bad_alloc)
+KNOBLY_API source_span span_of(const syntax& syntax, const token_range& range);  // index_out_of_range
+KNOBLY_API std::string text_of(const syntax& syntax, const token_range& range);  // index_out_of_range
 }
 ```
 
@@ -301,12 +301,12 @@ by Slice T); `spec/codegen.md` section 4 gains the C++ table and the formatter r
 
 | File | Holds |
 |---|---|
-| `support/config.hpp` | as committed (`VILLANELLE_HEADER_ONLY`, `VILLANELLE_API`, `VILLANELLE_EXCEPTIONS`, `VILLANELLE_NAMESPACE_BEGIN/END` with `inline namespace v0`) |
+| `support/config.hpp` | as committed (`KNOBLY_HEADER_ONLY`, `KNOBLY_API`, `KNOBLY_EXCEPTIONS`, `KNOBLY_NAMESPACE_BEGIN/END` with `inline namespace v0`) |
 | `support/sequence.hpp` | defined whole: shared immutable storage, incomplete `T` allowed at declaration, random-access iterator yielding `T` by value, `std::ranges::random_access_range`, `at/front/back` raising `index_out_of_range` through `detail::raise` |
 | `support/ordered_map.hpp`, `view.hpp`, `block.hpp`, `walk_view.hpp` | stay declarations in M1 (slices 2 and 3 define them) |
-| `detail/raise.hpp` | `template <class E> [[noreturn]] void raise(const E&)`: throws with `VILLANELLE_EXCEPTIONS`, else writes `what()` to stderr and `std::abort()`; the only `throw` in the library |
+| `detail/raise.hpp` | `template <class E> [[noreturn]] void raise(const E&)`: throws with `KNOBLY_EXCEPTIONS`, else writes `what()` to stderr and `std::abort()`; the only `throw` in the library |
 | `detail/text_in.hpp` | `constexpr std::size_t decode_utf8(std::string_view, std::size_t at, char32_t& cp) noexcept`: the provisional rule of design 2.4 (WTF-8 surrogates decode; any other invalid byte does not) |
-| `detail/syntax/parse.hpp` | the token loop (`lex_longest` + `decode_utf8`; an undecodable byte or no match is one `BAD_CHAR`), `classify` (spec 2.4 codes, first match wins), per-statement recovery (spec 3.2), the tree hooks, the nesting guard (E2010, `max_nesting` from `limits.hpp`), messages from `codes.hpp`; ported from the probe without its `VILLANELLE_ANTLR_COMPAT` switch |
+| `detail/syntax/parse.hpp` | the token loop (`lex_longest` + `decode_utf8`; an undecodable byte or no match is one `BAD_CHAR`), `classify` (spec 2.4 codes, first match wins), per-statement recovery (spec 3.2), the tree hooks, the nesting guard (E2010, `max_nesting` from `limits.hpp`), messages from `codes.hpp`; ported from the probe without its `KNOBLY_ANTLR_COMPAT` switch |
 | `detail/syntax/definitions.hpp` | `parse`, `span_of`, `text_of` |
 | `detail/shared/definitions.hpp` (+ `people.hpp`) | `to_string(const diagnostic&)` and what else `api_contract_syntax` names from the shared layer |
 | `detail/io|written|rendered|files|extensions/definitions.hpp` | stay empty in M1 |
@@ -320,25 +320,25 @@ No `throw`, `try` or RTTI anywhere in `support/` or `detail/syntax/`; the syntax
 - `parse` answers the **syntax** dump of spec/conformance.md 4.2: tokens `[kind, text, start, end]`, nodes `[kind,
   start, end, children]`, diagnostics `{"id", "code", "message", "start", "end"}`, positions `[line, column, offset]`
   in bytes, ids unique for the process.
-- Any other op answers `{"id", "fault": "op not supported at level 0: <op>"}`; a `villanelle_error` or program-bug class
+- Any other op answers `{"id", "fault": "op not supported at level 0: <op>"}`; a `knobly_error` or program-bug class
   answers `thrown` through `shapes::error_group_of`.
 - `json.hpp`: the codec as declared (insertion-ordered objects; `\uD800` to WTF-8 bytes and back; output ASCII only).
 - Built with RTTI and exceptions (test code).
 
 ### 5.3 CMake (`cpp/CMakeLists.txt`)
 
-- Keep: CMake 3.24, `villanelle::villanelle` INTERFACE (include dir + `cxx_std_20`), `VILLANELLE_REGENERATE` (default ON
-  when `include/villanelle/villanelle.hpp` is absent; configure-time `bash tools/gen.sh cpp`; inputs as configure
-  dependencies), `VILLANELLE_COMPILED`, `VILLANELLE_BUILD_TESTS` (default `PROJECT_IS_TOP_LEVEL`).
+- Keep: CMake 3.24, `knobly::knobly` INTERFACE (include dir + `cxx_std_20`), `KNOBLY_REGENERATE` (default ON
+  when `include/knobly/knobly.hpp` is absent; configure-time `bash tools/gen.sh cpp`; inputs as configure
+  dependencies), `KNOBLY_COMPILED`, `KNOBLY_BUILD_TESTS` (default `PROJECT_IS_TOP_LEVEL`).
 - Add under tests: Catch2 v3 through `FetchContent` pinned by tag and URL hash (tests only), unit tests in
   `tests/unit/` registered with CTest (sequence, `decode_utf8`, `parse` on the F16 and F17 inputs giving spec 3.2's
-  answer, `span_of`/`text_of` raising `index_out_of_range`); `villanelle_contract_syntax` (links
+  answer, `span_of`/`text_of` raising `index_out_of_range`); `knobly_contract_syntax` (links
   `api_contract_syntax.cpp`); a compile-only target over `layers_*.cpp`; a compile-only target including
-  `<villanelle/syntax.hpp>` with `-fno-exceptions -fno-rtti` (and `/EHs-c- /GR-` on MSVC); in compiled mode the
+  `<knobly/syntax.hpp>` with `-fno-exceptions -fno-rtti` (and `/EHs-c- /GR-` on MSVC); in compiled mode the
   implementation file linked into the adapter, the unit tests and the contract; the conformance test
   `add_test(NAME conformance_l0 COMMAND Python3::Interpreter <repo>/conformance/driver/run.py --level 0 --
-  $<TARGET_FILE:villanelle_adapter>)`; `-Wall -Wextra -Werror` (GCC, Clang) and `/W4 /WX` (MSVC) on every test target;
-  an option `VILLANELLE_SANITIZE` adding `-fsanitize=address,undefined`.
+  $<TARGET_FILE:knobly_adapter>)`; `-Wall -Wextra -Werror` (GCC, Clang) and `/W4 /WX` (MSVC) on every test target;
+  an option `KNOBLY_SANITIZE` adding `-fsanitize=address,undefined`.
 
 ### 5.4 The CI leg (`.github/workflows/ci.yml`)
 
@@ -347,12 +347,12 @@ already does, `setup-uv` (clang-format comes through uv) and Python 3 on the run
 
 | Leg | Runner | Compiler | Mode |
 |---|---|---|---|
-| gcc | `ubuntu-24.04` | GCC 13 (apt, pinned version) | header-only, `VILLANELLE_SANITIZE=ON` |
+| gcc | `ubuntu-24.04` | GCC 13 (apt, pinned version) | header-only, `KNOBLY_SANITIZE=ON` |
 | clang | `ubuntu-24.04` | Clang 18 (apt, pinned version) | compiled mode, `-DCMAKE_CXX_STANDARD=23` |
 | appleclang | `macos-15` | AppleClang (Xcode pinned), `CMAKE_OSX_DEPLOYMENT_TARGET=13.3` | header-only |
 | msvc | `windows-2022` | MSVC 19.4x | header-only; only if it passes with no special casing in the build (Git Bash runs `tools/gen.sh`); otherwise left out and reported NOT RUN with the reason |
 
-Each leg: configure with `-DVILLANELLE_BUILD_TESTS=ON`, build, `ctest --output-on-failure` (unit tests, the contract,
+Each leg: configure with `-DKNOBLY_BUILD_TESTS=ON`, build, `ctest --output-on-failure` (unit tests, the contract,
 the shared driver's L0). The `release` job's `needs` gains `cpp`. One extra step on the gcc leg: clang-format
 `--dry-run --Werror` over the hand-written `cpp/` files, with the version from `tools/api/emit_cpp.py` (`CLANG_FORMAT`;
 the step reads it from there, never a second pin).
@@ -362,14 +362,14 @@ the step reads it from there, never a second pin).
 - `tools/gen.sh` and `tools/check.sh`: as committed (Slice T owns them from here; nothing more needed unless a lane's
   erratum asks).
 - `spec/binding-guide.md` step 3 and `spec/README.md`'s "Generate" step (F18): two routes to a parser, ANTLR 4.13.2
-  (TypeScript, Python) and villanelle's own generator (`tools/parser/gen.py`, C++), and the checks a generated parser
+  (TypeScript, Python) and knobly's own generator (`tools/parser/gen.py`, C++), and the checks a generated parser
   passes (the L0 corpus through the adapter; the generator accepts the grammar and refuses every planted grammar).
 - Root `README.md`: the C++ binding's line (header-only, CMake target, level 0 in milestone 1).
 
 **Done when (Slice T):** `ctest` green locally in header-only and compiled mode with ASan and UBSan; `python3
 conformance/driver/run.py -- <adapter>` reports 168 of 168 at L0 and the claimed level holds; the CI leg green on the
 pushed branch (CI is the full gate); `tools/check.sh`, TypeScript and Python checks green; the compile time of one file
-including `<villanelle/syntax.hpp>` (`-fsyntax-only -O2`) reported in the result, not gated.
+including `<knobly/syntax.hpp>` (`-fsyntax-only -O2`) reported in the result, not gated.
 
 ## 6. Behaviour changes
 
@@ -399,10 +399,10 @@ adapter (the skeleton adapter answers nothing); CI (no leg yet).
 
 | design.md | This page | Why |
 |---|---|---|
-| 1.4: `implementation.hpp` hand-written | generated | it lists every layer's headers and definitions, which is the schema's layer list: one home; and it leaves `include/villanelle/` all generated, so `gen-api.py` can own the folder |
+| 1.4: `implementation.hpp` hand-written | generated | it lists every layer's headers and definitions, which is the schema's layer list: one home; and it leaves `include/knobly/` all generated, so `gen-api.py` can own the folder |
 | 1.4: `patterns.hpp` | none; each matcher in its layer's header | `is_variable_name` is the written layer's; a shared `patterns.hpp` would break the layer check |
 | 1.4: `tests/api_contract.cpp`, `tests/layers.cpp` | one file per public header | the contract links only the layers implemented so far; a layer check needs one translation unit per header |
 | 1.4: definitions in `detail/<layer>/` with no named entry | `detail/<x>/definitions.hpp` per layer and module | one include point per generated header, for both modes |
-| 2.5 / slice 4: the versioned inline namespace | in milestone 1 (`VILLANELLE_NAMESPACE_BEGIN`) | adding it later touches every header; the macro costs nothing now |
+| 2.5 / slice 4: the versioned inline namespace | in milestone 1 (`KNOBLY_NAMESPACE_BEGIN`) | adding it later touches every header; the macro costs nothing now |
 | 1.5: the generator is standard library only | plus the pinned clang-format on its output | the owner's Q3 A covers every generated file |
 | 1.5: tree annotations from the `.ebnf` | from the `.g4` (F19), compared with the `.ebnf` | the `.g4` is the specification |

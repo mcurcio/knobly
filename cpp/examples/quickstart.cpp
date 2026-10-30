@@ -1,15 +1,15 @@
 // Sample "quickstart" (examples/samples.json): load a config, read a string, an integer and a boolean, and count the
 // problems. ctest examples_quickstart compares what it prints with examples/expected/quickstart.txt.
 // --8<-- [start:main]
-#include <villanelle/files.hpp>
-#include <villanelle/rendered.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/files.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/written.hpp>
 
 #include <iostream>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 int main() {
     // --8<-- [start:load]

@@ -1,8 +1,8 @@
 // The diagnostics collector (spec 7.7): add, report (a program's problem placed on a locatable) and collect (a
 // reader's diagnostic error recorded instead of ending the program), for a value-returning and a void read; the
 // people forms it prints with.
-#include <villanelle/villanelle.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/knobly.hpp>
+#include <knobly/written.hpp>
 
 #include <optional>
 #include <stdexcept>
@@ -13,8 +13,8 @@
 
 #include "written_fixture.hpp"
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
+namespace vl = knobly;
+namespace vw = knobly::written;
 
 namespace {
 

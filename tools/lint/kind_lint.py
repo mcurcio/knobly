@@ -1,4 +1,4 @@
-"""The kind lint for Python (bead vil-umh.11; owner, 2026-10-29, "Yes, generate both"; spec 2.10).
+"""The kind lint for Python (bead kno-umh.11; owner, 2026-10-29, "Yes, generate both"; spec 2.10).
 
 A ``.kind``, ``.reason`` or ``.code`` is compared with an enum member (``StatementKind.SET``), never a string literal:
 ``s.kind == "sett"`` passes ``mypy --strict`` against a StrEnum and is simply false, so the misspelling is never caught.

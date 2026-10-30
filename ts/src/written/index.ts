@@ -1,5 +1,5 @@
 /**
- * The low level's public API (spec 6; import path "villanelle/written"): the config as written, editable, saved back.
+ * The low level's public API (spec 6; import path "knobly/written"): the config as written, editable, saved back.
  * The rendered layer reaches the low level only through this module (spec 7.0; checked by ts/eslint.config.js). Its
  * types are generated (gen/api/written.ts).
  */
@@ -56,4 +56,4 @@ import * as processor from "./processor.js";
 
 // Each public function is typed by its generated signature, which carries the schema's doc.
 export const formatDiagnostic: WrittenFunctions["formatDiagnostic"] = format.formatDiagnostic;
-export const villanelle: WrittenFunctions["villanelle"] = processor.villanelle;
+export const knobly: WrittenFunctions["knobly"] = processor.knobly;

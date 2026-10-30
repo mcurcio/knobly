@@ -9,9 +9,9 @@ from typing import cast
 
 import pytest
 
-import villanelle as vl
-from villanelle import rendered, written
-from villanelle.include import include as include_extension
+import knobly as vl
+from knobly import rendered, written
+from knobly.include import include as include_extension
 
 
 def processor(files: Mapping[str, str], *, include: bool = False) -> written.Processor:
@@ -782,7 +782,7 @@ def test_diff_accepts_loads_with_diagnostics() -> None:
 
 
 def test_render_builds_on_the_graphs_public_members_only() -> None:
-    # vil-9fy (spec 7.0): render reads graph.expand() and graph.root.resolved_path, nothing private, so any object
+    # kno-9fy (spec 7.0): render reads graph.expand() and graph.root.resolved_path, nothing private, so any object
     # with those members renders the same tree.
     graph = processor({"main.conf": "@set $a 1;\nx $a { y; }\n"}).load("main.conf")
 

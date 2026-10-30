@@ -1,16 +1,16 @@
 // PLANTED (must be caught by the overlap check): a WORD that may start with '@', so '@set' is both a WORD and an
 // AT_WORD.
-// villanelle grammar, ported from villanelle.ebnf (draft 2 + rasl-trv: '*' and '?' in words;
+// knobly grammar, ported from knobly.ebnf (draft 2 + rasl-trv: '*' and '?' in words;
 // round 11: variables; milestone 4: ';' ends every statement, the text-only rules as entry rules;
 // milestone 5: raw single quotes, the '~' slice separator, subscripts on variables, '@' statements).
 // Whitespace is explicit: every token is on the default channel, nothing is skipped.
 // A line break is whitespace (owner, 2026-10-29, Q1: "';' is required and a line break is plain whitespace (nginx);
 // directive names cannot start with a digit or '-'").
-// Milestone 5 (owner, 2026-10-29, bead vil-umh.14): single quotes are raw strings (TOML literal strings: no escapes);
+// Milestone 5 (owner, 2026-10-29, bead kno-umh.14): single quotes are raw strings (TOML literal strings: no escapes);
 // a slice's separator is outside the word alphabet, so ':' is a word character everywhere ('..', the proposed
 // spelling, cannot lex next to number-like words, so it is '~': spec 3.1); a variable may be subscripted; a
 // statement written '@name' is a language or extension statement, never a directive.
-grammar Villanelle;
+grammar Knobly;
 
 document      : BOM? statements EOF ;
 statements    : filler* (directive filler*)* ;

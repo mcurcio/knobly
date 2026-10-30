@@ -9,9 +9,9 @@ from typing import Any
 from antlr4 import ParserRuleContext
 from antlr4.tree.Tree import ErrorNode, TerminalNode
 
-from villanelle._api.kinds import NodeKind
-from villanelle._api.syntax import Node
-from villanelle._gen.VillanelleParser import VillanelleParser
+from knobly._api.kinds import NodeKind
+from knobly._api.syntax import Node
+from knobly._gen.KnoblyParser import KnoblyParser
 
 # Grammar rule name -> concept node kind. Every other rule is transparent.
 _CONCEPTS: dict[str, NodeKind] = {
@@ -25,7 +25,7 @@ _CONCEPTS: dict[str, NodeKind] = {
 
 def _concept_by_rule() -> dict[int, NodeKind]:
     """Rule index -> concept kind; raises at import if the grammar lost a concept rule."""
-    rule_names: list[str] = list(VillanelleParser.ruleNames)
+    rule_names: list[str] = list(KnoblyParser.ruleNames)
     by_rule: dict[int, NodeKind] = {}
     for rule, kind in _CONCEPTS.items():
         if rule not in rule_names:

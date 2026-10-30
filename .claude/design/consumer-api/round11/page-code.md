@@ -1,10 +1,10 @@
-# Villanelle's low-level API, in rasl's own code
+# Knobly's low-level API, in rasl's own code
 
-**Status:** round 11 draft for the gate (vil-9vn) · **Layer:** **[ System design ]** › Module › Feature · the low level only (tokens and the directive layer); the sugar is deferred (vil-xlo)
+**Status:** round 11 draft for the gate (kno-9vn) · **Layer:** **[ System design ]** › Module › Feature · the low level only (tokens and the directive layer); the sugar is deferred (kno-xlo)
 
 **What you are asked:** does rasl's code below read like an API worth integrating against? Three questions, in §2, §3 and §5.
 
-You said on 2026-10-28: "it's not clear how practical these APIs are for a real integration." So four programs were written against the stubs: rasl's reader in TypeScript and in Python, a third party's proxy with zod or pydantic, and the round-10 sugar rebuilt on top. All pass the type checkers; none has run on villanelle, which has no parser for the new grammar yet (§8). What they ran into changed six things (§4).
+You said on 2026-10-28: "it's not clear how practical these APIs are for a real integration." So four programs were written against the stubs: rasl's reader in TypeScript and in Python, a third party's proxy with zod or pydantic, and the round-10 sugar rebuilt on top. All pass the type checkers; none has run on knobly, which has no parser for the new grammar yet (§8). What they ran into changed six things (§4).
 
 ---
 
@@ -48,7 +48,7 @@ export function readConfig(loaded: Loaded, types: NodeTypes): RaslConfig {
 }
 ```
 
-`need`, `collect` and `fileError` are rasl's own (`errors.ts`). Now `collect` ships in villanelle and `loaded.error(...)` replaces line 22's hand-built `fileError` (§4). rasl never sees `$pixels`, `use` or `include`: `max_count $pixels` arrives as `2284`.
+`need`, `collect` and `fileError` are rasl's own (`errors.ts`). Now `collect` ships in knobly and `loaded.error(...)` replaces line 22's hand-built `fileError` (§4). rasl never sees `$pixels`, `use` or `include`: `max_count $pixels` arrives as `2284`.
 
 ## 2. rasl reads its file: Python
 
@@ -168,7 +168,7 @@ Editing `set $pixels 2284;` to `2400` (worked by hand):
 
 > **Question: who names a directive among its siblings, so it keeps its identity when lines move?**
 >
-> | | **A. The program gives a key rule (recommended, shown)** | B. A fixed villanelle rule: a directive with a block is named by its values | C. Position only |
+> | | **A. The program gives a key rule (recommended, shown)** | B. A fixed knobly rule: a directive with a block is named by its values | C. Position only |
 > |---|---|---|---|
 > | Evidence | rasl and both sugars wrote one: rasl in TypeScript names nodes, connects and fills; the sugars build theirs from `@Key` / `key=True` | Would not name rasl's connects or fills | |
 > | Cost | Every program writes a rule (React's list `key` is the same idea) | Changing a node's type is "removed + added", never "changed" | Inserting one node marks every later node as changed |
@@ -177,7 +177,7 @@ Editing `set $pixels 2284;` to `2400` (worked by hand):
 
 ## 4. An error report, and what the programs changed
 
-The third party's probe, run with the real zod 4.1.12 against a hand-built stand-in for villanelle. Excerpt of `integrate-third-party/ts/evidence/probe.txt`, lines 2-11:
+The third party's probe, run with the real zod 4.1.12 against a hand-built stand-in for knobly. Excerpt of `integrate-third-party/ts/evidence/probe.txt`, lines 2-11:
 
 ```text
 == whole load, Proxy: value=undefined, 7 diagnostics
@@ -208,7 +208,7 @@ The bad `rate` points at `fast` in `use limits fast;`, then lists the variable a
 
 ## 5. The interfaces
 
-TypeScript shown; Python has the same names in Python spelling (`as_word()`, `vl.load(document, *, extensions, variables, key)`). Full stubs: `api-ts/index.d.ts`, `api-py/villanelle/__init__.pyi`.
+TypeScript shown; Python has the same names in Python spelling (`as_word()`, `vl.load(document, *, extensions, variables, key)`). Full stubs: `api-ts/index.d.ts`, `api-py/knobly/__init__.pyi`.
 
 ```ts
 interface Loaded {
@@ -256,16 +256,16 @@ interface Processor {
   diff(before: Loaded, after: Loaded): readonly Change[]; // throws if either load has problems
 }
 
-declare function villanelle(options?: { extensions?: Extension[]; key?: KeyRule }): Processor;
+declare function knobly(options?: { extensions?: Extension[]; key?: KeyRule }): Processor;
 declare function collect(into: Diagnostic[], read: () => void): void; // new
 ```
 
-> **Question: does the DirectiveDelegator (vil-stq) still ship?**
+> **Question: does the DirectiveDelegator (kno-stq) still ship?**
 >
 > | | **A. No: its job is split (recommended)** | B. Ship a walker that calls a handler per directive name |
 > |---|---|---|
 > | Evidence | rasl and the third party read with `if` or `match`; the sugar does its own per-directive calls on top of the walk | |
-> | Cost | vil-stq's acceptance text (hooks, typed `children`/`skip` results) is not met as written; it closes into the sugar (vil-xlo) | A third way to read a config; in Python it is subclass-based, the style you called "too class-inheritance driven" |
+> | Cost | kno-stq's acceptance text (hooks, typed `children`/`skip` results) is not met as written; it closes into the sugar (kno-xlo) | A third way to read a config; in Python it is subclass-based, the style you called "too class-inheritance driven" |
 
 ## 6. Design rules (design choices, not requirements)
 
@@ -284,7 +284,7 @@ declare function collect(into: Diagnostic[], read: () => void): void; // new
 | address | where a directive lands: a name, key and occurrence per level | identity in change lists | v15's "identity" |
 | key rule | the program's rule naming a directive among its siblings | addresses that survive moved lines | the sugar's `key=True` |
 | extension | owns one directive name and gives files to splice in its place | include as a first-party plugin (R20) | round 10's "plugin" |
-| plain value | a value read by villanelle's one rule | rasl's open property sets | R7's "one rule" |
+| plain value | a value read by knobly's one rule | rasl's open property sets | R7's "one rule" |
 
 ## 8. Line counts and NOT RUN
 
@@ -301,8 +301,8 @@ Non-blank, non-comment lines (Python docstrings counted, TypeScript doc comments
 | the stubs, with their own rasl examples | | tsc, pyright, mypy exit 0; 6 of 6 planted mistakes fail in each language |
 
 **NOT RUN**
-- No villanelle implementation exists, so no config was ever loaded. rasl's readers, reloads and the planted `family_room.bad.conf` never ran, and the reload table in §3 was worked out by hand.
-- The third-party probes and the Python sugar's run used hand-built stand-ins for villanelle. The TypeScript sugar never ran.
+- No knobly implementation exists, so no config was ever loaded. rasl's readers, reloads and the planted `family_room.bad.conf` never ran, and the reload table in §3 was worked out by hand.
+- The third-party probes and the Python sugar's run used hand-built stand-ins for knobly. The TypeScript sugar never ran.
 - "Valid v10 text" for rasl's two files was judged by reading them against the grammar, not by parsing them.
 - The integrations were changed only to keep compiling: `collect`, `vl.collecting` and `loaded.error` are used only by the stubs' own rasl examples.
 - No review of this revision; ruff, eslint, and other Python or TypeScript versions.

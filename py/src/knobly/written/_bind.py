@@ -16,11 +16,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Protocol, TypeAlias
 
-from villanelle import _values
-from villanelle._anatomy import Anatomy, anatomy_of, items_of, values_of
-from villanelle._api.codes import DiagnosticCode, describe
-from villanelle._api.errors import DiagnosticError
-from villanelle._api.kinds import (
+from knobly import _values
+from knobly._anatomy import Anatomy, anatomy_of, items_of, values_of
+from knobly._api.codes import DiagnosticCode, describe
+from knobly._api.errors import DiagnosticError
+from knobly._api.kinds import (
     NodeKind,
     StatementKind,
     StepKind,
@@ -29,16 +29,16 @@ from villanelle._api.kinds import (
     ValueKind,
     statement_of_keyword,
 )
-from villanelle._api.limits import MAX_DEPTH, MAX_DIRECTIVES
-from villanelle._api.shared import DirectiveOrigin, Origin, SourceSpan
-from villanelle._api.syntax import Node, Syntax, Token, TokenRange
-from villanelle._api.written import Copy, DocumentEdge, ExtensionUse, ReferenceResolution, Resolution
-from villanelle._origin import Override, Place, Step
-from villanelle._report import LocatedDiagnostic
-from villanelle._text import port_texts
-from villanelle.syntax._cst import ValueRef, span_of
-from villanelle.syntax._parse import parse_entry
-from villanelle.written._model import (
+from knobly._api.limits import MAX_DEPTH, MAX_DIRECTIVES
+from knobly._api.shared import DirectiveOrigin, Origin, SourceSpan
+from knobly._api.syntax import Node, Syntax, Token, TokenRange
+from knobly._api.written import Copy, DocumentEdge, ExtensionUse, ReferenceResolution, Resolution
+from knobly._origin import Override, Place, Step
+from knobly._report import LocatedDiagnostic
+from knobly._text import port_texts
+from knobly.syntax._cst import ValueRef, span_of
+from knobly.syntax._parse import parse_entry
+from knobly.written._model import (
     Document,
     Index,
     Reference,
@@ -50,8 +50,8 @@ from villanelle.written._model import (
     Variable,
     WrittenValue,
 )
-from villanelle.written._shape import shape_of_anatomy
-from villanelle.written._value import (
+from knobly.written._shape import shape_of_anatomy
+from knobly.written._value import (
     ExpandedIndex,
     ExpandedList,
     ExpandedSlice,
@@ -61,7 +61,7 @@ from villanelle.written._value import (
 )
 
 if TYPE_CHECKING:
-    from villanelle._api.written import Extension
+    from knobly._api.written import Extension
 
 
 def _names_a_slice(word: str) -> bool:

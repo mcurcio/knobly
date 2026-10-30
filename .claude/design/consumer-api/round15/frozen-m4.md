@@ -1,4 +1,4 @@
-# Milestone 4, frozen for the binding lanes (beads vil-umh.1 to vil-umh.8, vil-umh.12)
+# Milestone 4, frozen for the binding lanes (beads kno-umh.1 to kno-umh.8, kno-umh.12)
 
 This page is what the TypeScript lane (`ts/`) and the Python lane (`py/`) build in milestone 4. It is frozen: a lane
 that finds it wrong appends the finding to `.claude/errata.md` and does not diverge silently. The rules live in
@@ -15,8 +15,8 @@ The owner's answers of 2026-10-29 on the round 15 review page (`review.md` in th
 - Q3 (the schema as the source of every signature): "Yes ... start after the scoping and layer decisions". That is
   the next milestone. Nothing here starts the typed schema or new generation.
 
-Not in this milestone (each needs its own owner OK): config text as its own type (vil-umh.6), the typed schema and
-generation (vil-umh.9, .10), generated enumerations and reversing spec 2.10 (.11), the value-level set that keeps its
+Not in this milestone (each needs its own owner OK): config text as its own type (kno-umh.6), the typed schema and
+generation (kno-umh.9, .10), generated enumerations and reversing spec 2.10 (.11), the value-level set that keeps its
 handle (part of .12), per-layer namespaces (.13), raw single quotes, `plain`, the slice `:`, reserved words (.14).
 
 Everything else on this page is a design choice of this milestone (revisable), each with its prior art: the token
@@ -30,8 +30,8 @@ derived facts to one tree).
 
 | Path | What |
 |---|---|
-| `grammar/Villanelle.g4` | `directive : header (';' \| block)`; `NEWLINE` is a `gap`; no `lastDirective`; tokens `WORD`, `INTEGER`, `DIGIT_WORD`, `BAD_ESCAPE`; `bound : INTEGER \| VARIABLE`; entry rules `valuesText`, `itemsText`, `boundText`, `nameText` |
-| `grammar/villanelle.ebnf` | kept in step by hand (errata: derive or retire) |
+| `grammar/Knobly.g4` | `directive : header (';' \| block)`; `NEWLINE` is a `gap`; no `lastDirective`; tokens `WORD`, `INTEGER`, `DIGIT_WORD`, `BAD_ESCAPE`; `bound : INTEGER \| VARIABLE`; entry rules `valuesText`, `itemsText`, `boundText`, `nameText` |
+| `grammar/knobly.ebnf` | kept in step by hand (errata: derive or retire) |
 | `tools/g4bison.py`, `tools/planted/entry-gap.g4` | every entry rule is checked: one Bison start with a marker token per entry; a planted ambiguous entry rule proves it bites |
 | `tools/gen-api.py` | the retired-code check reads `code` from each retired record (it compared whole records before) |
 | `spec/expansion.md` (new) | the normative scoping and precedence rules (Q2) |
@@ -39,7 +39,7 @@ derived facts to one tree).
 | `spec/schema/diagnostics.json` | E1005 and E3007 added; E2008 and E4003 retired; E2001, E2007, E4001 meanings; render codes moved to the low level |
 | `spec/schema/api.json` | the concepts, kinds, layers, error groups, free functions and `removed in milestone 4` of this page |
 | `conformance/` | every source given its `;`; 152 syntax expected files; new syntax, load and written cases (each item's "Pinned by"); driver: written steps `saveTo` and `diff`, error tokens `MisuseError`, `LostUpdateError` |
-| `docs/`, `README.md`, `.claude/skills/villanelle-binding/SKILL.md` | the new rules; `docs/language.md` links to the spec instead of being the source |
+| `docs/`, `README.md`, `.claude/skills/knobly-binding/SKILL.md` | the new rules; `docs/language.md` links to the spec instead of being the source |
 
 `bash tools/check.sh` passes (0 conflicts for the document and the four entry rules; 20 token kinds, 0 overlapping;
 9 planted grammars caught; `gen-api.py --check`; the driver's self-test). `tools/gen.sh ts` and `tools/gen.sh py` run.
@@ -51,7 +51,7 @@ case except the 25 written cases of items C to F, which is the red set those lan
 
 ## 2. Per item
 
-### A. Statement ending (vil-umh.1; spec 3.1, 3.2; Q1)
+### A. Statement ending (kno-umh.1; spec 3.1, 3.2; Q1)
 
 - **Grammar entry rule the parser calls:** `document` (unchanged name). The CST concept table loses
   `lastDirective`: `document`, `directive`, `block`, `slicedWord`, `list`.
@@ -81,7 +81,7 @@ case except the 25 written cases of items C to F, which is the red set those lan
   `newline-is-space`, `brace-next-line`, `block-on-next-line`, `rec-brace-own-line`, `rec-brace-own-line-indent`,
   every `rec-*` case and the 152 re-derived expected files; load `load-wrapped-line`, `load-missing-semicolon`.
 
-### B. Expansion semantics (vil-umh.2; `spec/expansion.md`; Q2)
+### B. Expansion semantics (kno-umh.2; `spec/expansion.md`; Q2)
 
 - **No behaviour change.** Both bindings already follow the page: the six new load cases pass against TypeScript as
   built before this milestone and against Python. If a lane finds a difference, it follows `spec/expansion.md` and
@@ -95,7 +95,7 @@ case except the 25 written cases of items C to F, which is the red set those lan
   and for environments: `load-include-sees-includer`, `load-include-twice-same-block`, `load-snippet-sees-later-set`,
   `load-include-exports`, `load-snippet-exports-nothing`.
 
-### C. The text-only rules in the grammar (vil-umh.3; spec 2.8, 3.3, 6.3)
+### C. The text-only rules in the grammar (kno-umh.3; spec 2.8, 3.3, 6.3)
 
 - **Entry rules each binding calls** with the generated parser and the same recovery and classifier, reporting the
   first error only, placed in the given text (spec 2.8):
@@ -110,7 +110,7 @@ case except the 25 written cases of items C to F, which is the red set those lan
   | `set override`, each override `load` takes | `valuesText` | E2001 at a `$name`, at 0:0 for no value |
   | statements texts (`replace with text`, `insert ...`, `add statements`) | `document` | the text-alone rules |
 
-  TypeScript: the generated `VillanelleParser` has `valuesText()`, `itemsText()`, `boundText()`, `nameText()`
+  TypeScript: the generated `KnoblyParser` has `valuesText()`, `itemsText()`, `boundText()`, `nameText()`
   methods; Python the same names. Each parses a fresh token stream of the given text alone.
 - **Lexical:** a string escape other than the six is the `BAD_ESCAPE` token, E1005 (`bad escape`, layer syntax,
   found by parse, reason `syntax`); a literal bound that is not `INTEGER` is a syntax error E2007. E4001 stays for a
@@ -119,11 +119,11 @@ case except the 25 written cases of items C to F, which is the red set those lan
   `BAD_ESCAPE` now has the value `"E1005"`, and no code `E4003` exists.
 - **Delete** (once the grammar does the job): TypeScript `ts/src/written/document.ts` `valuesTextProblems`,
   `moreThanValues`, `boundTextProblems`, `shifted`, `LINE_TRIVIA` and the probe texts `x [` / `x ` with their
-  closers; Python `py/src/villanelle/written/_document.py` `values_text_problems`, `_line_break_problem`,
+  closers; Python `py/src/knobly/written/_document.py` `values_text_problems`, `_line_break_problem`,
   `_bound_text_problems`, `_shifted`, `_GAP`; Python `_bind.override_value_problem` and the bind-time escape check
   (`_values.has_only_known_escapes` raising E4003), with their TypeScript twins in `bind.ts` / `override.ts`; the
   override check's old step 4 (E4003 or E4001 from an override reader).
-- **Keep** `grammar/villanelle.ebnf` in step (this lane did; errata asks whether to derive or retire it).
+- **Keep** `grammar/knobly.ebnf` in step (this lane did; errata asks whether to derive or retire it).
 - **Pinned by:** syntax `edge-bad-escape`, `edge-bad-escape-single`, `edge-six-escapes`, `edge-integer-words`,
   `edge-word-bound`, `edge-float-bound`, `edge-digit-word-slice`, `tracer-word-bounds`; load `load-bad-escape`,
   `load-literal-bound`, `load-var-long-bound`; written `set-override-bad-bound`, `set-line-break`,
@@ -133,7 +133,7 @@ case except the 25 written cases of items C to F, which is the red set those lan
   `set-comment-line-break`, `set-comment-after-line-break`, `set-comment-after-syntax-error`,
   `bound-replace-non-integer`, `list-item-replace-trailing-comma`.
 
-### D. An unread include copy (vil-umh.4; spec 6.10, 7.0)
+### D. An unread include copy (kno-umh.4; spec 6.10, 7.0)
 
 - The expansion turns an extension copy whose edge is in `unread ()` into an `unreadable expansion` with `reason`
   `"unread"`, `origin` at the extension line's own tokens with the copy's `via`, `written` the extension line, and
@@ -143,7 +143,7 @@ case except the 25 written cases of items C to F, which is the red set those lan
 - **Pinned by:** written `render-unread-include` (render, edit the include's path, `diff` gives `unknown y`, render
   shows `["", "unread", "main.conf:0:0"]` and E3007, `list` shows E3007).
 
-### E. The lost update error (vil-umh.5; spec 2.8, 4.2, 4.3, 6.8; contract 4, 5)
+### E. The lost update error (kno-umh.5; spec 2.8, 4.2, 4.3, 6.8; contract 4, 5)
 
 - **Class:** `LostUpdateError extends SaveError` (TypeScript), `class LostUpdateError(SaveError)` (Python), field
   `paths` (only the conflicting files, batch order), no cause. Message: `lost update: changed since read: <paths
@@ -171,11 +171,11 @@ case except the 25 written cases of items C to F, which is the red set those lan
 - **Pinned by:** written `save-lost-update` (refused with `["main.conf"]`, nothing saved, then saved against the
   right text), `save-lost-update-paths` (two files changed, one conflicting: `paths` is `["b.conf"]`).
 
-### F. The error classes on the two sorts (vil-umh.7; spec 2.8; contract 4)
+### F. The error classes on the two sorts (kno-umh.7; spec 2.8; contract 4)
 
 ```text
 TypeScript                                   Python
-VillanelleError extends Error                VillanelleError(Exception)
+KnoblyError extends Error                KnoblyError(Exception)
   DiagnosticError    (diagnostic)              DiagnosticError    (diagnostic)
   ReadError          (paths, cause)            ReadError          (paths, __cause__)
   BadTextError       (diagnostics)             BadTextError       (diagnostics)   no longer a ValueError
@@ -199,7 +199,7 @@ RangeError (index out of range)              IndexError
   `rename-kind-refused` (now `MisuseError` for `set` and `a b`), `detached`; the class tree itself by each
   binding's tests (`errors` tests and the public-name check against `api.json` `error groups`).
 
-### G. The low level owns expansion (vil-umh.8; spec 2.9, 5, 6.3, 6.10, 7)
+### G. The low level owns expansion (kno-umh.8; spec 2.9, 5, 6.3, 6.10, 7)
 
 - **One value family.** The expanded value and its five variants carry the links:
 
@@ -229,26 +229,26 @@ RangeError (index out of range)              IndexError
 - **One diagnostics list:** `graph.diagnostics` is every syntax diagnostic then every problem the binding finds, in
   walk order, render codes included; `expansion.diagnostics` and `rendered.diagnostics` are the same list. Delete
   TypeScript `RENDER_CODES` and its filter (`ts/src/written/graph.ts`), Python `_RENDER_CODES` and its filter
-  (`py/src/villanelle/written/_graph.py`).
+  (`py/src/knobly/written/_graph.py`).
 - **The extension port and the expanded values move into the written layer:** TypeScript `IExtension`,
   `IExtensionUse` (now `ts/src/extension.ts`) and the expanded value types and records (now `ts/src/value.ts`) move
   under `ts/src/written/` and are exported from `ts/src/written/index.ts`; `include()` moves under it too (the
-  `villanelle/include` package entry stays). Python `Extension`, `ExtensionUse` (now `villanelle.extension`) and
-  `ExpandedWord` ... `ExpandedIndex`, `SliceValue`, `IndexValue`, `PlainValue` (now `villanelle.value`) move into
-  `villanelle.written` and its `__all__`; `villanelle.include` stays a module. Both package roots keep re-exporting
+  `knobly/include` package entry stays). Python `Extension`, `ExtensionUse` (now `knobly.extension`) and
+  `ExpandedWord` ... `ExpandedIndex`, `SliceValue`, `IndexValue`, `PlainValue` (now `knobly.value`) move into
+  `knobly.written` and its `__all__`; `knobly.include` stays a module. Both package roots keep re-exporting
   every public name. The shared layer keeps positions, places, origins, diagnostics and the sink, the error classes
   and the kinds. The layer rule is unchanged: nothing below the rendered layer imports it.
 - **Delete:** TypeScript `IArgumentLinks`, `IWordArgument`, `IStringArgument`, `IListArgument`, `ISliceArgument`,
   `IIndexArgument`, `Argument`, `IUnreadable` (`ts/src/rendered/model.ts`), `IValueExpansion`
   (`ts/src/written/model.ts`); Python `_Links`, `WordArgument`, `StringArgument`, `ListArgument`, `SliceArgument`,
-  `IndexArgument`, `Unreadable` (`py/src/villanelle/rendered/_tree.py`), `ValueExpansion`; and their exports.
+  `IndexArgument`, `Unreadable` (`py/src/knobly/rendered/_tree.py`), `ValueExpansion`; and their exports.
 - **Conformance adapter:** the `argument` dump is now the `expanded value` dump (same members); `read`'s `value` is
   an expanded value's id.
 - **Pinned by:** written `graph-diagnostics-unknown-variable` (`x $nope;` lists E5001 at the low level),
   `declaration-free-and-bound`; every render case (they read the expanded values); the renames by each binding's
   public-name test against `api.json`.
 
-### H. Python correctness (vil-umh.12, less the value-level set; spec 2.8, 2.9, 4.1, 5)
+### H. Python correctness (kno-umh.12, less the value-level set; spec 2.8, 2.9, 4.1, 5)
 
 - `Extension.specs(use) -> tuple[str, ...]` and `DocumentSource.resolve(spec, context) -> tuple[str, ...]`
   (Protocols); `read(...) -> str`. At run time the binding refuses a result that is a `str` (or not a sequence of
@@ -297,8 +297,8 @@ RangeError (index out of range)              IndexError
 | `IDirectiveExpansion.statement`, `IUnreadableExpansion.statement` | `.written` | both |
 | `DirectiveExpansion.__match_args__` `("statement", "values", "block")`; `UnreadableExpansion` `("statement", "reason")` | `("written", "values", "block")`; `("reason", "written")` | Python |
 | `EditError` | removed | both |
-| `BadTextError extends EditError` (Python also `ValueError`) | `BadTextError extends VillanelleError` (not a `ValueError`) | both |
-| `DetachedError extends VillanelleError` | `DetachedError extends ReferenceError`, outside `VillanelleError` | both |
+| `BadTextError extends EditError` (Python also `ValueError`) | `BadTextError extends KnoblyError` (not a `ValueError`) | both |
+| `DetachedError extends KnoblyError` | `DetachedError extends ReferenceError`, outside `KnoblyError` | both |
 | misuse raised as `TypeError` | `MisuseError extends Error` (new export) | TypeScript |
 | a bad name in a `rename` as `BadTextError` E2001 | misuse error (`MisuseError` / `ValueError`) | both |
 | a lost update as `Error` / `RuntimeError` / `OSError` inside `SaveError` | `LostUpdateError extends SaveError` (new export), `paths` the conflicting files only | both |
@@ -306,7 +306,7 @@ RangeError (index out of range)              IndexError
 | `DiagnosticCode.BraceOnOwnLine` / `BRACE_ON_OWN_LINE` (E2008) | removed | both |
 | `DiagnosticCode.BadEscape` / `BAD_ESCAPE` = `"E4003"` | = `"E1005"` | both |
 | (none) | `DiagnosticCode.UnreadCopy` / `UNREAD_COPY` = `"E3007"`; `UnreadableReason` `"unread"`; `TokenKind` `INTEGER`, `DIGIT_WORD`, `BAD_ESCAPE` | both |
-| `villanelle.extension` (`Extension`, `ExtensionUse`), `villanelle.value` (expanded values) | `villanelle.written` (root re-exports kept) | Python |
+| `knobly.extension` (`Extension`, `ExtensionUse`), `knobly.value` (expanded values) | `knobly.written` (root re-exports kept) | Python |
 | `ts/src/extension.ts`, `ts/src/value.ts` (internal paths) | under `ts/src/written/` (package entries unchanged) | TypeScript |
 | `Extension.specs -> Sequence[str]`, `DocumentSource.resolve -> Sequence[str]` | `-> tuple[str, ...]`, a bare `str` refused at run time | Python |
 | expanded values compared by identity | `==` and `hash` by `text` | Python |

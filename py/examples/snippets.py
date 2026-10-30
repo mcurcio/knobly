@@ -2,8 +2,8 @@
 # user guide includes the region between the --8<-- markers; py/tests/test_examples.py runs this file and compares
 # what it prints with examples/expected/snippets.txt.
 # --8<-- [start:main]
-import villanelle as vl
-from villanelle import rendered, written
+import knobly as vl
+from knobly import rendered, written
 
 files = {
     "main.conf": (

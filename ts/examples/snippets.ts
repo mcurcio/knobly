@@ -2,9 +2,9 @@
 // and which use brought it. ts/examples/examples.test.ts runs this file and compares what it prints with
 // examples/expected/snippets.txt.
 // --8<-- [start:main]
-import { memorySource } from "villanelle";
-import { villanelle } from "villanelle/written";
-import { render } from "villanelle/rendered";
+import { memorySource } from "knobly";
+import { knobly } from "knobly/written";
+import { render } from "knobly/rendered";
 
 const main = [
   "@snippet twinkle $source {",
@@ -16,7 +16,7 @@ const main = [
   "node TwinkleEffect white_twinkle { @use twinkle white_150; }",
   "",
 ].join("\n");
-const tree = render(await villanelle({ source: memorySource({ "main.conf": main }) }).load("main.conf"));
+const tree = render(await knobly({ source: memorySource({ "main.conf": main }) }).load("main.conf"));
 
 for (const node of tree.block.directives("node")) {
   for (const directive of node.block ?? []) {

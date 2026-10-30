@@ -1,17 +1,17 @@
 // Sample "include_read" (examples/samples.json): an include line added by an edit is not read until read() is
 // called. ctest examples_include_read compares what it prints with examples/expected/include_read.txt.
 // --8<-- [start:main]
-#include <villanelle/extensions.hpp>
-#include <villanelle/rendered.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/extensions.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/written.hpp>
 
 #include <iostream>
 #include <memory>
 #include <string>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 int main() {
     const auto files = std::make_shared<vl::ordered_map<std::string, std::string>>();

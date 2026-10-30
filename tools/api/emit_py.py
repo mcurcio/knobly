@@ -1,11 +1,11 @@
 """The Python emitter (spec/codegen.md section 4): renders the loader's model as Python modules.
 
-    py/src/villanelle/_api/kinds.py      every kind list as a StrEnum; Keyword and its dispatch table
-    py/src/villanelle/_api/codes.py      DiagnosticCode, MESSAGES, CODE_FACTS and describe()
-    py/src/villanelle/_api/limits.py     the rules: limits, reserved words, patterns
-    py/src/villanelle/_api/errors.py     the error class tree and argument_type_message()
-    py/src/villanelle/_api/record.py     SlottedRecord, the base of every generated record (copy and pickle)
-    py/src/villanelle/_api/<layer>.py    a Protocol per handle, port and interface, a frozen dataclass per plain
+    py/src/knobly/_api/kinds.py      every kind list as a StrEnum; Keyword and its dispatch table
+    py/src/knobly/_api/codes.py      DiagnosticCode, MESSAGES, CODE_FACTS and describe()
+    py/src/knobly/_api/limits.py     the rules: limits, reserved words, patterns
+    py/src/knobly/_api/errors.py     the error class tree and argument_type_message()
+    py/src/knobly/_api/record.py     SlottedRecord, the base of every generated record (copy and pickle)
+    py/src/knobly/_api/<layer>.py    a Protocol per handle, port and interface, a frozen dataclass per plain
                                          record, callback aliases, and union aliases over generated records: one module
                                          per layer api.json lists
     py/conformance/shapes.py             the adapter protocol's message TypedDicts, the spec-name spellings and each
@@ -16,10 +16,10 @@
                                          the assignments that make mypy check the binding against all of them
 
 The public types and the generated types are one (spec/codegen.md section 4): every annotation that names a concept the
-binding implements by hand names the binding's public class (``villanelle.rendered.Directive``), imported for the type
+binding implements by hand names the binding's public class (``knobly.rendered.Directive``), imported for the type
 checker only; a concept the generator writes whole (a record, a callback or named type, a union of records) is named by
 its generated class, which the binding re-exports. So a program annotating with the public classes type-checks against
-every generated record, callback and Protocol, and nothing outside the package imports ``villanelle._api``.
+every generated record, callback and Protocol, and nothing outside the package imports ``knobly._api``.
 
 Idiom lives here and only here: properties, tuples for results, Sequence and Mapping for parameters, positional-only
 parameters, keyword-only options, __str__ / __iter__ / __len__ / __getitem__ / a generator walk / a context manager for
@@ -103,14 +103,14 @@ LANGUAGE = Language(
     extends_word="subclass of",
     cause_field="__cause__",
     error_roots={
-        "villanelle error": {"base": "Exception"},
+        "knobly error": {"base": "Exception"},
         "detached error": {"base": "ReferenceError"},
         "argument type error": {"builtin": "TypeError"},
         "misuse error": {"builtin": "ValueError"},
         "index out of range": {"builtin": "IndexError"},
     },
-    argument_type_message=("{member}() argument '{parameter}' must be str, not {got}; villanelle edits take config text: "
-                           "quote() a program string, text() one already written as villanelle text, str() a number "
+    argument_type_message=("{member}() argument '{parameter}' must be str, not {got}; knobly edits take config text: "
+                           "quote() a program string, text() one already written as knobly text, str() a number "
                            "first"),  # {got}: type(value).__name__
     modules={"files": "files", "include": "include"},  # no fetch adapter
     omit=_omit,
@@ -214,7 +214,7 @@ class Imports:
     def __init__(self) -> None:
         self.runtime: Dict[str, Set[str]] = {}
         self.typing_only: Dict[str, Set[str]] = {}
-        self.modules: Set[str] = set()  # `import villanelle.rendered`, for the type checker only
+        self.modules: Set[str] = set()  # `import knobly.rendered`, for the type checker only
 
     def module(self, module: str) -> str:
         self.modules.add(module)
@@ -262,25 +262,25 @@ class Ctx:
     def ref(self, name: str, runtime: bool = False) -> str:
         """A name as this module writes it. ``runtime``: evaluated when the module runs (a base class), so it must be
         the generated class itself; otherwise an annotation, where a concept the binding implements by hand is its
-        public class (``villanelle.rendered.Directive``), imported for the type checker only."""
+        public class (``knobly.rendered.Directive``), imported for the type checker only."""
         m = self.model
         if name in self.type_params:
             return self.type_params[name]
         if name in m.kind:
             if self.public:
                 return self.qualified(m.module(m.kind[name].layer, "."), pascal(name))
-            return self.imports.add("villanelle._api.kinds", pascal(name), runtime)
+            return self.imports.add("knobly._api.kinds", pascal(name), runtime)
         if name == "diagnostic code":
             if self.public:
                 return self.qualified(m.package, "DiagnosticCode")
-            return self.imports.add("villanelle._api.codes", "DiagnosticCode", runtime)
+            return self.imports.add("knobly._api.codes", "DiagnosticCode", runtime)
         if name in m.group:
             g = m.group[name]
             if g.builtin("py"):
                 return g.builtin("py") or ""
             if self.public:
                 return self.qualified(m.package, pascal(name))
-            return self.imports.add("villanelle._api.errors", pascal(name), runtime)
+            return self.imports.add("knobly._api.errors", pascal(name), runtime)
         c = m.concept[name]
         if c.is_ == "native":
             raise SchemaError(f"native type {name!r}: Python has none (leave its module out of LANGUAGE.modules, or omit it)")
@@ -288,7 +288,7 @@ class Ctx:
             return self.qualified(m.concept_module(c, "py"), pascal(name))
         if c.layer == self.here and self.here != "errors":
             return pascal(name)
-        return self.imports.add(f"villanelle._api.{c.layer}", pascal(name), runtime)
+        return self.imports.add(f"knobly._api.{c.layer}", pascal(name), runtime)
 
     def abc(self, name: str) -> str:
         return self.imports.add("collections.abc", name, False)
@@ -417,7 +417,7 @@ def record_lines(model: Model, c: Concept, ctx: Ctx, tvs: Dict[str, str]) -> Lis
         base = ctx.ref(c.extends.name, runtime=True)
         bases.append(f"{base}[{args}]" if args else base)
     else:
-        bases.append(ctx.imports.add("villanelle._api.record", "SlottedRecord"))
+        bases.append(ctx.imports.add("knobly._api.record", "SlottedRecord"))
     if tvs:
         bases.append(f"{ctx.imports.add('typing', 'Generic')}[{', '.join(tvs.values())}]")
     own = [m for m in c.members]
@@ -636,7 +636,7 @@ def layer_module(model: Model, layer: str) -> str:
 
 
 def kinds_module(model: Model) -> str:
-    blocks = [f'"""{HEADER}\n\nSource: spec/schema/api.json "kinds" and "keywords" (token kind: grammar/Villanelle.g4)."""\n\n'
+    blocks = [f'"""{HEADER}\n\nSource: spec/schema/api.json "kinds" and "keywords" (token kind: grammar/Knobly.g4)."""\n\n'
               "from collections.abc import Mapping\nfrom enum import StrEnum\nfrom types import MappingProxyType\nfrom typing import Final"]
     for k in model.kinds:
         if "py" not in k.languages:
@@ -686,13 +686,13 @@ def codes_module(model: Model) -> str:
         facts.append(f"        DiagnosticCode.{upper_snake(c.name)}: CodeFacts({s(c.name)}, {s(c.layer)}, {found}, {reason}),")
     head = [f'"""{HEADER}', "", 'Source: spec/schema/diagnostics.json."""', "", "from collections.abc import Mapping",
             "from dataclasses import dataclass", "from enum import StrEnum", "from types import MappingProxyType",
-            "from typing import Final", "", "from villanelle._api.kinds import UnreadableReason"]
+            "from typing import Final", "", "from knobly._api.kinds import UnreadableReason"]
     if imports:
-        head.append(f"from villanelle._api.limits import {', '.join(sorted(imports))}")
+        head.append(f"from knobly._api.limits import {', '.join(sorted(imports))}")
     return "\n".join([
         *head, "", "",
         "class DiagnosticCode(StrEnum):",
-        '    """villanelle\'s diagnostic codes, by name."""', "",
+        '    """knobly\'s diagnostic codes, by name."""', "",
         *members, "", "",
         "MESSAGES: Final[Mapping[DiagnosticCode, str]] = MappingProxyType(", "    {", *messages, "    }", ")",
         '"""The base message of each code (for people, not part of the contract)."""', "", "",

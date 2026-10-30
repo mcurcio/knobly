@@ -1,5 +1,5 @@
 /**
- * The syntax layer's public API (spec 3; import path "villanelle/syntax"): `parse` and the lossless syntax tree of one
+ * The syntax layer's public API (spec 3; import path "knobly/syntax"): `parse` and the lossless syntax tree of one
  * text. Read-only, one text at a time, no I/O. Its types are generated (gen/api/syntax.ts).
  */
 

@@ -1,13 +1,13 @@
 """The lossless concrete syntax tree: concept nodes over token ranges (design/RECORD.md, "The CST"). ``Token``,
-``TokenRange``, ``Node`` and ``Syntax`` are generated records (``villanelle._api.syntax``): a node is a token range
+``TokenRange``, ``Node`` and ``Syntax`` are generated records (``knobly._api.syntax``): a node is a token range
 whose children are in source order, non-overlapping, inside [start, end), and a ``slice`` node spans ``name[bounds]``
 exactly; ``parse`` returns every token (contiguous, in source order, never empty, their texts concatenated equal to the
 input), a ``document`` root over [0, len(tokens)) and what went wrong."""
 
 from __future__ import annotations
 
-from villanelle._api.shared import SourcePosition, SourceSpan
-from villanelle._api.syntax import Node, Syntax, TokenRange
+from knobly._api.shared import SourcePosition, SourceSpan
+from knobly._api.syntax import Node, Syntax, TokenRange
 
 ValueRef = int | Node
 """Private to the package (not exported, round 15). The index of a WORD, INTEGER, DIGIT_WORD, STRING or VARIABLE

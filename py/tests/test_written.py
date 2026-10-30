@@ -10,9 +10,9 @@ from typing import assert_never
 import pytest
 from conftest import REPO
 
-import villanelle as vl
-from villanelle import rendered, syntax, written
-from villanelle.include import include
+import knobly as vl
+from knobly import rendered, syntax, written
+from knobly.include import include
 
 
 def load(files: Mapping[str, str], overrides: Mapping[str, vl.ConfigText] | None = None) -> written.DocumentGraph:
@@ -135,7 +135,7 @@ ABSENT: dict[type, tuple[str, ...]] = {
     written.Reference: ("items", "start", "end", "index"),
 }
 """frozen-m2.md section 2: the members each variant does not have (a call is an AttributeError, like any missing
-attribute; nothing raises a villanelle error for it)."""
+attribute; nothing raises a knobly error for it)."""
 
 
 @pytest.mark.parametrize("cls", list(ABSENT), ids=lambda cls: cls.__name__)
@@ -236,7 +236,7 @@ def test_match_narrows_every_kind_and_a_block_is_a_sequence_of_the_same_handles(
 
 
 def test_no_scope_class_or_lookup_outside_the_binding() -> None:
-    package = REPO / "py" / "src" / "villanelle"
+    package = REPO / "py" / "src" / "knobly"
     offenders = [
         str(path.relative_to(package))
         for path in package.rglob("*.py")
@@ -312,7 +312,7 @@ def test_the_readme_example_sets_values_from_program_data_as_text() -> None:
     assert graph.root.text == 'host "10.0.60.31";\nport 8080;\n'
 
 
-def test_quote_writes_a_plain_string_as_the_canonical_villanelle_string() -> None:
+def test_quote_writes_a_plain_string_as_the_canonical_knobly_string() -> None:
     assert vl.quote('10.0.60.31 "x"\n') == '"10.0.60.31 \\"x\\"\\n"'
 
 
@@ -475,7 +475,7 @@ def test_every_edit_that_takes_text_raises_type_error_for_anything_else_and_chan
             got = type(value).__name__
             assert str(raised.value) == (
                 f"{member}() argument '{parameter}' must be str, not {got}; "
-                "villanelle edits take config text: quote() a program string, text() one already written as villanelle "
+                "knobly edits take config text: quote() a program string, text() one already written as knobly "
                 "text, str() a number first"
             )
     assert graph.root.text == "@set $a 1;\nx 1 { y; }\n@use s 1;\n"
@@ -506,7 +506,7 @@ def test_a_detached_handle_raises_detached_error_before_the_type_check() -> None
         x.set(2400)  # type: ignore[arg-type]
 
 
-# --- a line break in a values text is whitespace (vil-umh.1) ---
+# --- a line break in a values text is whitespace (kno-umh.1) ---
 
 
 def test_set_writes_a_values_text_with_a_line_break_as_one_statement() -> None:
@@ -528,13 +528,13 @@ def test_an_override_with_a_line_break_is_two_values() -> None:
 @pytest.mark.parametrize(
     ("cls", "bases"),
     [
-        (vl.DiagnosticError, (vl.VillanelleError,)),
-        (vl.ReadError, (vl.VillanelleError,)),
-        (vl.BadTextError, (vl.VillanelleError,)),
-        (vl.SaveError, (vl.VillanelleError,)),
+        (vl.DiagnosticError, (vl.KnoblyError,)),
+        (vl.ReadError, (vl.KnoblyError,)),
+        (vl.BadTextError, (vl.KnoblyError,)),
+        (vl.SaveError, (vl.KnoblyError,)),
         (vl.LostUpdateError, (vl.SaveError,)),
         (vl.DetachedError, (ReferenceError,)),
-        (vl.VillanelleError, (Exception,)),
+        (vl.KnoblyError, (Exception,)),
     ],
 )
 def test_the_error_classes_sit_on_the_two_sorts_as_the_contract_draws_the_tree(
@@ -543,8 +543,8 @@ def test_the_error_classes_sit_on_the_two_sorts_as_the_contract_draws_the_tree(
     assert cls.__bases__ == bases
 
 
-def test_villanelle_error_catches_every_expected_outcome_and_no_program_bug() -> None:
-    assert not issubclass(vl.DetachedError, vl.VillanelleError)
+def test_knobly_error_catches_every_expected_outcome_and_no_program_bug() -> None:
+    assert not issubclass(vl.DetachedError, vl.KnoblyError)
     assert not issubclass(vl.BadTextError, ValueError)
     assert not hasattr(vl, "EditError")
 
@@ -556,7 +556,7 @@ def test_a_detached_error_is_a_program_bug_and_reading_a_property_raises_it() ->
     with pytest.raises(vl.DetachedError) as raised:
         _ = x.name
     assert isinstance(raised.value, ReferenceError)
-    assert not isinstance(raised.value, vl.VillanelleError | ValueError)
+    assert not isinstance(raised.value, vl.KnoblyError | ValueError)
     assert x.kind is written.StatementKind.DIRECTIVE
 
 
@@ -569,7 +569,7 @@ def test_a_bad_text_errors_message_is_built_from_its_diagnostics() -> None:
     assert d.message == 'unexpected token: ";"'
 
 
-# --- every bad name is a misuse error, through one check per kind of name (vil-umh.7) ---
+# --- every bad name is a misuse error, through one check per kind of name (kno-umh.7) ---
 
 
 @pytest.mark.parametrize("name", ["a-b", "", "$a", "a b"])
@@ -595,7 +595,7 @@ def test_every_bad_directive_name_is_a_value_error(name: str) -> None:
     graph = load({"main.conf": "rate 20;\n"})
     with pytest.raises(ValueError) as raised:
         directive(graph.root.block[0]).rename(name)
-    assert not isinstance(raised.value, vl.VillanelleError)
+    assert not isinstance(raised.value, vl.KnoblyError)
     assert graph.root.text == "rate 20;\n"
 
 
@@ -803,7 +803,7 @@ def test_a_diagnostic_prints_its_people_form() -> None:
     assert str(d) == f"1:3: E2004: {d.message}"
 
 
-# --- a written value's set keeps its handle (milestone 5, vil-umh.12; spec 6.1) ---
+# --- a written value's set keeps its handle (milestone 5, kno-umh.12; spec 6.1) ---
 
 
 def test_a_value_set_keeps_the_handle_and_reassigns_its_class_to_the_new_kind() -> None:
@@ -882,7 +882,7 @@ def test_a_slice_name_is_a_written_value_and_a_variable_reference() -> None:
     assert x.values[0] is sliced  # the slice keeps its start; its name is reached as slice.name
 
 
-# --- config text, its own type (milestone 5, vil-umh.6; spec 6.9) ---
+# --- config text, its own type (milestone 5, kno-umh.6; spec 6.9) ---
 
 
 def test_config_text_is_made_by_quote_or_text_and_a_plain_str_is_a_type_error() -> None:
@@ -894,7 +894,7 @@ def test_config_text_is_made_by_quote_or_text_and_a_plain_str_is_a_type_error() 
     port.set(vl.quote("h"))
     assert graph.root.text == 'port "h";\n'
     assert vl.text("1 2") == "1 2" and vl.quote('a"b') == '"a\\"b"'
-    with pytest.raises(TypeError, match=r"^text\(\) argument 'raw' must be str, not int; villanelle edits take config"):
+    with pytest.raises(TypeError, match=r"^text\(\) argument 'raw' must be str, not int; knobly edits take config"):
         vl.text(1)  # type: ignore[arg-type]
 
 

@@ -1,7 +1,7 @@
 # Round 12 handoff: the low-level layer (PR #4)
 
-PR: https://github.com/mcurcio/villanelle/pull/4 (branch `feat/low-level-layer`, into `main`).
-Bead: `vil-e4x` (children `.1`, `.2`, `.3` closed; S4 is `vil-e4x.4`, closed). Written 2026-10-28 at
+PR: https://github.com/mcurcio/knobly/pull/4 (branch `feat/low-level-layer`, into `main`).
+Bead: `kno-e4x` (children `.1`, `.2`, `.3` closed; S4 is `kno-e4x.4`, closed). Written 2026-10-28 at
 the end of the overnight run. The owner reviews and merges; nothing here is merged.
 
 ## What landed
@@ -61,16 +61,16 @@ requirement; only O1-O4 are his answers.
 5. **Duplicated one-per-block claims** (E5002, E5005) between shape.ts and the binding (D-F1-9).
 6. **slices.md errata not applied:** A4's probe effect, C2 names the `-inner` case, A10's "in one
    test" wording.
-7. RECORD bead outline item 6 still lists `vil-uji` as later work though round 12 built it
+7. RECORD bead outline item 6 still lists `kno-uji` as later work though round 12 built it
    (D-S4-5).
 8. pytest writes temporary directories under /private/var/folders on the internal disk.
 
 ## How to resume
 
-1. `cd /Volumes/Dock/Home/Code/villanelle/.claude/worktrees/low-level-build` (branch
+1. `cd /Volumes/Dock/Home/Code/knobly/.claude/worktrees/low-level-build` (branch
    `feat/low-level-layer`); `git pull`.
 2. Node: `source ~/.nvm/nvm.sh && nvm use 24.14.1`; caches on /Volumes/Dock (see the run env in
    the brief). Checks: `corepack pnpm -C ts test|typecheck|lint`;
    `(cd py && uv run pytest && uv run ruff check && uv run ruff format --check && uv run mypy)`.
 3. Read the owner's PR comments first; residuals 1 and 4 need his answer before code moves.
-4. Record new choices in `decisions.md` (append only); track work in beads under `vil-e4x`.
+4. Record new choices in `decisions.md` (append only); track work in beads under `kno-e4x`.

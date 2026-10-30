@@ -33,7 +33,7 @@ LANGUAGE = Language(
     extends_word="is a",
     cause_field="reason",
     error_roots={
-        "villanelle error": {"base": "Failure"},
+        "knobly error": {"base": "Failure"},
         "detached error": {"base": "Failure"},
         "misuse error": {"base": "Failure"},
         "argument type error": {"builtin": "TypeFailure"},  # a group with no message of its own is the language's class

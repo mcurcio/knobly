@@ -27,14 +27,14 @@ export function programError(origin: Origin, message: string, code: ProgramCode)
   return new DiagnosticError(makeLocated(code, message, place, via));
 }
 
-/** @throws MisuseError when `code` is not `<namespace>/<name>`: villanelle's own codes are not the program's to make. */
+/** @throws MisuseError when `code` is not `<namespace>/<name>`: knobly's own codes are not the program's to make. */
 export function checkProgramCode(code: string): void {
   if (typeof code !== "string" || !PROGRAM_CODE.test(code)) {
     throw new MisuseError(`a program's diagnostic code is <namespace>/<name>: ${JSON.stringify(code)}`);
   }
 }
 
-/** villanelle's own located error for a value or directive, with the code's message and an optional detail. */
+/** knobly's own located error for a value or directive, with the code's message and an optional detail. */
 export function codeError(origin: Origin, code: DiagnosticCode, detail?: string): DiagnosticError {
   const { message } = describe(code, detail);
   const { place, via } = locate(origin);

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from villanelle import DiagnosticCode, SourcePosition, SourceSpan
-from villanelle.syntax import Node, NodeKind, TokenKind, parse, span_of, text_of
+from knobly import DiagnosticCode, SourcePosition, SourceSpan
+from knobly.syntax import Node, NodeKind, TokenKind, parse, span_of, text_of
 
 
 def pos(offset: int, line: int, column: int) -> SourcePosition:

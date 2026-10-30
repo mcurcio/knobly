@@ -1,4 +1,4 @@
-"""``villanelle.files``: the filesystem document source (S2-04's rules, as TypeScript's ``fileSource``)."""
+"""``knobly.files``: the filesystem document source (S2-04's rules, as TypeScript's ``fileSource``)."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-import villanelle as vl
-from villanelle import written
-from villanelle.files import file_source, file_writer
+import knobly as vl
+from knobly import written
+from knobly.files import file_source, file_writer
 
 
 def test_resolve_joins_a_spec_to_the_parents_directory_and_a_missing_file_is_no_path(tmp_path: Path) -> None:

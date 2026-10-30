@@ -9,16 +9,16 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
-from villanelle._api.errors import BadTextError
-from villanelle._api.shared import ConfigText
-from villanelle._report import LocatedDiagnostic
-from villanelle._text import require_text
-from villanelle.written import _bind, _document, _names
-from villanelle.written._model import Document, DocumentGraph, OverrideVariable
+from knobly._api.errors import BadTextError
+from knobly._api.shared import ConfigText
+from knobly._report import LocatedDiagnostic
+from knobly._text import require_text
+from knobly.written import _bind, _document, _names
+from knobly.written._model import Document, DocumentGraph, OverrideVariable
 
 if TYPE_CHECKING:
-    from villanelle._api.io import DocumentSource
-    from villanelle._api.written import Extension
+    from knobly._api.io import DocumentSource
+    from knobly._api.written import Extension
 
 
 def init(

@@ -1,29 +1,29 @@
-"""Values after expansion (spec 2.9), owned by the low level (vil-umh.8): one class per value kind
+"""Values after expansion (spec 2.9), owned by the low level (kno-umh.8): one class per value kind
 (``ExpandedWord``, ``ExpandedString``, ``ExpandedList``, ``ExpandedSlice``, ``ExpandedIndex``; the union
 ``ExpandedValue``), each with the readers and three links to the lines it came through (``written``, ``definition``,
 ``chain``); the values a slice's and an index's reader returns are generated records (``SliceValue``,
 ``IndexValue``). An extension use holds them, a directive expansion's ``values`` are them, and a rendered directive's
 ``values`` are the same objects: one family, one home of the readers. Each class implements its generated Protocol.
 Two expanded values are equal exactly when their canonical texts are (``==`` and ``hash``). The rules each reader
-applies live in ``villanelle._values``."""
+applies live in ``knobly._values``."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal, TypeAlias
 
-from villanelle import _values
-from villanelle._api import written as api
-from villanelle._api.codes import DiagnosticCode, describe
-from villanelle._api.errors import DiagnosticError
-from villanelle._api.kinds import ValueKind
-from villanelle._api.shared import Origin
-from villanelle._api.written import IndexValue, SliceValue
-from villanelle._origin import Override, Step
-from villanelle._report import LocatedDiagnostic, check_program_code
+from knobly import _values
+from knobly._api import written as api
+from knobly._api.codes import DiagnosticCode, describe
+from knobly._api.errors import DiagnosticError
+from knobly._api.kinds import ValueKind
+from knobly._api.shared import Origin
+from knobly._api.written import IndexValue, SliceValue
+from knobly._origin import Override, Step
+from knobly._report import LocatedDiagnostic, check_program_code
 
 if TYPE_CHECKING:
-    from villanelle._api.written import ReferenceResolution
-    from villanelle.written._model import WrittenValue
+    from knobly._api.written import ReferenceResolution
+    from knobly.written._model import WrittenValue
 
 
 class _Expanded:

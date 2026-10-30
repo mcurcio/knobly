@@ -1,28 +1,28 @@
-# villanelle for C++
+# knobly for C++
 
-A header-only C++20 library: one include directory and one CMake target, `villanelle::villanelle`, with no
+A header-only C++20 library: one include directory and one CMake target, `knobly::knobly`, with no
 dependency beyond the standard library (owner, 2026-10-25: "I don't want villanelle dependent on third party
 libraries"). It has the three layers TypeScript and Python have, with the same names in snake_case. The user guide,
-with every sample in TypeScript, Python and C++, is [https://mcurcio.github.io/villanelle/](https://mcurcio.github.io/villanelle/) (source:
+with every sample in TypeScript, Python and C++, is [https://mcurcio.github.io/knobly/](https://mcurcio.github.io/knobly/) (source:
 [`docs/site/pages/`](../docs/site/pages/)); every C++ sample is a program `ctest` builds and runs (`examples/`).
 
 | Header | Namespace | What it holds |
 |---|---|---|
-| `<villanelle/syntax.hpp>` | `villanelle::syntax` | `parse`, the lossless syntax tree |
-| `<villanelle/written.hpp>` | `villanelle::written` | the low level: `processor`, `load`, the document graph you edit and `save` back |
-| `<villanelle/rendered.hpp>` | `villanelle::rendered` | `render(graph)`: the tree after variables, snippets and includes |
-| `<villanelle/files.hpp>` | `villanelle::files` | `file_source()`, `file_writer()`: files on disk |
-| `<villanelle/extensions.hpp>` | `villanelle::extensions` | `include()`: the include extension |
+| `<knobly/syntax.hpp>` | `knobly::syntax` | `parse`, the lossless syntax tree |
+| `<knobly/written.hpp>` | `knobly::written` | the low level: `processor`, `load`, the document graph you edit and `save` back |
+| `<knobly/rendered.hpp>` | `knobly::rendered` | `render(graph)`: the tree after variables, snippets and includes |
+| `<knobly/files.hpp>` | `knobly::files` | `file_source()`, `file_writer()`: files on disk |
+| `<knobly/extensions.hpp>` | `knobly::extensions` | `include()`: the include extension |
 
 ```cpp
-#include <villanelle/extensions.hpp>
-#include <villanelle/files.hpp>
-#include <villanelle/rendered.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/extensions.hpp>
+#include <knobly/files.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/written.hpp>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 const vw::processor config({.source = vl::files::file_source(), .extensions = {vl::extensions::include()}});
 const vw::document_graph graph = config.load("main.conf");
@@ -47,35 +47,35 @@ sink of a config with includes and `name=value` overrides), `editor.cpp` (edit a
 and `lint.cpp` (a third-party tool checking its own schema and reporting diagnostics with places).
 
 **Namespaces: alias them, never a using-directive.** Types and their accessors share names (`place place()`,
-`origin origin()`), and the written layer has a `string` and a `list`. So `using namespace villanelle::written;`
+`origin origin()`), and the written layer has a `string` and a `list`. So `using namespace knobly::written;`
 beside `using namespace std;` makes `string` and `list` ambiguous, and a class
 member `vl::place place;` that then names the type hits GCC's "declaration changes meaning". Write
-`namespace vw = villanelle::written;` and qualify, as every example here does.
+`namespace vw = knobly::written;` and qualify, as every example here does.
 
-**Formatting.** `<villanelle/format.hpp>` is opt-in (no other header includes it): it gives every type with a people
+**Formatting.** `<knobly/format.hpp>` is opt-in (no other header includes it): it gives every type with a people
 form (`place`, `located_diagnostic`, `rendered::address`, each kind list, `diagnostic_code`, ...) an `operator<<` and
 a `std::formatter`, both writing exactly its `to_string`. The formatter takes a string's format spec, so width, fill
 and alignment work: `std::format("[{:>8}]", vl::value_kind::word)` is `[    word]`. Which types it covers is read from
 the schema, so the header is generated whole.
 
 ```cpp
-#include <villanelle/format.hpp>
+#include <knobly/format.hpp>
 std::cerr << std::format("{}: skipped ({})\n", u.origin().place(), u.reason());  // lb.conf:11:1: skipped (expansion)
 ```
 
 **Handles.** Every object a layer returns (a graph, a statement, a rendered directive) is a small handle: copying it
 shares the graph or render it belongs to, which lives while any handle of it does, so nothing returned can dangle (a
 rendered directive keeps its render and the graph alive). Two handles are equal when they show the same object.
-Every list is a `villanelle::sequence<T>` and every map a `villanelle::ordered_map<K, V>` (insertion order): copying
+Every list is a `knobly::sequence<T>` and every map a `knobly::ordered_map<K, V>` (insertion order): copying
 one shares it, and elements come back by value. A loop over a block, or a `walk()`, reads a snapshot, so editing
 during it is allowed. A statement an edit removed is detached: its `kind()` still works and every other member
-throws `villanelle::detached_error`. **Memory:** every object of a graph lives until the graph dies, detached ones
+throws `knobly::detached_error`. **Memory:** every object of a graph lives until the graph dies, detached ones
 included, so each edit grows the graph by what it re-parses (about 20 KB for a 50-line document replaced whole):
 a process that keeps one graph for a long run of edits should load a fresh graph from time to time.
 
 **Errors.** Problems in the config text are never thrown: `load` returns a graph whose `diagnostics()` lists them,
 and `render` returns a tree with the same list. Exceptions mirror the error groups of the other bindings: expected
-outcomes derive `villanelle::villanelle_error` (`diagnostic_error`, `read_error`, `bad_text_error`, `save_error` and
+outcomes derive `knobly::knobly_error` (`diagnostic_error`, `read_error`, `bad_text_error`, `save_error` and
 its `lost_update_error`; a `save_error` nests the writer's exception, so `std::rethrow_if_nested` gives the cause),
 and program bugs derive `std::logic_error` (`detached_error`, `argument_type_error`, `misuse_error`,
 `index_out_of_range`). An edit refused with an exception (`bad_text_error`, `detached_error`, `index_out_of_range`, ...) changes nothing;
@@ -96,52 +96,52 @@ file keeps the old one's permissions.
 
 ## Using it
 
-Nothing is installed: villanelle goes into your project or its build folder, by one of three routes. None needs Python;
+Nothing is installed: knobly goes into your project or its build folder, by one of three routes. None needs Python;
 the release assets carry the generated headers.
 
-- **The single header** `villanelle.hpp` (on each GitHub release): every header in one file. Copy it into your
-  project and `#include "villanelle.hpp"`; nothing else is needed. It is header-only mode only, and every file
+- **The single header** `knobly.hpp` (on each GitHub release): every header in one file. Copy it into your
+  project and `#include "knobly.hpp"`; nothing else is needed. It is header-only mode only, and every file
   including it compiles every layer.
-- **`FetchContent`** of the release source archive (`villanelle-cpp-<version>.tar.gz`, on each GitHub release), with
+- **`FetchContent`** of the release source archive (`knobly-cpp-<version>.tar.gz`, on each GitHub release), with
   CMake 3.24 or later. CMake downloads and unpacks it into your build folder:
 
   ```cmake
   include(FetchContent)
-  FetchContent_Declare(villanelle
-    URL https://github.com/mcurcio/villanelle/releases/download/v<version>/villanelle-cpp-<version>.tar.gz
+  FetchContent_Declare(knobly
+    URL https://github.com/mcurcio/knobly/releases/download/v<version>/knobly-cpp-<version>.tar.gz
     URL_HASH SHA256=<the archive's SHA-256>)
-  FetchContent_MakeAvailable(villanelle)
+  FetchContent_MakeAvailable(knobly)
 
-  target_link_libraries(my_program PRIVATE villanelle::villanelle)
+  target_link_libraries(my_program PRIVATE knobly::knobly)
   ```
 
 - **`add_subdirectory`** of the extracted archive, or of a copy vendored into your repository (or of `cpp/` in a git
   checkout), then the same `target_link_libraries`.
 
-As a subproject it builds no tests (`VILLANELLE_BUILD_TESTS` is on only when it is the top-level project). There is
-nothing to link: `villanelle::villanelle` only adds the include path and C++20. A C++20 compiler is needed by every
+As a subproject it builds no tests (`KNOBLY_BUILD_TESTS` is on only when it is the top-level project). There is
+nothing to link: `knobly::knobly` only adds the include path and C++20. A C++20 compiler is needed by every
 route. In a git checkout the public headers are generated at configure time ("Generated code" below), which needs
 Python 3.9 or later and `uv`.
 
 **Header-only** is the default: every definition is inline in the headers.
 
 **Compiled mode** keeps the definitions out of every file but one, for programs where compile time matters. Define
-`VILLANELLE_HEADER_ONLY=0` for every file of the program that includes villanelle, and include
-`<villanelle/implementation.hpp>` in exactly one of them:
+`KNOBLY_HEADER_ONLY=0` for every file of the program that includes knobly, and include
+`<knobly/implementation.hpp>` in exactly one of them:
 
 ```cmake
-target_compile_definitions(my_program PRIVATE VILLANELLE_HEADER_ONLY=0)
-target_sources(my_program PRIVATE villanelle_implementation.cpp)  # #include <villanelle/implementation.hpp>
+target_compile_definitions(my_program PRIVATE KNOBLY_HEADER_ONLY=0)
+target_sources(my_program PRIVATE knobly_implementation.cpp)  # #include <knobly/implementation.hpp>
 ```
 
-With `FetchContent` or `add_subdirectory`, `-DVILLANELLE_COMPILED=ON` (a cache option of the subproject) defines it
+With `FetchContent` or `add_subdirectory`, `-DKNOBLY_COMPILED=ON` (a cache option of the subproject) defines it
 for every user of the target instead; the program still compiles `implementation.hpp` once. Compiled mode also instantiates every template the headers spell once, in
 `implementation.hpp` (each header declares it `extern`), so other files do not compile them again.
 
-**Versions.** Every name sits in a versioned inline namespace, `villanelle::v<major>_<minor>_<patch>` (a program
-writes `villanelle::written::processor`), so two villanelle versions in one program (a library and the app each
+**Versions.** Every name sits in a versioned inline namespace, `knobly::v<major>_<minor>_<patch>` (a program
+writes `knobly::written::processor`), so two knobly versions in one program (a library and the app each
 bundling its own) get different symbols instead of breaking the one-definition rule. The version's one home is
-`VILLANELLE_VERSION_MAJOR`, `_MINOR` and `_PATCH` in `include/villanelle/support/config.hpp`: 0.0.0 in the
+`KNOBLY_VERSION_MAJOR`, `_MINOR` and `_PATCH` in `include/knobly/support/config.hpp`: 0.0.0 in the
 repository, stamped by the release flow into the archive and the single header.
 
 **Exceptions.** Expected errors throw (see "Errors" above). The syntax and written layers also build with
@@ -154,12 +154,12 @@ E1003; a surrogate's three-byte form (WTF-8) decodes. The rule lives in one func
 
 ## Generated code
 
-Every public header directly in `include/villanelle/` is generated from `spec/schema/` by `tools/gen-api.py`, and
-`include/villanelle/detail/syntax/parser.gen.hpp` from `grammar/Villanelle.g4` by villanelle's own parser generator
+Every public header directly in `include/knobly/` is generated from `spec/schema/` by `tools/gen-api.py`, and
+`include/knobly/detail/syntax/parser.gen.hpp` from `grammar/Knobly.g4` by knobly's own parser generator
 (`tools/parser/gen.py`; no ANTLR, no Java). Neither is committed (owner, 2026-10-23: "Don't commit the generated
 code, just the source"): CMake runs `bash tools/gen.sh cpp` at configure time when they are absent, which needs
 Python 3.9 or later and `uv` (for the pinned clang-format the generated code is formatted with). The hand-written
-code is `include/villanelle/support/` (the library types) and `include/villanelle/detail/` (the definitions; the
+code is `include/knobly/support/` (the library types) and `include/knobly/detail/` (the definitions; the
 syntax layer's token loop, error codes, recovery and nesting guard are in `detail/syntax/parse.hpp`).
 
 ## Build and test
@@ -167,7 +167,7 @@ syntax layer's token loop, error codes, recovery and nesting guard are in `detai
 From the repository root, with CMake 3.24 or later and a C++20 compiler:
 
 ```bash
-cmake -S cpp -B build -DVILLANELLE_SANITIZE=ON   # Catch2 v3 is fetched for the tests
+cmake -S cpp -B build -DKNOBLY_SANITIZE=ON   # Catch2 v3 is fetched for the tests
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
@@ -185,14 +185,14 @@ ctest --test-dir build --output-on-failure
   compile time that TypeScript and Python refuse at run time (`render` of a document, a `std::string` where
   `config_text` is taken, a program code without `/`, a key rule returning `int`, `report()` on a written statement,
   `view()` of a temporary). The test builds it and must fail; `compile_fail_<name>_control` builds it with
-  `-DVILLANELLE_CONTROL`, which swaps in the nearest valid line, and must succeed, so the failure is the refused line
+  `-DKNOBLY_CONTROL`, which swaps in the nearest valid line, and must succeed, so the failure is the refused line
   and not a typo. Both are left out of the default build; a new file is picked up at the next configure;
 - the shared conformance driver against the adapter (`conformance`: `conformance/adapter.cpp` claims level 3, every
   case, with byte positions).
 
 One test at a time: `ctest --test-dir build -R programs_lint --output-on-failure`. Building also compiles every header
 together, each layer's header against the layers it may not import, the generated parser against its hooks, and
-the syntax layer with exceptions and RTTI off. `VILLANELLE_BUILD_TESTS` is on when this is the top-level project.
+the syntax layer with exceptions and RTTI off. `KNOBLY_BUILD_TESTS` is on when this is the top-level project.
 
 The routes of "Using it" are checked from the release assets, with nothing installed and Python stubbed out (CI's
 C++ package job; `tests/consumer/`):

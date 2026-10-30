@@ -2,11 +2,11 @@
 // region between the --8<-- markers; ts/examples/examples.test.ts runs this file and compares what it prints with
 // examples/expected/hello.txt.
 // --8<-- [start:main]
-import { render } from "villanelle/rendered";
-import { fileSource } from "villanelle/node";
-import { villanelle } from "villanelle/written";
+import { render } from "knobly/rendered";
+import { fileSource } from "knobly/node";
+import { knobly } from "knobly/written";
 
-const config = villanelle({ source: fileSource() });
+const config = knobly({ source: fileSource() });
 const tree = render(await config.load("hello.conf"));
 const greeting = tree.block.directives("greeting")[0]?.values[0];
 console.log(greeting?.string());

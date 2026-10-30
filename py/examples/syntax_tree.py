@@ -2,7 +2,7 @@
 # includes the regions between the --8<-- markers; py/tests/test_examples.py runs this file and compares what it
 # prints with examples/expected/syntax_tree.txt.
 # --8<-- [start:main]
-from villanelle import syntax
+from knobly import syntax
 
 text = "server {\n    port 8080; # the port\n}\n"
 # --8<-- [start:parse]

@@ -1,18 +1,18 @@
 // Sample "addresses" (examples/samples.json): every rendered directive's address, by position and by a key rule of
 // the program's own. ctest examples_addresses compares what it prints with examples/expected/addresses.txt.
 // --8<-- [start:main]
-#include <villanelle/extensions.hpp>
-#include <villanelle/files.hpp>
-#include <villanelle/rendered.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/extensions.hpp>
+#include <knobly/files.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/written.hpp>
 
 #include <iostream>
 #include <optional>
 #include <string>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 int main() {
     const vw::processor config({

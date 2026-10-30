@@ -1,13 +1,13 @@
 // Sample "include_read" (examples/samples.json): an include line added by an edit is unread until read() reads it.
 // ts/examples/examples.test.ts runs this file and compares what it prints with examples/expected/include_read.txt.
 // --8<-- [start:main]
-import { memorySource, text } from "villanelle";
-import { villanelle, type DocumentGraph } from "villanelle/written";
-import { render } from "villanelle/rendered";
-import { include } from "villanelle/include";
+import { memorySource, text } from "knobly";
+import { knobly, type DocumentGraph } from "knobly/written";
+import { render } from "knobly/rendered";
+import { include } from "knobly/include";
 
 const source = memorySource({ "main.conf": "name main;\n", "extra.conf": "name extra;\n" });
-const graph = await villanelle({ source, extensions: [include()] }).load("main.conf");
+const graph = await knobly({ source, extensions: [include()] }).load("main.conf");
 
 function showUnread(graph: DocumentGraph): void {
   const names = render(graph).block.directives("name").map((directive) => directive.values[0]?.text);

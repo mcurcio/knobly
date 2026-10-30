@@ -1,7 +1,7 @@
-// villanelle::ordered_map<K, V>: the binding's one map type (design.md 1.3; frozen-m2.md 3.1). Every member is
+// knobly::ordered_map<K, V>: the binding's one map type (design.md 1.3; frozen-m2.md 3.1). Every member is
 // defined here, so compiled mode's explicit instantiations (implementation.hpp) cover it for every element type.
-#ifndef VILLANELLE_SUPPORT_ORDERED_MAP_HPP
-#define VILLANELLE_SUPPORT_ORDERED_MAP_HPP
+#ifndef KNOBLY_SUPPORT_ORDERED_MAP_HPP
+#define KNOBLY_SUPPORT_ORDERED_MAP_HPP
 
 #include <concepts>
 #include <cstddef>
@@ -14,10 +14,10 @@
 #include <utility>
 #include <vector>
 
-#include <villanelle/detail/raise.hpp>
-#include <villanelle/support/config.hpp>
+#include <knobly/detail/raise.hpp>
+#include <knobly/support/config.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 
 namespace detail {
 /// A key with a std::hash. Asked only inside ordered_map's member bodies, which are instantiated where they are used,
@@ -84,11 +84,11 @@ public:
     std::size_t size() const noexcept { return items_ ? items_->items.size() : 0; }
     bool empty() const noexcept { return size() == 0; }
     bool contains(const Key& key) const { return position(key) != npos; }
-    /// @throws villanelle::index_out_of_range when the key is absent
+    /// @throws knobly::index_out_of_range when the key is absent
     Value at(const Key& key) const {
         const std::size_t at = position(key);
         if (at == npos) {
-            ::villanelle::detail::raise_missing_key();
+            ::knobly::detail::raise_missing_key();
         }
         return items_->items[at].second;
     }
@@ -182,6 +182,6 @@ private:
     std::shared_ptr<storage> items_;  // null for an empty map: making one allocates nothing
 };
 
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_SUPPORT_ORDERED_MAP_HPP
+#endif  // KNOBLY_SUPPORT_ORDERED_MAP_HPP

@@ -1,6 +1,6 @@
 # Quickstart
 
-villanelle is a small configuration language: directives ended by `;`, `{ }` blocks, lists, slices, `#` comments,
+knobly is a small configuration language: directives ended by `;`, `{ }` blocks, lists, slices, `#` comments,
 and variables and snippets written as `@` statements. It has one grammar and three bindings, TypeScript, Python and
 C++, with the same parts under each language's own names. Every sample on this site has a tab per language; pick
 one and every page follows it.
@@ -17,19 +17,19 @@ A program can work at three layers, each built on the one below:
 
 ## Get it
 
-villanelle depends on nothing but each language's standard library (and, in TypeScript and Python, the ANTLR
+knobly depends on nothing but each language's standard library (and, in TypeScript and Python, the ANTLR
 runtime their generated parsers use). Nothing is installed system-wide: each release on
-[GitHub](https://github.com/mcurcio/villanelle/releases) carries one file per language that goes into your project.
+[GitHub](https://github.com/mcurcio/knobly/releases) carries one file per language that goes into your project.
 
 No release has been made yet, so each tab also says how to build the same file from a git checkout
-(`git clone https://github.com/mcurcio/villanelle`; commands from its root).
+(`git clone https://github.com/mcurcio/knobly`; commands from its root).
 
 === "TypeScript"
 
     The `npm pack` tarball of each release, for Node 24 or later (it is not on npm):
 
     ```bash
-    npm install https://github.com/mcurcio/villanelle/releases/download/v<version>/villanelle-<version>.tgz
+    npm install https://github.com/mcurcio/knobly/releases/download/v<version>/knobly-<version>.tgz
     ```
 
     From a checkout (Node 24, pnpm through corepack, Java 11+ and `curl` for the generated parser), build and pack
@@ -37,20 +37,20 @@ No release has been made yet, so each tab also says how to build the same file f
 
     ```bash
     corepack pnpm -C ts install && corepack pnpm -C ts build && npm pack ./ts
-    npm install <checkout>/villanelle-0.0.0-development.tgz   # from your project's folder
+    npm install <checkout>/knobly-0.0.0-development.tgz   # from your project's folder
     ```
 
     The package is ES modules only, and the samples use top-level `await`: set `"type": "module"` in your
     project's `package.json` (`npm pkg set type=module`). Node 24 runs a sample's `.ts` file as it is
-    (`node hello.ts`), stripping the types. Each layer is its own import path: `villanelle`, `villanelle/syntax`,
-    `villanelle/written`, `villanelle/rendered`, `villanelle/include`, and `villanelle/node` for files on disk.
+    (`node hello.ts`), stripping the types. Each layer is its own import path: `knobly`, `knobly/syntax`,
+    `knobly/written`, `knobly/rendered`, `knobly/include`, and `knobly/node` for files on disk.
 
 === "Python"
 
     The wheel of each release, for Python 3.11 or later (it is not on PyPI):
 
     ```bash
-    pip install https://github.com/mcurcio/villanelle/releases/download/v<version>/villanelle-<version>-py3-none-any.whl
+    pip install https://github.com/mcurcio/knobly/releases/download/v<version>/knobly-<version>-py3-none-any.whl
     ```
 
     From a checkout, write the generated parser and API modules first (Java 11+ and `curl`; they are not
@@ -61,32 +61,32 @@ No release has been made yet, so each tab also says how to build the same file f
     pip install <checkout>/py
     ```
 
-    Each layer is its own module: `villanelle`, `villanelle.syntax`, `villanelle.written`, `villanelle.rendered`,
-    `villanelle.include`, and `villanelle.files` for files on disk.
+    Each layer is its own module: `knobly`, `knobly.syntax`, `knobly.written`, `knobly.rendered`,
+    `knobly.include`, and `knobly.files` for files on disk.
 
 === "C++"
 
-    A C++20 compiler and nothing else. Either copy the single header `villanelle.hpp` from the release into your
-    project, or let CMake 3.24 or later fetch the release's source archive (`villanelle-cpp-<version>.tar.gz`,
+    A C++20 compiler and nothing else. Either copy the single header `knobly.hpp` from the release into your
+    project, or let CMake 3.24 or later fetch the release's source archive (`knobly-cpp-<version>.tar.gz`,
     which carries the generated headers) into your build folder:
 
     ```cmake
     --8<-- "cpp/tests/consumer/CMakeLists.txt:fetchcontent"
     ```
 
-    `VILLANELLE_RELEASE_URL` and `VILLANELLE_RELEASE_SHA256` are the archive's URL and SHA-256 from the release
+    `KNOBLY_RELEASE_URL` and `KNOBLY_RELEASE_SHA256` are the archive's URL and SHA-256 from the release
     (write them in, or set them). `add_subdirectory` of the extracted archive, or of a copy in your repository,
     works the same way. Neither route needs Python or an install step; compiled mode and versions are in
-    [`cpp/README.md`](https://github.com/mcurcio/villanelle/blob/main/cpp/README.md#using-it).
+    [`cpp/README.md`](https://github.com/mcurcio/knobly/blob/main/cpp/README.md#using-it).
 
-    The samples include each layer's header (`#include <villanelle/files.hpp>`). With the single header, write
-    `#include "villanelle.hpp"` in their place: it holds every layer.
+    The samples include each layer's header (`#include <knobly/files.hpp>`). With the single header, write
+    `#include "knobly.hpp"` in their place: it holds every layer.
 
     From a checkout, either `add_subdirectory(<checkout>/cpp)` (its configure step writes the generated headers,
     which needs Python 3.9 or later and `uv`), or build the two release files and use them as above:
 
     ```bash
-    bash .github/release-cpp.sh 0.1.0 <out-dir>   # writes villanelle-cpp-0.1.0.tar.gz and villanelle.hpp
+    bash .github/release-cpp.sh 0.1.0 <out-dir>   # writes knobly-cpp-0.1.0.tar.gz and knobly.hpp
     ```
 
     It needs Python 3.9 or later and `uv` too, and writes the generated headers into the checkout's `cpp/`.
@@ -167,7 +167,7 @@ It prints:
 
 - [Getting started](getting-started.md): processors and extensions, reading values, overrides, problems and
   exceptions.
-- [The language](language.md): what a villanelle file may say.
+- [The language](language.md): what a knobly file may say.
 - Advanced usage: [editing and saving](editing.md), [variables, snippets and
   includes](variables.md), [your own checks](diagnostics.md), [walking and
   reloads](walking.md), [sources and extensions](sources.md), [the syntax
@@ -175,5 +175,5 @@ It prints:
 - [How the bindings differ](differences.md).
 
 The language-neutral rules every binding follows are in
-[`spec/`](https://github.com/mcurcio/villanelle/blob/main/spec/README.md), which wins where this guide differs; the
-words are defined in [`spec/glossary.md`](https://github.com/mcurcio/villanelle/blob/main/spec/glossary.md).
+[`spec/`](https://github.com/mcurcio/knobly/blob/main/spec/README.md), which wins where this guide differs; the
+words are defined in [`spec/glossary.md`](https://github.com/mcurcio/knobly/blob/main/spec/glossary.md).

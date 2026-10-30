@@ -23,7 +23,7 @@ from types import ModuleType
 import pytest
 from api_contract import MATCH_ARGS, PUBLIC_NAMES, UNIONS
 
-import villanelle
+import knobly
 
 
 @pytest.mark.parametrize("path", sorted(PUBLIC_NAMES))
@@ -88,10 +88,10 @@ def test_there_are_union_cases() -> None:
 
 
 def test_no_public_path_but_the_public_modules() -> None:
-    """Rule 9: a name is never exported under a second path. Every module under villanelle/ that is not one of
-    PUBLIC_NAMES' paths is private (its name, or a package's, starts with ``_``), so ``villanelle.written._model`` is
+    """Rule 9: a name is never exported under a second path. Every module under knobly/ that is not one of
+    PUBLIC_NAMES' paths is private (its name, or a package's, starts with ``_``), so ``knobly.written._model`` is
     plainly not an import path."""
-    root = Path(villanelle.__file__).resolve().parent
+    root = Path(knobly.__file__).resolve().parent
     public = []
     for path in sorted(root.rglob("*.py")):
         parts = list(path.relative_to(root.parent).with_suffix("").parts)
@@ -105,7 +105,7 @@ def test_no_public_path_but_the_public_modules() -> None:
 
 # What a public doc may not carry (spec/codegen.md section 3, "Docs and rationale"): it belongs in a comment.
 HISTORY = re.compile(
-    r"\bvil-[a-z0-9]{3}(\.[0-9]+)*\b|\bmilestone [0-9]|\bowner, [0-9]{4}-|\bvillanelle\._|\btests/"
+    r"\bkno-[a-z0-9]{3}(\.[0-9]+)*\b|\bmilestone [0-9]|\bowner, [0-9]{4}-|\bknobly\._|\btests/"
     r"|\(R[0-9]+\)|\bround [0-9]+ review|\bbinding guide rule [0-9]"
 )
 
@@ -119,9 +119,9 @@ def public_docs() -> list[tuple[str, str]]:
         found[path] = module.__doc__ or ""
         for name in sorted(PUBLIC_NAMES[path]):
             obj = getattr(module, name)
-            if getattr(obj, "__module__", "").startswith("villanelle"):
+            if getattr(obj, "__module__", "").startswith("knobly"):
                 found[f"{path}.{name}"] = inspect.getdoc(obj) or ""
-            if isinstance(obj, type) and obj.__module__.startswith("villanelle"):
+            if isinstance(obj, type) and obj.__module__.startswith("knobly"):
                 for attr, value in vars(obj).items():
                     doc = getattr(value, "__doc__", None)
                     if isinstance(value, (types.FunctionType, property, classmethod, staticmethod)) and doc:
@@ -144,14 +144,14 @@ def schema_docs() -> list[tuple[str, object, str | None, str | None]]:
         for name in sorted(PUBLIC_NAMES[path]):
             obj = getattr(module, name)
             here = getattr(obj, "__module__", "") or ""
-            if not here.startswith("villanelle.") or here.startswith("villanelle._api."):
+            if not here.startswith("knobly.") or here.startswith("knobly._api."):
                 continue
             if inspect.isfunction(obj):
                 out.append((f"{path}.{name}", obj, obj.__doc__, None))
                 continue
             if not isinstance(obj, type):
                 continue
-            bases = [b for b in obj.__mro__[1:] if b.__module__.startswith("villanelle._api.")]
+            bases = [b for b in obj.__mro__[1:] if b.__module__.startswith("knobly._api.")]
             if not bases:
                 continue
             out.append((f"{path}.{name}", obj, obj.__doc__, bases[0].__doc__))
@@ -160,7 +160,7 @@ def schema_docs() -> list[tuple[str, object, str | None, str | None]]:
                     if isinstance(member, (types.FunctionType, property)) and member.__doc__:
                         owner = next(c for c in obj.__mro__ if attr in vars(c))
                         target = vars(owner)[attr]
-                        if not owner.__module__.startswith("villanelle._api.") and not isinstance(
+                        if not owner.__module__.startswith("knobly._api.") and not isinstance(
                             target, types.MemberDescriptorType
                         ):
                             out.append((f"{path}.{name}.{attr}", target, target.__doc__, member.__doc__))
@@ -196,17 +196,13 @@ def test_public_docs_are_the_schema_docs() -> None:
 
 
 def generated_records() -> list[tuple[str, type]]:
-    """Each public class the generator writes whole (a record): a frozen dataclass of villanelle._api."""
+    """Each public class the generator writes whole (a record): a frozen dataclass of knobly._api."""
     out: list[tuple[str, type]] = []
     for path in sorted(PUBLIC_NAMES):
         module = importlib.import_module(path)
         for name in sorted(PUBLIC_NAMES[path]):
             obj = getattr(module, name)
-            if (
-                dataclasses.is_dataclass(obj)
-                and isinstance(obj, type)
-                and obj.__module__.startswith("villanelle._api.")
-            ):
+            if dataclasses.is_dataclass(obj) and isinstance(obj, type) and obj.__module__.startswith("knobly._api."):
                 out.append((f"{path}.{name}", obj))
     return out
 

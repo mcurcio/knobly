@@ -1,4 +1,4 @@
-## 2026-10-28, milestone 1 spec (vil-fy4), architect
+## 2026-10-28, milestone 1 spec (kno-fy4), architect
 
 - `spec/schema/api.json` (first draft) listed `format diagnostic` in the shared layer, but it takes a
   `document graph`, a low-level type, so shared would import the low level. Moved to the written
@@ -12,7 +12,7 @@
   2026-10-22), while this work lands on `docs/binding-spec` through PR 5 and the global rules say
   never push to `main`. Not changed here; the owner should say which holds now.
 
-## 2026-10-28, milestone 1 generator and public-name check (vil-fy4 part 2), build tooling
+## 2026-10-28, milestone 1 generator and public-name check (kno-fy4 part 2), build tooling
 
 - `spec/schema/api.json` lists `kind` as a member of `place`, `override` and `change`, but
   frozen-m1.md (section 1, "Shared records") and the schema's own `disagreements` defer Python's
@@ -28,13 +28,13 @@
   `with diagnostics.collecting():`, `len(diagnostics)`). Both name checks read it by pattern and
   fail on a spell they cannot read, but a tool should not have to parse prose: split it into
   `name` (the attribute) and `signature` (for people).
-- frozen-m1.md section 6 says to keep ruff checking the generated `py/src/villanelle/_api/`. Ruff
-  skips git-ignored files by default (`ruff check src/villanelle/_api` prints "No Python files
+- frozen-m1.md section 6 says to keep ruff checking the generated `py/src/knobly/_api/`. Ruff
+  skips git-ignored files by default (`ruff check src/knobly/_api` prints "No Python files
   found"), so once the folder is ignored, `ruff check` and `ruff format --check` never see it
   (mypy does). The generator's output passes both with `--no-respect-gitignore`; keeping it
   checked in CI needs a pyproject change (Python lane).
 
-## 2026-10-28, milestone 1 Python lane (vil-094)
+## 2026-10-28, milestone 1 Python lane (kno-094)
 
 - The check of an override (frozen-m1.md section 3, spec 6.3) runs the text "as the values of `x <text>`", but
   the values check both bindings share (`values_text_problems` / `valuesTextProblems`) does not treat a line break
@@ -70,23 +70,23 @@
   into `src/rendered/`) is an owner question. Not done here: it is a redesign of both bindings' binder, and the
   include extension still needs expanded values from the low level during `load`.
 - The schema's layer table ("shared may import nothing", "io may import shared") is enforced only for the rendered
-  layer (test_layers.py, the ESLint block). Python's `value.py` imported `villanelle.syntax._recovery` (fixed: it
+  layer (test_layers.py, the ESLint block). Python's `value.py` imported `knobly.syntax._recovery` (fixed: it
   reads the generated `MESSAGES`), but the shared helper `_anatomy.py` (frozen-m1.md section 4 lists it as shared)
-  imports `villanelle.syntax`, and `include.py` imports `villanelle.syntax._recovery`. Either the table is relaxed
+  imports `knobly.syntax`, and `include.py` imports `knobly.syntax._recovery`. Either the table is relaxed
   (shared helpers that read syntax trees sit in the syntax or written layer) or both checks enforce the whole
   table; a later milestone should pick.
 
-## 2026-10-29, milestone 2 spec (vil-0vz, vil-9fy, vil-5ya, vil-gxu), architect
+## 2026-10-29, milestone 2 spec (kno-0vz, kno-9fy, kno-5ya, kno-gxu), architect
 
 - The round 13 review (root cause 4) lists `address` among the located things that print as `path:line:col`. An
   address names a directive by its path of names, not by a file position; its to-text stays the people form of
   spec 7.4 (`graph > node "leds" > max_count`). `spec/contract.md` 2 says so.
 - Root cause 3 asks for "every closed set ... with lowercase values". `token kind`'s values are the grammar's token
   names (`WORD`, `BAD_CHAR`), and the grammar is their one home: the spec keeps them as the one exception (spec
-  2.10), and the generator now emits `TokenKind` from `grammar/Villanelle.g4` instead of each binding typing it.
+  2.10), and the generator now emits `TokenKind` from `grammar/Knobly.g4` instead of each binding typing it.
 - The milestone brief says Python's `List` and `String` "clash with typing names". `List` does (`typing.List` on
-  `from villanelle import *`); `typing` has no `String`. The fix moves all six written value classes to
-  `villanelle.written` only, one rule rather than two names (spec 6.6).
+  `from knobly import *`); `typing` has no `String`. The fix moves all six written value classes to
+  `knobly.written` only, one rule rather than two names (spec 6.6).
 - `spec/spec.md` 2.1 said a lone `"\r"` never ends a line, but TypeScript's `formatDiagnostic`
   (`ts/src/written/format.ts`) cuts the source line at `/\r\n|\n|\r/u`: a binding bug against the spec, now made
   explicit (contract 1) with the case `format-lone-cr`. Python's `split("\n")` was right.
@@ -98,7 +98,7 @@
 - Committing the generator change ahead of the lanes leaves `ts/` and `py/` red on this branch (they still import
   `ValueKind.List`, the `Literal` aliases and the hand-written `TokenKind`) until both lanes land.
 
-## 2026-10-29, milestone 2 Python lane (vil-0vz, vil-9fy, vil-5ya, vil-gxu)
+## 2026-10-29, milestone 2 Python lane (kno-0vz, kno-9fy, kno-5ya, kno-gxu)
 
 - Frozen page 1.3 says `graph.variables(name?)` returns `list[Variable]` in Python. It returned a tuple before and
   every other reader returns a tuple; the lane keeps the tuple (element type now the `Variable` union, order
@@ -109,10 +109,10 @@
     `graph.root`, so a stand-in with those members renders (test `test_render_builds_on_the_graphs_public_members_only`).
   - `Unreadable.__match_args__` was the dataclass default `("reason", "origin", "written")`; the schema and page 1.6
     say `("reason",)`, so a three-positional pattern no longer matches.
-  - `DiagnosticError` moved from `villanelle.diagnostics` to the new `villanelle.errors` (the one home of every error
-    class, page 5), and `villanelle.written.errors` is deleted: `from villanelle.diagnostics import DiagnosticError`
-    and `from villanelle.written import BadTextError` (or `EditError`, `DetachedError`, `ReadError`, `SaveError`)
-    no longer import. The root `villanelle` exports every error class.
+  - `DiagnosticError` moved from `knobly.diagnostics` to the new `knobly.errors` (the one home of every error
+    class, page 5), and `knobly.written.errors` is deleted: `from knobly.diagnostics import DiagnosticError`
+    and `from knobly.written import BadTextError` (or `EditError`, `DetachedError`, `ReadError`, `SaveError`)
+    no longer import. The root `knobly` exports every error class.
   - `ReadError`'s message changed (`cannot read the root file <path>: <reason>`); messages are not contract.
 - Typing cost of behaviour change 14: under `mypy --strict`, `stmt.kind == "set"` is a `comparison-overlap` error
   (`Literal[StatementKind.SET]` against `Literal['set']`), though it is true at run time. Typed programs compare with
@@ -120,7 +120,7 @@
 - The memory writer's lost-update refusal raises `RuntimeError` (page 8 says "an `Error`"); `save` wraps it in
   `SaveError` with it as `__cause__`, as it does the file writer's `OSError`.
 
-## 2026-10-29, milestone 2 TypeScript lane (vil-0vz, vil-9fy, vil-5ya, vil-gxu)
+## 2026-10-29, milestone 2 TypeScript lane (kno-0vz, kno-9fy, kno-5ya, kno-gxu)
 
 - Exported names the frozen page's section 11 does not list: the helper base types `IVariableBase` (what every
   variable variant has, beside `IStatementBase`/`IValueBase`), `IExpandedValueBase` (the readers every expanded
@@ -153,7 +153,7 @@
   `case StringArgument("10.0.60.30")` never matches. The review proposes a `value` field (the decoded text) as the
   first match field. Kept as frozen (the docstring and py/README now say it); changing it is an owner call.
 
-## 2026-10-29, milestone 3 spec lane (vil-j80, vil-033)
+## 2026-10-29, milestone 3 spec lane (kno-j80, kno-033)
 
 - The round 13 review's root cause 5 gave the adapter "find a target". `spec/conformance.md` moves target finding
   into the shared driver (the adapter dumps objects with ids; the driver finds the target in the dump), so the target
@@ -164,7 +164,7 @@
 - Latent bug in the Python written runner (deleted by the milestone 3 Python lane): `name_at` and `starts_at`
   compared code-point columns with the corpus's UTF-16 columns. No case had a character above U+FFFF before a target.
   The driver converts before it compares.
-- spec 2.8's check of a values text did not cover a comment the text ends in (vil-033; frozen-m2.md section 15 had
+- spec 2.8's check of a values text did not cover a comment the text ends in (kno-033; frozen-m2.md section 15 had
   noted it as unruled). Both bindings accepted `set("1 # note")` and wrote `port 1 # note;`; a list item's
   `replace with text` with `"3 # note"` was refused, but with E2004 at the text's end, an artifact of the check's
   probe `x [<text>];`. The spec now refuses every such text with E2001 at the comment.
@@ -200,7 +200,7 @@
   kind is lowercase; token kinds are the grammar's capitalised names.
 - ANTLR 4.13.2 has no official Rust target, so binding-guide step 3 has no stated path for Rust: an owner question.
 
-## 2026-10-29, milestone 4 spec lane (vil-umh.1 to vil-umh.8, vil-umh.12)
+## 2026-10-29, milestone 4 spec lane (kno-umh.1 to kno-umh.8, kno-umh.12)
 
 - **Expected outputs were not all derived by hand** (spec 9 says they are). The changed and new syntax cases
   (`conformance/expected/`, 152 files, mostly `WORD` becoming `INTEGER` or `DIGIT_WORD` and a `SEMI` token added),
@@ -212,9 +212,9 @@
   TypeScript binding as built before this milestone (`ts/dist`): both bindings agree on every one, so writing the
   model down exposed no difference between them. Owner call: accept tool-assisted derivation for a grammar change
   this wide, or ask for an independent hand check.
-- **`grammar/villanelle.ebnf` duplicates the grammar** and is kept in step by hand (updated for milestone 4). The
+- **`grammar/knobly.ebnf` duplicates the grammar** and is kept in step by hand (updated for milestone 4). The
   round 15 review called it "an unchecked second grammar file". Open question for the owner: derive it from
-  `Villanelle.g4`, or retire it; it is no longer the source of the value rules (`IntegerText` and `EscapeText` are
+  `Knobly.g4`, or retire it; it is no longer the source of the value rules (`IntegerText` and `EscapeText` are
   now token rules in the .g4).
 - **Spec 3.2 never said a broken statement is one `error` node**, though every syntax expected file encoded it.
   With the new grammar ANTLR leaves a partial `directive` context behind an error, so the rule had to be written
@@ -241,9 +241,9 @@
   decides it.
 - **Python `BadTextError` is no longer a `ValueError`**: `ValueError` is Python's misuse class, a program bug, and
   the error tree now keeps the two sorts apart (spec 2.8). Code that caught a refused edit with `except
-  ValueError` must catch `BadTextError` or `VillanelleError`.
-- **The conformance protocol reported only `villanelle error`s as `thrown`** (spec/conformance.md 3); a misuse
-  error was a `fault`, so no shared case could pin vil-umh.7. `thrown` now covers every spec 2.8 group, with
+  ValueError` must catch `BadTextError` or `KnoblyError`.
+- **The conformance protocol reported only `knobly error`s as `thrown`** (spec/conformance.md 3); a misuse
+  error was a `fault`, so no shared case could pin kno-umh.7. `thrown` now covers every spec 2.8 group, with
   `paths` for the I/O groups; the written format gains `saveTo` (a memory writer over given texts) and `diff`.
 - **Before this milestone the real bindings in this checkout break on import with the new grammar** (Python:
   `grammar has no rule "lastDirective"`), so the shared driver bails out for them until each lane lands: every case
@@ -251,7 +251,7 @@
 
 ## 2026-10-29, milestone 4 Python lane
 
-- **`conformance/written/expected/add-include-unread.json` predates vil-umh.4** and contradicts spec 6.3 and 6.10:
+- **`conformance/written/expected/add-include-unread.json` predates kno-umh.4** and contradicts spec 6.3 and 6.10:
   after `addStatements 'include "part.conf";'` (not read yet), its `list` step expects the graph's `diagnostics`
   to be `[]` and its `render` step expects `"unreadable": []` and `"diagnostics": []`. The spec says each copy in
   `unread ()` is an `unreadable expansion` with reason `unread` and E3007 in the one diagnostics list, as the new
@@ -268,13 +268,13 @@
 ## 2026-10-29, milestone 4 TypeScript lane
 
 - **`add-include-unread` is the TypeScript binding's one red case too**, for the reason the Python lane gives: its
-  expected file predates vil-umh.4. TypeScript gives the same output as Python (`"diagnostics": [["E3007",
+  expected file predates kno-umh.4. TypeScript gives the same output as Python (`"diagnostics": [["E3007",
   "main.conf:1:0"]]` in `list`; `"unreadable": [["", "unread", "main.conf:1:0"]]` and that diagnostic in `render`).
   The expected file needs re-deriving in the spec lane.
 - **An override's literal bound beyond ±(2^53-1)**: TypeScript agrees with Python (E4001, reason `value`, at each
   `$name` that reads the override); the spec should say so in 6.3.
 - **`slice value`, `index value` and `plain value` are `layer: shared` in `spec/schema/api.json`**, but the frozen
-  page moves them into `villanelle.written` for Python and moves `ts/src/value.ts` (which holds them) under
+  page moves them into `knobly.written` for Python and moves `ts/src/value.ts` (which holds them) under
   `ts/src/written/` for TypeScript. TypeScript followed the frozen page (they are reader results of the expanded
   value, which the low level owns); the schema's layer should become `written`, or the page should keep them shared.
 - **The adapter now reports a native `TypeError` and `RangeError` as `thrown`** (argument type error, index out of
@@ -284,7 +284,7 @@
 
 ## 2026-10-29, milestone 4 fix pass
 
-- **`add-include-unread` re-derived** from spec 6.10 (vil-umh.4): `list` now expects `[["E3007","main.conf:1:0"]]`
+- **`add-include-unread` re-derived** from spec 6.10 (kno-umh.4): `list` now expects `[["E3007","main.conf:1:0"]]`
   and `render` expects `"unreadable": [["","unread","main.conf:1:0"]]` with that diagnostic. Both bindings already
   gave it; every shared case now passes in both.
 - **Contract 4.3 against spec 6.3** (order of checks): contract 4.3 said every text type check comes before
@@ -315,7 +315,7 @@
   bindings, which agree byte for byte, and checked by hand against the behaviour spec/expansion.md 4, 8 and 9 and
   spec 6.3 now state; they pin today's behaviour, not an independent derivation.
 
-## 2026-10-29, milestone 5 spec lane (vil-umh.6, vil-umh.12 rest, vil-umh.14)
+## 2026-10-29, milestone 5 spec lane (kno-umh.6, kno-umh.12 rest, kno-umh.14)
 
 - **`..` cannot be the slice separator**, as the owner's answer allowed for: `..` is already a `WORD` (`../conf`),
   and longest match reads `1..3` as one `DIGIT_WORD`. A `DOTDOT : '..'` token makes `tools/g4overlap.py` report
@@ -363,7 +363,7 @@
 - **Config text: what makes it.** The owner said "made only by quote() or an explicit text(...)", so no reading member
   returns `ConfigText` (a value's or statement's `text` is plain text, and copying it into an edit takes
   `text(v.text)`), except the graph's `overrides`, which return the config text the program gave. `text()` checks
-  nothing; the edit checks. Bead vil-umh.6's description also names a `vl` tagged template, which the owner's answer
+  nothing; the edit checks. Bead kno-umh.6's description also names a `vl` tagged template, which the owner's answer
   does not: not built. Python's `NewType` is erased at run time, so neither binding can refuse a plain string at run
   time; only the type checker does, and no shared case can pin it.
 - **`plain` has no red shared case.** No case can call a member a binding should not have, and each binding's
@@ -376,7 +376,7 @@
   slice (it is yielded first), and no case targets a slice's name.
 - **The `reserved names` schema key and the `RESERVED` constant keep their names** with a new meaning (the names no
   extension may take: `set`, `snippet`, `use`); "No directive name is reserved any more" is spec 2.5. Renaming the key
-  would rename a generated constant in both bindings, which per-layer naming (vil-umh.13) may revisit.
+  would rename a generated constant in both bindings, which per-layer naming (kno-umh.13) may revisit.
 - **The extension step's `name` is the name without `@`** (`extension include at main.conf:1:2`), as a variable step's
   is without `$`; the step's place is the whole `@include` token. Design call.
 - **The rasl fixtures diverge further from rasl's own files**: `@set`, `@snippet`, `@use`, `@include` and `[144~152]`
@@ -406,7 +406,7 @@
 - **The removed-names check reads api.json's prose entries.** `removed in milestone 5` lists names in sentences
   (`"plain (the expanded value reader), plain value"`); the Python test splits each entry at commas outside
   parentheses and checks the snake_case, PascalCase and as-written spellings (`plain`, `PlainValue`, `COLON`) are not
-  on the package root, `villanelle.written`, `TokenKind` or an expanded value class. The other entries yield phrases
+  on the package root, `knobly.written`, `TokenKind` or an expanded value class. The other entries yield phrases
   that are vacuously absent. A list of identifiers in the schema would make the check exact.
 
 ## 2026-10-29, milestone 5 TypeScript lane
@@ -498,7 +498,7 @@
   `tools/api/emit_ts.py` spells an options record's map as a result's map. The spec wins: `ts/src/written/processor.ts`
   keeps a hand-written `LoadOptions` (a `Readonly<Record<string, ConfigText>>`) and `Processor`, exported under the
   generated names, and `ts/src/types.test.ts` checks every free function against its generated `<Module>Functions`
-  but `villanelle`. Both go when the emitter spells an options record's map as a parameter's. frozen-m6.md section 1
+  but `knobly`. Both go when the emitter spells an options record's map as a parameter's. frozen-m6.md section 1
   ("the only mismatches are the block shape and `ISliceValue`") missed this one.
 - **`Diagnostics.toArray()` is a public TypeScript member the schema and spec do not have.** Kept (behaviour
   unchanged, one test uses it); the schema should either add it or the binding drop it (`[...diagnostics]` does the
@@ -509,7 +509,7 @@
   `ts/src/syntax/walk.ts` already named its own. No public member changed.
 - **The adapter loads `ERROR_GROUP_OF_CLASS` from the build** (`dist/gen/api/names.js`, as it loads the entry points)
   and names a thrown error by `error.name`; before, it tested `instanceof` most specific first. The same group for
-  every class villanelle throws (each sets `name`); a program's own subclass of a group's class, which no case
+  every class knobly throws (each sets `name`); a program's own subclass of a group's class, which no case
   throws, would now be a fault. `ts/conformance/tsconfig.json` gains `allowImportingTsExtensions` so the adapter can
   import `./shapes.ts` at run time under Node's type stripping.
 
@@ -524,14 +524,14 @@
   the generator is fixed. A `case DirectiveExpansion(w, v, b, o)` now binds where it raised before.
 - **Generated records and callbacks are typed with Protocols a program cannot import.** The records' fields
   (`Origin.place`, `Copy.statement`, `DirectiveExpansion.values`, `Added.after`, `DiagnosticError.diagnostic` ...)
-  and `KeyRule` name the generated Protocols, which live only in the private `villanelle._api`; the public names
-  (`villanelle.Place`, `written.SetLine`, `rendered.Directive` ...) are the hand classes, as they must be for
+  and `KeyRule` name the generated Protocols, which live only in the private `knobly._api`; the public names
+  (`knobly.Place`, `written.SetLine`, `rendered.Directive` ...) are the hand classes, as they must be for
   `match` and `isinstance`. So under mypy a function annotated with a public class refuses a value read from a
   record until it is narrowed (`isinstance`, `match`), and `def key(d: rendered.Directive)` is not a
   `rendered.KeyRule`. Found by the tests: `test_load.py`'s key rules and its `at(d: LocatedDiagnostic)` helper,
   `test_tracer.py`'s `line_of(place: Place)`. In the lane: `Rendered.addresses` and `diff` take a function of
   either `Directive` (a wider parameter, so the Protocol still holds); the adapter and three test helpers annotate
-  with `villanelle._api` types. Needs a decision above the lanes: public Protocol names, or records typed by
+  with `knobly._api` types. Needs a decision above the lanes: public Protocol names, or records typed by
   the binding's classes. Not decided here.
 - **Records with a people form are generated as Protocols, not dataclasses** (`place`, `override`, `step`,
   `diagnostic`, `located diagnostic`, `address`: `is_record` excludes a member with a trait). frozen-m6.md 2.B lists
@@ -548,10 +548,10 @@
   sites now pass keywords.
 - **The adapter names a group from the first class in the error's `__mro__` that `ERROR_GROUP_OF_CLASS` holds**, not
   `ERROR_GROUP_OF_CLASS[type(e).__name__]` (frozen-m6.md 2.B): a builtin subclass (a `UnicodeError` is a
-  `ValueError`) keeps its group, as the old `isinstance` order did. Same result for every class villanelle raises.
-- **Not done, for a later call:** the package's internal modules keep names without `_` (`villanelle.origin`,
-  `villanelle.report`, `villanelle.source`, `villanelle.diagnostics`, `villanelle.syntax.cst`,
-  `villanelle.written.model` ...), so a public class is still importable from a second path. frozen-m6.md does not
+  `ValueError`) keeps its group, as the old `isinstance` order did. Same result for every class knobly raises.
+- **Not done, for a later call:** the package's internal modules keep names without `_` (`knobly.origin`,
+  `knobly.report`, `knobly.source`, `knobly.diagnostics`, `knobly.syntax.cst`,
+  `knobly.written.model` ...), so a public class is still importable from a second path. frozen-m6.md does not
   ask to rename them.
 
 ## Milestone 6 review fixes (one fix agent, 2026-10-29)
@@ -578,21 +578,21 @@
   pass over about 35 notes. Also not done: a typed `checks text` flag per parameter in place of the argument type
   error's `member` / `parameter` prose; the per-binding "public class" mapping for Python records (above, "Needs a
   decision above the lanes").
-- The Python implementation modules are now private (`villanelle._origin`, `_report`, `_source`, `_diagnostics`,
+- The Python implementation modules are now private (`knobly._origin`, `_report`, `_source`, `_diagnostics`,
   `syntax._cst`, `syntax._parse`, `written._model`, `_value`, `_processor`, `_format`), closing the item above;
   tests/test_api_names.py fails on any non-underscore module that is not a public path.
 
-## 2026-10-29, milestone 7 (codegen leftovers: vil-umh.16, vil-umh.17, vil-umh.18), spec and generator lane
+## 2026-10-29, milestone 7 (codegen leftovers: kno-umh.16, kno-umh.17, kno-umh.18), spec and generator lane
 
 - **The brief's "generated output must compile alongside today's hand code" cannot hold for Python with item A.**
   Making the generated types name the public classes is a type change the hand code must follow: at this commit
   `mypy` reports 39 errors in 11 Python files, all in hand code (none in generated code), and the package fails to
   import because three hand modules import the four union aliases the generator no longer writes (`Statement`,
-  `WrittenValue`, `Variable`, `ExpandedValue` from `villanelle._api.written`). frozen-m7.md section A lists each
+  `WrittenValue`, `Variable`, `ExpandedValue` from `knobly._api.written`). frozen-m7.md section A lists each
   change the Python lane makes. TypeScript's generated output changed only in doc comments: `pnpm test` (232),
   `typecheck`, `lint`, `build` and the shared driver (L3) pass unchanged.
 - **spec/codegen.md section 10 said moving the per-language data into the emitters "is not done: it would put facts
-  the owner reads (which base each group has) in code".** vil-umh.17 does it; the facts stay readable in the generated
+  the owner reads (which base each group has) in code".** kno-umh.17 does it; the facts stay readable in the generated
   tables of spec 2.8 and contract 4.2, which now read them from the emitters. Section 10 is rewritten.
 - **History removed from emitted text outside the notes.** The doc check covers every text an emitter writes, so
   three code meanings (E1005, E3008, E4007: "(milestone 5)"), two constants' `means` (`RESERVED`: "Milestone 5: no
@@ -613,20 +613,20 @@
 ## 2026-10-29, milestone 7 (Python lane)
 
 - **frozen-m7.md section A's list misses `py/tests/test_layers.py`.** With item A, the generated
-  `villanelle._api.rendered` imports `villanelle.rendered` under `TYPE_CHECKING` (its annotations name
-  `villanelle.rendered.Directive`, `Rendered`, ...), and the layer check (spec 5, "Layer direction") governed every
-  module outside `villanelle.rendered`, `_api/` included, so it failed for that one module. The rendered layer's
-  generated declarations are the rendered layer's own: the check now treats `villanelle.rendered` and
-  `villanelle._api.rendered` as the layer, so a lower module importing either still fails (none does). The page's
+  `knobly._api.rendered` imports `knobly.rendered` under `TYPE_CHECKING` (its annotations name
+  `knobly.rendered.Directive`, `Rendered`, ...), and the layer check (spec 5, "Layer direction") governed every
+  module outside `knobly.rendered`, `_api/` included, so it failed for that one module. The rendered layer's
+  generated declarations are the rendered layer's own: the check now treats `knobly.rendered` and
+  `knobly._api.rendered` as the layer, so a lower module importing either still fails (none does). The page's
   list came from `mypy`; `pytest` could not run at the spec lane's commit (the package failed to import).
 - **"The shared driver must pass every case before" could not hold for Python**: at 0477392 the package fails to
   import (milestone 7 spec lane erratum above), so the driver ran only after this lane. After: 380 of 380, L3 holds.
-- **`grep -rn "villanelle._api" py/tests` is not empty, by design:** `tests/test_layers.py` names the modules
-  `villanelle._api.kinds` and `villanelle._api.rendered` as strings (the layer check's coverage and the layer's
-  extent), not imports. No test, adapter or doc imports `villanelle._api`.
+- **`grep -rn "knobly._api" py/tests` is not empty, by design:** `tests/test_layers.py` names the modules
+  `knobly._api.kinds` and `knobly._api.rendered` as strings (the layer check's coverage and the layer's
+  extent), not imports. No test, adapter or doc imports `knobly._api`.
 - **Milestone 6's `own()` helper (`written/_model.py`) went with the workarounds:** it narrowed a generated record's
   `Copy.statement` (typed with the `_api` Protocol union) to the binding's classes; the field is now typed
-  `villanelle.written.Statement`, so its three call sites read the field directly.
+  `knobly.written.Statement`, so its three call sites read the field directly.
 
 ## 2026-10-30, milestone 7 (review fixes)
 
@@ -647,7 +647,7 @@
   are I-Regexps (the program code pattern holds its characters as JSON escapes); `tests/test_api_names.py` no longer
   lists the `<Module>Functions` / `<Class>Constructor` assignments (the generated contract holds them).
 
-## 2026-10-30, schema docs (vil-umh.19)
+## 2026-10-30, schema docs (kno-umh.19)
 
 - **spec/schema/api.json's `errors` lists missed two misuse errors the spec states.** `check lost updates` raises a
   misuse error when `current` is not as long as `files` (spec 4.2; both bindings do), and a written value's `remove`
@@ -657,7 +657,7 @@
   entries undocumented, hand docstrings repeating schema docs) was one of its bullets; it is replaced by the costs of
   the new rule (section 3, "The schema's doc is the one home of each public doc").
 - **frozen-m7.md differs from spec/ after this change** (spec wins): Python's `<Module>Functions` and
-  `<Class>Constructor` Protocols moved from `py/tests/api_contract.py` into the layer modules of `villanelle._api`
+  `<Class>Constructor` Protocols moved from `py/tests/api_contract.py` into the layer modules of `knobly._api`
   (as TypeScript's are in `gen/api/`), and `_api/docs.py` is new; TypeScript's public functions and `Diagnostics`
   are constants typed by their generated signatures.
 - **spec/spec.md 2.8's misuse error row (generated from the schema's `raised when`) left out two cases the spec
@@ -668,7 +668,7 @@
 - **Error groups' `raised when` texts and the schema's other user docs cited spec sections** ("(spec 2.8)"), which a
   binding's user cannot follow from a doc comment; the docs drop the citations, so the generated tables in spec/spec.md
   (2.5 reserved names, 2.8 error groups) lose them too.
-- **spec/conformance.md 6 calls the driver "standard library only (as `tools/gen-api.py`)"** (vil-umh.20): the
+- **spec/conformance.md 6 calls the driver "standard library only (as `tools/gen-api.py`)"** (kno-umh.20): the
   driver still is, and so is `tools/gen-api.py`'s own Python, but generating a binding now also runs its pinned
   formatter (Prettier from `ts/node_modules`, ruff through `uv`), the one exception spec/codegen.md sections 4 and 11
   record. The comparison in spec/conformance.md is left as written (not an owned path); it reads true of imports
@@ -679,8 +679,8 @@
 - **C++ 1. Two error groups had no `message`, so a binding that makes them its own classes could not load.**
   `argument type error` and `index out of range` carried no `message` in spec/schema/api.json because TypeScript and
   Python both map them to built-in classes (`TypeError`, `RangeError`, `IndexError`); the loader requires `message`
-  for any group some binding makes a class of, and C++ makes both (`villanelle::argument_type_error`,
-  `villanelle::index_out_of_range`, design.md 2.2). Both now say `"message": {"given": true}`. TypeScript, Python and
+  for any group some binding makes a class of, and C++ makes both (`knobly::argument_type_error`,
+  `knobly::index_out_of_range`, design.md 2.2). Both now say `"message": {"given": true}`. TypeScript, Python and
   docs output are byte-identical with and without it (rendered both schemas and compared).
 - **C++ 2. spec/codegen.md section 10 says a new binding needs no loader edit, but the loader spells type names in
   PascalCase.** `Model.public` uses `pascal(c.name)` and tools/gen-api.py's `check_layers` looks for `"Widget"`, so a
@@ -689,13 +689,13 @@
 - **C++ 3. `Formatter.suffix` held one suffix**; C++ formats `.hpp` and `.cpp`. It now takes one suffix or a tuple
   (`str.endswith` takes either); TypeScript and Python unchanged.
 - **C++ 4. spec/README.md and spec/binding-guide.md step 3 name ANTLR as the only way to get a parser** (design finding
-  F18). Slice T rewrites both to name villanelle's own generator as the second route.
+  F18). Slice T rewrites both to name knobly's own generator as the second route.
 
 ## 2026-10-30, C++ binding milestone 1, Lane A (the C++ API emitter)
 
 - **A1. Two loader hooks beyond frozen-m1.md 4.1's four.** `constant_case` (C++ spells a limit `max_nesting`;
   `Model.public` and the glossary spelled every constant UPPER_SNAKE) and `kinds_in_package` (frozen 3.2 puts
-  `token_kind` and `node_kind` in `::villanelle`, the one `kinds.hpp` the generated parser includes, while
+  `token_kind` and `node_kind` in `::knobly`, the one `kinds.hpp` the generated parser includes, while
   `Model.public` put each kind list in its layer's namespace). Both default to what TypeScript and Python spell; their
   generated code is byte-identical. `emit_docs.py` now spells types and constants through `type_case`,
   `constant_case` and `pattern_form` (the C++ column needs it). spec/codegen.md section 10 names all five hooks.
@@ -729,14 +729,14 @@
   the map by value (design.md 1.3's table): its schema doc says it reads the map it is given at each call, and a
   copy-on-write map copied by value would never see a memory writer's change. The rule the emitter applies: a map a
   free function takes is shared.
-- **A9. `errors.hpp` and `villanelle.hpp` include each other.** The error classes hold shared records
-  (`diagnostic_error` holds a `located_diagnostic`), so `villanelle.hpp` forward-declares the error classes, declares
+- **A9. `errors.hpp` and `knobly.hpp` include each other.** The error classes hold shared records
+  (`diagnostic_error` holds a `located_diagnostic`), so `knobly.hpp` forward-declares the error classes, declares
   its records, then includes `errors.hpp` at its end (frozen 4.2 lists it among the includes); `errors.hpp` entered
-  first includes `villanelle.hpp`, which includes it back. Every header compiles alone.
+  first includes `knobly.hpp`, which includes it back. Every header compiles alone.
 - **A10. A union's or extended class's view constructor is protected**, not private (frozen 4.3): each variant (and
   `reference_resolution`, which extends `resolution<variable>`) constructs its base from the view. The view itself
   stays private, read through `detail::access`.
-- **A11. The layer check is per header, and `villanelle.hpp` holds the shared and io layers together**, so a syntax
+- **A11. The layer check is per header, and `knobly.hpp` holds the shared and io layers together**, so a syntax
   header that used an io name would pass `layers_syntax.cpp`. A header is allowed when it holds any layer the
   header's layers may import; every adapter module's header is forbidden to every other header.
 - **A12. The loader's doc check could not catch "C++"**: it searched `\bC\+\+\b`, and no word boundary follows `+`.
@@ -755,10 +755,10 @@
   second under ASan and UBSan. A fix (one pass building an offset table per case) belongs to the driver's owner.
 - **T3. `sequence::at` cannot name `index_out_of_range`**: `errors.hpp` includes `support/sequence.hpp`, so the
   error class is incomplete where the template is defined. `detail/raise.hpp` declares
-  `raise_index_out_of_range(index, size)` (`VILLANELLE_API`), defined with the shared layer; `ordered_map::at` and
+  `raise_index_out_of_range(index, size)` (`KNOBLY_API`), defined with the shared layer; `ordered_map::at` and
   `block::at` (slice 2) use the same helper.
 - **T4. Only the contract of an implemented layer is built** (Lane A's A4): GCC reports "inline function used but
-  never defined" as an error under `-Werror`, with no flag to silence it, so `api_contract_villanelle.cpp` and the
+  never defined" as an error under `-Werror`, with no flag to silence it, so `api_contract_knobly.cpp` and the
   other layers' contracts are not compiled in milestone 1. `api_contract_syntax.cpp` is linked and run by `ctest`.
   The shared layer's contract joins when the io functions, `diagnostics` and the other people forms are defined.
 - **T5. No MSVC leg** (frozen-m1.md 5.4 allows leaving it out): on `windows-2022` the checkout itself fails, "invalid
@@ -772,7 +772,7 @@
   load, rendered and contract corpora, which `render`, `diff` and `read`; design.md section 7 puts render in slice 3
   and says slice 2 proves "the `load` ... cases", which render. Milestone 2 takes in the rendered layer and, since the
   include extension is in its scope, claims level 3 (frozen-m2.md choice 1).
-- **M2-2. `program_code(std::string_view)` was declared `VILLANELLE_API` but missing from the generated contract** (the
+- **M2-2. `program_code(std::string_view)` was declared `KNOBLY_API` but missing from the generated contract** (the
   named type had no `Hand`): a missing definition would not have failed to link. The emitter now records it.
 - **M2-3. The block shape had no way to reach its layer** (support/block.hpp declared members over a bare view):
   frozen-m2.md 3.1 adds `detail::block_traits<Item>`, specialized per item type in `detail/<layer>/templates.hpp`.
@@ -783,7 +783,7 @@
 ## 2026-10-30, C++ binding milestone 2, slice F
 
 - **F1. spec/conformance.md section 3 (transport) does not say a stalled adapter is a fault.** The driver now waits at
-  most 60 s per request (`VILLANELLE_DRIVER_TIMEOUT` overrides it, bead vil-p5x, frozen-m2.md 5 and choice 9), then
+  most 60 s per request (`KNOBLY_DRIVER_TIMEOUT` overrides it, bead kno-p5x, frozen-m2.md 5 and choice 9), then
   kills the adapter, fails the case with "timed out after N s waiting for <op>" and restarts it for the next case, as
   for any fault. Section 3's fault list ("If it exits early, or writes a line that is not a response") should name the
   timeout too; spec/ is not slice F's to change, so this is a follow-up.
@@ -888,7 +888,7 @@
 - **G1. Python's E3007 message leaves out the extension's name, so `include_read` cannot print
   `examples/expected/include_read.txt` in Python.** TypeScript (`ts/src/written/bind.ts`, `unread`) and C++
   (`detail/written/bind.hpp`, `fail(unread_copy, directive)`) pass the extension directive as the message detail:
-  `main.conf:2:1: E3007: extension copy not read yet: include`. Python (`py/src/villanelle/written/_bind.py`,
+  `main.conf:2:1: E3007: extension copy not read yet: include`. Python (`py/src/knobly/written/_bind.py`,
   `_unread`) calls `_problem(DiagnosticCode.UNREAD_COPY, text, name.span, via)` without it and prints
   `main.conf:2:1: E3007: extension copy not read yet`. The message is for people (spec: it may differ), so the
   sample table is not wrong; the fix that matches the other two is passing the extension's directive as `detail`
@@ -897,11 +897,11 @@
 
 ## 2026-10-30, packaging, slice packaging (PR 8, overnight)
 
-- **P1. frozen-docs.md section 6, packaging step 5: the grep `find_package\|cmake --install\|VILLANELLE_INSTALL`
+- **P1. frozen-docs.md section 6, packaging step 5: the grep `find_package\|cmake --install\|KNOBLY_INSTALL`
   cannot find nothing.** `cpp/CMakeLists.txt` keeps `find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)`
-  inside `if(VILLANELLE_BUILD_TESTS)`: the conformance test runs the shared driver under Python. It is a test-only
-  tool, off in every consumer route, not villanelle's own package. Followed the intent: no `find_package(villanelle`,
-  no `cmake --install`, no `VILLANELLE_INSTALL` remain outside `.claude/design/` and `.beads/`; the one hit left is
+  inside `if(KNOBLY_BUILD_TESTS)`: the conformance test runs the shared driver under Python. It is a test-only
+  tool, off in every consumer route, not knobly's own package. Followed the intent: no `find_package(knobly`,
+  no `cmake --install`, no `KNOBLY_INSTALL` remain outside `.claude/design/` and `.beads/`; the one hit left is
   that Python line.
 
 ## 2026-10-30, user guide pages, slice pages (PR 8, overnight)
@@ -909,7 +909,7 @@
 - **W1. frozen-docs.md section 6, pages step 4 cannot pass while G1 stands: the hook requires the Python tab of
   `include_read`, and `py/examples/include_read.py` is not on the branch** (kept on `wip/py-samples`, errata G1). By
   design the build fails (`SnippetMissingError` for the page's include, and the hook names the file). Checked: with
-  G1's fix (Python's `_unread` in `py/src/villanelle/written/_bind.py` passing `name.text[1:]` as the `detail`, as
+  G1's fix (Python's `_unread` in `py/src/knobly/written/_bind.py` passing `name.text[1:]` as the `detail`, as
   TypeScript and C++ do) and the wip file, all 18 Python samples pass and `mkdocs build --strict` passes. Neither is
   in the pages slice's owned paths, so the pages work is on `wip/pages` until they land.
 - **W2. frozen-docs.md section 6, pages step 5: the grep `low-level-api.md\|rendered-tree.md\|docs/language.md`

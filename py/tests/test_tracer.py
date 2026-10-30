@@ -9,9 +9,9 @@ from collections.abc import Sequence
 import pytest
 from conftest import REPO
 
-import villanelle as vl
-from villanelle import rendered, written
-from villanelle.include import include
+import knobly as vl
+from knobly import rendered, written
+from knobly.include import include
 
 SPLIT = REPO / "fixtures" / "rasl" / "split"
 FILES = {name: (SPLIT / name).read_text(encoding="utf-8") for name in ("main.conf", "sink.conf")}

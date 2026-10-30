@@ -1,5 +1,5 @@
 /**
- * Values going in (spec 6.9, frozen-m1.md section 3): every member that takes villanelle text refuses anything else
+ * Values going in (spec 6.9, frozen-m1.md section 3): every member that takes knobly text refuses anything else
  * with a TypeError naming the member and the parameter, before it changes anything; and the one check of an override
  * (spec 6.3) refuses the same texts from `load` and `setOverride`. No conformance case can carry a non-string, so
  * these are this binding's own tests.
@@ -8,12 +8,12 @@ import { describe, expect, it } from "vitest";
 
 import { include } from "../include.js";
 import { BadTextError, type ConfigText, DetachedError, memorySource, MisuseError, quote, text } from "../index.js";
-import { type DocumentGraph, type SetLine, type UseLine, villanelle, type WrittenDirective } from "./index.js";
+import { type DocumentGraph, type SetLine, type UseLine, knobly, type WrittenDirective } from "./index.js";
 
 const MAIN = '@set $port 80;\n@snippet s $a { x $a; }\n@use s 1;\nserver "web" [1, 2] {\n  listen $port;\n}\n';
 
 async function load(): Promise<DocumentGraph> {
-  return await villanelle({ source: memorySource({ "main.conf": MAIN }), extensions: [include()] }).load("main.conf", { overrides: { o: text("1") } });
+  return await knobly({ source: memorySource({ "main.conf": MAIN }), extensions: [include()] }).load("main.conf", { overrides: { o: text("1") } });
 }
 
 /** A value of each wrong type: a number, null, undefined and (TypeScript) an array. */
@@ -26,7 +26,7 @@ const WRONG: readonly [string, unknown][] = [
 
 /** The argument type error's exact text (spec/schema/api.json, "argument type error message"). */
 function message(member: string, parameter: string, got: string): string {
-  return `${member}(): argument "${parameter}" must be a string, not ${got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, String() a number first`;
+  return `${member}(): argument "${parameter}" must be a string, not ${got}; knobly edits take config text: quote() a program string, text() one already written as knobly text, String() a number first`;
 }
 
 /** Call `edit` with `value` where text goes, as a JavaScript caller or a cast could. */
@@ -73,7 +73,7 @@ describe("text-only edits (spec 6.9)", () => {
 
   it("refuses a load override that is not text, naming it as overrides[name]", async () => {
     for (const [got, value] of WRONG) {
-      const processor = villanelle({ source: memorySource({ "main.conf": "a;\n" }) });
+      const processor = knobly({ source: memorySource({ "main.conf": "a;\n" }) });
       const overrides = { port: value } as unknown as Record<string, ConfigText>;
       await expect(processor.load("main.conf", { overrides }), got).rejects.toThrow(new TypeError(message("load", 'overrides["port"]', got)));
     }
@@ -102,7 +102,7 @@ describe("the check of an override (spec 6.3): one check for load and setOverrid
   }
 
   async function fromLoad(given: string): Promise<unknown> {
-    const processor = villanelle({ source: memorySource({ "main.conf": "a $v;\n" }) });
+    const processor = knobly({ source: memorySource({ "main.conf": "a $v;\n" }) });
     try {
       await processor.load("main.conf", { overrides: { v: text(given) } });
       return "ok";
@@ -112,7 +112,7 @@ describe("the check of an override (spec 6.3): one check for load and setOverrid
   }
 
   async function fromSetOverride(given: string): Promise<unknown> {
-    const graph = await villanelle({ source: memorySource({ "main.conf": "a $v;\n" }) }).load("main.conf");
+    const graph = await knobly({ source: memorySource({ "main.conf": "a $v;\n" }) }).load("main.conf");
     try {
       graph.setOverride("v", text(given));
       return "ok";
@@ -136,7 +136,7 @@ describe("the check of an override (spec 6.3): one check for load and setOverrid
   });
 
   it("refuses a bad name with a MisuseError from both, as a variable's rename does (one name check)", async () => {
-    const processor = villanelle({ source: memorySource({ "main.conf": "@set $a 1;\n" }) });
+    const processor = knobly({ source: memorySource({ "main.conf": "@set $a 1;\n" }) });
     await expect(processor.load("main.conf", { overrides: { "a-b": text("1") } })).rejects.toThrow(MisuseError);
     const graph = await processor.load("main.conf");
     expect(() => graph.setOverride("a-b", text("1"))).toThrow(MisuseError);

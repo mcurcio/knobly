@@ -1,6 +1,6 @@
 // files::file_source() and files::file_writer() (spec 4.2, 4.3) against the real filesystem, in a fresh directory
 // under the build tree (the test's working directory).
-#include <villanelle/files.hpp>
+#include <knobly/files.hpp>
 
 #include <algorithm>
 #include <filesystem>
@@ -14,7 +14,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-namespace vl = villanelle;
+namespace vl = knobly;
 namespace fs = std::filesystem;
 
 namespace {

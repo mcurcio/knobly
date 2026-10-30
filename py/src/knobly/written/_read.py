@@ -8,15 +8,15 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
-from villanelle._api.errors import ReadError
-from villanelle._api.io import DocumentSource, LoadContext
-from villanelle._api.shared import ConfigText
-from villanelle._text import port_text, port_texts
-from villanelle.written import _bind, _graph
-from villanelle.written._model import DocumentGraph
+from knobly._api.errors import ReadError
+from knobly._api.io import DocumentSource, LoadContext
+from knobly._api.shared import ConfigText
+from knobly._text import port_text, port_texts
+from knobly.written import _bind, _graph
+from knobly.written._model import DocumentGraph
 
 if TYPE_CHECKING:
-    from villanelle._api.written import Extension
+    from knobly._api.written import Extension
 
 
 def load_graph(

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Soundness checks for grammar/Villanelle.g4. Exits non-zero on any failure.
+# Soundness checks for grammar/Knobly.g4. Exits non-zero on any failure.
 #   1. The parser rules, translated to Bison, have 0 conflicts (proves the grammar unambiguous).
 #   2. No two token kinds can match the same text, and no two tokens the parser places side by side lex as one
 #      longer token (tools/g4overlap.py: overlap, then longest-match adjacency).
@@ -11,7 +11,7 @@
 #   6. The kind lint's own test (tools/lint/kind_lint.py, under py's pinned Python so `match` is checked too; its
 #      TypeScript twin tools/lint/kind-rule.mjs runs in ts lint).
 #   7. The shared conformance driver's own test (conformance/driver/test_driver.py; spec/conformance.md).
-#   8. villanelle's own parser generator (tools/parser/gen.py --check): it accepts grammar/Villanelle.g4, refuses each
+#   8. knobly's own parser generator (tools/parser/gen.py --check): it accepts grammar/Knobly.g4, refuses each
 #      planted grammar in tools/planted-parser/, and the .g4's tree annotations match the .ebnf's.
 # The public-name check runs in each package's tests against its generated test contract (spec/codegen.md section 4).
 # Needs: python3, bison, uv (for interegular and jsonschema).
@@ -25,10 +25,10 @@ bison_check() {  # $1 = grammar; returns 0 if translated and conflict-free
   bison -o "$tmp/g.tab.c" "$tmp/g.y" > "$tmp/bison" 2>&1
 }
 
-if bison_check grammar/Villanelle.g4; then echo "ok   grammar: 0 conflicts"
+if bison_check grammar/Knobly.g4; then echo "ok   grammar: 0 conflicts"
 else echo "FAIL grammar: $(cat "$tmp/err" "$tmp/bison" 2>/dev/null)"; fail=1; fi
 
-if uv run -q --with interegular python tools/g4overlap.py grammar/Villanelle.g4 > "$tmp/ov" 2>&1
+if uv run -q --with interegular python tools/g4overlap.py grammar/Knobly.g4 > "$tmp/ov" 2>&1
 then echo "ok   tokens: $(tail -2 "$tmp/ov" | paste -sd ";" -)"
 else echo "FAIL tokens: $(cat "$tmp/ov")"; fail=1; fi
 

@@ -1,33 +1,33 @@
-// The shared definitions' entry point: <villanelle/villanelle.hpp> includes it at its end in header-only mode, and
-// <villanelle/implementation.hpp> in compiled mode (frozen-m1.md section 5). Every definition here carries
-// VILLANELLE_API (or is a template).
-#ifndef VILLANELLE_DETAIL_SHARED_DEFINITIONS_HPP
-#define VILLANELLE_DETAIL_SHARED_DEFINITIONS_HPP
+// The shared definitions' entry point: <knobly/knobly.hpp> includes it at its end in header-only mode, and
+// <knobly/implementation.hpp> in compiled mode (frozen-m1.md section 5). Every definition here carries
+// KNOBLY_API (or is a template).
+#ifndef KNOBLY_DETAIL_SHARED_DEFINITIONS_HPP
+#define KNOBLY_DETAIL_SHARED_DEFINITIONS_HPP
 
 #include <cstddef>
 #include <string>
 
-#include <villanelle/detail/raise.hpp>
-#include <villanelle/detail/shared/diagnostics.hpp>
-#include <villanelle/detail/shared/people.hpp>
-#include <villanelle/detail/shared/rules.hpp>
-#include <villanelle/detail/shared/values.hpp>
-#include <villanelle/support/view.hpp>
-#include <villanelle/villanelle.hpp>
+#include <knobly/detail/raise.hpp>
+#include <knobly/detail/shared/diagnostics.hpp>
+#include <knobly/detail/shared/people.hpp>
+#include <knobly/detail/shared/rules.hpp>
+#include <knobly/detail/shared/values.hpp>
+#include <knobly/knobly.hpp>
+#include <knobly/support/view.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 namespace detail {
 
-[[noreturn]] VILLANELLE_API void raise_index_out_of_range(std::size_t index, std::size_t size) {
-    raise(::villanelle::index_out_of_range("index " + std::to_string(index) + " is outside a sequence of " +
-                                           std::to_string(size)));
+[[noreturn]] KNOBLY_API void raise_index_out_of_range(std::size_t index, std::size_t size) {
+    raise(::knobly::index_out_of_range("index " + std::to_string(index) + " is outside a sequence of " +
+                                       std::to_string(size)));
 }
 
-[[noreturn]] VILLANELLE_API void raise_missing_key() {
-    raise(::villanelle::index_out_of_range("ordered_map::at: no such key"));
+[[noreturn]] KNOBLY_API void raise_missing_key() {
+    raise(::knobly::index_out_of_range("ordered_map::at: no such key"));
 }
 
 }  // namespace detail
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_DETAIL_SHARED_DEFINITIONS_HPP
+#endif  // KNOBLY_DETAIL_SHARED_DEFINITIONS_HPP

@@ -1,17 +1,17 @@
 // What every layer's nodes share (design.md 2.3; frozen-m2.md 3.1): the arena a counted node keeps its nodes in, and
 // the two ways between a node and a generated handle class. The written layer's graph and binding and the rendered
 // layer's render each own one arena. Package-internal.
-#ifndef VILLANELLE_DETAIL_ARENA_HPP
-#define VILLANELLE_DETAIL_ARENA_HPP
+#ifndef KNOBLY_DETAIL_ARENA_HPP
+#define KNOBLY_DETAIL_ARENA_HPP
 
 #include <memory>
 #include <utility>
 #include <vector>
 
-#include <villanelle/support/config.hpp>
-#include <villanelle/support/view.hpp>
+#include <knobly/support/config.hpp>
+#include <knobly/support/view.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 namespace detail {
 
 /// The nodes a counted node owns: each names that node as its counted owner, and dies with it.
@@ -44,6 +44,6 @@ Node* node_of(const Handle& handle) noexcept {
 }
 
 }  // namespace detail
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_DETAIL_ARENA_HPP
+#endif  // KNOBLY_DETAIL_ARENA_HPP

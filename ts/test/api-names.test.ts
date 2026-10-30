@@ -12,13 +12,13 @@ import { PUBLIC_NAMES } from "./api-contract.ts";
 
 /** Each import path's entry module (package.json "exports"), relative to this directory. */
 const ENTRY: Readonly<Record<keyof typeof PUBLIC_NAMES, string>> = {
-  villanelle: "../src/index.ts",
-  "villanelle/browser": "../src/browser.ts",
-  "villanelle/include": "../src/include.ts",
-  "villanelle/node": "../src/node.ts",
-  "villanelle/rendered": "../src/rendered/index.ts",
-  "villanelle/syntax": "../src/syntax/index.ts",
-  "villanelle/written": "../src/written/index.ts",
+  knobly: "../src/index.ts",
+  "knobly/browser": "../src/browser.ts",
+  "knobly/include": "../src/include.ts",
+  "knobly/node": "../src/node.ts",
+  "knobly/rendered": "../src/rendered/index.ts",
+  "knobly/syntax": "../src/syntax/index.ts",
+  "knobly/written": "../src/written/index.ts",
 };
 
 const paths = Object.keys(PUBLIC_NAMES) as (keyof typeof PUBLIC_NAMES)[];
@@ -50,7 +50,7 @@ describe("public names are the generated PUBLIC_NAMES (spec/schema/api.json)", (
 });
 
 /** What a public doc may not carry (spec/codegen.md section 3, "Docs and rationale"): it belongs in a `//` comment. */
-const HISTORY = /\bvil-[a-z0-9]{3}(\.[0-9]+)*\b|\bmilestone [0-9]|\bowner, [0-9]{4}-|\bgen\/api\b|\.test\.ts\b/;
+const HISTORY = /\bkno-[a-z0-9]{3}(\.[0-9]+)*\b|\bmilestone [0-9]|\bowner, [0-9]{4}-|\bgen\/api\b|\.test\.ts\b/;
 
 /** Every JSDoc a program sees on hover: each export of each entry, and each member of an exported class or interface. */
 function publicDocs(): [string, string][] {

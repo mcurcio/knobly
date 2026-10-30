@@ -1,4 +1,4 @@
-# C++ for villanelle, header-only: what you would get
+# C++ for knobly, header-only: what you would get
 
 You picked option A on 2026-10-29: the C++ version ships as **header files only** (files a C++ program includes and
 compiles itself, so there is no compiled library to build, install or link) and does not use the ANTLR runtime. This
@@ -16,7 +16,7 @@ graph.save(vl::files::file_writer());                                           
 
 ```ts
 // TypeScript
-const graph = await villanelle({ source: fileSource() }).load("main.conf");
+const graph = await knobly({ source: fileSource() }).load("main.conf");
 console.log(render(graph).block.directives("port")[0]?.values[0]?.integer());
 for (const d of graph.root.block.directives("port")) d.set(text("9090"));
 await graph.save(fileWriter());
@@ -30,7 +30,7 @@ for d in graph.root.block.directives("port"): d.set(text("9090"))
 graph.save(file_writer())
 ```
 
-The C++ lines leave out the `#include` lines and three short names: `vl`, `vw` and `vr` stand for `villanelle`, its
+The C++ lines leave out the `#include` lines and three short names: `vl`, `vw` and `vr` stand for `knobly`, its
 low level (`written`) and its rendered tree (`rendered`). The names are the same words in each language, in each
 language's usual spelling.
 
@@ -47,13 +47,13 @@ language's usual spelling.
 ## 3. The shape
 
 **Can the parser be generated without ANTLR? Yes, shown.** A small generator of our own (Python, no packages) reads
-the grammar file `grammar/Villanelle.g4` and writes the C++ code that splits a text into tokens and builds the tree.
+the grammar file `grammar/Knobly.g4` and writes the C++ code that splits a text into tokens and builds the tree.
 A 653-line prototype did this, and the result gave the expected answer, byte for byte, on all 168 syntax test cases
 the TypeScript and Python versions pass, with C++ exceptions turned off. The grammar is simple enough for this: no
 special cases a generator would need help with. What stays hand-written is policy the spec states in words: which
 error code a mistake gets, and how far the parser skips after a broken statement before reading on.
 
-**Files.** One folder of headers, one per layer, as now: `villanelle.hpp` (shared), `syntax.hpp`, `written.hpp`,
+**Files.** One folder of headers, one per layer, as now: `knobly.hpp` (shared), `syntax.hpp`, `written.hpp`,
 `rendered.hpp`, `files.hpp`, `extensions.hpp`. The generated ones are made during the build from a git checkout, which
 needs only Python; each release also carries them ready-made, plus the whole library as one file.
 
@@ -67,7 +67,7 @@ needs only Python; each release also carries them ready-made, plus the whole lib
 | test adapter (answers the shared test driver) | about 800 | 285 | 428 |
 | tools written once, in Python | parser generator 800 to 1,000; declarations generator 1,100 to 1,400 | declarations generator 632 | declarations generator 978 |
 
-C++ needs more hand code because it does not free unused memory by itself: every object villanelle hands out must
+C++ needs more hand code because it does not free unused memory by itself: every object knobly hands out must
 keep track of its own lifetime.
 
 ## 4. Two questions
@@ -89,9 +89,9 @@ still holds?**
 | B. They borrow it: valid only while the config lives | fastest, but using a handle after the config is gone crashes or reads garbage, and no compiler reliably warns |
 
 **Recommended defaults you can reopen:** C++20 (the 2020 language version); header-only by default, with an optional
-switch that compiles villanelle once in one of the program's files to save compile time; the one-file copy as an
+switch that compiles knobly once in one of the program's files to save compile time; the one-file copy as an
 extra release download; nothing to link and no download during the build; positions counted in bytes; names spelled
-like the C++ standard library (`replace_with_text`); a version tag inside every name so two villanelle versions in one
+like the C++ standard library (`replace_with_text`); a version tag inside every name so two knobly versions in one
 program cannot mix; no web-fetch adapters; no custom memory allocator.
 
 ## 5. Costs and what is deferred
@@ -102,7 +102,7 @@ program cannot mix; no web-fetch adapters; no custom memory allocator.
   Comparing them on 20,000 random texts found two cases where the TypeScript and Python parsers break the spec's own
   rule (a broken line can swallow the good lines after it; two broken lines can merge into one). The C++ parser
   follows the spec; the other two need fixing, with new test cases.
-- Header-only means every file that includes villanelle compiles its code; the compile-once switch is the remedy.
+- Header-only means every file that includes knobly compiles its code; the compile-once switch is the remedy.
   The syntax layer added 0.07 seconds to one file's compile; the larger layers are not measured yet.
 - Deferred: C++ modules (a newer way to package C++ code, not yet solid in every compiler); a returned-value API if
   Q1 picks A; using the same generator for TypeScript and Python (it would drop their ANTLR dependency; offered as

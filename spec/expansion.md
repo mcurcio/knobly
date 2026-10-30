@@ -1,12 +1,12 @@
 # Expansion semantics
 
 Status: normative, the one home of which definition a `$name` or a `use` reaches and which one wins (bead
-vil-umh.2). The owner, 2026-10-29, round 15 question 2 ("Which variables may a program override, and what does an
+kno-umh.2). The owner, 2026-10-29, round 15 question 2 ("Which variables may a program override, and what does an
 included file see?"), picked: "Keep today's model and write it down in the spec". So this page describes the
 behaviour both bindings had at milestone 3, exactly; it changes none of it. Where it reads as a rule nobody would
 choose (section 8), that is today's model, written down, and changing it is a new question for the owner.
 
-Milestone 5 (bead vil-umh.14) respells the statements this page speaks of: `@set`, `@snippet`, `@use` and an
+Milestone 5 (bead kno-umh.14) respells the statements this page speaks of: `@set`, `@snippet`, `@use` and an
 extension's `@include` (spec 6.5); "a `set` line" here is the statement spelled `@set`. It adds one rule, a variable
 as a slice's name (section 8). The scoping and precedence model is unchanged.
 

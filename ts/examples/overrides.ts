@@ -2,13 +2,13 @@
 // from the program that wins over the file's own. ts/examples/examples.test.ts runs this file and compares what it
 // prints with examples/expected/overrides.txt.
 // --8<-- [start:main]
-import { quote } from "villanelle";
-import { villanelle } from "villanelle/written";
-import { render } from "villanelle/rendered";
-import { include } from "villanelle/include";
-import { fileSource } from "villanelle/node";
+import { quote } from "knobly";
+import { knobly } from "knobly/written";
+import { render } from "knobly/rendered";
+import { include } from "knobly/include";
+import { fileSource } from "knobly/node";
 
-const config = villanelle({ source: fileSource(), extensions: [include()] });
+const config = knobly({ source: fileSource(), extensions: [include()] });
 // --8<-- [start:load]
 const plain = await config.load("main.conf");
 const overridden = await config.load("main.conf", { overrides: { leds_host: quote("10.0.70.1") } });

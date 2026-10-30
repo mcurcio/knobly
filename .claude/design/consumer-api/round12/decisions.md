@@ -7,13 +7,13 @@ architect's and implementers' choices, revisable, never his requirements.
 ## The owner's answers (gate v12, 2026-10-28)
 
 - O1 | names A: `load` returns the files as written; `render(graph)` builds the rendered tree | owner: "i like this layered approach, because it allows consumers to build on top of any of the APIs" | B: `load` keeps the rendered tree, `open` returns the files
-- O2 | copies A: an edit lands on the written line; every copy that reads it changes | owner's pick; his note: "the API _could_ provide helpers to do other operations like \"disconnect\" the variable or to \"inline\" the include, for example" (helpers proposal vil-chn, out of scope here) | B: edits name the copies they accept; C: villanelle edits one copy
-- O3 | values A: new values are villanelle text, with `quote()` | owner's pick | B: plain program values
+- O2 | copies A: an edit lands on the written line; every copy that reads it changes | owner's pick; his note: "the API _could_ provide helpers to do other operations like \"disconnect\" the variable or to \"inline\" the include, for example" (helpers proposal kno-chn, out of scope here) | B: edits name the copies they accept; C: knobly edits one copy
+- O3 | values A: new values are knobly text, with `quote()` | owner's pick | B: plain program values
 - O4 | the key rule leaves the processor | the owner asked (relayed by the run brief, 2026-10-28): "if the low-level API doesnt know about directives, then why is it trying to key them?"; the brief: keep diff's keying as PR 3 has it only if it needs no key on the processor, else move the key to `diff(before, after, {key})` | —
 
 ## Code architecture (slices.md)
 
-- D1 | PR 3's keying needs the key on the processor (`villanelle({ key })`, called during expansion), so the key moves to `diff`'s call, as O4 directs | PR 3 at cb08803 calls the key rule inside `Expander.statement` | keep it on the processor
+- D1 | PR 3's keying needs the key on the processor (`knobly({ key })`, called during expansion), so the key moves to `diff`'s call, as O4 directs | PR 3 at cb08803 calls the key rule inside `Expander.statement` | keep it on the processor
 - D4 | addresses move with the key: `IDirective.address` is removed; `IRendered.addresses({ key })` is the one home of the address rule and `diff` uses it; each `Change` keeps its `address` | an address without its key would be a second, positional notion of identity | `render(graph, { key })` keeping `address` on directives (smaller change, but the key would sit on render, not diff's call)
 - D5 | `KeyRule` takes the rendered `IDirective`; `IKeyInput` is removed | after render the whole directive exists; one shape instead of two; rasl's rule body (`d.name`, `d.parent?.name`, `d.args[1]?.text`) is unchanged | keep `IKeyInput`, built from each directive
 - D6 | `diff` stays a processor method (`processor.diff(before, after, { key })`) and keeps PR 3's same-processor check | smallest change; diff redesign is out of scope | a free `diff` function without the check
@@ -31,7 +31,7 @@ architect's and implementers' choices, revisable, never his requirements.
 - D18 | `createFsWriter`/`fs_writer` refuse a lost update (disk differs from `source`) writing nothing, then stage to temporary files and rename; the fetch writer sends one request per file and is not all-or-nothing | design.md hands the writer `source` for exactly this check; staging is design.md's "stage, then commit together" | write in place without checks
 - D19 | `save` with nothing changed does not call the writer and returns `[]` | "saving twice writes once" (design.md §1) | call it with an empty batch
 - D20 | a detached handle throws DetachedError from every member except `kind` | reading stale text silently is the hazard the error exists for | properties keep their last values
-- D21 | directory names stay (`ts/src/load/` holds the middle layer); the low level is new `ts/src/written/` and `py/src/villanelle/written/` | renaming `load/` would mislabel its shared modules (source, origin, report) and add churn | rename `load/` to `render/`
+- D21 | directory names stay (`ts/src/load/` holds the middle layer); the low level is new `ts/src/written/` and `py/src/knobly/written/` | renaming `load/` would mislabel its shared modules (source, origin, report) and add churn | rename `load/` to `render/`
 - D22 | the new low-level reference takes `docs/low-level-api.md` (the owner's term for this layer); PR 3's page moves to `docs/rendered-tree.md` | his words name this layer "the low-level API" | a new page name for the low level
 - D23 | the binding builds PR 3's `Argument` (rendered value) for include values and for render, so `ts/src/written/bind.ts` imports `load/tree.ts`'s class | an include's specs need expanded values (the `IExtension` contract), and value expansion needs one home (design rule 3) | inject a value builder into the binding; move `Argument` down a layer
 - D24 | `graph.diagnostics()` returns located diagnostics (`ILocatedDiagnostic`, with file and steps), not span-only `IDiagnostic` as the sketch wrote | they span several files | the sketch's type
@@ -87,7 +87,7 @@ architect's and implementers' choices, revisable, never his requirements.
 - D-S4-2 | rules no unit test shows in code (a reference's `declaration`, `overridden` next first) are described in prose with the config text of their shared case (`overridden-next-first`), not as code samples | S4's acceptance: every code sample is copied from a test that runs; `ts/` and `py/` are not S4's to add tests to | write new unit tests for the docs
 - D-S4-3 | design.md §1's step (4) (an edit inside the included file, and undo) is shown in Python only | only `py/tests/test_tracer.py` runs it; S4 may not add a TS test | a TS sample not backed by a test
 - D-S4-4 | `docs/language.md` changes only its error-code link | the language did not change in round 12; the bead title's "touch-ups" needed nothing else | reword its "the load applies" phrases to "rendering"
-- D-S4-5 | `design/RECORD.md`'s bead outline is left as it was, though its item 6 still lists `vil-uji` (editing through the tree) as later | slices.md S4: "the bead outline unchanged"; the round 12 section above it says what was built | update item 6 now
+- D-S4-5 | `design/RECORD.md`'s bead outline is left as it was, though its item 6 still lists `kno-uji` (editing through the tree) as later | slices.md S4: "the bead outline unchanged"; the round 12 section above it says what was built | update item 6 now
 - D-S4-6 | the move lands as its own commit (`git mv` with the page unchanged), then the content commit with S4's message | the new page reuses the old path, so in one commit git would show low-level-api.md modified and rendered-tree.md added, losing the move's history | one commit
 
 ## F1 fix round (PR 4 review findings, 2026-10-28)

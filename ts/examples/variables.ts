@@ -2,12 +2,12 @@
 // where it is set, where it wins and where another one wins. ts/examples/examples.test.ts runs this file and compares
 // what it prints with examples/expected/variables.txt.
 // --8<-- [start:main]
-import { quote, type Place } from "villanelle";
-import { villanelle, VariableKind, type ReferenceResolution } from "villanelle/written";
-import { include } from "villanelle/include";
-import { fileSource } from "villanelle/node";
+import { quote, type Place } from "knobly";
+import { knobly, VariableKind, type ReferenceResolution } from "knobly/written";
+import { include } from "knobly/include";
+import { fileSource } from "knobly/node";
 
-const config = villanelle({ source: fileSource(), extensions: [include()] });
+const config = knobly({ source: fileSource(), extensions: [include()] });
 const graph = await config.load("main.conf", { overrides: { leds_host: quote("10.0.70.1") } });
 
 const lineOf = (place: Place): string => `${place.resolvedPath}:${place.span.start.line + 1}`;

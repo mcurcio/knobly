@@ -1,7 +1,7 @@
 // The expanded value's readers (spec 2.9; contract 3): each reader on its kinds, a wrong kind as a located
 // diagnostic_error (E4002, and E4004 to E4006 for a word that is no number, integer or boolean), slices and indexes
 // with negative bounds, and a value's links back to what was written.
-#include <villanelle/written.hpp>
+#include <knobly/written.hpp>
 
 #include <cmath>
 #include <cstdint>
@@ -12,8 +12,8 @@
 
 #include "written_fixture.hpp"
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
+namespace vl = knobly;
+namespace vw = knobly::written;
 
 namespace {
 

@@ -13,7 +13,7 @@ import { render } from "../rendered/render.js";
 import type { DocumentWriter, FileWrite, Place } from "../index.js";
 import { memorySource, quote, text } from "../index.js";
 import type { Directive, Rendered } from "../rendered/index.js";
-import { type DocumentGraph, VariableKind, villanelle } from "./index.js";
+import { type DocumentGraph, VariableKind, knobly } from "./index.js";
 
 const SPLIT = new URL("../../../fixtures/rasl/split/", import.meta.url);
 const FILES = { "main.conf": readFileSync(new URL("main.conf", SPLIT), "utf8"), "sink.conf": readFileSync(new URL("sink.conf", SPLIT), "utf8") };
@@ -47,7 +47,7 @@ function recorder(): DocumentWriter & { batches: FileWrite[][] } {
 }
 
 async function open(): Promise<{ graph: DocumentGraph }> {
-  const config = villanelle({ source: memorySource(FILES), extensions: [include()] });
+  const config = knobly({ source: memorySource(FILES), extensions: [include()] });
   const graph = await config.load("main.conf", { overrides: { leds_host: quote("10.0.70.1") } });
   return { graph };
 }

@@ -243,7 +243,7 @@ A third party adds a node type (`rasl_waveform/__init__.py`, whole file):
 """A third-party node type for rasl: `node Waveform hue_ramp { shape sine; }`.
 
 `select=rasl.NodeKind` makes it a word `node` can pick; its fields hold rasl's `fps` and
-`connect`. rasl never names this package; the program hands both to villanelle.
+`connect`. rasl never names this package; the program hands both to knobly.
 """
 
 from __future__ import annotations
@@ -251,7 +251,7 @@ from __future__ import annotations
 from dataclasses import KW_ONLY
 from typing import Literal
 
-import villanelle as vl
+import knobly as vl
 import rasl
 
 Wave = Literal["sine", "sawtooth", "square"]
@@ -298,7 +298,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-import villanelle as vl
+import knobly as vl
 import webby
 
 
@@ -397,7 +397,7 @@ if __name__ == "__main__":
 ```
 
 `describe()` really runs. Its output is in `evidence/describe.txt`. `load` is a stub with no
-parser. The test kit (`villanelle.testing.build`) builds the same records from hand-written lines,
+parser. The test kit (`knobly.testing.build`) builds the same records from hand-written lines,
 and `evidence/runtime.txt` shows the rasl config and the webby config above built for real. That
 output covers inherited values, the node type picked, plain data lines, gzip applied by its own
 module, and 10 errors each placed at its line.

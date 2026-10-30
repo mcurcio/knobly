@@ -1,4 +1,4 @@
-"""The one check per kind of name (spec 2.8, vil-umh.7): every bad name a program passes is a misuse error
+"""The one check per kind of name (spec 2.8, kno-umh.7): every bad name a program passes is a misuse error
 (``ValueError``, a program bug), the same from every member that takes one. A variable's or override's name matches
 the ``variable name`` pattern (``load``'s overrides, ``set_override``, a variable's ``rename``); a directive's name, and
 an extension's at make processor, is what the grammar's ``nameText`` entry rule takes (one WORD, so never starting
@@ -6,9 +6,9 @@ with ``@``). No directive name is reserved (spec 2.5, milestone 5). Private."""
 
 from __future__ import annotations
 
-from villanelle._api.limits import VARIABLE_NAME
-from villanelle._text import require_text
-from villanelle.syntax._parse import parse_entry
+from knobly._api.limits import VARIABLE_NAME
+from knobly._text import require_text
+from knobly.syntax._parse import parse_entry
 
 
 def variable_name(name: object, *, member: str) -> str:

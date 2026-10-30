@@ -2,15 +2,15 @@
 // is written and where it wins or is shadowed. ctest examples_variables compares what it prints with
 // examples/expected/variables.txt.
 // --8<-- [start:main]
-#include <villanelle/extensions.hpp>
-#include <villanelle/files.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/extensions.hpp>
+#include <knobly/files.hpp>
+#include <knobly/written.hpp>
 
 #include <iostream>
 #include <string>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
+namespace vl = knobly;
+namespace vw = knobly::written;
 
 std::string line_of(const vl::place& place) {
     return place.resolved_path() + ':' + std::to_string(place.span().start().line() + 1);

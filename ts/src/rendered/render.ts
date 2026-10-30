@@ -2,7 +2,7 @@
  * `render (graph)` (spec 7.0): the rendered layer's entry point, and the one home of the render algorithm. It builds
  * on the low level's public objects only (owner, 2026-10-29: "The middle layer of objects can build on the lower
  * layer domains"): `graph.expand()`, the graph's own expansion, and `graph.root.resolvedPath`. Each directive
- * expansion becomes a directive that holds the expansion's own objects (vil-umh.8: nothing is copied); it never
+ * expansion becomes a directive that holds the expansion's own objects (kno-umh.8: nothing is copied); it never
  * looks a name up (the low level is the one home of that rule), reads no file, and names nothing: addresses come
  * from `Rendered.addresses` under the caller's key rule (D4). The low level never calls in here (spec 5, "Layer
  * direction").

@@ -1,10 +1,10 @@
-// <villanelle/format.hpp> (frozen-m3.md 3.1 and 4): std::format and operator<< of every people form give exactly its
+// <knobly/format.hpp> (frozen-m3.md 3.1 and 4): std::format and operator<< of every people form give exactly its
 // to_string, with a string's width, fill and alignment. The values come from a real load and render, so the people
 // forms are the hand code's, not built here.
-#include <villanelle/format.hpp>
-#include <villanelle/rendered.hpp>
-#include <villanelle/villanelle.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/format.hpp>
+#include <knobly/knobly.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/written.hpp>
 
 #include <format>
 #include <sstream>
@@ -14,9 +14,9 @@
 
 #include "written_fixture.hpp"
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 namespace {
 

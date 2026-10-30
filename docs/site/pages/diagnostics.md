@@ -1,6 +1,6 @@
 # Diagnostics and your own checks
 
-A program that checks its own rules (a schema, a set of known node types) reports its problems the way villanelle
+A program that checks its own rules (a schema, a set of known node types) reports its problems the way knobly
 reports its own: as located diagnostics, placed on what the program read, in one list with the config's problems.
 
 ## The sink
@@ -39,7 +39,7 @@ It prints:
 - `report(what, message, code)` records a problem placed on a directive, a value or the render. Every one of those
   also has `error(message, code)`, which returns a diagnostic error to throw or to add.
 - A program's code is `<namespace>/<name>`, such as `app/unknown-node`; both parts must be there (a misuse error
-  otherwise; a compile error in C++ for a literal without `/`), so a program's code never looks like villanelle's.
+  otherwise; a compile error in C++ for a literal without `/`), so a program's code never looks like knobly's.
 
 The sink keeps the order problems were added: the render's first, then the reader's error, then the program's.
 
@@ -51,11 +51,11 @@ each value with the reader its directive expects through `collect`, and `report`
 `format_diagnostic(d, graph)` (TypeScript `formatDiagnostic`) prints a diagnostic for people: the place counted
 from 1, the code and message, the source line (from the document's current text), a caret line under the span, and
 one line per step. Without the graph, only the first line, which is also the diagnostic's people form
-(`String(d)`, `str(d)`, `vl::to_string(d)`). It reads a graph, so it belongs to the low level (`villanelle/written`,
-`villanelle.written`, `villanelle::written`); [Getting started](getting-started.md#problems-are-diagnostics) prints
+(`String(d)`, `str(d)`, `vl::to_string(d)`). It reads a graph, so it belongs to the low level (`knobly/written`,
+`knobly.written`, `knobly::written`); [Getting started](getting-started.md#problems-are-diagnostics) prints
 a broken file's problems with it.
 
-In C++, `<villanelle/format.hpp>` is opt-in: it gives every type with a people form (`place`,
+In C++, `<knobly/format.hpp>` is opt-in: it gives every type with a people form (`place`,
 `located_diagnostic`, `rendered::address`, each kind list, `diagnostic_code`) an `operator<<` and a
 `std::formatter`, both writing exactly its `to_string`, so `std::format("{}", place)` works with width, fill and
 alignment.
@@ -67,7 +67,7 @@ A problem with an override's value is placed on the `$name` that used it.
 
 Lines and columns are counted from 0 in the API. "At" says where the diagnostic is placed. The 1xxx and 2xxx codes
 come from the syntax layer, which places them as the cases in
-[`conformance/`](https://github.com/mcurcio/villanelle/tree/main/conformance) show. An edit that is refused reports the
+[`conformance/`](https://github.com/mcurcio/knobly/tree/main/conformance) show. An edit that is refused reports the
 same codes, placed in the text the edit was given ([Editing and saving](editing.md#named-edits-and-a-refused-edit)).
 
 <!-- generated: error codes (tools/gen-api.py docs) -->

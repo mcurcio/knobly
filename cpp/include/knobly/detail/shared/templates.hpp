@@ -1,7 +1,7 @@
-// The shared layer's member templates (errata A3): <villanelle/villanelle.hpp> includes this file in both modes, after
+// The shared layer's member templates (errata A3): <knobly/knobly.hpp> includes this file in both modes, after
 // errors.hpp, because a template cannot be compiled once: diagnostics::report and diagnostics::collect.
-#ifndef VILLANELLE_DETAIL_SHARED_TEMPLATES_HPP
-#define VILLANELLE_DETAIL_SHARED_TEMPLATES_HPP
+#ifndef KNOBLY_DETAIL_SHARED_TEMPLATES_HPP
+#define KNOBLY_DETAIL_SHARED_TEMPLATES_HPP
 
 #include <concepts>
 #include <functional>
@@ -9,12 +9,12 @@
 #include <string_view>
 #include <type_traits>
 
-#include <villanelle/villanelle.hpp>
+#include <knobly/knobly.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 
-template <::villanelle::locatable At>
-void diagnostics::report(const At& at, std::string_view message, ::villanelle::program_code code) const {
+template <::knobly::locatable At>
+void diagnostics::report(const At& at, std::string_view message, ::knobly::program_code code) const {
     add(at.error(message, code).diagnostic());
 }
 
@@ -25,7 +25,7 @@ template <class F>
     requires std::invocable<F&>
 auto diagnostics::collect(F&& read) const {
     using result = std::invoke_result_t<F&>;
-#if VILLANELLE_EXCEPTIONS
+#if KNOBLY_EXCEPTIONS
     try {
         if constexpr (std::is_void_v<result>) {
             std::invoke(read);
@@ -33,7 +33,7 @@ auto diagnostics::collect(F&& read) const {
         } else {
             return std::optional<result>(std::invoke(read));
         }
-    } catch (const ::villanelle::diagnostic_error& error) {
+    } catch (const ::knobly::diagnostic_error& error) {
         add(error.diagnostic());
         if constexpr (std::is_void_v<result>) {
             return false;
@@ -51,6 +51,6 @@ auto diagnostics::collect(F&& read) const {
 #endif
 }
 
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_DETAIL_SHARED_TEMPLATES_HPP
+#endif  // KNOBLY_DETAIL_SHARED_TEMPLATES_HPP

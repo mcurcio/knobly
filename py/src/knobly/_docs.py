@@ -6,9 +6,9 @@ import importlib
 import inspect
 import sys
 
-from villanelle._api.docs import CONSTRUCTORS, FUNCTIONS
+from knobly._api.docs import CONSTRUCTORS, FUNCTIONS
 
-_API = "villanelle._api."
+_API = "knobly._api."
 
 
 def _generated(path: str) -> type:
@@ -48,7 +48,7 @@ def document(module: str) -> None:
                 _give(namespace[name], member.__doc__)
     for name in namespace["__all__"]:
         cls = namespace[name]
-        if not inspect.isclass(cls) or not cls.__module__.startswith("villanelle.") or cls.__module__.startswith(_API):
+        if not inspect.isclass(cls) or not cls.__module__.startswith("knobly.") or cls.__module__.startswith(_API):
             continue
         bases = protocols(cls)
         if not bases:

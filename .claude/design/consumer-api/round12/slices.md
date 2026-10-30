@@ -15,7 +15,7 @@ brief: one PR for this layer).
 | **S4 docs** | `docs/`, `README.md`, `design/RECORD.md`, `ts/README.md`, `py/README.md` | after S2 and S3 | docs are their own slice (skill §3.6) |
 
 S2 and S3 share the checkout: disjoint owned paths (`ts/` vs `py/`), and their checks write only inside them
-(`ts/src/gen/`, `ts/dist/`, `py/src/villanelle/_gen/`, `py/.venv/`). Everything both need (the shared conformance
+(`ts/src/gen/`, `ts/dist/`, `py/src/knobly/_gen/`, `py/.venv/`). Everything both need (the shared conformance
 cases and their format) is S1's (D9). Neither touches `conformance/`, `fixtures/` or `.claude/`; an error in a
 shared case is an erratum (`.claude/errata.md`) and a STOP, never a local edit.
 
@@ -29,12 +29,12 @@ git add -A -- <owned> && git commit -m '<conventional message>' -- <owned> && gi
 
 | Primitive | Home | One responsibility | Consumers now / scheduled |
 |---|---|---|---|
-| low-level types | `ts/src/written/model.ts` | the public shape of documents, statements, values, copies, variables, resolutions, writer | S1 (graph, documents, statements, values), S2 (all other members), render (S1), S3 mirrors it as `py/src/villanelle/written/model.py` |
-| edit and save errors | `ts/src/written/errors.ts`, `py/src/villanelle/written/errors.py` | the typed failures of edits, save and the root read | S1 (`BadTextError`, `DetachedError`, `NoSetLineError`, `SaveError`), S2 (`ReadError`), S3 |
-| the binding contract | `ts/src/written/bind.ts` | the one home of the name-lookup rule and the copy walk; what `render` consumes | S1 implements, S1's render consumes; S3 ports it as `villanelle/written/_bind.py` |
-| save and quote | `ts/src/written/save.ts`, `py/src/villanelle/written/save.py` | hand changed files to the writer in one batch; a plain string as villanelle text | S1, S3 |
-| fs writer | `ts/src/node.ts` `createFsWriter`, `py/src/villanelle/files.py` `fs_writer` | the batch on disk | S1 (batch, simple), S2 (staging, lost update), S3 |
-| `canonicalString` (exists) | `ts/src/load/values.ts`, `py/src/villanelle/_values.py` | a decoded string's canonical text | `quote` delegates to it (one rule: it is the same text) |
+| low-level types | `ts/src/written/model.ts` | the public shape of documents, statements, values, copies, variables, resolutions, writer | S1 (graph, documents, statements, values), S2 (all other members), render (S1), S3 mirrors it as `py/src/knobly/written/model.py` |
+| edit and save errors | `ts/src/written/errors.ts`, `py/src/knobly/written/errors.py` | the typed failures of edits, save and the root read | S1 (`BadTextError`, `DetachedError`, `NoSetLineError`, `SaveError`), S2 (`ReadError`), S3 |
+| the binding contract | `ts/src/written/bind.ts` | the one home of the name-lookup rule and the copy walk; what `render` consumes | S1 implements, S1's render consumes; S3 ports it as `knobly/written/_bind.py` |
+| save and quote | `ts/src/written/save.ts`, `py/src/knobly/written/save.py` | hand changed files to the writer in one batch; a plain string as knobly text | S1, S3 |
+| fs writer | `ts/src/node.ts` `createFsWriter`, `py/src/knobly/files.py` `fs_writer` | the batch on disk | S1 (batch, simple), S2 (staging, lost update), S3 |
+| `canonicalString` (exists) | `ts/src/load/values.ts`, `py/src/knobly/_values.py` | a decoded string's canonical text | `quote` delegates to it (one rule: it is the same text) |
 | written-layer conformance | `conformance/written/` | the cases both languages must produce byte for byte | S1 writes all of them; S1/S2/S3 runners |
 
 The committed files are the frozen signatures. A slice that needs a change to one appends an erratum and stops.
@@ -334,7 +334,7 @@ export interface IRendered {
 // ts/src/load/directive.ts
 export interface IDirective {
   // `address` removed (D4: rendered.addresses(), and each Change's address); `node` removed
-  /** The written directive this is a copy of (closes vil-uji). */
+  /** The written directive this is a copy of (closes kno-uji). */
   readonly written: IWrittenDirective;
   // name, args, body, unreadable, parent, origin, walk, closest, error: unchanged
 }
@@ -384,7 +384,7 @@ export function createFsWriter(): IDocumentWriter;
 pytest && uv run ruff check && uv run ruff format --check && uv run mypy`. Commit message: `feat(py): the low-level
 layer: config as written, editable, saved back`.
 
-**What it delivers.** The whole layer in Python at its final shape (S1 + S2 together): `villanelle/written/`
+**What it delivers.** The whole layer in Python at its final shape (S1 + S2 together): `knobly/written/`
 filled, the binding ported, `render` on top, the key at `diff`, save and `fs_writer`, every caller and test moved,
 and the runners for `conformance/written/` (every case) and `conformance/load/`.
 
@@ -395,17 +395,17 @@ classes (`match` narrows), handles identical by `is`, errors `EditError(ValueErr
 
 | Action | Path | What |
 |---|---|---|
-| fill | `py/src/villanelle/written/model.py`, `errors.py`, `save.py`, `__init__.py` | as committed |
-| new | `py/src/villanelle/written/_bind.py`, `_document.py`, `_graph.py`, `_read.py` | ports of S1's TS modules |
-| new | `py/src/villanelle/_render.py` | replaces `_expand.py` (deleted) |
-| delete | `py/src/villanelle/graph.py`, `py/src/villanelle/_expand.py` | replaced |
-| change | `py/src/villanelle/processor.py`, `directives.py`, `report.py`, `files.py`, `include.py`, `__init__.py` | signatures below |
+| fill | `py/src/knobly/written/model.py`, `errors.py`, `save.py`, `__init__.py` | as committed |
+| new | `py/src/knobly/written/_bind.py`, `_document.py`, `_graph.py`, `_read.py` | ports of S1's TS modules |
+| new | `py/src/knobly/_render.py` | replaces `_expand.py` (deleted) |
+| delete | `py/src/knobly/graph.py`, `py/src/knobly/_expand.py` | replaced |
+| change | `py/src/knobly/processor.py`, `directives.py`, `report.py`, `files.py`, `include.py`, `__init__.py` | signatures below |
 | change/new | `py/tests/*` | callers moved; `test_written.py`, `test_written_conformance.py`, `test_tracer.py` |
 
-**Frozen signatures: changes to existing code** (new code: the committed `villanelle/written/`).
+**Frozen signatures: changes to existing code** (new code: the committed `knobly/written/`).
 
 ```python
-# villanelle/processor.py
+# knobly/processor.py
 @final
 class Processor:
     def __init__(self, *, source: DocumentSource, extensions: Sequence[Extension] = ()) -> None: ...  # `key` removed
@@ -418,7 +418,7 @@ class Processor:
 class Rendered:                       # `Loaded`, renamed; body, unreadable, origin, diagnostics, graph, error: unchanged
     def addresses(self, *, key: KeyRule | None = None) -> Mapping[Directive, Address]: ...
 
-# villanelle/directives.py
+# knobly/directives.py
 KeyRule: TypeAlias = Callable[["Directive"], str | None]   # KeyInput removed
 class Directive:                      # `address` and `node` removed
     @property
@@ -432,13 +432,13 @@ class Argument:
     def resolutions(self) -> tuple[ReferenceResolution, ...]: ...    # D7 order
 def walk(node: Rendered | Directive, *, descend: Callable[[Directive], bool] | None = None) -> Iterator[Directive]: ...
 
-# villanelle/report.py
+# knobly/report.py
 def format_diagnostic(diagnostic: LocatedDiagnostic, graph: DocumentGraph | None = None) -> str: ...  # current text
 
-# villanelle/files.py
+# knobly/files.py
 def fs_writer() -> DocumentWriter: ...   # as committed: lost-update refusal, stage then rename (S2's TS rule)
 
-# villanelle/__init__.py exports: add everything in villanelle.written's __all__; Rendered; remove Loaded,
+# knobly/__init__.py exports: add everything in knobly.written's __all__; Rendered; remove Loaded,
 # KeyInput, DocumentNode and graph.py's DocumentGraph/DocumentEdge.
 ```
 
@@ -454,7 +454,7 @@ def fs_writer() -> DocumentWriter: ...   # as committed: lost-update refusal, st
 | C4 | Python idioms hold: `match` narrows every `Statement` and `WrittenValue` kind (a test with `assert_never`), `block[0] is block[0]`, `len(block)`, `in` | return new handle objects per access: the `is` test fails |
 | C5 | `fs_writer` refuses a lost update writing nothing, then stages and renames (test on `tmp_path`) | write before comparing: the test finds the file changed |
 | C6 | mypy strict and ruff pass with no new ignores | — (gate) |
-| C7 | the lookup rule has one home: no scope lookup outside `villanelle/written/_bind.py` (grep test, as A8) | copy `Scope` into `_render.py`: the test fails |
+| C7 | the lookup rule has one home: no scope lookup outside `knobly/written/_bind.py` (grep test, as A8) | copy `Scope` into `_render.py`: the test fails |
 
 ---
 

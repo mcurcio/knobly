@@ -4,9 +4,9 @@
 # --8<-- [start:main]
 from collections.abc import Mapping
 
-import villanelle as vl
-from villanelle import rendered, written
-from villanelle.include import include
+import knobly as vl
+from knobly import rendered, written
+from knobly.include import include
 
 
 # --8<-- [start:source]

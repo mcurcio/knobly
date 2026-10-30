@@ -1,7 +1,7 @@
 // The value rules of the grammar (NumberText, IntegerText, BooleanText; EscapeText is the grammar's own) and the
 // canonical text of a value (spec 2.9): the one home of each rule in this binding. A port of ts/src/values.ts.
-#ifndef VILLANELLE_DETAIL_SHARED_RULES_HPP
-#define VILLANELLE_DETAIL_SHARED_RULES_HPP
+#ifndef KNOBLY_DETAIL_SHARED_RULES_HPP
+#define KNOBLY_DETAIL_SHARED_RULES_HPP
 
 #include <cerrno>
 #include <charconv>
@@ -15,10 +15,10 @@
 #include <string_view>
 #include <system_error>
 
-#include <villanelle/limits.hpp>
-#include <villanelle/support/config.hpp>
+#include <knobly/limits.hpp>
+#include <knobly/support/config.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 namespace detail::rules {
 
 /// Digits: `0`, or a non-zero digit then digits; returns the index after them, or npos when none start at `at`.
@@ -48,7 +48,7 @@ inline std::optional<std::int64_t> integer_of(std::string_view word) noexcept {
     if (const auto [end, error] = std::from_chars(first, last, value); error != std::errc() || end != last) {
         return std::nullopt;
     }
-    if (value > ::villanelle::written::max_safe_integer) {
+    if (value > ::knobly::written::max_safe_integer) {
         return std::nullopt;
     }
     return from == 1 ? -value : value;
@@ -205,6 +205,6 @@ inline std::string canonical_index(std::string_view name, std::int64_t index) {
 }
 
 }  // namespace detail::rules
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_DETAIL_SHARED_RULES_HPP
+#endif  // KNOBLY_DETAIL_SHARED_RULES_HPP

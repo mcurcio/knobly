@@ -1,5 +1,5 @@
-// villanelle::sequence<T> (design.md 2.3): shared immutable storage, elements by value, a random-access range.
-#include <villanelle/villanelle.hpp>
+// knobly::sequence<T> (design.md 2.3): shared immutable storage, elements by value, a random-access range.
+#include <knobly/knobly.hpp>
 
 #include <algorithm>
 #include <iterator>
@@ -9,7 +9,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-using villanelle::sequence;
+using knobly::sequence;
 
 static_assert(std::ranges::random_access_range<sequence<std::string>>);
 static_assert(std::ranges::sized_range<sequence<std::string>>);
@@ -30,9 +30,9 @@ TEST_CASE("an empty sequence holds nothing and refuses every index", "[sequence]
     CHECK(empty.empty());
     CHECK(empty.size() == 0);
     CHECK(empty.begin() == empty.end());
-    CHECK_THROWS_AS(empty.at(0), villanelle::index_out_of_range);
-    CHECK_THROWS_AS(empty.front(), villanelle::index_out_of_range);
-    CHECK_THROWS_AS(empty.back(), villanelle::index_out_of_range);
+    CHECK_THROWS_AS(empty.at(0), knobly::index_out_of_range);
+    CHECK_THROWS_AS(empty.front(), knobly::index_out_of_range);
+    CHECK_THROWS_AS(empty.back(), knobly::index_out_of_range);
     CHECK(empty == sequence<int>(std::vector<int>{}));
 }
 
@@ -42,7 +42,7 @@ TEST_CASE("elements come back by value, in order", "[sequence]") {
     CHECK(numbers.at(0) == 3);
     CHECK(numbers.front() == 3);
     CHECK(numbers.back() == 4);
-    CHECK_THROWS_AS(numbers.at(3), villanelle::index_out_of_range);
+    CHECK_THROWS_AS(numbers.at(3), knobly::index_out_of_range);
     CHECK(std::vector<int>(numbers.begin(), numbers.end()) == std::vector<int>{3, 1, 4});
     auto it = numbers.begin();
     CHECK(it[2] == 4);

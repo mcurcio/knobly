@@ -1,7 +1,7 @@
 # How the bindings differ
 
 The three bindings have the same parts, generated from one schema
-([`spec/schema/api.json`](https://github.com/mcurcio/villanelle/blob/main/spec/schema/api.json)), and pass the same
+([`spec/schema/api.json`](https://github.com/mcurcio/knobly/blob/main/spec/schema/api.json)), and pass the same
 conformance cases. Where they differ, it is by design: each follows its own language's way.
 
 ## Names and imports
@@ -11,16 +11,16 @@ conformance cases. Where they differ, it is by design: each follows its own lang
 | member names | `camelCase` (`replaceWithText`, `shadowedAt`) | `snake_case` | `snake_case` |
 | type names | `DocumentGraph`, `Rendered` | `DocumentGraph`, `Rendered` | `document_graph`, `rendered` |
 | a property | `graph.root` | `graph.root` | `graph.root()` |
-| make a processor | `villanelle({ source, extensions })` | `Processor(source=..., extensions=...)` | `processor({.source, .extensions})` |
+| make a processor | `knobly({ source, extensions })` | `Processor(source=..., extensions=...)` | `processor({.source, .extensions})` |
 | options | an object, `{ key }` | a keyword argument, `key=` | a designated initializer, `{.key = ...}` |
-| each layer | an import path (`villanelle/written`) | a module (`villanelle.written`) | a header and a namespace (`<villanelle/written.hpp>`, `villanelle::written`) |
-| files on disk | `villanelle/node` | `villanelle.files` | `villanelle::files` |
+| each layer | an import path (`knobly/written`) | a module (`knobly.written`) | a header and a namespace (`<knobly/written.hpp>`, `knobly::written`) |
+| files on disk | `knobly/node` | `knobly.files` | `knobly::files` |
 | absent | `undefined` | `None` | `std::optional` (`std::nullopt`) |
 | a kind | a union narrowed by `kind` | a class per kind, narrowed by `match` | `as<T>()`, an `std::optional` of the kind's handle |
 
-In C++, alias the namespaces (`namespace vl = villanelle;`, `vw`, `vr`) and never write a using-directive: types and
+In C++, alias the namespaces (`namespace vl = knobly;`, `vw`, `vr`) and never write a using-directive: types and
 their accessors share names (`place place()`), and the written layer has a `string` and a `list`
-([`cpp/README.md`](https://github.com/mcurcio/villanelle/blob/main/cpp/README.md)).
+([`cpp/README.md`](https://github.com/mcurcio/knobly/blob/main/cpp/README.md)).
 
 ## Blocks and walks
 
@@ -53,7 +53,7 @@ cuts the run folder from what it prints before comparing).
 ## Errors
 
 The error groups are the same in every binding (the table is in [Getting started](getting-started.md#exceptions)):
-expected outcomes extend the villanelle error, program bugs do not.
+expected outcomes extend the knobly error, program bugs do not.
 
 | | TypeScript | Python | C++ |
 |---|---|---|---|
@@ -81,6 +81,6 @@ compile-fail test in `cpp/tests/compile_fail/`.
 
 ## What each binding has
 
-Python and C++ have no fetch source or fetch writer (`villanelle/browser` is TypeScript only). The C++ syntax and
+Python and C++ have no fetch source or fetch writer (`knobly/browser` is TypeScript only). The C++ syntax and
 written layers also build with `-fno-exceptions -fno-rtti`, where a thrown error is written to standard error and
 `std::abort()` is called instead.

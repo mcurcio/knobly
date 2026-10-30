@@ -11,10 +11,10 @@ from typing import Any
 import pytest
 from conftest import REPO
 
-import villanelle as vl
-from villanelle import rendered, written
-from villanelle.files import file_source
-from villanelle.include import include
+import knobly as vl
+from knobly import rendered, written
+from knobly.files import file_source
+from knobly.include import include
 
 FIXTURES = REPO / "fixtures" / "rasl"
 EXPECTED: dict[str, dict[str, Any]] = json.loads((FIXTURES / "expected.json").read_text(encoding="utf-8"))

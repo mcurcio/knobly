@@ -1,11 +1,11 @@
-// The files definitions' entry point: <villanelle/files.hpp> includes it at its end in header-only mode,
-// and <villanelle/implementation.hpp> in compiled mode. Every definition here carries VILLANELLE_API (or is a
+// The files definitions' entry point: <knobly/files.hpp> includes it at its end in header-only mode,
+// and <knobly/implementation.hpp> in compiled mode. Every definition here carries KNOBLY_API (or is a
 // template). A document source and a writer over the local filesystem (spec 4.2, 4.3), ports of
-// py/src/villanelle/files.py and ts/src/node.ts. Paths resolve through detail::io (the one POSIX join and glob rule,
+// py/src/knobly/files.py and ts/src/node.ts. Paths resolve through detail::io (the one POSIX join and glob rule,
 // shared with memory_source); the filesystem is reached through <cstdio> and <filesystem> only. Failures are read
 // from error codes and raised through detail::raise (frozen-m2.md 3.3 rule 7: no throw or try here).
-#ifndef VILLANELLE_DETAIL_FILES_DEFINITIONS_HPP
-#define VILLANELLE_DETAIL_FILES_DEFINITIONS_HPP
+#ifndef KNOBLY_DETAIL_FILES_DEFINITIONS_HPP
+#define KNOBLY_DETAIL_FILES_DEFINITIONS_HPP
 
 #include <cerrno>
 #include <cstddef>
@@ -20,30 +20,30 @@
 #include <utility>
 #include <vector>
 
-#include <villanelle/detail/io/lost_updates.hpp>
-#include <villanelle/detail/io/paths.hpp>
-#include <villanelle/detail/raise.hpp>
-#include <villanelle/files.hpp>
+#include <knobly/detail/io/lost_updates.hpp>
+#include <knobly/detail/io/paths.hpp>
+#include <knobly/detail/raise.hpp>
+#include <knobly/files.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 
 namespace detail::files {
 
 /// Raises the filesystem failure `code` on `path`, as the standard library's own filesystem error.
-[[noreturn]] VILLANELLE_API void raise_failure(const char* what, const std::string& path, std::error_code code) {
-    ::villanelle::detail::raise(std::filesystem::filesystem_error(what, std::filesystem::path(path), code));
+[[noreturn]] KNOBLY_API void raise_failure(const char* what, const std::string& path, std::error_code code) {
+    ::knobly::detail::raise(std::filesystem::filesystem_error(what, std::filesystem::path(path), code));
 }
 
 /// The error code errno holds now (after a failed <cstdio> call).
-VILLANELLE_API std::error_code last_error() noexcept { return {errno, std::generic_category()}; }
+KNOBLY_API std::error_code last_error() noexcept { return {errno, std::generic_category()}; }
 
 /// Whether a failure only says that nothing is at the path: a missing file or directory, or a path through a file.
-VILLANELLE_API bool is_absent(std::error_code code) noexcept {
+KNOBLY_API bool is_absent(std::error_code code) noexcept {
     return code == std::errc::no_such_file_or_directory || code == std::errc::not_a_directory;
 }
 
 /// Whether `path` names a regular file (symbolic links followed); false when nothing is there. Other failures raise.
-VILLANELLE_API bool is_file(const std::string& path) {
+KNOBLY_API bool is_file(const std::string& path) {
     std::error_code code;
     const std::filesystem::file_status status = std::filesystem::status(std::filesystem::path(path), code);
     if (code && !is_absent(code)) {
@@ -53,7 +53,7 @@ VILLANELLE_API bool is_file(const std::string& path) {
 }
 
 /// The bytes of `path`, whole. Nothing there: std::nullopt when `allow_absent`, else it raises, as any other failure.
-VILLANELLE_API std::optional<std::string> read_bytes(const std::string& path, bool allow_absent) {
+KNOBLY_API std::optional<std::string> read_bytes(const std::string& path, bool allow_absent) {
     std::FILE* file = std::fopen(path.c_str(), "rb");
     if (file == nullptr) {
         const std::error_code code = last_error();
@@ -77,19 +77,19 @@ VILLANELLE_API std::optional<std::string> read_bytes(const std::string& path, bo
     return text;
 }
 
-class file_source final : public ::villanelle::document_source {
+class file_source final : public ::knobly::document_source {
 public:
-    ::villanelle::sequence<std::string> resolve(std::string_view spec,
-                                                const ::villanelle::load_context& context) const override {
-        const std::string path = ::villanelle::detail::io::join(context.parent_path(), spec);
-        if (!::villanelle::detail::io::has_glob(path)) {
+    ::knobly::sequence<std::string> resolve(std::string_view spec,
+                                            const ::knobly::load_context& context) const override {
+        const std::string path = ::knobly::detail::io::join(context.parent_path(), spec);
+        if (!::knobly::detail::io::has_glob(path)) {
             if (is_file(path)) {
                 return {path};
             }
             return {};
         }
         // A glob: list its directory and keep the regular files whose name matches its last segment.
-        const std::string directory(::villanelle::detail::io::directory_of(path));
+        const std::string directory(::knobly::detail::io::directory_of(path));
         const std::string_view pattern = std::string_view(path).substr(directory.size());
         std::error_code code;
         std::filesystem::directory_iterator entries(std::filesystem::path(directory.empty() ? "." : directory), code);
@@ -102,7 +102,7 @@ public:
         std::vector<std::string> found;
         for (; entries != std::filesystem::directory_iterator(); entries.increment(code)) {
             const std::string name = entries->path().filename().string();
-            if (::villanelle::detail::io::glob_match(pattern, name) && is_file(directory + name)) {
+            if (::knobly::detail::io::glob_match(pattern, name) && is_file(directory + name)) {
                 found.push_back(directory + name);
             }
         }
@@ -119,7 +119,7 @@ public:
 
 /// A new, empty file beside `target`, named <target>.<random>.tmp and created exclusively: its path and the open
 /// file. A null file when it could not be made (`code` says why).
-VILLANELLE_API std::pair<std::string, std::FILE*> create_temporary(const std::string& target, std::error_code& code) {
+KNOBLY_API std::pair<std::string, std::FILE*> create_temporary(const std::string& target, std::error_code& code) {
     static constexpr char digits[] = "0123456789abcdef";
     std::random_device random;
     for (int attempt = 0; attempt < 100; ++attempt) {
@@ -140,19 +140,19 @@ VILLANELLE_API std::pair<std::string, std::FILE*> create_temporary(const std::st
     return {std::string(), nullptr};
 }
 
-class file_writer final : public ::villanelle::document_writer {
+class file_writer final : public ::knobly::document_writer {
 public:
-    void write(::villanelle::sequence<::villanelle::file_write> files) const override {
+    void write(::knobly::sequence<::knobly::file_write> files) const override {
         std::vector<std::optional<std::string>> current;
         current.reserve(files.size());
-        for (const ::villanelle::file_write& file : files) {
+        for (const ::knobly::file_write& file : files) {
             current.push_back(read_bytes(file.resolved_path(), true));
         }
-        ::villanelle::check_lost_updates(files, std::move(current));
+        ::knobly::check_lost_updates(files, std::move(current));
 
         // Stage every file; on the first failure remove what was staged and raise, with nothing replaced.
         std::vector<std::pair<std::string, std::string>> staged;  // (temporary, target)
-        for (const ::villanelle::file_write& file : files) {
+        for (const ::knobly::file_write& file : files) {
             const std::string target = real_target(file.resolved_path());
             std::error_code code;
             auto [temporary, out] = create_temporary(target, code);
@@ -218,16 +218,16 @@ private:
 
 namespace files {
 
-VILLANELLE_API std::shared_ptr<::villanelle::document_source> file_source() {
-    return std::make_shared<::villanelle::detail::files::file_source>();
+KNOBLY_API std::shared_ptr<::knobly::document_source> file_source() {
+    return std::make_shared<::knobly::detail::files::file_source>();
 }
 
-VILLANELLE_API std::shared_ptr<::villanelle::document_writer> file_writer() {
-    return std::make_shared<::villanelle::detail::files::file_writer>();
+KNOBLY_API std::shared_ptr<::knobly::document_writer> file_writer() {
+    return std::make_shared<::knobly::detail::files::file_writer>();
 }
 
 }  // namespace files
 
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_DETAIL_FILES_DEFINITIONS_HPP
+#endif  // KNOBLY_DETAIL_FILES_DEFINITIONS_HPP

@@ -27,7 +27,7 @@ every edit with the strong exception guarantee, `save` with lost-update checking
 and `collect`, `format_diagnostic`, the people forms); `file_source` and `file_writer`; the include extension; the
 rendered layer (`render`, rendered directives and blocks, `walk` with `descend`, `closest`, `addresses` with key
 rules, `diff`); design program 4.2 as a compiled test; explicit instantiation in compiled mode; a per-request timeout
-in the shared driver (bead vil-p5x). The adapter claims **level 3**, and every one of the 380 cases (L0 168, L1 60,
+in the shared driver (bead kno-p5x). The adapter claims **level 3**, and every one of the 380 cases (L0 168, L1 60,
 L2 123, L3 24) passes in header-only and compiled mode under ASan and UBSan. `tools/check.sh`, TypeScript and Python
 stay green, and their behaviour does not change.
 
@@ -53,12 +53,12 @@ landed, and owns everything they owned but the emitter (one slice only changes t
 
 | Owner | Paths (generated outputs and build trees count as owned) |
 |---|---|
-| **W** (wave 1) | `cpp/include/villanelle/support/`; `cpp/include/villanelle/detail/shared/`, `detail/io/`, `detail/written/`, `detail/raise.hpp`, `detail/text_in.hpp`; `cpp/conformance/adapter.cpp`, `cpp/conformance/json.hpp`; `cpp/tests/compile/`; `cpp/tests/unit/` except `files*.cpp` and `include*.cpp`; `cpp/CMakeLists.txt`; `tools/api/emit_cpp.py`, `tools/api/loader.py`, `tools/gen-api.py`, `spec/schema/api.json` (an erratum's fix only), `spec/codegen.md` and the tables `python3 tools/gen-api.py docs` rewrites (`spec/*.md`, `docs/rendered-tree.md`), only if the emitter or loader changes; the generated `cpp/include/villanelle/*.hpp`, `cpp/conformance/shapes.hpp`, `cpp/tests/generated/` (never committed); build trees `/Volumes/Dock/tmp/vil-cpp-build-W*` |
-| **F** (wave 1) | `cpp/include/villanelle/detail/files/`, `cpp/include/villanelle/detail/extensions/`; `cpp/tests/unit/files*.cpp`, `cpp/tests/unit/include*.cpp`; `conformance/driver/adapter.py`, `conformance/driver/test_driver.py`, `conformance/driver/stub_adapter.py`; `.github/workflows/ci.yml`; build trees `/Volumes/Dock/tmp/vil-cpp-build-F*` |
-| **R** (wave 2) | `cpp/` except the emitter's generated outputs (so `cpp/include/villanelle/detail/` whole, `cpp/include/villanelle/support/`, `cpp/conformance/adapter.cpp`, `json.hpp`, `cpp/tests/` but `tests/generated/`, `cpp/CMakeLists.txt`, `cpp/README.md`); `README.md` (root: the C++ line only); build trees `/Volumes/Dock/tmp/vil-cpp-build-R*` |
+| **W** (wave 1) | `cpp/include/knobly/support/`; `cpp/include/knobly/detail/shared/`, `detail/io/`, `detail/written/`, `detail/raise.hpp`, `detail/text_in.hpp`; `cpp/conformance/adapter.cpp`, `cpp/conformance/json.hpp`; `cpp/tests/compile/`; `cpp/tests/unit/` except `files*.cpp` and `include*.cpp`; `cpp/CMakeLists.txt`; `tools/api/emit_cpp.py`, `tools/api/loader.py`, `tools/gen-api.py`, `spec/schema/api.json` (an erratum's fix only), `spec/codegen.md` and the tables `python3 tools/gen-api.py docs` rewrites (`spec/*.md`, `docs/rendered-tree.md`), only if the emitter or loader changes; the generated `cpp/include/knobly/*.hpp`, `cpp/conformance/shapes.hpp`, `cpp/tests/generated/` (never committed); build trees `/Volumes/Dock/tmp/kno-cpp-build-W*` |
+| **F** (wave 1) | `cpp/include/knobly/detail/files/`, `cpp/include/knobly/detail/extensions/`; `cpp/tests/unit/files*.cpp`, `cpp/tests/unit/include*.cpp`; `conformance/driver/adapter.py`, `conformance/driver/test_driver.py`, `conformance/driver/stub_adapter.py`; `.github/workflows/ci.yml`; build trees `/Volumes/Dock/tmp/kno-cpp-build-F*` |
+| **R** (wave 2) | `cpp/` except the emitter's generated outputs (so `cpp/include/knobly/detail/` whole, `cpp/include/knobly/support/`, `cpp/conformance/adapter.cpp`, `json.hpp`, `cpp/tests/` but `tests/generated/`, `cpp/CMakeLists.txt`, `cpp/README.md`); `README.md` (root: the C++ line only); build trees `/Volumes/Dock/tmp/kno-cpp-build-R*` |
 | every slice | `.claude/errata.md`, append only |
 
-F configures with `-DVILLANELLE_REGENERATE=OFF` and never runs `tools/gen.sh` or `tools/gen-api.py`: the generated
+F configures with `-DKNOBLY_REGENERATE=OFF` and never runs `tools/gen.sh` or `tools/gen-api.py`: the generated
 headers are W's outputs in wave 1. W regenerates (`python3 tools/gen-api.py cpp`) only after an emitter change.
 Generated files are never committed (each slice checks `git status` shows none).
 
@@ -67,7 +67,7 @@ Generated files are never committed (each slice checks `git status` shows none).
 | Path | State |
 |---|---|
 | `tools/api/emit_cpp.py` | (1) each union's `as<V>()` and `visit(f)` **generated whole** from the variant list (3.2); (2) a header includes `detail/<layer>/templates.hpp` in both modes for each of its layers with hand member templates or the block shape (3.2); (3) **explicit instantiation**: each header declares `extern template class` in compiled mode for every support or class template specialization it spells first, and `implementation.hpp` instantiates them all once (3.2); (4) the contract now odr-uses `program_code(std::string_view)` (it had no `Hand`); (5) `<type_traits>` among the standard includes. TypeScript, Python and docs output unchanged (`emit_cpp.py` is the only emitter touched; `tools/check.sh` green) |
-| `cpp/include/villanelle/support/view.hpp` | `view` (members `VILLANELLE_API`), `access` (defined), `block_traits<Item>` (declared, its contract in a comment), `bad_kind()` (3.1) |
+| `cpp/include/knobly/support/view.hpp` | `view` (members `KNOBLY_API`), `access` (defined), `block_traits<Item>` (declared, its contract in a comment), `bad_kind()` (3.1) |
 | `support/block.hpp`, `walk_view.hpp`, `ordered_map.hpp` | unchanged declarations, comments point here; W defines them |
 | `detail/not_built.hpp` | **temporary**: `[[noreturn]] void not_built(const char*) noexcept` writes what is missing and aborts; the body of every stub. R deletes it |
 | `detail/shared/{definitions,people,values,diagnostics,view,templates}.hpp` | stubs for every shared declaration (W) but `to_string(const diagnostic&)` and `raise_index_out_of_range` (M1, real) |
@@ -76,11 +76,11 @@ Generated files are never committed (each slice checks `git status` shows none).
 | `detail/written/{definitions,processor,graph,document,statements,values,variables,expansion,format,templates}.hpp` | stubs for every written declaration and the two written `block_traits` specializations (W) |
 | `detail/rendered/{definitions,templates}.hpp` | stubs for every rendered declaration and `block_traits<rendered::directive>` (R) |
 | `detail/files/definitions.hpp`, `detail/extensions/definitions.hpp` | `file_source`, `file_writer`, `include` stubs (F) |
-| `cpp/CMakeLists.txt` | every `tests/generated/api_contract_*.cpp` is a program and a test (`contract_<header>`); one Catch2 program per `tests/unit/<name>.cpp` (`villanelle_unit_<name>`, test `unit_<name>`, run in the build directory); `conformance` runs the driver at the adapter's claimed level with `TIMEOUT 900`; `tests/compile/unions.cpp` in the compile check |
+| `cpp/CMakeLists.txt` | every `tests/generated/api_contract_*.cpp` is a program and a test (`contract_<header>`); one Catch2 program per `tests/unit/<name>.cpp` (`knobly_unit_<name>`, test `unit_<name>`, run in the build directory); `conformance` runs the driver at the adapter's claimed level with `TIMEOUT 900`; `tests/compile/unions.cpp` in the compile check |
 | `cpp/tests/compile/unions.cpp` | instantiates every union's `as<V>()` for each variant and `visit(f)` (compiled, never run) |
 
-Built and tested at this commit (AppleClang 21): header-only with `-DVILLANELLE_SANITIZE=ON`, and
-`-DVILLANELLE_COMPILED=ON -DCMAKE_CXX_STANDARD=23`: build green, `ctest` green (6 contracts, 3 unit programs, the
+Built and tested at this commit (AppleClang 21): header-only with `-DKNOBLY_SANITIZE=ON`, and
+`-DKNOBLY_COMPILED=ON -DCMAKE_CXX_STANDARD=23`: build green, `ctest` green (6 contracts, 3 unit programs, the
 driver's 168 L0 cases); `bash tools/check.sh` green.
 
 ## 3. Frozen interfaces
@@ -88,7 +88,7 @@ driver's 168 L0 cases); `bash tools/check.sh` green.
 ### 3.1 Support and the hooks between layers (`support/view.hpp`, `block.hpp`, `walk_view.hpp`, `ordered_map.hpp`)
 
 - **`detail::view`**: one counted pointer to a `detail::node`; copy shares, the last release frees. Equality is
-  identity. Members are declared `VILLANELLE_API` (W may instead define them inline in `view.hpp` and drop the macro).
+  identity. Members are declared `KNOBLY_API` (W may instead define them inline in `view.hpp` and drop the macro).
   **W defines `struct detail::node`** with a virtual destructor and the count (design.md 2.3: the count may live on the
   graph's core, the node pointing at it; then a view keeps the whole graph alive). R derives its render nodes from it.
   The count is atomic (copying a view on another thread is safe); nothing else is thread-safe (spec 4.1).
@@ -96,14 +96,14 @@ driver's 168 L0 cases); `bash tools/check.sh` green.
   reads its view. The hand code's only way in; the generated `as`/`visit` use it too.
 - **`detail::block_traits<Item>`**: the one layer hook of the block shape. `block<Item, Directive>` and
   `walk_view<Item>` are written once over it; each layer specializes it in its `detail/<layer>/templates.hpp`
-  (included in both modes), every member `VILLANELLE_API static`, defined with the layer's definitions:
+  (included in both modes), every member `KNOBLY_API static`, defined with the layer's definitions:
 
   ```cpp
   template <> struct block_traits<Item> {
       using directive = Directive;   // statement -> written_directive; directive_expansion and rendered::directive -> themselves
-      VILLANELLE_API static sequence<Item> items(const view& block);         // its items in written order: one snapshot
-      VILLANELLE_API static std::optional<directive> as_directive(const Item& item, std::optional<std::string_view> name);
-      VILLANELLE_API static std::optional<view> block_of(const Item& item);  // the item's own block; empty: none or detached
+      KNOBLY_API static sequence<Item> items(const view& block);         // its items in written order: one snapshot
+      KNOBLY_API static std::optional<directive> as_directive(const Item& item, std::optional<std::string_view> name);
+      KNOBLY_API static std::optional<view> block_of(const Item& item);  // the item's own block; empty: none or detached
   };
   ```
 
@@ -135,19 +135,19 @@ driver's 168 L0 cases); `bash tools/check.sh` green.
   and calls `f` with the exact variant class (`default: break;` for a union with `except kinds`, such as
   `expanded_value`, which is never a `reference`), then `detail::bad_kind()`. Both read only `kind()`, which works on
   a detached view (contract 4.3), so `as` and `visit` never raise `detached_error` themselves; the variant's members do.
-- **Templates in both modes.** `villanelle.hpp` includes `detail/shared/templates.hpp` (after `errors.hpp`);
+- **Templates in both modes.** `knobly.hpp` includes `detail/shared/templates.hpp` (after `errors.hpp`);
   `written.hpp` includes `detail/written/templates.hpp`; `rendered.hpp` includes `detail/rendered/templates.hpp`; each
   unconditionally, before the compiled-mode externs. The rule (`emit_cpp.template_layers`): a layer of the header
   with a class template's members, a `collect`, a member taking an interface (`report`), or a concept extending the
   block shape. Template members go there: `diagnostics::report`, `diagnostics::collect` (its `try` only under
-  `VILLANELLE_EXCEPTIONS`; without exceptions a failing read ends the program, design.md 2.2),
-  `written::resolution<D>::copy/winner/shadowed` (thin, over non-template `VILLANELLE_API` helpers W declares there
+  `KNOBLY_EXCEPTIONS`; without exceptions a failing read ends the program, design.md 2.2),
+  `written::resolution<D>::copy/winner/shadowed` (thin, over non-template `KNOBLY_API` helpers W declares there
   and defines with the definitions), and the `block_traits` specializations.
 - **Explicit instantiation (compiled mode).** `emit_cpp.instantiations` reads every specialization of
   `sequence`, `ordered_map`, `block`, `walk_view` and of a generated class template (`resolution`) that a header
   spells (a block adds its `walk_view<Item>` and `sequence<Directive>`), assigns each to the first header that spells
-  it, and writes `extern template class ...;` there under `#if !VILLANELLE_HEADER_ONLY`; `implementation.hpp` ends
-  with `template class ...;` for all 37 of them (6 in `villanelle.hpp`, 3 in `syntax.hpp`, 22 in `written.hpp`, 6 in
+  it, and writes `extern template class ...;` there under `#if !KNOBLY_HEADER_ONLY`; `implementation.hpp` ends
+  with `template class ...;` for all 37 of them (6 in `knobly.hpp`, 3 in `syntax.hpp`, 22 in `written.hpp`, 6 in
   `rendered.hpp`). So the support templates' members must be defined in their headers (not in `detail/`), and every
   member must compile for every element type listed (`ordered_map<rendered::directive, rendered::address>`
   included).
@@ -158,7 +158,7 @@ driver's 168 L0 cases); `bash tools/check.sh` green.
 
 The generated headers are the signatures: `python3 tools/gen-api.py cpp` writes them from `spec/schema/api.json`, and
 `api_contract_<header>.cpp` names every hand-defined one. Appendix A lists each hand-defined function and member
-(spelled short: `vl::` is `::villanelle::`, `w::` `written`, `r::` `rendered`, `s::` `syntax`); everything else in
+(spelled short: `vl::` is `::knobly::`, `w::` `written`, `r::` `rendered`, `s::` `syntax`); everything else in
 the headers (records, kinds, codes, limits, errors, matchers, `as`/`visit`) is generated whole. Differences from the
 design.md 3 sketches, each from the schema and kept: `written_block::insert_statements(std::int64_t index, ...)`
 (schema `integer`; design said `std::size_t`); `processor_options::extensions` is a
@@ -219,15 +219,15 @@ columns from 1, columns in bytes).
 **Adapter (L1).** `cpp/conformance/adapter.cpp` answers `load`, `graph`, `edit`, `save` and `quote` with the dumps of
 spec/conformance.md 4.2 (ids for every dumped object, positions in bytes, member names through
 `shapes::spelling`, errors through `shapes::error_group_of`); `load` builds a processor over `memory_source` and
-passes `villanelle::extensions::include()` when `extensions` holds `"include"` (F's code; L1 has no include case).
+passes `knobly::extensions::include()` when `extensions` holds `"include"` (F's code; L1 has no include case).
 `hello` claims level 1. Ops above L1 answer `fault`.
 
 **Compiled mode.** Keep `implementation.hpp`'s explicit instantiations compiling: support template members defined in
 their headers, `block_traits` specializations declared in `templates.hpp`.
 
 **Acceptance (W).**
-- `python3 conformance/driver/run.py -- <build>/villanelle_adapter` exits 0 with level 1 claimed and held: 168 L0 and
-  60 L1 cases, in header-only (`-DVILLANELLE_SANITIZE=ON`) and compiled mode (`-DVILLANELLE_COMPILED=ON
+- `python3 conformance/driver/run.py -- <build>/knobly_adapter` exits 0 with level 1 claimed and held: 168 L0 and
+  60 L1 cases, in header-only (`-DKNOBLY_SANITIZE=ON`) and compiled mode (`-DKNOBLY_COMPILED=ON
   -DCMAKE_CXX_STANDARD=23`); `ctest` green in both, all six contracts linking.
 - Catch2 programs (each its own `tests/unit/<name>.cpp`): `written_iteration` (edit during `for` over a block and
   during a walk: the snapshot rule of 3.1, both directions), `written_detached` (every member of a removed
@@ -255,13 +255,13 @@ fail. Revert both.
   file, empty when not found; `read(path)` reads the bytes whole, throwing on failure (any `std::exception`).
   `files::file_writer()`: `write(files)` reads each file's current text from disk (absent: `std::nullopt`), calls
   `check_lost_updates`, then stages every file as a temporary beside its target and renames each into place; a
-  failure while staging removes the temporaries and throws (nothing committed). Port of `py/src/villanelle/files.py`
+  failure while staging removes the temporaries and throws (nothing committed). Port of `py/src/knobly/files.py`
   and `ts/src/node.ts` (spec 4.2, 4.3).
 - `detail/extensions/definitions.hpp`: `extensions::include()`: `directive()` is `"include"`; `specs(use)` per spec 5.1
   and `ts/src/written/include.ts`: no value, E3005 at `use.origin()`; a first value that is not a string, or a second
   value, E3005 placed at that value's origin (its text as the message argument); else `{values[0].string()}`. Built on
   the public API and `codes.hpp` only (`located_diagnostic`, `diagnostic_error`, `describe`).
-- **vil-p5x**: `conformance/driver/adapter.py` gives each request a timeout (60 s by default, `VILLANELLE_DRIVER_TIMEOUT`
+- **kno-p5x**: `conformance/driver/adapter.py` gives each request a timeout (60 s by default, `KNOBLY_DRIVER_TIMEOUT`
   overrides it): a response that does not arrive in time is an `AdapterFault` ("timed out after N s waiting for
   <op>"), the adapter is killed and the run goes on (restart for the next case, as for any fault). Read the pipe
   without blocking forever (a reader thread with a queue, or `selectors` over the raw descriptor with the driver's own
@@ -334,7 +334,7 @@ fail. Swap `changed` and `unknown` in `diff`: the rendered `changes` cases must 
    2.4's `lexically_normal()` spelling: one rule for both sources; the results agree for every relative and absolute
    POSIX path the corpus has (a trailing `/` differs). Windows paths are not handled (no MSVC leg, errata T5).
 8. **One Catch2 program per unit-test file**, so parallel slices build only their own.
-9. **The driver's request timeout is 60 s, overridable** (`VILLANELLE_DRIVER_TIMEOUT`); the CI `cpp` job gets
+9. **The driver's request timeout is 60 s, overridable** (`KNOBLY_DRIVER_TIMEOUT`); the CI `cpp` job gets
    `timeout-minutes: 30`; the ctest `conformance` test `TIMEOUT 900` (the L0 run alone takes about 90 s under ASan
    here, because of the driver's quadratic position check, errata T2).
 
@@ -359,7 +359,7 @@ changed: `emit_cpp.py` is loaded only for C++ and by `--check`, which `tools/che
 Generated from the emitter's model at the freeze (`emit_cpp.render_with_hands`); the headers are the authority.
 
 
-#### `<villanelle/villanelle.hpp>`
+#### `<knobly/knobly.hpp>`
 
 ```text
 (free):
@@ -386,7 +386,7 @@ vl::diagnostics:
     operator==
 ```
 
-#### `<villanelle/written.hpp>`
+#### `<knobly/written.hpp>`
 
 ```text
 (constructors):
@@ -557,7 +557,7 @@ w::expanded_index:
     w::format_diagnostic(const vl::located_diagnostic&, const w::document_graph&) -> std::string
 ```
 
-#### `<villanelle/rendered.hpp>`
+#### `<knobly/rendered.hpp>`
 
 ```text
 r::rendered:
@@ -601,7 +601,7 @@ r::unknown:
     before() -> r::directive
 ```
 
-#### `<villanelle/files.hpp>`
+#### `<knobly/files.hpp>`
 
 ```text
 (free):
@@ -609,7 +609,7 @@ r::unknown:
     vl::files::file_writer() -> std::shared_ptr<vl::document_writer>
 ```
 
-#### `<villanelle/extensions.hpp>`
+#### `<knobly/extensions.hpp>`
 
 ```text
 (free):

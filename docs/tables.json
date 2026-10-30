@@ -98,7 +98,7 @@
       {"what": "the writer failed", "ref": "save error", "last": ["`save` ([Saving](editing.md#saving))"]},
       {"what": "the root file cannot be read", "ref": "read error", "last": ["`load`"]},
       {"what": "the handle's tokens are gone (a bug)", "ref": "detached error", "last": ["[Handles](editing.md#handles)"]},
-      {"what": "villanelle text was not given (a bug)", "ref": "argument type error", "last": ["a number, `null` / `None` or anything else where text is taken"]},
+      {"what": "knobly text was not given (a bug)", "ref": "argument type error", "last": ["a number, `null` / `None` or anything else where text is taken"]},
       {"what": "a bad name (a bug)", "ref": "misuse error", "last": ["`rename`, `setOverride`, an override `load` takes"]},
       {"what": "an index outside the block (a bug)", "ref": "index out of range", "last": ["`insertStatements`"]}
     ]
@@ -116,7 +116,7 @@
     "file": "README.md",
     "first": ["Entry point"],
     "rows": [
-      {"what": "what every layer shares, and the ports", "ref": "layer: shared", "names": ["quote", "text", "config text", "memory source", "memory writer", "diagnostics", "villanelle error", "document source", "place"]},
+      {"what": "what every layer shares, and the ports", "ref": "layer: shared", "names": ["quote", "text", "config text", "memory source", "memory writer", "diagnostics", "knobly error", "document source", "place"]},
       {"what": "the syntax tree", "ref": "layer: syntax", "names": ["parse", "span of", "text of", "syntax", "token", "node", "token kind"]},
       {"what": "the low level", "ref": "layer: written", "names": ["make processor", "format diagnostic", "document graph", "statement", "statement kind"]},
       {"what": "the rendered tree", "ref": "layer: rendered", "names": ["render", "rendered", "directive", "key rule"]},

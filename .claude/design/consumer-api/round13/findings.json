@@ -233,7 +233,7 @@
    "title": "Three factory naming schemes; 'browser' names a platform",
    "verdict": "kept",
    "root_cause": "RC5",
-   "note": "fileSource/fetchSource, villanelle/file entry; ValueRef export dropped (bead)."
+   "note": "fileSource/fetchSource, knobly/file entry; ValueRef export dropped (bead)."
   },
   {
    "lens": "idiom-ts",
@@ -248,7 +248,7 @@
    "lens": "idiom-ts",
    "id": "TS-9",
    "severity": "low",
-   "title": "Edits take only villanelle text",
+   "title": "Edits take only knobly text",
    "verdict": "kept-modified",
    "root_cause": "RC4",
    "note": "Owner question 3 (conflicts with v12 pick)."
@@ -296,7 +296,7 @@
    "title": "No exception base; DetachedError is a ValueError",
    "verdict": "kept",
    "root_cause": "RC4",
-   "note": "VillanelleError base; DetachedError under ReferenceError."
+   "note": "KnoblyError base; DetachedError under ReferenceError."
   },
   {
    "lens": "idiom-py",

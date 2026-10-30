@@ -25,7 +25,7 @@ with key rules (`conformance/keys.json`), `diff`, the adapter's level 3. The fre
 passes all 380 cases (L0 168, L1 60, L2 123, L3 24; "claimed L3 extensions: holds") in header-only mode, and `ctest`
 is 24/24 green (section 7 has the evidence).
 
-**Milestone 3 delivers** what design.md section 7, slice 3, lists and milestone 2 left: `<villanelle/format.hpp>`;
+**Milestone 3 delivers** what design.md section 7, slice 3, lists and milestone 2 left: `<knobly/format.hpp>`;
 design programs 4.1 (the sinks app) and 4.3 (the upstream lint) compiled with `-Wsign-conversion` and `-Wdangling`
 and run as tests against fixtures with expected output; compile-fail tests (design.md finding F1 and 2.6: what C++
 refuses at compile time that the dynamically typed bindings refuse at run time); the full 380-case run re-proven in
@@ -49,24 +49,24 @@ work. A compile error or a stale table in a file another slice owns is theirs: w
 
 | Owner | Paths (generated outputs and build trees count as owned) |
 |---|---|
-| **P** | `cpp/tests/programs/` (all of it: the new `sinks.cpp`, `lint.cpp`, their fixture and expected folders, the runner script, and the existing editor files if the runner is shared); `cpp/tests/unit/format.cpp`; `cpp/tests/compile_fail/` (new); `cpp/CMakeLists.txt`; `cpp/README.md`; `cpp/include/villanelle/detail/` and `cpp/include/villanelle/support/` (only to fix a bug a P test finds); `cpp/conformance/adapter.cpp`, `cpp/conformance/json.hpp` (same); the `cpp` job of `.github/workflows/ci.yml` (only if a new test needs a CI step; none is expected); build trees `/Volumes/Dock/tmp/vil-cpp-build-P*` |
-| **D** | `tools/api/emit_docs.py`, `tools/api/loader.py`, `tools/api/stub.py`, `tools/gen-api.py`, and the `LANGUAGE` blocks of `tools/api/emit_ts.py`, `emit_py.py`, `emit_cpp.py` (only to add a documentation fact, section 5); `spec/schema/api.json` (only if a table needs a schema fact; an erratum first); the new `docs/tables.json`; `docs/rendered-tree.md`, `docs/low-level-api.md`, `README.md` (root), `spec/codegen.md`, and every table region `python3 tools/gen-api.py docs` rewrites (`spec/*.md`, `docs/*.md`); temp renders under `/Volumes/Dock/tmp/vil-docs-D*` |
+| **P** | `cpp/tests/programs/` (all of it: the new `sinks.cpp`, `lint.cpp`, their fixture and expected folders, the runner script, and the existing editor files if the runner is shared); `cpp/tests/unit/format.cpp`; `cpp/tests/compile_fail/` (new); `cpp/CMakeLists.txt`; `cpp/README.md`; `cpp/include/knobly/detail/` and `cpp/include/knobly/support/` (only to fix a bug a P test finds); `cpp/conformance/adapter.cpp`, `cpp/conformance/json.hpp` (same); the `cpp` job of `.github/workflows/ci.yml` (only if a new test needs a CI step; none is expected); build trees `/Volumes/Dock/tmp/kno-cpp-build-P*` |
+| **D** | `tools/api/emit_docs.py`, `tools/api/loader.py`, `tools/api/stub.py`, `tools/gen-api.py`, and the `LANGUAGE` blocks of `tools/api/emit_ts.py`, `emit_py.py`, `emit_cpp.py` (only to add a documentation fact, section 5); `spec/schema/api.json` (only if a table needs a schema fact; an erratum first); the new `docs/tables.json`; `docs/rendered-tree.md`, `docs/low-level-api.md`, `README.md` (root), `spec/codegen.md`, and every table region `python3 tools/gen-api.py docs` rewrites (`spec/*.md`, `docs/*.md`); temp renders under `/Volumes/Dock/tmp/kno-docs-D*` |
 | every slice | `.claude/errata.md`, append only |
 
 **The emitter rule.** Only D edits a file under `tools/` or `spec/schema/`. D's change must leave every binding's
 generated code byte-identical (section 5's acceptance checks it), so P's build never sees it. P configures with
-`-DVILLANELLE_REGENERATE=OFF` and never runs `tools/gen.sh` or `tools/gen-api.py`; the generated headers, `format.hpp`
+`-DKNOBLY_REGENERATE=OFF` and never runs `tools/gen.sh` or `tools/gen-api.py`; the generated headers, `format.hpp`
 included, are already in the tree from the freeze's `python3 tools/gen-api.py cpp` (run it once yourself, before
-starting, only if `cpp/include/villanelle/format.hpp` is missing). A P test that needs a generated-header change appends
+starting, only if `cpp/include/knobly/format.hpp` is missing). A P test that needs a generated-header change appends
 an erratum and reports it; it does not edit `tools/`. Generated files are never committed (`git status` shows none).
 
 ## 2. What the freeze committed (all green)
 
 | Path | State |
 |---|---|
-| `tools/api/emit_cpp.py` | `format_header(model)`: renders `cpp/include/villanelle/format.hpp` **whole** (section 3.1); listed in the module docstring; wired into `render_with_hands`. No other C++ output changes; TypeScript, Python and docs output unchanged |
+| `tools/api/emit_cpp.py` | `format_header(model)`: renders `cpp/include/knobly/format.hpp` **whole** (section 3.1); listed in the module docstring; wired into `render_with_hands`. No other C++ output changes; TypeScript, Python and docs output unchanged |
 | `spec/codegen.md` | the C++ header table gains the `format.hpp` row |
-| `cpp/tests/compile/headers.cpp` | includes `<villanelle/format.hpp>`, so the compile check builds it with `-Wall -Wextra -Werror` (CI also compiles every public header alone) |
+| `cpp/tests/compile/headers.cpp` | includes `<knobly/format.hpp>`, so the compile check builds it with `-Wall -Wextra -Werror` (CI also compiles every public header alone) |
 | `.claude/design/cpp/frozen-m3.md` | this page |
 
 The freeze compiled design programs 4.1 and 4.3 **verbatim** (from design.md, unchanged) against the current headers with
@@ -77,7 +77,7 @@ changes in this milestone; P's work is tests, fixtures and the compile-fail harn
 
 ## 3. Frozen interfaces
 
-### 3.1 `<villanelle/format.hpp>` (generated whole by `emit_cpp.format_header`)
+### 3.1 `<knobly/format.hpp>` (generated whole by `emit_cpp.format_header`)
 
 Opt-in (design.md 3.5): no other header includes it. Which types it covers is a schema fact, so nothing in it is hand
 code. Today's schema gives (the list is the generator's, not this page's):
@@ -86,17 +86,17 @@ code. Today's schema gives (the list is the generator's, not this page's):
 #include <format>
 #include <ostream>
 #include <string_view>
-#include <villanelle/rendered.hpp>    // the header of each layer holding a people form
-#include <villanelle/villanelle.hpp>
+#include <knobly/rendered.hpp>    // the header of each layer holding a people form
+#include <knobly/knobly.hpp>
 
-namespace villanelle::detail {
+namespace knobly::detail {
 template <class T>
 struct people_formatter : std::formatter<std::string_view, char> {   // width, fill, alignment as for a string
     template <class Context> auto format(const T& value, Context& context) const;   // formats to_string(value)
 };
 }
 
-namespace villanelle {   // (inside the versioned inline namespace, VILLANELLE_NAMESPACE_BEGIN)
+namespace knobly {   // (inside the versioned inline namespace, KNOBLY_NAMESPACE_BEGIN)
 std::ostream& operator<<(std::ostream&, const place&);              // every concept with a people form:
 std::ostream& operator<<(std::ostream&, const override&);           //   place, override, step, diagnostic,
 std::ostream& operator<<(std::ostream&, const step&);               //   located_diagnostic (shared)
@@ -106,11 +106,11 @@ std::ostream& operator<<(std::ostream&, const token_kind&);         // every kin
 // ... node_kind, statement_kind, value_kind, variable_kind, step_kind, place_kind, unreadable_reason, change_kind
 std::ostream& operator<<(std::ostream&, const diagnostic_code&);    // "E4004"
 }
-namespace villanelle::rendered {
+namespace knobly::rendered {
 std::ostream& operator<<(std::ostream&, const address&);            // graph > node "leds" > max_count
 }
 
-template <> struct std::formatter<::villanelle::place, char> : ::villanelle::detail::people_formatter<::villanelle::place> {};
+template <> struct std::formatter<::knobly::place, char> : ::knobly::detail::people_formatter<::knobly::place> {};
 // ... one specialization per type above
 ```
 
@@ -122,12 +122,12 @@ appears here with no hand edit.
 
 | CTest name | What it runs |
 |---|---|
-| `unit_format` | `villanelle_unit_format` (Catch2, `cpp/tests/unit/format.cpp`), picked up by the existing per-file loop |
-| `programs_sinks` | design program 4.1 (`villanelle_program_sinks`) in a fresh copy of `cpp/tests/programs/sinks/`, three runs (section 4) |
-| `programs_lint` | design program 4.3 (`villanelle_program_lint`) in a fresh copy of `cpp/tests/programs/lint/` |
+| `unit_format` | `knobly_unit_format` (Catch2, `cpp/tests/unit/format.cpp`), picked up by the existing per-file loop |
+| `programs_sinks` | design program 4.1 (`knobly_program_sinks`) in a fresh copy of `cpp/tests/programs/sinks/`, three runs (section 4) |
+| `programs_lint` | design program 4.3 (`knobly_program_lint`) in a fresh copy of `cpp/tests/programs/lint/` |
 | `programs_editor` | unchanged (milestone 2) |
 | `compile_fail_<name>` | for each `cpp/tests/compile_fail/<name>.cpp`: building it must fail (`WILL_FAIL`) |
-| `compile_fail_<name>_control` | the same file with `-DVILLANELLE_CONTROL`: building it must succeed, so the failure is the refused line and not a typo |
+| `compile_fail_<name>_control` | the same file with `-DKNOBLY_CONTROL`: building it must succeed, so the failure is the refused line and not a typo |
 
 ### 3.3 The generated documentation tables D adds (frozen shape)
 
@@ -169,7 +169,7 @@ appears here with no hand edit.
   folder, run with arguments, compare outputs and status; the editor's file comparison as an option), replacing
   `run_editor.cmake` (DRY: one runner, three programs). Each program target gets `-Wsign-conversion` and, on Clang,
   `-Wdangling`, as the editor does (one CMake function for the three).
-- `cpp/tests/compile_fail/`: one file per refusal, each with the refused line under `#ifndef VILLANELLE_CONTROL` and the
+- `cpp/tests/compile_fail/`: one file per refusal, each with the refused line under `#ifndef KNOBLY_CONTROL` and the
   nearest valid line under `#else`. At least: `render_not_a_graph.cpp` (`render(document)`: the conformance case
   `render-not-a-graph`, errata R2), `config_text_from_string.cpp` (a `std::string` where `config_text` is taken),
   `program_code_without_slash.cpp` (`report(d, "m", "nodash")`: the consteval check), `key_rule_not_text.cpp` (a key
@@ -180,8 +180,8 @@ appears here with no hand edit.
   leave the case out, report it.
 - `cpp/README.md`: `format.hpp`, the three programs, the compile-fail tests, how to run them.
 
-**Acceptance (P).** In a header-only build with `-DVILLANELLE_SANITIZE=ON` (`/Volumes/Dock/tmp/vil-cpp-build-P-asan`) and a
-compiled-mode build with `-DCMAKE_CXX_STANDARD=23 -DVILLANELLE_COMPILED=ON` (`/Volumes/Dock/tmp/vil-cpp-build-P-compiled`):
+**Acceptance (P).** In a header-only build with `-DKNOBLY_SANITIZE=ON` (`/Volumes/Dock/tmp/kno-cpp-build-P-asan`) and a
+compiled-mode build with `-DCMAKE_CXX_STANDARD=23 -DKNOBLY_COMPILED=ON` (`/Volumes/Dock/tmp/kno-cpp-build-P-compiled`):
 `ctest` green, including `unit_format`, `programs_sinks`, `programs_lint`, `programs_editor`, every `compile_fail_*` and its
 control, and `conformance`, whose log shows `1..380`, every level `0 failed` and "claimed L3 extensions: holds". The
 hand-written files pass the pinned clang-format (`--dry-run --Werror`, as the CI step runs it). `git status` shows no
@@ -212,9 +212,9 @@ must fail. (3) Put a typo in a control branch: its `_control` test must fail. Re
 
 **Acceptance (D).** `python3 tools/gen-api.py docs` writes the tables; `bash tools/check.sh` green (its `--check` fails
 on a stale table and asserts the stub's column); every table listed above has a C++ column whose cells match the
-generated headers (spot-check five C++ cells against `cpp/include/villanelle/*.hpp`); the TypeScript and Python cells say
+generated headers (spot-check five C++ cells against `cpp/include/knobly/*.hpp`); the TypeScript and Python cells say
 what the hand tables said (any change listed in the result, with why). **No binding output changes:** render
-`python3 tools/gen-api.py ts`, `py` and `cpp` outputs before and after into `/Volumes/Dock/tmp/vil-docs-D*` (or diff the
+`python3 tools/gen-api.py ts`, `py` and `cpp` outputs before and after into `/Volumes/Dock/tmp/kno-docs-D*` (or diff the
 in-memory `render()` of each emitter) and show them identical. TypeScript checks (`cd ts && corepack pnpm test &&
 corepack pnpm typecheck && corepack pnpm lint && corepack pnpm build`) and Python checks (`cd py && uv run --locked
 pytest -q && uv run --locked ruff check && uv run --locked ruff format --check && uv run --locked mypy`) green, since
@@ -243,7 +243,7 @@ the ref named. (3) Drop `"walk"` from C++'s `trait_forms`: the loader must refus
 ## 7. Evidence and NOT RUN by the freeze
 
 Ran: `bash tools/check.sh` (exit 0); `python3 tools/gen-api.py cpp`; a header-only Debug build
-(`/Volumes/Dock/tmp/vil-cpp-build-freeze-m3`, AppleClang 21, configure with `-DVILLANELLE_REGENERATE=ON`) and `ctest`: 24/24,
+(`/Volumes/Dock/tmp/kno-cpp-build-freeze-m3`, AppleClang 21, configure with `-DKNOBLY_REGENERATE=ON`) and `ctest`: 24/24,
 the conformance log `1..380`, L0 168, L1 60, L2 123, L3 24 passed, "claimed L3 extensions: holds"; programs 4.1 and 4.3
 verbatim and a `format.hpp` probe (`std::format("[{:>8}] [{}]", value_kind::word, diagnostic_code::not_a_number)` gives
 `[    word] [E4004]`) compiled with `-Werror` and run; the pinned clang-format on `tests/compile/headers.cpp`.

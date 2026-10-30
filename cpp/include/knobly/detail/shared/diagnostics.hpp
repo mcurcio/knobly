@@ -1,56 +1,53 @@
 // The shared layer's diagnostics collector (spec 7.7): the one sink load, value readers and programs report into.
 // A handle (const is shallow, design.md 2.3): copies share one list. A port of ts/src/report.ts.
-#ifndef VILLANELLE_DETAIL_SHARED_DIAGNOSTICS_HPP
-#define VILLANELLE_DETAIL_SHARED_DIAGNOSTICS_HPP
+#ifndef KNOBLY_DETAIL_SHARED_DIAGNOSTICS_HPP
+#define KNOBLY_DETAIL_SHARED_DIAGNOSTICS_HPP
 
 #include <utility>
 #include <vector>
 
-#include <villanelle/support/view.hpp>
-#include <villanelle/villanelle.hpp>
+#include <knobly/knobly.hpp>
+#include <knobly/support/view.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 
 namespace detail {
 
 /// What a diagnostics handle shows: the list, counted by its views.
 struct diagnostics_node : node {
-    std::vector<::villanelle::located_diagnostic> items;
+    std::vector<::knobly::located_diagnostic> items;
 };
 
-VILLANELLE_API std::vector<::villanelle::located_diagnostic>& items_of(const view& v) {
+KNOBLY_API std::vector<::knobly::located_diagnostic>& items_of(const view& v) {
     return static_cast<diagnostics_node*>(v.get())->items;
 }
 
 }  // namespace detail
 
-VILLANELLE_API diagnostics::diagnostics() : view_(new ::villanelle::detail::diagnostics_node()) {}
+KNOBLY_API diagnostics::diagnostics() : view_(new ::knobly::detail::diagnostics_node()) {}
 
-VILLANELLE_API diagnostics::diagnostics(::villanelle::sequence<::villanelle::located_diagnostic> initial)
-    : diagnostics() {
-    for (const ::villanelle::located_diagnostic& item : initial) {
-        ::villanelle::detail::items_of(view_).push_back(item);
+KNOBLY_API diagnostics::diagnostics(::knobly::sequence<::knobly::located_diagnostic> initial) : diagnostics() {
+    for (const ::knobly::located_diagnostic& item : initial) {
+        ::knobly::detail::items_of(view_).push_back(item);
     }
 }
 
-VILLANELLE_API void diagnostics::add(const ::villanelle::located_diagnostic& diagnostic) const {
-    ::villanelle::detail::items_of(view_).push_back(diagnostic);
+KNOBLY_API void diagnostics::add(const ::knobly::located_diagnostic& diagnostic) const {
+    ::knobly::detail::items_of(view_).push_back(diagnostic);
 }
 
-VILLANELLE_API std::size_t diagnostics::size() const { return ::villanelle::detail::items_of(view_).size(); }
+KNOBLY_API std::size_t diagnostics::size() const { return ::knobly::detail::items_of(view_).size(); }
 
-VILLANELLE_API bool diagnostics::empty() const { return ::villanelle::detail::items_of(view_).empty(); }
+KNOBLY_API bool diagnostics::empty() const { return ::knobly::detail::items_of(view_).empty(); }
 
 /// One snapshot of the list, which the iterator holds, so an add during a loop never invalidates it.
-VILLANELLE_API ::villanelle::sequence<::villanelle::located_diagnostic>::iterator diagnostics::begin() const {
-    return ::villanelle::sequence<::villanelle::located_diagnostic>(::villanelle::detail::items_of(view_)).begin();
+KNOBLY_API ::knobly::sequence<::knobly::located_diagnostic>::iterator diagnostics::begin() const {
+    return ::knobly::sequence<::knobly::located_diagnostic>(::knobly::detail::items_of(view_)).begin();
 }
 
 /// An end of every snapshot: it holds none, so a loop that calls end() each time copies nothing.
-VILLANELLE_API ::villanelle::sequence<::villanelle::located_diagnostic>::iterator diagnostics::end() const {
-    return {};
-}
+KNOBLY_API ::knobly::sequence<::knobly::located_diagnostic>::iterator diagnostics::end() const { return {}; }
 
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_DETAIL_SHARED_DIAGNOSTICS_HPP
+#endif  // KNOBLY_DETAIL_SHARED_DIAGNOSTICS_HPP

@@ -7,8 +7,8 @@ from typing import Any
 
 import pytest
 
-from villanelle import DiagnosticCode
-from villanelle.syntax import MAX_NESTING, Node, NodeKind, parse, text_of
+from knobly import DiagnosticCode
+from knobly.syntax import MAX_NESTING, Node, NodeKind, parse, text_of
 
 
 def shape(text: str) -> dict[str, Any]:

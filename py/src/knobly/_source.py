@@ -1,10 +1,10 @@
 """The I/O ports (spec/schema/api.json, layer io): where files come from, the one port the load reads through for the
 root file and for every file an extension names (round 11 review finding 3), and where a save writes them
 (``DocumentWriter``, given ``FileWrite``s by ``DocumentGraph.save``). The core does no I/O (R16):
-``villanelle.files`` gives a filesystem source and writer (``file_source``, ``file_writer``); ``memory_source`` and
+``knobly.files`` gives a filesystem source and writer (``file_source``, ``file_writer``); ``memory_source`` and
 ``memory_writer`` serve and keep texts the program holds in one map (tests, editors). Each adapter is named after its
 medium and the port it fills (spec/contract.md 5). The ports and their records are generated
-(``villanelle._api.io``): a source raises from ``resolve`` for a failure (E3004 at the extension line, ``ReadError``
+(``knobly._api.io``): a source raises from ``resolve`` for a failure (E3004 at the extension line, ``ReadError``
 for the root) and returns no path for a missing file (E3001); ``load`` reads each resolved path at most once (R21);
 a writer calls ``check_lost_updates`` first, then stages and commits the batch together."""
 
@@ -12,9 +12,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping, MutableMapping, Sequence
 
-from villanelle._api.errors import LostUpdateError
-from villanelle._api.io import DocumentSource, DocumentWriter, FileWrite, LoadContext
-from villanelle._glob import glob_pattern, has_glob
+from knobly._api.errors import LostUpdateError
+from knobly._api.io import DocumentSource, DocumentWriter, FileWrite, LoadContext
+from knobly._glob import glob_pattern, has_glob
 
 
 def check_lost_updates(files: Sequence[FileWrite], current: Sequence[str | None], /) -> None:

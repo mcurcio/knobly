@@ -2,8 +2,8 @@
 // loop, the check of an override, the expansion and save. Everything derived (copies, edges, variables,
 // resolutions, diagnostics, the expansion) comes from the binding, cached per graph version; every edit, set_override
 // and read bumps the version. Package-internal.
-#ifndef VILLANELLE_DETAIL_WRITTEN_HOST_HPP
-#define VILLANELLE_DETAIL_WRITTEN_HOST_HPP
+#ifndef KNOBLY_DETAIL_WRITTEN_HOST_HPP
+#define KNOBLY_DETAIL_WRITTEN_HOST_HPP
 
 #include <algorithm>
 #include <cstddef>
@@ -15,14 +15,14 @@
 #include <utility>
 #include <vector>
 
-#include <villanelle/detail/raise.hpp>
-#include <villanelle/detail/written/bind.hpp>
-#include <villanelle/detail/written/core.hpp>
-#include <villanelle/detail/written/edits.hpp>
-#include <villanelle/detail/written/entry.hpp>
-#include <villanelle/detail/written/shape.hpp>
+#include <knobly/detail/raise.hpp>
+#include <knobly/detail/written/bind.hpp>
+#include <knobly/detail/written/core.hpp>
+#include <knobly/detail/written/edits.hpp>
+#include <knobly/detail/written/entry.hpp>
+#include <knobly/detail/written/shape.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 namespace written::detail {
 
 /// Gives back a binding's hold unless dismissed (a walk that ends in an exception frees what it made).
@@ -52,14 +52,14 @@ inline binding_core* binding_of(graph_core* graph) {
 }
 
 /// Each document's syntax diagnostics (documents in order, located), then the walk's.
-inline const std::vector<::villanelle::located_diagnostic>& diagnostics_of(graph_core* graph) {
+inline const std::vector<::knobly::located_diagnostic>& diagnostics_of(graph_core* graph) {
     binding_core* binding = binding_of(graph);
     if (!binding->all_diagnostics) {
-        std::vector<::villanelle::located_diagnostic> all;
+        std::vector<::knobly::located_diagnostic> all;
         for (const document_node* doc : graph->documents) {
-            for (const ::villanelle::diagnostic& d : doc->parsed.syntax.diagnostics()) {
-                all.emplace_back(d.code(), d.message(), ::villanelle::place(doc->path, d.span()),
-                                 ::villanelle::sequence<::villanelle::step>());
+            for (const ::knobly::diagnostic& d : doc->parsed.syntax.diagnostics()) {
+                all.emplace_back(d.code(), d.message(), ::knobly::place(doc->path, d.span()),
+                                 ::knobly::sequence<::knobly::step>());
             }
         }
         all.insert(all.end(), binding->diagnostics.begin(), binding->diagnostics.end());
@@ -77,14 +77,14 @@ inline void fill(binding_core* binding, const std::vector<bound_item>& items,
         const document_node* doc = statement->doc;
         const parsed_text& p = doc->parsed;
         if (!item.directive) {
-            const ::villanelle::place place(doc->path, p.span_of(statement->tree.start(), statement->tree.end()));
+            const ::knobly::place place(doc->path, p.span_of(statement->tree.start(), statement->tree.end()));
             unreadable.push_back(binding->nodes.make<unreadable_node>(
-                statement, item.reason, ::villanelle::directive_origin(place, item.copy->via)));
+                statement, item.reason, ::knobly::directive_origin(place, item.copy->via)));
             continue;
         }
         directive_expansion_node* const made = binding->nodes.make<directive_expansion_node>(
-            statement, ::villanelle::directive_origin(
-                           ::villanelle::place(doc->path, p.at(statement->tree.start()).span), item.copy->via));
+            statement,
+            ::knobly::directive_origin(::knobly::place(doc->path, p.at(statement->tree.start()).span), item.copy->via));
         const auto found = binding->expanded.find(item.copy);
         for (value_node* v : statement->values) {
             if (found == binding->expanded.end()) {
@@ -105,7 +105,7 @@ inline void fill(binding_core* binding, const std::vector<bound_item>& items,
 
 /// graph.expand() (spec 6.10): the binding's walk as public snapshots, with the graph's one diagnostics list.
 inline expansion_node* expansion_of(graph_core* graph) {
-    const std::vector<::villanelle::located_diagnostic>& diagnostics = diagnostics_of(graph);
+    const std::vector<::knobly::located_diagnostic>& diagnostics = diagnostics_of(graph);
     binding_core* binding = graph->binding;
     if (binding->expansion == nullptr) {
         expansion_node* made = binding->nodes.make<expansion_node>();
@@ -126,39 +126,39 @@ inline override_values check_override(graph_core* graph, std::string_view name, 
     check_variable_name(name);
     const parsed_text parsed = parse_entry(text, entry_rule::values_text);
     if (!parsed.syntax.diagnostics().empty()) {
-        ::villanelle::detail::raise(::villanelle::bad_text_error(parsed.syntax.diagnostics()));
+        ::knobly::detail::raise(::knobly::bad_text_error(parsed.syntax.diagnostics()));
     }
     const token_info* first_value = nullptr;
     const token_info* variable = nullptr;
     for (const token_info& token : parsed.tokens) {
-        if (token.kind == ::villanelle::token_kind::SPACE || token.kind == ::villanelle::token_kind::NEWLINE ||
-            token.kind == ::villanelle::token_kind::COMMENT) {
+        if (token.kind == ::knobly::token_kind::SPACE || token.kind == ::knobly::token_kind::NEWLINE ||
+            token.kind == ::knobly::token_kind::COMMENT) {
             continue;
         }
         if (first_value == nullptr) {
             first_value = &token;
         }
-        if (variable == nullptr && token.kind == ::villanelle::token_kind::VARIABLE) {
+        if (variable == nullptr && token.kind == ::knobly::token_kind::VARIABLE) {
             variable = &token;
         }
     }
     if (first_value == nullptr || variable != nullptr) {
-        const auto code = ::villanelle::diagnostic_code::unexpected_token;
-        const ::villanelle::source_position position =
-            variable != nullptr ? variable->span.start() : ::villanelle::source_position(0, 0, 0);
-        ::villanelle::detail::raise(::villanelle::bad_text_error(
-            {::villanelle::diagnostic(code, ::villanelle::describe(code).message, {position, position})}));
+        const auto code = ::knobly::diagnostic_code::unexpected_token;
+        const ::knobly::source_position position =
+            variable != nullptr ? variable->span.start() : ::knobly::source_position(0, 0, 0);
+        ::knobly::detail::raise(::knobly::bad_text_error(
+            {::knobly::diagnostic(code, ::knobly::describe(code).message, {position, position})}));
     }
     return read_override(graph, std::string(name), parsed);
 }
 
 /// A changed name keeps its place in overrides(); a new one (or one removed before) goes at the end.
-inline void put_override(graph_core* graph, const std::string& name, ::villanelle::config_text text,
+inline void put_override(graph_core* graph, const std::string& name, ::knobly::config_text text,
                          override_values values) {
     graph->override_texts.insert_or_assign(name, std::move(text));
     graph->overrides[name] = std::move(values);
     if (graph->override_variables.count(name) == 0) {
-        variable_node* made = graph->nodes.make<variable_node>(::villanelle::variable_kind::override);
+        variable_node* made = graph->nodes.make<variable_node>(::knobly::variable_kind::override);
         made->name = name;
         made->graph = graph;
         graph->override_variables.emplace(name, made);
@@ -197,11 +197,11 @@ inline std::vector<std::string> read_unread(graph_core* graph) {
                     continue;
                 }
                 ledger_entry entry;
-                ::villanelle::sequence<std::string> paths;
-                const std::exception_ptr error = ::villanelle::detail::catch_exception(
-                    [&] { paths = graph->source->resolve(spec, ::villanelle::load_context(need.parent_path)); });
+                ::knobly::sequence<std::string> paths;
+                const std::exception_ptr error = ::knobly::detail::catch_exception(
+                    [&] { paths = graph->source->resolve(spec, ::knobly::load_context(need.parent_path)); });
                 if (error) {
-                    entry.failure = ::villanelle::detail::message_of(error);
+                    entry.failure = ::knobly::detail::message_of(error);
                 } else {
                     entry.paths.assign(paths.begin(), paths.end());
                 }
@@ -221,9 +221,9 @@ inline std::vector<std::string> read_unread(graph_core* graph) {
             }
             std::string text;
             const std::exception_ptr error =
-                ::villanelle::detail::catch_exception([&] { text = graph->source->read(path); });
+                ::knobly::detail::catch_exception([&] { text = graph->source->read(path); });
             if (error) {
-                record_read(graph, path, std::nullopt, ::villanelle::detail::message_of(error));
+                record_read(graph, path, std::nullopt, ::knobly::detail::message_of(error));
                 break;
             }
             record_read(graph, path, std::move(text), {});
@@ -238,25 +238,24 @@ inline std::vector<std::string> read_unread(graph_core* graph) {
 inline void read_root(graph_core* graph, std::string_view path) {
     const std::string root(path);
     const auto fail = [&](const std::string& reason) {
-        return ::villanelle::read_error("cannot read the root file " + root + ": " + reason,
-                                        ::villanelle::sequence<std::string>{root});
+        return ::knobly::read_error("cannot read the root file " + root + ": " + reason,
+                                    ::knobly::sequence<std::string>{root});
     };
-    ::villanelle::sequence<std::string> paths;
-    std::exception_ptr error = ::villanelle::detail::catch_exception(
-        [&] { paths = graph->source->resolve(root, ::villanelle::load_context(std::string())); });
+    ::knobly::sequence<std::string> paths;
+    std::exception_ptr error = ::knobly::detail::catch_exception(
+        [&] { paths = graph->source->resolve(root, ::knobly::load_context(std::string())); });
     if (error) {
-        ::villanelle::detail::raise_nested(fail(::villanelle::detail::message_of(error)), error);
+        ::knobly::detail::raise_nested(fail(::knobly::detail::message_of(error)), error);
     }
     if (paths.size() != 1) {
-        ::villanelle::detail::raise(fail(paths.empty()
-                                             ? std::string("the source resolved no file")
-                                             : "the source resolved " + std::to_string(paths.size()) + " files"));
+        ::knobly::detail::raise(fail(paths.empty() ? std::string("the source resolved no file")
+                                                   : "the source resolved " + std::to_string(paths.size()) + " files"));
     }
     const std::string resolved = paths.front();
     std::string text;
-    error = ::villanelle::detail::catch_exception([&] { text = graph->source->read(resolved); });
+    error = ::knobly::detail::catch_exception([&] { text = graph->source->read(resolved); });
     if (error) {
-        ::villanelle::detail::raise_nested(fail(::villanelle::detail::message_of(error)), error);
+        ::knobly::detail::raise_nested(fail(::knobly::detail::message_of(error)), error);
     }
     record_read(graph, resolved, std::move(text), {});
     read_unread(graph);
@@ -266,8 +265,8 @@ inline void read_root(graph_core* graph, std::string_view path) {
 
 /// Hands every changed document to the writer in one batch; their saved text moves only when it returns. A lost
 /// update passes through unchanged; any other failure of the writer is a save error with it nested.
-inline std::vector<std::string> save(graph_core* graph, const ::villanelle::document_writer& writer) {
-    std::vector<::villanelle::file_write> files;
+inline std::vector<std::string> save(graph_core* graph, const ::knobly::document_writer& writer) {
+    std::vector<::knobly::file_write> files;
     std::vector<document_node*> changed;
     for (document_node* doc : graph->documents) {
         if (doc->parsed.text != doc->saved) {
@@ -280,17 +279,17 @@ inline std::vector<std::string> save(graph_core* graph, const ::villanelle::docu
     }
     std::vector<std::string> paths;
     paths.reserve(files.size());
-    for (const ::villanelle::file_write& file : files) {
+    for (const ::knobly::file_write& file : files) {
         paths.push_back(file.resolved_path());
     }
-    const ::villanelle::sequence<::villanelle::file_write> batch(files);
-    const std::exception_ptr error = ::villanelle::detail::catch_exception([&] { writer.write(batch); });
+    const ::knobly::sequence<::knobly::file_write> batch(files);
+    const std::exception_ptr error = ::knobly::detail::catch_exception([&] { writer.write(batch); });
     if (error) {
-        if (::villanelle::detail::when_caught<::villanelle::lost_update_error>(error, [](const auto&) {})) {
-            ::villanelle::detail::rethrow(error);
+        if (::knobly::detail::when_caught<::knobly::lost_update_error>(error, [](const auto&) {})) {
+            ::knobly::detail::rethrow(error);
         }
-        ::villanelle::detail::raise_nested(
-            ::villanelle::save_error("the writer rejected: " + ::villanelle::detail::message_of(error), paths), error);
+        ::knobly::detail::raise_nested(
+            ::knobly::save_error("the writer rejected: " + ::knobly::detail::message_of(error), paths), error);
     }
     for (std::size_t i = 0; i < changed.size(); ++i) {
         changed[i]->saved = files[i].text();
@@ -299,6 +298,6 @@ inline std::vector<std::string> save(graph_core* graph, const ::villanelle::docu
 }
 
 }  // namespace written::detail
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_DETAIL_WRITTEN_HOST_HPP
+#endif  // KNOBLY_DETAIL_WRITTEN_HOST_HPP

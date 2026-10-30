@@ -1,5 +1,5 @@
 /**
- * The "villanelle/browser" entry: fetch-based I/O edges.
+ * The "knobly/browser" entry: fetch-based I/O edges.
  */
 
 import type { BrowserFunctions, FetchWriterOptions } from "./gen/api/io.js";

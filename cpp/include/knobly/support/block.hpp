@@ -1,8 +1,8 @@
-// villanelle::block<Item, Directive>: the one block shape (spec 2.11; design.md 3.1; frozen-m2.md 3.1), written once
+// knobly::block<Item, Directive>: the one block shape (spec 2.11; design.md 3.1; frozen-m2.md 3.1), written once
 // over detail::block_traits<Item>, the hook each layer fills. Every member is defined here, so compiled mode's explicit
 // instantiations (implementation.hpp) cover it.
-#ifndef VILLANELLE_SUPPORT_BLOCK_HPP
-#define VILLANELLE_SUPPORT_BLOCK_HPP
+#ifndef KNOBLY_SUPPORT_BLOCK_HPP
+#define KNOBLY_SUPPORT_BLOCK_HPP
 
 #include <compare>
 #include <cstddef>
@@ -14,13 +14,13 @@
 #include <utility>
 #include <vector>
 
-#include <villanelle/detail/raise.hpp>
-#include <villanelle/support/config.hpp>
-#include <villanelle/support/sequence.hpp>
-#include <villanelle/support/view.hpp>
-#include <villanelle/support/walk_view.hpp>
+#include <knobly/detail/raise.hpp>
+#include <knobly/support/config.hpp>
+#include <knobly/support/sequence.hpp>
+#include <knobly/support/view.hpp>
+#include <knobly/support/walk_view.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 
 /// Holds a shared reference to its graph or render, never to a block object. Iteration reads one snapshot of the
 /// items, taken at begin(): an edit during a loop never invalidates it (design.md 2.3); end() holds no snapshot (an
@@ -92,11 +92,11 @@ public:
     /// An end of every snapshot (it holds none).
     iterator end() const noexcept { return iterator(); }
     std::size_t size() const { return traits::size(view_); }
-    /// @throws villanelle::index_out_of_range when index is not below size()
+    /// @throws knobly::index_out_of_range when index is not below size()
     Item at(std::size_t index) const {
         const std::size_t size = traits::size(view_);
         if (index >= size) {
-            ::villanelle::detail::raise_index_out_of_range(index, size);
+            ::knobly::detail::raise_index_out_of_range(index, size);
         }
         return traits::at(view_, index);
     }
@@ -134,6 +134,6 @@ private:
     }
 };
 
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_SUPPORT_BLOCK_HPP
+#endif  // KNOBLY_SUPPORT_BLOCK_HPP

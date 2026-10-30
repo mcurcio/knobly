@@ -1,18 +1,18 @@
 // The state every generated handle and snapshot class holds (design.md 2.3, D23; frozen-m1.md section 4.3): one
 // pointer to a node whose core carries an intrusive atomic count. Generated classes hold one private
-// ::villanelle::detail::view and befriend ::villanelle::detail::access, the hand code's one way to make and read them.
+// ::knobly::detail::view and befriend ::knobly::detail::access, the hand code's one way to make and read them.
 // Interface frozen by frozen-m2.md section 3.1; the view's members are defined inline here.
-#ifndef VILLANELLE_SUPPORT_VIEW_HPP
-#define VILLANELLE_SUPPORT_VIEW_HPP
+#ifndef KNOBLY_SUPPORT_VIEW_HPP
+#define KNOBLY_SUPPORT_VIEW_HPP
 
 #include <atomic>
 #include <cstddef>
 #include <cstdlib>
 #include <utility>
 
-#include <villanelle/support/config.hpp>
+#include <knobly/support/config.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 namespace detail {
 
 /// A graph's or a render's node (frozen-m2.md 3.1); each layer's detail/ derives what it holds. The view only counts
@@ -94,23 +94,23 @@ struct access {
     }
 };
 
-/// What villanelle::block<Item, Directive> and walk_view<Item> read from their layer (frozen-m2.md 3.1): the one
+/// What knobly::block<Item, Directive> and walk_view<Item> read from their layer (frozen-m2.md 3.1): the one
 /// shape's members are written once, in support/block.hpp and support/walk_view.hpp, over these hooks. Each layer
 /// specializes it for its item type in its detail/<layer>/templates.hpp (included in both modes), declaring every
-/// member VILLANELLE_API static and defining it with the layer's definitions:
+/// member KNOBLY_API static and defining it with the layer's definitions:
 ///
 ///     template <> struct block_traits<written::statement> {
 ///         using directive = written::written_directive;  // the block's Directive
 ///         // Its items in written order: one snapshot, taken when asked (design.md 2.3, edits during iteration).
-///         VILLANELLE_API static sequence<written::statement> items(const view& block);
+///         KNOBLY_API static sequence<written::statement> items(const view& block);
 ///         // How many items it holds now, and the one at index (below that count), without taking a snapshot.
-///         VILLANELLE_API static std::size_t size(const view& block);
-///         VILLANELLE_API static written::statement at(const view& block, std::size_t index);
+///         KNOBLY_API static std::size_t size(const view& block);
+///         KNOBLY_API static written::statement at(const view& block, std::size_t index);
 ///         // The item as one of the block's directives, of `name` when given; empty otherwise.
-///         VILLANELLE_API static std::optional<directive> as_directive(const written::statement& item,
+///         KNOBLY_API static std::optional<directive> as_directive(const written::statement& item,
 ///                                                                     std::optional<std::string_view> name);
 ///         // The item's own block, which a walk descends into; empty when it has none (or is detached).
-///         VILLANELLE_API static std::optional<view> block_of(const written::statement& item);
+///         KNOBLY_API static std::optional<view> block_of(const written::statement& item);
 ///     };
 ///
 /// Specialized for written::statement and written::directive_expansion (slice W) and rendered::directive (slice R).
@@ -121,6 +121,6 @@ struct block_traits;
 [[noreturn]] inline void bad_kind() noexcept { std::abort(); }
 
 }  // namespace detail
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_SUPPORT_VIEW_HPP
+#endif  // KNOBLY_SUPPORT_VIEW_HPP

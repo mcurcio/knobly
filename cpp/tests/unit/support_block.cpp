@@ -1,7 +1,7 @@
-// villanelle::block<Item, Directive> over the written layer (frozen-m2.md 3.1): a random-access iterator over one
+// knobly::block<Item, Directive> over the written layer (frozen-m2.md 3.1): a random-access iterator over one
 // snapshot taken at begin(), size() and at() on a fresh one (at past the end raising index_out_of_range), and
 // directives by name.
-#include <villanelle/written.hpp>
+#include <knobly/written.hpp>
 
 #include <algorithm>
 #include <iterator>
@@ -13,8 +13,8 @@
 
 #include "written_fixture.hpp"
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
+namespace vl = knobly;
+namespace vw = knobly::written;
 
 static_assert(std::random_access_iterator<vw::written_block::iterator>);
 static_assert(std::ranges::random_access_range<vw::written_block>);

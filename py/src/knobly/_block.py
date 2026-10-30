@@ -1,7 +1,7 @@
 """The one block shape (spec 2.11; owner, 2026-10-29: "Yes, rename now"), implemented once for the three blocks: the
 written block (statements), the expansion block (directive expansions) and the rendered block (directives). Each
 is a ``collections.abc.Sequence`` (iterate, index, ``len``, ``in``) with ``directives(name)`` and a depth-first
-``walk``; its generated Protocol is ``villanelle._api.shared.Block``. A block says only what its items are, which
+``walk``; its generated Protocol is ``knobly._api.shared.Block``. A block says only what its items are, which
 of them are directives, and what block an item holds. Private; each layer's block subclasses it and its own
 generated Protocol."""
 

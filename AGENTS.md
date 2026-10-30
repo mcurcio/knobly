@@ -4,17 +4,17 @@ Instructions for every AI coding agent in this repo. `CLAUDE.md` is a symlink to
 
 ## What this repo is
 
-villanelle is a configuration language, defined by one formal grammar, with generated TypeScript
+knobly is a configuration language, defined by one formal grammar, with generated TypeScript
 and Python parsers. It began as `@rasl/config` in mcurcio/rasl, and rasl will consume it.
 
-- `grammar/Villanelle.g4` is the language. Change the language only there, and run
+- `grammar/Knobly.g4` is the language. Change the language only there, and run
   `tools/check.sh` after every grammar change: it must exit 0.
 - The grammar may not use ANTLR actions, semantic predicates, lexer commands or modes. The check
   refuses them because they can hide a conflict.
 - Whitespace, comments and newlines are ordinary tokens. Nothing goes on a hidden channel, so the
   parse tree keeps every character.
 - The API every binding offers is specified in `spec/` (canonical: it wins over the TypeScript and
-  Python code). Read `.claude/skills/villanelle-binding/SKILL.md` before changing any API shape.
+  Python code). Read `.claude/skills/knobly-binding/SKILL.md` before changing any API shape.
 - Current design choices and the work outline are in `design/RECORD.md`. The older requirement
   plans are in `design/plans/`. Code carried over from rasl is in `reference/`
   (see `reference/README.md`).
@@ -46,7 +46,7 @@ Pins:
 
 Generated parser code is never committed (owner, 2026-10-23: "Don't commit the generated code, just
 the source"). `tools/gen.sh ts|py` writes it to the git-ignored `ts/src/gen/` and
-`py/src/villanelle/_gen/`; the TS package scripts and `py/tests/conftest.py` run it first, so every
+`py/src/knobly/_gen/`; the TS package scripts and `py/tests/conftest.py` run it first, so every
 build and test regenerates. It caches the ANTLR jar in `$ANTLR_JAR_DIR` (default
 `~/.cache/antlr`); on the owner's Mac, set `ANTLR_JAR_DIR=/Volumes/Dock/Home/.cache/antlr`.
 
@@ -58,7 +58,7 @@ build and test regenerates. It caches the ANTLR jar in `$ANTLR_JAR_DIR` (default
 
 ## Task tracking: beads
 
-All planned work is tracked in beads (`bd`, prefix `vil-`). Agents manage beads themselves
+All planned work is tracked in beads (`bd`, prefix `kno-`). Agents manage beads themselves
 (owner, 2026-10-21, in rasl: "I want to use beads, and want you to auto manage it"). The beads
 were ported from mcurcio/rasl on 2026-10-22; each one's notes say where it came from.
 

@@ -1,30 +1,30 @@
-"""villanelle: a configuration language defined by one grammar (grammar/Villanelle.g4). One namespace per layer:
+"""knobly: a configuration language defined by one grammar (grammar/Knobly.g4). One namespace per layer:
 this package root holds the shared and io names (positions, places, origins, diagnostics,
 the error tree, config text, the document source and writer ports and the in-memory adapters);
-``villanelle.syntax`` the lossless syntax tree (``parse``); ``villanelle.written`` the config as written (the low
+``knobly.syntax`` the lossless syntax tree (``parse``); ``knobly.written`` the config as written (the low
 level: ``Processor.load`` returns a ``DocumentGraph`` of editable documents, read further with ``graph.read()`` and
-saved back with ``graph.save(writer)``); ``villanelle.rendered`` the rendered tree (``render(graph)``: variables,
-snippets and included files expanded into directives a program reads). The core does no I/O: ``villanelle.files``
-gives a filesystem source and writer, ``villanelle.include`` the include extension."""
+saved back with ``graph.save(writer)``); ``knobly.rendered`` the rendered tree (``render(graph)``: variables,
+snippets and included files expanded into directives a program reads). The core does no I/O: ``knobly.files``
+gives a filesystem source and writer, ``knobly.include`` the include extension."""
 
-# Every public signature is generated from spec/schema/api.json (villanelle._api); each module's __all__ equals the
+# Every public signature is generated from spec/schema/api.json (knobly._api); each module's __all__ equals the
 # generated PUBLIC_NAMES for it (tests/test_api_names.py).
 
-from villanelle import _docs
-from villanelle._api.codes import DiagnosticCode
-from villanelle._api.errors import (
+from knobly import _docs
+from knobly._api.codes import DiagnosticCode
+from knobly._api.errors import (
     BadTextError,
     DetachedError,
     DiagnosticError,
+    KnoblyError,
     LostUpdateError,
     ReadError,
     SaveError,
-    VillanelleError,
 )
-from villanelle._api.io import DocumentSource, DocumentWriter, FileWrite, LoadContext
-from villanelle._api.kinds import PlaceKind, StepKind
-from villanelle._api.limits import PROGRAM_CODE
-from villanelle._api.shared import (
+from knobly._api.io import DocumentSource, DocumentWriter, FileWrite, LoadContext
+from knobly._api.kinds import PlaceKind, StepKind
+from knobly._api.limits import PROGRAM_CODE
+from knobly._api.shared import (
     Block,
     ConfigText,
     DirectiveOrigin,
@@ -34,11 +34,11 @@ from villanelle._api.shared import (
     SourcePosition,
     SourceSpan,
 )
-from villanelle._diagnostics import Diagnostic
-from villanelle._origin import Override, Place, Step
-from villanelle._report import Collecting, Diagnostics, LocatedDiagnostic
-from villanelle._source import check_lost_updates, memory_source, memory_writer
-from villanelle._text import quote, text
+from knobly._diagnostics import Diagnostic
+from knobly._origin import Override, Place, Step
+from knobly._report import Collecting, Diagnostics, LocatedDiagnostic
+from knobly._source import check_lost_updates, memory_source, memory_writer
+from knobly._text import quote, text
 
 __all__ = [
     "PROGRAM_CODE",
@@ -55,6 +55,7 @@ __all__ = [
     "DocumentSource",
     "DocumentWriter",
     "FileWrite",
+    "KnoblyError",
     "LoadContext",
     "Locatable",
     "LocatedDiagnostic",
@@ -70,7 +71,6 @@ __all__ = [
     "SourceSpan",
     "Step",
     "StepKind",
-    "VillanelleError",
     "check_lost_updates",
     "memory_source",
     "memory_writer",

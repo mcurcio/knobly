@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Build the release assets for one version into dist/release/ (ignored by git):
-#   villanelle-<version>.tgz                 npm pack of ts/
-#   villanelle-<version>-py3-none-any.whl    uv build of py/ (wheel)
-#   villanelle-<version>.tar.gz              uv build of py/ (sdist)
-#   villanelle-cpp-<version>.tar.gz          the C++ source archive, generated headers included (.github/release-cpp.sh)
-#   villanelle.hpp                           the C++ single header (.github/release-cpp.sh)
+#   knobly-<version>.tgz                 npm pack of ts/
+#   knobly-<version>-py3-none-any.whl    uv build of py/ (wheel)
+#   knobly-<version>.tar.gz              uv build of py/ (sdist)
+#   knobly-cpp-<version>.tar.gz          the C++ source archive, generated headers included (.github/release-cpp.sh)
+#   knobly.hpp                           the C++ single header (.github/release-cpp.sh)
 # The version is stamped into ts/package.json and py/pyproject.toml for the build only; both files get their
 # committed bytes back on exit, so the version is never committed. Run by semantic-release's prepare step
 # (.releaserc.json), in dry-run by the release job in .github/workflows/ci.yml, and on every push and pull request by

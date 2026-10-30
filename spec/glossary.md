@@ -10,12 +10,12 @@ list of concepts and members is [schema/api.json](schema/api.json), which wins w
 
 Where the words come from:
 - The round 13 review's glossary ([review.md, root cause 1](../.claude/design/consumer-api/round13/review.md#root-cause-1-no-shared-glossary-so-each-layer-named-things-on-its-own)),
-  adopted by milestone 1 (bead vil-fy4). These are design choices, not the owner's words.
+  adopted by milestone 1 (bead kno-fy4). These are design choices, not the owner's words.
 - The owner's answers on the round 13 gate page, 2026-10-29: on where `render` lives, first "B
   graph.render()", then "The low level shouldn't "depend on" the middle layer — they should have different domain objects. The middle layer of objects can build on the lower layer domains"; "A overrides" (the word for values a program
   passes in); "A Keep text only, make misuse impossible" (values going in); and "Can "set_values"
   become simply "set"?" (the edit that replaces values).
-- Milestone 2 (beads vil-0vz, vil-9fy, vil-5ya, vil-gxu): the round 13 review's root causes 3 and 4, and the
+- Milestone 2 (beads kno-0vz, kno-9fy, kno-5ya, kno-gxu): the round 13 review's root causes 3 and 4, and the
   owner's "Yes" of 2026-10-29 to the rendered layer building only on the low level's public objects. The new words
   below are design choices, not his words.
 
@@ -68,7 +68,7 @@ in lowercase words; the TypeScript and Python spellings follow from the casing r
 | `reason` | why a statement copy could not be read (an unreadable expansion's); its list is `unreadable reason` | the rendered unreadable's `kind`, and the `unreadable kind` list |
 | `kind` | which variant of a closed list a thing is, and nothing else | (`kind` no longer holds a reason) |
 | `diagnostics` | the located problems, a property on the graph and on the render | `graph.diagnostics ()` (a method) |
-| `text` | the parameter of every member that takes new villanelle text (typed `config text` since milestone 5) | (mixed parameter names) |
+| `text` | the parameter of every member that takes new knobly text (typed `config text` since milestone 5) | (mixed parameter names) |
 | `set (text)` | replace a statement's or a variable's values with `text`, or (milestone 5) a written value with one value, keeping its handle (owner: "Can "set_values" become simply "set"?"). Not the language's `@set` statement: it never makes a `set` line | `set values (text)` |
 | `expanded value` | one value after expansion, with its readers and its links (`written`, `definition`, `chain`): what an extension use holds, a directive expansion's values, and a rendered directive's values (the same objects) | the rendered `argument`, which an extension use used to hold; since milestone 4 also `value expansion` and the `argument` family |
 | `render (graph)` | the rendered layer's free function that makes a graph's rendered tree; the low level has no render member | `processor.render (graph)` |
@@ -90,10 +90,10 @@ table at the end):
 | `directive expansion`, `unreadable expansion` | the parts of an expansion: a directive copy, a copy that could not be read (the rendered tree lists the same unreadable expansions since milestone 4; `value expansion` merged into `expanded value`) | (internal: TypeScript `BoundItem`, `Bound`; Python `BoundItem`, `BoundValue`) |
 | `insert before (text)`, `insert after (text)` | insert statements next to this statement in its block | `insert statements (index, text)` with a worked-out index |
 | `people form` | the text a person reads, a binding's to-text conversion: an address's, and now a place's, an override's, a step's and a diagnostic's (contract 2) | (an address's only) |
-| `villanelle error` | the base class of every error class the package defines (contract 4) | (none) |
+| `knobly error` | the base class of every error class the package defines (contract 4) | (none) |
 | `memory writer`, `file writer` | the writers named after their medium and port (contract 5) | (no memory writer); `fs writer` |
 
-Words a program might expect but villanelle does not use: `handed` (now `override`), `args`,
+Words a program might expect but knobly does not use: `handed` (now `override`), `args`,
 `body`, `reaches`, `overridden` (as a member name), `set values` (now `set`), `no set line error` (gone),
 `items ()` (now `list ()`), `as_int` and the other `as_` readers (now the spec words), `fs writer` (now `file
 writer`). A new meaning for any word on this page needs
@@ -103,8 +103,8 @@ the owner's approval.
 
 The type names after milestone 6: both bindings spell a type the same way, with no prefix (binding guide rule 2;
 owner, 2026-10-29, "Yes, rename now"), and each name is imported from its layer's path (rule 9: the shared and io
-rows below from `villanelle`, the syntax layer from `villanelle/syntax` / `villanelle.syntax`, the low level from
-`villanelle/written` / `villanelle.written`, the rendered tree from `villanelle/rendered` / `villanelle.rendered`).
+rows below from `knobly`, the syntax layer from `knobly/syntax` / `knobly.syntax`, the low level from
+`knobly/written` / `knobly.written`, the rendered tree from `knobly/rendered` / `knobly.rendered`).
 Every name is generated from its spec name ([codegen.md](codegen.md)). "Union" means a TypeScript union type, or a
 Python `X: TypeAlias = A | B | ...` over classes (so `isinstance(x, X)` works). Every kind list is a TypeScript
 `as const` object with its derived string-literal type, and a Python `StrEnum`, of the same name (spec 2.10).
@@ -132,7 +132,7 @@ Python `X: TypeAlias = A | B | ...` over classes (so `isinstance(x, X)` works). 
 | `place kind` (kind list) | `PlaceKind` (as-const object and type) | `PlaceKind` (`StrEnum`) | `place_kind` (`enum class`) |
 | `walk control` (kind list) | `WalkControl` (as-const object and type) | none | the walk's descend predicate |
 | `diagnostic code` | `DiagnosticCode` (as-const object and type) | `DiagnosticCode` (`StrEnum`) | `diagnostic_code` (`enum class`) |
-| `villanelle error` (error group) | `VillanelleError` | `VillanelleError` | `villanelle_error` |
+| `knobly error` (error group) | `KnoblyError` | `KnoblyError` | `knobly_error` |
 | `diagnostic error` (error group) | `DiagnosticError` | `DiagnosticError` | `diagnostic_error` |
 | `read error` (error group) | `ReadError` | `ReadError` | `read_error` |
 | `bad text error` (error group) | `BadTextError` | `BadTextError` | `bad_text_error` |
@@ -174,14 +174,14 @@ Python `X: TypeAlias = A | B | ...` over classes (so `isinstance(x, X)` works). 
 | `document source` | `DocumentSource` | `DocumentSource` | `document_source` |
 | `file write` | `FileWrite` | `FileWrite` | `file_write` |
 | `document writer` | `DocumentWriter` | `DocumentWriter` | `document_writer` |
-| `fetch writer options` | `FetchWriterOptions` (`villanelle/browser`) | keyword arguments | none |
+| `fetch writer options` | `FetchWriterOptions` (`knobly/browser`) | keyword arguments | none |
 | `platform fetch` | the platform's own | none | none |
 | `memory source` (free function) | `memorySource` | `memory_source` | `memory_source` |
 | `memory writer` (free function) | `memoryWriter` | `memory_writer` | `memory_writer` |
-| `file source` (free function) | `fileSource` (`villanelle/node`) | `file_source` (`villanelle.files`) | `file_source` (`villanelle::files`) |
-| `file writer` (free function) | `fileWriter` (`villanelle/node`) | `file_writer` (`villanelle.files`) | `file_writer` (`villanelle::files`) |
-| `fetch source` (free function) | `fetchSource` (`villanelle/browser`) | none | none |
-| `fetch writer` (free function) | `fetchWriter` (`villanelle/browser`) | none | none |
+| `file source` (free function) | `fileSource` (`knobly/node`) | `file_source` (`knobly.files`) | `file_source` (`knobly::files`) |
+| `file writer` (free function) | `fileWriter` (`knobly/node`) | `file_writer` (`knobly.files`) | `file_writer` (`knobly::files`) |
+| `fetch source` (free function) | `fetchSource` (`knobly/browser`) | none | none |
+| `fetch writer` (free function) | `fetchWriter` (`knobly/browser`) | none | none |
 | `check lost updates` (free function) | `checkLostUpdates` | `check_lost_updates` | `check_lost_updates` |
 <!-- end generated -->
 
@@ -237,8 +237,8 @@ Python `X: TypeAlias = A | B | ...` over classes (so `isinstance(x, X)` works). 
 | `variable kind` (kind list) | `VariableKind` (as-const object and type) | `VariableKind` (`StrEnum`) | `variable_kind` (`enum class`) |
 | `unreadable reason` (kind list) | `UnreadableReason` (as-const object and type) | `UnreadableReason` (`StrEnum`) | `unreadable_reason` (`enum class`) |
 | `format diagnostic` (free function) | `formatDiagnostic` | `format_diagnostic` | `format_diagnostic` |
-| `make processor` (free function) | `villanelle(...)` | `Processor(...)` | `processor(...)` |
-| `include` (free function) | `include` (`villanelle/include`) | `include` (`villanelle.include`) | `include` (`villanelle::extensions`) |
+| `make processor` (free function) | `knobly(...)` | `Processor(...)` | `processor(...)` |
+| `include` (free function) | `include` (`knobly/include`) | `include` (`knobly.include`) | `include` (`knobly::extensions`) |
 | `max depth` (constant) | `MAX_DEPTH` | `MAX_DEPTH` | `max_depth` |
 | `max directives` (constant) | `MAX_DIRECTIVES` | `MAX_DIRECTIVES` | `max_directives` |
 | `max safe integer` (constant) | `MAX_SAFE_INTEGER` | `MAX_SAFE_INTEGER` | `max_safe_integer` |
@@ -247,7 +247,7 @@ Python `X: TypeAlias = A | B | ...` over classes (so `isinstance(x, X)` works). 
 <!-- end generated -->
 
 The low level's public entry is one module in each binding: `ts/src/written/index.ts` (new) and the package
-`villanelle.written` (its `__all__`). The rendered layer imports the low level from there and nowhere else
+`knobly.written` (its `__all__`). The rendered layer imports the low level from there and nowhere else
 (binding guide rule 8).
 
 ### Rendered tree
@@ -298,21 +298,21 @@ The low level's public entry is one module in each binding: `ts/src/written/inde
 | `expansion`, `expand ()` | the graph's public account of every copy as read, and the method that makes it | the rendered layer may use only public low-level members (owner, 2026-10-29, "Yes") | the package-internal binding (not a public term) |
 | `directive expansion`, `unreadable expansion`, `value expansion` | an expansion's directive copy, unreadable copy, and value with its links | the same | none public |
 | `insert before`, `insert after` | insert statements next to a statement | the review's PostCSS-style edits (root cause 4) | `insert statements` at a worked-out index |
-| `villanelle error` | the package's base error class | one class to catch (root cause 4) | none |
+| `knobly error` | the package's base error class | one class to catch (root cause 4) | none |
 | `memory writer` | a writer into the map a memory source reads | every binding ships both ports in memory (root cause 4) | none |
-| `list ()` | the reader that asks for a list | `items` became the list variants' property, the same in both layers (vil-gxu) | `items ()` |
+| `list ()` | the reader that asks for a list | `items` became the list variants' property, the same in both layers (kno-gxu) | `items ()` |
 
 ## New terms in milestone 4
 
 | Term | Definition | Why it is needed | Existing term it could be |
 |---|---|---|---|
-| `lost update error` | a `save error` for a file that changed since it was read; `paths` are the conflicting files | round 15: the spec named the lost update but gave it no error (vil-umh.5) | `save error`, which it refines |
-| `check lost updates` | the one function every writer calls to find a lost update | one shared check, not one per writer (vil-umh.5) | the per-writer comparisons it replaces |
-| `entry rule` | a grammar rule a binding parses a given text with (`valuesText`, `itemsText`, `boundText`, `nameText`) | the rules that depend only on the text live in the grammar (vil-umh.3) | the check of a values text (its probe and scanner) |
-| `misuse error` (`MisuseError` in TypeScript) | the program-bug group for a bad value, every bad name included | one group for every bad name, told apart from an argument type error (vil-umh.7) | TypeScript's `TypeError` for misuse |
-| `unread` (an `unreadable reason`), E3007 `unread copy` | an extension copy not read yet | a render and a diff must show it (vil-umh.4) | none: it rendered as nothing |
-| definition, environment, walk, candidate | the words of [expansion.md](expansion.md) | the scoping and precedence rules have one home (vil-umh.2) | the prose of `docs/site/pages/language.md` |
-| `INTEGER`, `DIGIT_WORD`, `BAD_ESCAPE` (token kinds) | an integer word, every other word starting with a digit or `-`, a string with a bad escape | directive names cannot start with a digit or `-` (owner Q1); bounds and escapes are checked by the grammar (vil-umh.3) | `WORD` (split in three); E4003 found at render |
+| `lost update error` | a `save error` for a file that changed since it was read; `paths` are the conflicting files | round 15: the spec named the lost update but gave it no error (kno-umh.5) | `save error`, which it refines |
+| `check lost updates` | the one function every writer calls to find a lost update | one shared check, not one per writer (kno-umh.5) | the per-writer comparisons it replaces |
+| `entry rule` | a grammar rule a binding parses a given text with (`valuesText`, `itemsText`, `boundText`, `nameText`) | the rules that depend only on the text live in the grammar (kno-umh.3) | the check of a values text (its probe and scanner) |
+| `misuse error` (`MisuseError` in TypeScript) | the program-bug group for a bad value, every bad name included | one group for every bad name, told apart from an argument type error (kno-umh.7) | TypeScript's `TypeError` for misuse |
+| `unread` (an `unreadable reason`), E3007 `unread copy` | an extension copy not read yet | a render and a diff must show it (kno-umh.4) | none: it rendered as nothing |
+| definition, environment, walk, candidate | the words of [expansion.md](expansion.md) | the scoping and precedence rules have one home (kno-umh.2) | the prose of `docs/site/pages/language.md` |
+| `INTEGER`, `DIGIT_WORD`, `BAD_ESCAPE` (token kinds) | an integer word, every other word starting with a digit or `-`, a string with a bad escape | directive names cannot start with a digit or `-` (owner Q1); bounds and escapes are checked by the grammar (kno-umh.3) | `WORD` (split in three); E4003 found at render |
 
 Removed in milestone 4: `value expansion`, `argument` and its five variants, the rendered `unreadable`, `edit
 error`, and `statement` as the name of the link on a directive or unreadable expansion (now `written`).
@@ -321,11 +321,11 @@ error`, and `statement` as the name of the link on a directive or unreadable exp
 
 | Term | Definition | Why it is needed | Existing term it could be |
 |---|---|---|---|
-| `config text` (`ConfigText`) | villanelle text a program hands to an edit or an override, a type of its own, made only by `quote` or `text` | the owner picked "Yes, its own type" (2026-10-29, vil-umh.6): a plain string there is a type error | `text`, the parameter's name, which stays |
+| `config text` (`ConfigText`) | knobly text a program hands to an edit or an override, a type of its own, made only by `quote` or `text` | the owner picked "Yes, its own type" (2026-10-29, kno-umh.6): a plain string there is a type error | `text`, the parameter's name, which stays |
 | `text (raw)` | the free function that takes plain text as config text, unchanged | config text needs a second maker besides `quote` (owner: "made only by quote() or an explicit text(...)") | `quote`, which writes a string; `text` writes nothing |
-| raw string | a single-quoted string: its text exactly as typed, no escapes (TOML's literal string) | the owner said "yes" to single quotes as raw strings (vil-umh.14) | `string`: still the value kind `string`; only the spelling's rule differs |
-| slice name | the word or `$name` before a slice's `[` (grammar `sliceName`) | a variable may be subscripted (vil-umh.14: "yes") | a slice's `name`, which it is |
-| language statement, extension statement | a statement written `@name`: `@set`, `@snippet`, `@use`, or an extension's (`@include`) | the statements behind one sigil (vil-umh.14: "yes"); no directive name is reserved | the reserved words at a line's start |
+| raw string | a single-quoted string: its text exactly as typed, no escapes (TOML's literal string) | the owner said "yes" to single quotes as raw strings (kno-umh.14) | `string`: still the value kind `string`; only the spelling's rule differs |
+| slice name | the word or `$name` before a slice's `[` (grammar `sliceName`) | a variable may be subscripted (kno-umh.14: "yes") | a slice's `name`, which it is |
+| language statement, extension statement | a statement written `@name`: `@set`, `@snippet`, `@use`, or an extension's (`@include`) | the statements behind one sigil (kno-umh.14: "yes"); no directive name is reserved | the reserved words at a line's start |
 | `AT_WORD`, `TILDE` (token kinds) | a word that starts with `@`; the `~` between a slice's bounds | the grammar tells a statement's keyword from a directive's name, and the separator is outside the word alphabet | `WORD` (split); `COLON` (replaced) |
 | E3008 `unknown extension`, E4007 `bad slice name` | an `@name` no extension owns; a slice's `$name` that does not hold one word | the two new failures of `@` statements and subscripted variables | E3001 (a file not found), E4001 (a bound) |
 

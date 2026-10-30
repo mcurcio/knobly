@@ -1,6 +1,6 @@
 """The driver's end of the adapter protocol (spec/conformance.md section 2): one adapter process, JSON lines on its
 standard input and output, one request and its response at a time. Each request waits at most the timeout
-(VILLANELLE_DRIVER_TIMEOUT seconds, 60 by default): a stalled adapter is a fault, killed, and the run goes on."""
+(KNOBLY_DRIVER_TIMEOUT seconds, 60 by default): a stalled adapter is a fault, killed, and the run goes on."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ DEFAULT_TIMEOUT = 60.0
 
 
 def request_timeout() -> float:
-    """Seconds one request may wait for its response: VILLANELLE_DRIVER_TIMEOUT, else 60."""
-    return float(os.environ.get("VILLANELLE_DRIVER_TIMEOUT", DEFAULT_TIMEOUT))
+    """Seconds one request may wait for its response: KNOBLY_DRIVER_TIMEOUT, else 60."""
+    return float(os.environ.get("KNOBLY_DRIVER_TIMEOUT", DEFAULT_TIMEOUT))
 
 
 class AdapterFault(Exception):
@@ -25,7 +25,7 @@ class AdapterFault(Exception):
 
 
 class Thrown(Exception):
-    """The binding raised one of its own errors (a ``villanelle error``): ``error`` is the neutral error object."""
+    """The binding raised one of its own errors (a ``knobly error``): ``error`` is the neutral error object."""
 
     def __init__(self, error: Dict[str, Any]) -> None:
         super().__init__(error.get("group", "?"))

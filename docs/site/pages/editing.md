@@ -1,6 +1,6 @@
 # Editing and saving
 
-This page is for a program that changes villanelle config **as written** and writes it back: an editor, a settings
+This page is for a program that changes knobly config **as written** and writes it back: an editor, a settings
 screen, a tool that bumps a value. It works on the low level, the document graph that `load` returns. Comments and
 layout are kept: an edit changes only the text it names. There is no formatter.
 
@@ -9,10 +9,10 @@ layout are kept: an edit changes only the text it names. There is no formatter.
 New values and statements are written as **config text**, a type of its own (a branded string in TypeScript, a
 `NewType` in Python, a class in C++), made only two ways:
 
-- `quote(s)` writes a string the program holds as a villanelle string, the same text an expanded string has, with
+- `quote(s)` writes a string the program holds as a knobly string, the same text an expanded string has, with
   backslash, quote, newline, tab and carriage return escaped: `quote('10.0.60.31 "x"\n')` is
   `"10.0.60.31 \"x\"\n"`;
-- `text(raw)` takes text already written in villanelle syntax (`text("8080 udp")`, `text("[1, 2]")`) unchanged, and
+- `text(raw)` takes text already written in knobly syntax (`text("8080 udp")`, `text("[1, 2]")`) unchanged, and
   the edit it is given checks it.
 
 So passing a plain string where config text is taken is refused before the program runs: a type error in
@@ -74,7 +74,7 @@ is the edit that replaces its values, not the language's `@set` statement.
 Every edit except a document's `replace_with_text` checks its text first, and **a refused edit changes nothing**:
 
 - A values text is parsed with the grammar's entry rule for it
-  ([`spec/spec.md`](https://github.com/mcurcio/villanelle/blob/main/spec/spec.md) 2.8): `valuesText` for a line's
+  ([`spec/spec.md`](https://github.com/mcurcio/knobly/blob/main/spec/spec.md) 2.8): `valuesText` for a line's
   values, `itemsText` for a list item, `valueText` for a value's `set` (exactly one value), `boundText` for a slice
   bound, `sliceNameText` for a slice's name. A statement's `set` given no value must be given `""` (which clears the
   values). Its first syntax error is the diagnostic; a `;` or a block in it is E2001 at that token. A line break is
@@ -145,9 +145,9 @@ error with the `paths` and the writer's error as its cause, and no `saved_text` 
 <!-- generated: members: writers (tools/gen-api.py docs) -->
 | Writer | TypeScript | Python | C++ |
 |---|---|---|---|
-| memory | `memoryWriter(files)` from `villanelle` | `memory_writer(files)` from `villanelle` | `memory_writer(files)` from `villanelle` |
-| the filesystem | `fileWriter()` from `villanelle/node` | `file_writer()` from `villanelle.files` | `file_writer()` from `villanelle::files` |
-| `fetch` | `fetchWriter(fetch, options?)` from `villanelle/browser` | none | none |
+| memory | `memoryWriter(files)` from `knobly` | `memory_writer(files)` from `knobly` | `memory_writer(files)` from `knobly` |
+| the filesystem | `fileWriter()` from `knobly/node` | `file_writer()` from `knobly.files` | `file_writer()` from `knobly::files` |
+| `fetch` | `fetchWriter(fetch, options?)` from `knobly/browser` | none | none |
 <!-- end generated -->
 
 ### Lost updates

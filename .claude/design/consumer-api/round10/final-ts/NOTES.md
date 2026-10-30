@@ -27,7 +27,7 @@ App output matches the winner's run (diffed) but for one "known:" list's order.
 `@Module` (+`register()`) · scope class (`@Scope(name)` defines, `extends` shares, `@Scope(Other)` joins) ·
 directive method (`many`/`inherit`/`restart`) · value parameter (`@Value`/`@Optional`/`@Key`) · pipe ·
 flags class · `@Body` (`Block.get/all/entries(Class, "name")`, or `Lines`; `forwardRef` in a cycle) ·
-`ConfigError` · program (`VillanelleFactory.create`, `load`, `apply`, `@OnChange`, `ChangeFailed`,
+`ConfigError` · program (`KnoblyFactory.create`, `load`, `apply`, `@OnChange`, `ChangeFailed`,
 `Loader`). New to Nest users: value types (`@ValueType` + static `parse`; `choice()`) and select scopes
 (`abstract class NodeType extends Chosen<NodeHead, NodeSpec>`, `type.build(head)`, `type.name`, `@Head()`).
 

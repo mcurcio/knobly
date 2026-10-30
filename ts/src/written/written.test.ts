@@ -9,10 +9,10 @@ import { describe, expect, it } from "vitest";
 import { include } from "../include.js";
 import { configTexts } from "../rendered/testing.js";
 import { BadTextError, DetachedError, type DocumentWriter, type FileWrite, memorySource, MisuseError, quote, SaveError, text } from "../index.js";
-import { type DocumentGraph, type Extension, StatementKind, villanelle, type WrittenDirective } from "./index.js";
+import { type DocumentGraph, type Extension, StatementKind, knobly, type WrittenDirective } from "./index.js";
 
 async function load(files: Record<string, string>, overrides?: Record<string, string>): Promise<DocumentGraph> {
-  const processor = villanelle({ source: memorySource(files), extensions: [include()] });
+  const processor = knobly({ source: memorySource(files), extensions: [include()] });
   return processor.load("main.conf", overrides === undefined ? undefined : { overrides: configTexts(overrides) });
 }
 
@@ -81,7 +81,7 @@ describe("documents and handles", () => {
 
 describe("make processor checks an extension's name: its type, then a word, then reserved or taken (spec 5)", () => {
   const named = (directive: unknown): Extension => ({ directive, specs: () => [] }) as unknown as Extension;
-  const make = (directive: unknown) => () => villanelle({ source: memorySource({}), extensions: [named(directive)] });
+  const make = (directive: unknown) => () => knobly({ source: memorySource({}), extensions: [named(directive)] });
 
   it("refuses a name that is not a string with the argument type error", () => {
     expect(make(5)).toThrow(TypeError);
@@ -133,7 +133,7 @@ describe("save", () => {
     expect(graph.root.text).toBe("x 3;\n");
   });
 
-  it("quotes a plain string as the canonical villanelle string", () => {
+  it("quotes a plain string as the canonical knobly string", () => {
     expect(quote('10.0.60.31 "x"\n')).toBe('"10.0.60.31 \\"x\\"\\n"');
   });
 });

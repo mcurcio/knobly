@@ -2,9 +2,9 @@
 
     python3 tools/gen-api.py ts       -> ts/src/gen/api/*.ts, ts/conformance/shapes.ts and ts/test/api-contract.ts,
                                          formatted by ts's pinned Prettier (run pnpm install in ts/ first)
-    python3 tools/gen-api.py py       -> py/src/villanelle/_api/*.py, py/conformance/shapes.py and py/tests/api_contract.py,
+    python3 tools/gen-api.py py       -> py/src/knobly/_api/*.py, py/conformance/shapes.py and py/tests/api_contract.py,
                                          formatted by py's pinned ruff (through uv)
-    python3 tools/gen-api.py cpp      -> cpp/include/villanelle/*.hpp, cpp/conformance/shapes.hpp and
+    python3 tools/gen-api.py cpp      -> cpp/include/knobly/*.hpp, cpp/conformance/shapes.hpp and
                                          cpp/tests/generated/*.cpp, formatted by the pinned clang-format (through uv)
     python3 tools/gen-api.py docs     -> rewrites the generated tables in spec/, docs/ and README.md (committed: they are
                                          read on GitHub; the members tables' rows are docs/tables.json)
@@ -48,8 +48,8 @@ from api.loader import REPO, Model, SchemaError, planted, read_schema  # noqa: E
 # also hold hand-written files (the adapter's shapes; Python's test contract, spec/codegen.md section 4).
 OUT = {
     "ts": (REPO / "ts" / "src" / "gen" / "api", {"shapes": REPO / "ts" / "conformance", "contract": REPO / "ts" / "test"}),
-    "py": (REPO / "py" / "src" / "villanelle" / "_api", {"shapes": REPO / "py" / "conformance", "contract": REPO / "py" / "tests"}),
-    "cpp": (REPO / "cpp" / "include" / "villanelle", {"shapes": REPO / "cpp" / "conformance", "contract": REPO / "cpp" / "tests" / "generated"}),
+    "py": (REPO / "py" / "src" / "knobly" / "_api", {"shapes": REPO / "py" / "conformance", "contract": REPO / "py" / "tests"}),
+    "cpp": (REPO / "cpp" / "include" / "knobly", {"shapes": REPO / "cpp" / "conformance", "contract": REPO / "cpp" / "tests" / "generated"}),
 }
 EMITTERS = {"ts": emit_ts, "py": emit_py, "cpp": emit_cpp}
 LANGUAGES = [e.LANGUAGE for e in EMITTERS.values()]
@@ -66,7 +66,7 @@ def check_stub(schema: tuple) -> int:
     model = Model(*schema, [*LANGUAGES, stub.LANGUAGE])
     files = stub.render(model)
     names = files["names.txt"]
-    if "villanelle::rendered render\n" not in names or "villanelle::fetch" in names:
+    if "knobly::rendered render\n" not in names or "knobly::fetch" in names:
         raise SchemaError(f"the third-binding stub rendered an unexpected names list:\n{names}")
     for layer in model.layers:
         if any(c.layer == layer.name for c in model.concepts) and not files.get(f"{layer.name}.toy"):

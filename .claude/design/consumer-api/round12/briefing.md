@@ -1,4 +1,4 @@
-# Villanelle: the low level, config as written (round 12)
+# Knobly: the low level, config as written (round 12)
 
 **Status:** draft for your review · **Layer:** **[ System design ]** of the low-level layer › Module › Feature
 
@@ -63,11 +63,11 @@ The fixture: `main.conf` sets `$pixels 2284;` (line 4) and includes `sink.conf` 
 and line 24 (`$name porch`). `sink.conf` holds one `node DdpSink $name { ... max_count $pixels; }`.
 
 ```ts
-import { save, villanelle } from "villanelle";
-import { include } from "villanelle/include";
-import { createFileSource, createFsWriter } from "villanelle/node";
+import { save, knobly } from "knobly";
+import { include } from "knobly/include";
+import { createFileSource, createFsWriter } from "knobly/node";
 
-const config = villanelle({ source: createFileSource(), extensions: [include()], key: RASL_KEY });
+const config = knobly({ source: createFileSource(), extensions: [include()], key: RASL_KEY });
 
 // The low level: the files as written, plus one value the program hands in.
 const graph = await config.load("split/main.conf", { variables: { leds_host: '"10.0.70.1"' } });
@@ -77,9 +77,9 @@ const rendered = config.render(graph);
 ```
 
 ```python
-from villanelle import Processor, save          # save: new in Python
-from villanelle.files import file_source, fs_writer   # fs_writer: new
-from villanelle.include import include
+from knobly import Processor, save          # save: new in Python
+from knobly.files import file_source, fs_writer   # fs_writer: new
+from knobly.include import include
 
 config = Processor(source=file_source(), extensions=[include()], key=RASL_KEY)
 graph = config.load("split/main.conf", variables={"leds_host": '"10.0.70.1"'})
@@ -351,7 +351,7 @@ interface IDocumentWriter {
 /** Hands over changed files only. On success each `source` becomes the saved text. */
 declare function save(graph: IDocumentGraph, writer: IDocumentWriter): Promise<readonly string[]>;
 
-/** A plain string as villanelle text: quote("10.0.60.31") is `"10.0.60.31"`. */
+/** A plain string as knobly text: quote("10.0.60.31") is `"10.0.60.31"`. */
 declare function quote(text: string): string;
 ```
 
@@ -416,7 +416,7 @@ A rendered tree is a snapshot: after an edit, render again. Diff is unchanged.
 | name lookup inside expansion, both languages | moves into this layer (design rule 3) | large, both languages |
 | `load` returns the expanded tree | `load` returns files; `render` the tree (question 3) | every caller and the API doc |
 | edges stored at load | worked out from current texts | medium |
-| `node` on a rendered directive | `written` and `resolutions` | small; closes vil-uji |
+| `node` on a rendered directive | `written` and `resolutions` | small; closes kno-uji |
 | `save` in TypeScript only, one write per file | one batch, both languages | small |
 
 **Deferred:** creating or deleting files; several root files in one graph; ids a program keeps across processes.

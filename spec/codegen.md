@@ -1,6 +1,6 @@
 # Generating each binding's declarations from one schema
 
-**Status.** Milestone 6 (beads vil-umh.9, vil-umh.10, vil-umh.11, vil-umh.13) makes the schema the source of every
+**Status.** Milestone 6 (beads kno-umh.9, kno-umh.10, kno-umh.11, kno-umh.13) makes the schema the source of every
 public signature. The owner's answers it rests on, quoted:
 
 - Q3 of the round 15 review (2026-10-29), "Should the schema become the source of every public signature?": he picked
@@ -13,7 +13,7 @@ public signature. The owner's answers it rests on, quoted:
 - His first ask (2026-10-28): a "clean, easy to comprehend API design", "idiomatic in each language", "consistent
   across layers", and codegen "so we dont have to maintain n languages by hand".
 
-Milestone 7 (beads vil-umh.16, vil-umh.17, vil-umh.18) finishes three leftovers of milestone 6: Python's generated
+Milestone 7 (beads kno-umh.16, kno-umh.17, kno-umh.18) finishes three leftovers of milestone 6: Python's generated
 types name the binding's public classes (section 4), the schema holds no per-language fact (sections 3 and 10), and
 each schema entry's user doc is split from its rationale (section 3, "Docs and rationale"). What each binding builds
 against is [frozen-m7.md](../.claude/design/consumer-api/round15/frozen-m7.md).
@@ -82,7 +82,7 @@ directive to (text or absent)`, `block of statement and written directive`. `abs
 part of the type (`statement or absent`), not a flag beside it. A map keeps insertion order in every binding.
 
 Prior art: the Language Server Protocol's `metaModel.json`, which describes LSP's types as data (`or`, `array`,
-`map`, `reference`, `base` kinds) for its TypeScript, Python, Rust and C# generators. villanelle writes the same tree
+`map`, `reference`, `base` kinds) for its TypeScript, Python, Rust and C# generators. knobly writes the same tree
 as short text because the owner reads the schema; the loader parses it into the metaModel's shape.
 
 The loader also checks what a shape check cannot see:
@@ -134,7 +134,7 @@ emitter's `trait_forms` and its other `Language` facts (a members table, section
 <!-- generated: members: traits (tools/gen-api.py docs) -->
 | Trait or field | TypeScript | Python | C++ | Means |
 |---|---|---|---|---|
-| `trait: people form` | `toString()` | `__str__` | `to_string(x)`, a free function (`<villanelle/format.hpp>` adds `std::format` and `<<`) | the text a person reads (contract 2) |
+| `trait: people form` | `toString()` | `__str__` | `to_string(x)`, a free function (`<knobly/format.hpp>` adds `std::format` and `<<`) | the text a person reads (contract 2) |
 | `trait: iterate` | `[Symbol.iterator]()` | `__iter__` | `begin()` and `end()`: a range | the items in order |
 | `trait: count` | `length` | `__len__` | `size()` | how many |
 | `trait: index` | `at(i)`, absent out of range | `__getitem__`, `IndexError` out of range | `at(i)`, `index_out_of_range` out of range | the item at an index |
@@ -143,17 +143,17 @@ emitter's `trait_forms` and its other `Language` facts (a members table, section
 | `io: true` | returns a `Promise` | a plain call | a plain call | goes through a port |
 | `passed: keyword` | positional | keyword-only | positional | an argument named at the call |
 | `passed: option` (with the member's `options` record) | one options object (`load(path, { overrides })`) | keyword-only (`load(path, *, overrides=None)`) | an options aggregate (`load(path, {.overrides = ...})`) | an optional setting |
-| `factory` (`{"of": concept}`; the form is the emitter's `factory_forms`, default `constructor`) | `villanelle(...)`, `new Diagnostics(...)` | `Processor(...)`, `Diagnostics(...)` | `processor(...)`, `diagnostics(...)` | how a concept is made |
+| `factory` (`{"of": concept}`; the form is the emitter's `factory_forms`, default `constructor`) | `knobly(...)`, `new Diagnostics(...)` | `Processor(...)`, `Diagnostics(...)` | `processor(...)`, `diagnostics(...)` | how a concept is made |
 | `nature: named type`, `brand` | a branded string | a `NewType` of `str` | a class of its own holding the text (`config_text`) | a string with its own type (spec 6.9) |
 | `nature: named type`, `template` | a template literal type (`${string}/${string}`) | `str` | a class checked when made (a `program_code` literal is checked at compile time) | text of a stated form (`{text}/{text}`; the `pattern` checks it at run time) |
 | `nature: named type`, `is: native` | `platform fetch`: `typeof globalThis.fetch` | none | none | the platform's own type: the emitter's `LANGUAGE.native`; the loader refuses a kept native type without one, and a binding that keeps no native type leaves out the module that holds them |
-| list `[]` | `readonly T[]` | `tuple[T, ...]` as a result, `Sequence[T]` as a parameter | `villanelle::sequence<T>`, an immutable shared list | in order |
-| `map` | `ReadonlyMap` as a result, `Readonly<Record>` as a parameter or an options record's property (`writable`: `Record`) | `Mapping` (`writable`: `MutableMapping`) | `villanelle::ordered_map<K, V>` (`writable`: held by `std::shared_ptr`, shared with the caller) | keyed, ordered |
-| `module` (`files`, `fetch`, `include`; the path is the emitter's `modules`) | `files`: `villanelle/node`, `fetch`: `villanelle/browser`, `include`: `villanelle/include` | `files`: `villanelle.files`, `fetch`: none, `include`: `villanelle.include` | `files`: `villanelle::files`, `fetch`: none, `include`: `villanelle::extensions` | an adapter module, named for what it holds; a module the emitter leaves out does not exist there, nor its functions and concepts |
+| list `[]` | `readonly T[]` | `tuple[T, ...]` as a result, `Sequence[T]` as a parameter | `knobly::sequence<T>`, an immutable shared list | in order |
+| `map` | `ReadonlyMap` as a result, `Readonly<Record>` as a parameter or an options record's property (`writable`: `Record`) | `Mapping` (`writable`: `MutableMapping`) | `knobly::ordered_map<K, V>` (`writable`: held by `std::shared_ptr`, shared with the caller) | keyed, ordered |
+| `module` (`files`, `fetch`, `include`; the path is the emitter's `modules`) | `files`: `knobly/node`, `fetch`: `knobly/browser`, `include`: `knobly/include` | `files`: `knobly.files`, `fetch`: none, `include`: `knobly.include` | `files`: `knobly::files`, `fetch`: none, `include`: `knobly::extensions` | an adapter module, named for what it holds; a module the emitter leaves out does not exist there, nor its functions and concepts |
 | what a binding leaves out (the emitter's `omit`, and any module it does not map) | nothing | `load options`, `processor options`, `key options`, `walk control`, the `fetch` module | `walk control`, the `fetch` module | exists in some bindings only (a left-out module takes its functions and concepts with it) |
 | a trait's own public names (the emitter's `trait_names`) | none | `Collecting` | `sequence`, `ordered_map`, `walk_view` | a class or type a trait's idiom adds, public beside the concept with the trait |
-| a root error group's class (the emitter's `error_roots`) | `villanelle error`: `Error`, `detached error`: `ReferenceError`, `argument type error`: `TypeError`, `misuse error`: `Error`, `index out of range`: `RangeError` | `villanelle error`: `Exception`, `detached error`: `ReferenceError`, `argument type error`: `TypeError`, `misuse error`: `ValueError`, `index out of range`: `IndexError` | `villanelle error`: `std::runtime_error`, `detached error`: `std::logic_error`, `argument type error`: `std::logic_error`, `misuse error`: `std::invalid_argument`, `index out of range`: `std::out_of_range` | the root's base, or the language's own class (spec 2.8's and contract 4.2's generated tables) |
-| the argument type error's message (the emitter's `argument_type_message`; the schema keeps its rule and placeholders) | `{member}(): argument "{parameter}" must be a string, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, String() a number first` | `{member}() argument '{parameter}' must be str, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, str() a number first` | `{member}(): argument '{parameter}' must be a live object, not {got}` | a whole sentence, because it names the language's own conversion and type words (spec 6.9's generated table) |
+| a root error group's class (the emitter's `error_roots`) | `knobly error`: `Error`, `detached error`: `ReferenceError`, `argument type error`: `TypeError`, `misuse error`: `Error`, `index out of range`: `RangeError` | `knobly error`: `Exception`, `detached error`: `ReferenceError`, `argument type error`: `TypeError`, `misuse error`: `ValueError`, `index out of range`: `IndexError` | `knobly error`: `std::runtime_error`, `detached error`: `std::logic_error`, `argument type error`: `std::logic_error`, `misuse error`: `std::invalid_argument`, `index out of range`: `std::out_of_range` | the root's base, or the language's own class (spec 2.8's and contract 4.2's generated tables) |
+| the argument type error's message (the emitter's `argument_type_message`; the schema keeps its rule and placeholders) | `{member}(): argument "{parameter}" must be a string, not {got}; knobly edits take config text: quote() a program string, text() one already written as knobly text, String() a number first` | `{member}() argument '{parameter}' must be str, not {got}; knobly edits take config text: quote() a program string, text() one already written as knobly text, str() a number first` | `{member}(): argument '{parameter}' must be a live object, not {got}` | a whole sentence, because it names the language's own conversion and type words (spec 6.9's generated table) |
 <!-- end generated -->
 
 Python methods take their parameters positional-only (`/`): a hand-written class that also accepts them by keyword
@@ -186,7 +186,7 @@ in `tools/gen-api.py --check`), so nothing ships undocumented; a parameter's doc
 changed), the owner's words, bead ids, and anything true of one language only. No emitter reads it.
 
 The loader refuses, in every text an emitter writes as a doc (each `doc`, `params doc` and `order`, an error group's
-`raised when`, a constant's `means`, a code's `meaning`), a bead id (`vil-` and three characters), `milestone N`, an
+`raised when`, a constant's `means`, a code's `meaning`), a bead id (`kno-` and three characters), `milestone N`, an
 `owner, <date>` quote and the name of any emitter's language (`TypeScript`, `Python`): each is planted in
 `tools/gen-api.py --check`. The hand-written public docs are held to the same rule by each binding's name test
 (`test_public_docs_carry_no_history`; TypeScript's "public docs carry no maintainer history"), which reads every doc
@@ -206,7 +206,7 @@ the schema has. What a program reads is the generated doc, in each binding:
   built declarations too. A union's doc is on its type alias. The names test ("public declarations carry the
   schema's docs") reads every export of every entry and every member of an exported interface through the compiler
   API and fails on one without a doc.
-- **Python:** each hand-written public class subclasses its generated Protocol, and `villanelle._docs.document`,
+- **Python:** each hand-written public class subclasses its generated Protocol, and `knobly._docs.document`,
   called at the end of each public module, gives the class, and each function or property it implements, its
   Protocol's docstring, and gives each public function and constructed class's `__init__` the docstring of its
   `<Module>Functions` or `<Class>Constructor` Protocol (`_api/docs.py` names them by dotted path, imported only for
@@ -235,7 +235,7 @@ typechecked and linted with the adapter):
 | `ts/conformance/shapes.ts` | every request, result and dump of the adapter protocol as a type; `PROTOCOL`; `SPELLING` (each spec name the driver sends, in camelCase); `ERROR_GROUP_OF_CLASS` |
 | `ts/test/api-contract.ts` (git-ignored, typechecked by `tsc -p test`) | `PUBLIC_NAMES` (every public name per import path, values and types apart), outside `src/`, so the published package never ships it |
 
-**Python** (`py/src/villanelle/_api/`, git-ignored, checked by ruff and `mypy --strict`; `py/conformance/shapes.py`
+**Python** (`py/src/knobly/_api/`, git-ignored, checked by ruff and `mypy --strict`; `py/conformance/shapes.py`
 and `py/tests/api_contract.py`, git-ignored, checked the same). The generated files go through ruff before they are
 written, as ruff's docs order it: its import sorting (`ruff check --select I --fix`), then `ruff format`, both with
 `py/pyproject.toml`'s settings, so `ruff check` and `ruff format --check` pass on them as on hand code.
@@ -247,28 +247,28 @@ written, as ruff's docs order it: its import sorting (`ruff check --select I --f
 | `limits.py` | the rules module, as TypeScript's (patterns end in `\Z`, the text's end) |
 | `errors.py` | the error class tree; `argument_type_message(member, parameter, got)` |
 | `shared.py`, `syntax.py`, `io.py`, `written.py`, `rendered.py` (one per layer `api.json` lists) | per layer: a `Protocol` per handle, port and interface (variants with `kind: Literal[...]`, and the schema's `__match_args__`, which a class implementing it inherits); a frozen `@dataclass` per plain record or snapshot, slotted by hand with a `__slots__` dict of each field's doc, extending `SlottedRecord` (only properties: `eq=False` for a snapshot, field order the match args, `match_args=False` and an explicit `__match_args__` when the schema's are fewer than the fields, a fixed `kind` as a property); each member's doc as its docstring; callback `TypeAlias`es; a union `TypeAlias` only over generated records (`Change`); `ConfigText`; the generic `Block` Protocol (the index trait states `Sequence`'s read methods); a `<Module>Functions` Protocol per module and a `<Class>Constructor` Protocol (`__call__`) per constructor factory, whose docstrings the public functions and constructors take (section 3). Every annotation that names a concept the binding implements by hand names its public class (below) |
-| `docs.py` | `FUNCTIONS` (each public module's `<Module>Functions` Protocols) and `CONSTRUCTORS` (each constructed class's `<Class>Constructor`), by dotted path: what `villanelle._docs` reads (section 3) |
+| `docs.py` | `FUNCTIONS` (each public module's `<Module>Functions` Protocols) and `CONSTRUCTORS` (each constructed class's `<Class>Constructor`), by dotted path: what `knobly._docs` reads (section 3) |
 | `record.py` | `SlottedRecord`, the base of every generated record: its `__reduce__` copies and pickles a record slotted by hand (section 3) |
 | `py/conformance/shapes.py` | the protocol's `TypedDict`s, `PROTOCOL`, `SPELLING` (in snake_case), `ERROR_GROUP_OF_CLASS` |
 | `py/tests/api_contract.py` | what the tests check the binding against, every type named through its public module: `PUBLIC_NAMES` (each module's `__all__`), `MATCH_ARGS`, `UNIONS` (each public union's variant classes); and a type checker's block (`if TYPE_CHECKING:`) that mypy checks and nothing runs: each module assigned to its generated `<Module>Functions`, each constructed class to its `<Class>Constructor`, and each hand-written public class (a handle, or a snapshot or record with methods) to `type[<its generated Protocol>]`, so a member that drifts from the schema fails mypy even in a class that forgot to subclass its Protocol |
 
-**C++** (`cpp/include/villanelle/`, every header directly in it generated and git-ignored; `cpp/conformance/shapes.hpp`
-and `cpp/tests/generated/`, git-ignored). Header-only: every type is spelled fully qualified from `::villanelle`; every
+**C++** (`cpp/include/knobly/`, every header directly in it generated and git-ignored; `cpp/conformance/shapes.hpp`
+and `cpp/tests/generated/`, git-ignored). Header-only: every type is spelled fully qualified from `::knobly`; every
 name follows the standard library's casing (snake_case, template parameters PascalCase); a member that would share
 its class's name, own or inherited, takes a trailing underscore (`written::index::index_()`, `written::list::list_()`).
 What the generator writes whole is inline in the header; every free function and every handle's or snapshot's member
-is declared `VILLANELLE_API` and defined by the hand code in `detail/` (inline in header-only mode; compiled once in
+is declared `KNOBLY_API` and defined by the hand code in `detail/` (inline in header-only mode; compiled once in
 compiled mode, through `implementation.hpp`). The generated files go through the pinned clang-format with
 `cpp/.clang-format`.
 
 | Header | Holds |
 |---|---|
-| `kinds.hpp` | every kind list as `enum class <name> : std::uint8_t` in namespace `villanelle` (token kinds keep the grammar's names, in grammar order; the others snake_case) and a `constexpr to_string` per list giving the spec's value; the generated parser includes it |
+| `kinds.hpp` | every kind list as `enum class <name> : std::uint8_t` in namespace `knobly` (token kinds keep the grammar's names, in grammar order; the others snake_case) and a `constexpr to_string` per list giving the spec's value; the generated parser includes it |
 | `codes.hpp` | `enum class diagnostic_code : std::uint16_t` (each value its code's number), `to_string(code)` (`"E1001"`), `message(code)`, `code_facts` and `facts_of(code)`, `described` and `describe(code)` / `describe(code, detail)` |
-| `limits.hpp` | the limits and the reserved names as `inline constexpr` values, each in its layer's namespace (`villanelle::syntax::max_nesting`, `villanelle::written::reserved`) |
-| `errors.hpp` | the error class tree (spec 2.8): each class under its parent or its root's standard class (`std::runtime_error`, `std::logic_error`, `std::invalid_argument`, `std::out_of_range`), with default visibility, a constructor taking the message (when given) then its fields, a `const` accessor per own field, the message built from the template; `detail::argument_type_message`. The classes hold the shared layer's records, so `villanelle.hpp` includes it after them |
-| `villanelle.hpp` (the package's layers: shared, io), `syntax.hpp`, `written.hpp`, `rendered.hpp` (one per layer with its own namespace) | per layer, in its namespace: an immutable class per record (one constructor taking its fields in Python's dataclass field order, a `const` accessor per property, defaulted `operator==`); a view class per handle and snapshot (one `detail::view`, members declared for the hand code, `const` throughout), a union's view class with `kind()`, `as<V>()` and `visit(f)` and each variant deriving from it (a record union too, so a sequence of it never slices); an abstract class per port, held as `std::shared_ptr`; a C++20 `concept` per interface; an aggregate per options record; `using` aliases for callbacks (`std::function`) and for a block that adds nothing (`block<Item, Directive>`, the hand-written support template); `config_text` (made only by `quote` and `text`) and `program_code` (a literal checked at compile time); each pattern's `constexpr` matcher over code points (`villanelle::is_program_code`, `written::is_variable_name`); each people form as a free `to_string` found by argument-dependent lookup; the free functions, a trailing optional parameter or options record as an overload without it; each layer's `detail/<layer>/definitions.hpp` at the end in header-only mode |
-| `files.hpp`, `extensions.hpp` (one per adapter module the binding has) | the module's free functions in `villanelle::files` and `villanelle::extensions` |
+| `limits.hpp` | the limits and the reserved names as `inline constexpr` values, each in its layer's namespace (`knobly::syntax::max_nesting`, `knobly::written::reserved`) |
+| `errors.hpp` | the error class tree (spec 2.8): each class under its parent or its root's standard class (`std::runtime_error`, `std::logic_error`, `std::invalid_argument`, `std::out_of_range`), with default visibility, a constructor taking the message (when given) then its fields, a `const` accessor per own field, the message built from the template; `detail::argument_type_message`. The classes hold the shared layer's records, so `knobly.hpp` includes it after them |
+| `knobly.hpp` (the package's layers: shared, io), `syntax.hpp`, `written.hpp`, `rendered.hpp` (one per layer with its own namespace) | per layer, in its namespace: an immutable class per record (one constructor taking its fields in Python's dataclass field order, a `const` accessor per property, defaulted `operator==`); a view class per handle and snapshot (one `detail::view`, members declared for the hand code, `const` throughout), a union's view class with `kind()`, `as<V>()` and `visit(f)` and each variant deriving from it (a record union too, so a sequence of it never slices); an abstract class per port, held as `std::shared_ptr`; a C++20 `concept` per interface; an aggregate per options record; `using` aliases for callbacks (`std::function`) and for a block that adds nothing (`block<Item, Directive>`, the hand-written support template); `config_text` (made only by `quote` and `text`) and `program_code` (a literal checked at compile time); each pattern's `constexpr` matcher over code points (`knobly::is_program_code`, `written::is_variable_name`); each people form as a free `to_string` found by argument-dependent lookup; the free functions, a trailing optional parameter or options record as an overload without it; each layer's `detail/<layer>/definitions.hpp` at the end in header-only mode |
+| `files.hpp`, `extensions.hpp` (one per adapter module the binding has) | the module's free functions in `knobly::files` and `knobly::extensions` |
 | `format.hpp` | opt-in, written whole: for every type with a `to_string` (each people form, each kind list, `diagnostic_code`) a `std::formatter` (formatting the `to_string` as a string, so width, fill and alignment apply) and an `operator<<` in the type's namespace, both calling that `to_string` |
 | `implementation.hpp` | compiled mode's one implementation file: every public header, then every `detail/<x>/definitions.hpp` (the schema's layer list) |
 | `cpp/conformance/shapes.hpp` | `adapter::shapes::protocol`, `spelling(spec_name)` (snake_case), `error_group_of(exception)` (the most specific group first) |
@@ -277,7 +277,7 @@ compiled mode, through `implementation.hpp`). The generated files go through the
 
 How a binding uses them (frozen-m6.md has the per-file list):
 
-- **TypeScript:** each layer's public entry (`villanelle/syntax`, `villanelle/written`, `villanelle/rendered`, and
+- **TypeScript:** each layer's public entry (`knobly/syntax`, `knobly/written`, `knobly/rendered`, and
   the package root for the shared and io layers) re-exports the generated interfaces as its public types; each
   hand-written class `implements` its interface, so a drifted or missing member is a compile error. The
   hand-written interface files go.
@@ -286,8 +286,8 @@ How a binding uses them (frozen-m6.md has the per-file list):
   schema's list of concepts, so no test keeps a hand list of classes or modules to check; records and snapshots are the generated dataclasses, re-exported; the error
   tree, kinds, codes and rules are imported from `_api`. **The public types and the generated types are one**
   (milestone 7): wherever a generated annotation names a concept the binding implements by hand (a Protocol
-  concept, or a union over them), it names the binding's public class, `villanelle.rendered.Directive`, imported for
-  the type checker only (`if TYPE_CHECKING: import villanelle.rendered`; the cycle exists only for the checker, PEP
+  concept, or a union over them), it names the binding's public class, `knobly.rendered.Directive`, imported for
+  the type checker only (`if TYPE_CHECKING: import knobly.rendered`; the cycle exists only for the checker, PEP
   563 keeps annotations unevaluated). A concept the generator writes whole (a record, a named type, a callback, a
   union of records) is named by its generated class, which is the public one. So `def key(d: rendered.Directive)`
   is a `rendered.KeyRule`, a record's field read into a function annotated with a public class needs no narrowing,
@@ -295,9 +295,9 @@ How a binding uses them (frozen-m6.md has the per-file list):
   alias's parameters), it stays the generated class or a string. A union over the binding's own classes
   (`written.Statement`) is written by hand and is the only one: the generator writes no second union of the same
   name, and the names test compares its members with `api_contract.UNIONS`, by class identity. A module is checked
-  against its `<Module>Functions` Protocol (`_syntax_functions: villanelle._api.syntax.SyntaxFunctions = villanelle.syntax`, mypy's
+  against its `<Module>Functions` Protocol (`_syntax_functions: knobly._api.syntax.SyntaxFunctions = knobly.syntax`, mypy's
   modules-as-protocols), and a constructed class against its `<Class>Constructor`, both in `api_contract`'s
-  generated type checker's block. Nothing outside the package (tests, adapter, docs) imports `villanelle._api`, but
+  generated type checker's block. Nothing outside the package (tests, adapter, docs) imports `knobly._api`, but
   for that block, which imports the generated Protocols for the type checker only. Every
   implementation module is private (`_model.py`), so each name has one import path (rule 9).
 - **Both:** the public-name test is one comparison per import path, both ways, against `PUBLIC_NAMES` (TypeScript
@@ -419,7 +419,7 @@ Why not one of those tools as is:
 | Tool | Why not |
 |---|---|
 | JSON Schema or OpenAPI generators (quicktype, openapi-generator, datamodel-code-generator) | They generate data shapes: no methods, handles, ports, generics, traits or error trees, and they own the output's idiom. The JSON Schema is used for what it is good at, checking the schema files' shape (`api.schema.json`) |
-| Smithy | A service model (operations over a network) with a Java toolchain; villanelle's API is in-process handles. Its trait idea is used |
+| Smithy | A service model (operations over a network) with a Java toolchain; knobly's API is in-process handles. Its trait idea is used |
 | Protocol Buffers | Wire messages with a runtime library each binding must ship, against the owner's no-third-party-dependency rule (2026-10-25). Its plugin architecture is used |
 | TypeSpec | Its core is protocol-neutral, but a custom emitter is written in TypeScript against its compiler, a Node toolchain for the Python-only `tools/`, and the per-language idiom would still be written by hand in each emitter |
 | LSP metaModel generators | Written for LSP's own model (requests and notifications), not reusable outside it. Its model shape is used |

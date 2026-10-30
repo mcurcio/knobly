@@ -1,5 +1,5 @@
 /**
- * Compare two strings by Unicode code point, the one include ordering both languages share (vil-bgz.1).
+ * Compare two strings by Unicode code point, the one include ordering both languages share (kno-bgz.1).
  * Unlike `<` on JS strings (UTF-16 code units) and localeCompare (locale-dependent), it agrees with Python's
  * default str ordering. Returns a negative number, 0 or a positive number.
  */

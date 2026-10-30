@@ -7,10 +7,10 @@ A processor is made with a source and its extensions, and everything else follow
 <!-- generated: members: processor (tools/gen-api.py docs) -->
 |  | TypeScript | Python | C++ |
 |---|---|---|---|
-| make | `villanelle({ source, extensions? })` from `villanelle/written` | `Processor(source=..., extensions=None)` from `villanelle.written` | `processor({.source, .extensions})` from `villanelle::written` |
+| make | `knobly({ source, extensions? })` from `knobly/written` | `Processor(source=..., extensions=None)` from `knobly.written` | `processor({.source, .extensions})` from `knobly::written` |
 | load the files as written | `processor.load(path, { overrides? })` | `processor.load(path, overrides=None)` | `processor.load(path, {.overrides})` |
 | read files an edit added | `graph.read()` | `graph.read()` | `graph.read()` |
-| render | `render(graph)` from `villanelle/rendered` | `render(graph)` from `villanelle.rendered` | `render(graph)` from `villanelle::rendered` |
+| render | `render(graph)` from `knobly/rendered` | `render(graph)` from `knobly.rendered` | `render(graph)` from `knobly::rendered` |
 | compare | `before.diff(after, { key? })` | `before.diff(after, key=None)` | `before.diff(after, {.key})` |
 <!-- end generated -->
 
@@ -24,9 +24,9 @@ promises; in Python and C++ both are plain calls.
 <!-- generated: members: sources (tools/gen-api.py docs) -->
 | Source | TypeScript | Python | C++ |
 |---|---|---|---|
-| texts held in memory (tests, editors) | `memorySource(files)` from `villanelle` | `memory_source(files)` from `villanelle` | `memory_source(files)` from `villanelle` |
-| the filesystem | `fileSource()` from `villanelle/node` | `file_source()` from `villanelle.files` | `file_source()` from `villanelle::files` |
-| `fetch` (paths are URLs) | `fetchSource(fetch)` from `villanelle/browser` | none | none |
+| texts held in memory (tests, editors) | `memorySource(files)` from `knobly` | `memory_source(files)` from `knobly` | `memory_source(files)` from `knobly` |
+| the filesystem | `fileSource()` from `knobly/node` | `file_source()` from `knobly.files` | `file_source()` from `knobly::files` |
+| `fetch` (paths are URLs) | `fetchSource(fetch)` from `knobly/browser` | none | none |
 <!-- end generated -->
 
 A **memory source** reads the map it was given at every call, so a memory writer over the same map saves into what
@@ -67,8 +67,8 @@ root has one path however it is written.
 
 ## The include extension
 
-`include()` is the one extension villanelle ships: it owns `@include "path";` and names the files to splice in.
-The extension only names files: villanelle resolves and reads them through the source, reads each file once per load,
+`include()` is the one extension knobly ships: it owns `@include "path";` and names the files to splice in.
+The extension only names files: knobly resolves and reads them through the source, reads each file once per load,
 applies the line's block of `@set` lines, and checks loops and limits. What a config may write with it is in [the
 language](language.md#including-files-an-extension).
 
@@ -79,7 +79,7 @@ An **extension** owns one statement name and turns each use of it into specs of 
 type a rendered directive's values are; the low level never hands an extension a rendered type) and its `origin`.
 `specs` returns a list of texts. In Python an extension is any object with a `directive` attribute and a `specs(use)`
 method, and a bare `str` returned is refused as E3006 (Python would read it as a list of letters); in C++ it derives
-`villanelle::written::extension`.
+`knobly::written::extension`.
 
 To refuse a use at a place, throw a diagnostic error from a value's or the use's `error(message, code)`; it is
 recorded as thrown. Anything else thrown becomes E3006 at the line. An extension's statement is written with `@`, so
@@ -93,5 +93,5 @@ A render's `graph` is the document graph it was rendered from: `root`, `document
 first, then in first-read order, with its text and syntax tree), `edges()` (one per place an extension line is read:
 the line, the specs it gave and the paths it spliced, empty when resolving or reading failed), the variables, and the
 edits and save of [the low level](editing.md#the-document-graph). `render` takes any object with the document graph's
-public members ([`spec/spec.md`](https://github.com/mcurcio/villanelle/blob/main/spec/spec.md) 7.0), and a render's
+public members ([`spec/spec.md`](https://github.com/mcurcio/knobly/blob/main/spec/spec.md) 7.0), and a render's
 `diff` takes any other render.

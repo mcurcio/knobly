@@ -1,5 +1,5 @@
 /**
- * Directive anatomy (vil-g7n.1.3): which parts of a `directive` node are its name, its values and its block.
+ * Directive anatomy (kno-g7n.1.3): which parts of a `directive` node are its name, its values and its block.
  * The one home of this rule; Python ports it. Package-internal, shared.
  */
 

@@ -50,7 +50,7 @@ class Lexer(unittest.TestCase):
         self.assertEqual(dfa.match("i"), (1, 1))
         self.assertEqual(dfa.match("!"), (-1, 0))
 
-    def test_villanelle_tokens(self) -> None:
+    def test_knobly_tokens(self) -> None:
         g = g4.read(gen.GRAMMAR)
         dfa = lexer.build(g)
         kind = {text: g.tokens[dfa.match(text)[0]] for text in ("-12", "-12a", "$", "$x", "@set", "a:b", "'raw\\'")}
@@ -78,7 +78,7 @@ class Decisions(unittest.TestCase):
         self.assertEqual(predict(d, ["A", "C"]), 1)
         self.assertEqual(predict(d, ["A", "A"]), -1)  # dies at the end of the text: the error is reported there
 
-    def test_villanelle_value_needs_two_tokens(self) -> None:
+    def test_knobly_value_needs_two_tokens(self) -> None:
         plan = lookahead.analyse(g4.read(gen.GRAMMAR))
         (d,) = [d for d in plan.decisions if d.rule == "value"]
         self.assertFalse(d.one_token)
@@ -86,7 +86,7 @@ class Decisions(unittest.TestCase):
         self.assertEqual(predict(d, ["WORD", "SEMI"]), 0)  # a plain WORD
         self.assertEqual(predict(d, ["LBRACK"]), 7)  # list
 
-    def test_villanelle_numbers(self) -> None:
+    def test_knobly_numbers(self) -> None:
         g = g4.read(gen.GRAMMAR)
         plan, dfa = gen.build(g)
         # the probe's numbers (design/rd-probe): 45 lexer states, 5 longer choice points with 57 states; it counted 32
@@ -142,7 +142,7 @@ class Output(unittest.TestCase):
         self.assertEqual(g.cst, {"document": "document", "directive": "directive", "block": "block",
                                  "slicedWord": "slice", "list": "list"})
         text = cpp.render(*gen.build(g))
-        self.assertIn("self().open_node(::villanelle::node_kind::slice);", text)
+        self.assertIn("self().open_node(::knobly::node_kind::slice);", text)
         self.assertIn("return b_statements() || self().recover_statements();", text)
         self.assertIn("bool r_nameText() { return b_nameText(); }", text)
         self.assertIn("if (!self().match(tk::end_of_text)) return false;", text)

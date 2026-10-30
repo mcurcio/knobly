@@ -2,11 +2,11 @@
 // run. A variant missing from a body, or a visit whose branches disagree, fails to compile here.
 #include <optional>
 
-#include <villanelle/rendered.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/written.hpp>
 
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 namespace {
 

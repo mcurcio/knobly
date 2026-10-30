@@ -12,18 +12,18 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TypeAlias
 
-from villanelle._anatomy import anatomy_of, items_of, values_of
-from villanelle._api.codes import DiagnosticCode, describe
-from villanelle._api.errors import BadTextError
-from villanelle._api.kinds import NodeKind, StatementKind, TokenKind
-from villanelle._api.shared import SourcePosition, SourceSpan
-from villanelle._api.syntax import Node, Syntax, TokenRange
-from villanelle._diagnostics import Diagnostic
-from villanelle._origin import Place
-from villanelle.syntax._cst import ValueRef, span_of
-from villanelle.syntax._parse import EntryRule, parse, parse_entry
-from villanelle.written import _names
-from villanelle.written._model import (
+from knobly._anatomy import anatomy_of, items_of, values_of
+from knobly._api.codes import DiagnosticCode, describe
+from knobly._api.errors import BadTextError
+from knobly._api.kinds import NodeKind, StatementKind, TokenKind
+from knobly._api.shared import SourcePosition, SourceSpan
+from knobly._api.syntax import Node, Syntax, TokenRange
+from knobly._diagnostics import Diagnostic
+from knobly._origin import Place
+from knobly.syntax._cst import ValueRef, span_of
+from knobly.syntax._parse import EntryRule, parse, parse_entry
+from knobly.written import _names
+from knobly.written._model import (
     Document,
     ExtensionLine,
     Index,
@@ -45,7 +45,7 @@ from villanelle.written._model import (
     WrittenDirective,
     WrittenValue,
 )
-from villanelle.written._shape import Shape, ShapeKind, block_shapes, parameter_tokens, statement_nodes
+from knobly.written._shape import Shape, ShapeKind, block_shapes, parameter_tokens, statement_nodes
 
 Handle: TypeAlias = "Statement | WrittenValue | Parameter"
 """Anything a reconcile keeps or detaches."""

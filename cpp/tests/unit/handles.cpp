@@ -2,9 +2,9 @@
 // compares (identity; an expanded value by its text, spec 2.9) and keys an unordered container, and the reads a loop
 // makes of a block or a diagnostics list take no snapshot per call, so ordinary loops are linear. The program counts
 // the bytes operator new hands out, to show a read allocates nothing in proportion to the block.
-#include <villanelle/rendered.hpp>
-#include <villanelle/villanelle.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/knobly.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/written.hpp>
 
 #include <atomic>
 #include <cstddef>
@@ -19,9 +19,9 @@
 
 #include "written_fixture.hpp"
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 namespace {
 std::atomic<std::size_t> allocated{0};

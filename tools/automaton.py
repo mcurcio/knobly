@@ -1,4 +1,4 @@
-"""Code-point automata, the one home of the machinery both C++ generators use: the lexer of villanelle's own parser
+"""Code-point automata, the one home of the machinery both C++ generators use: the lexer of knobly's own parser
 generator (tools/parser/lexer.py, tools/parser/g4.py) and the pattern matchers of the C++ API emitter
 (tools/api/emit_cpp.py). Code-point range sets, a Thompson NFA over them, the subset construction and Moore's
 minimisation. Python 3.9+ standard library only.

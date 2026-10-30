@@ -4,8 +4,8 @@
 // (design.md 2.3). A binding (one derivation of the graph, bind.hpp) is a counted node inside the graph: its copies,
 // edges, resolutions, expanded values and expansion live in its arena, and a view of one keeps the binding and the
 // graph alive. Package-internal: programs see the generated handle classes (written.hpp).
-#ifndef VILLANELLE_DETAIL_WRITTEN_CORE_HPP
-#define VILLANELLE_DETAIL_WRITTEN_CORE_HPP
+#ifndef KNOBLY_DETAIL_WRITTEN_CORE_HPP
+#define KNOBLY_DETAIL_WRITTEN_CORE_HPP
 
 #include <cstddef>
 #include <cstdint>
@@ -19,37 +19,37 @@
 #include <utility>
 #include <vector>
 
-#include <villanelle/detail/arena.hpp>
-#include <villanelle/detail/raise.hpp>
-#include <villanelle/support/view.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/detail/arena.hpp>
+#include <knobly/detail/raise.hpp>
+#include <knobly/support/view.hpp>
+#include <knobly/written.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 namespace written::detail {
 
-using ::villanelle::detail::node;
+using ::knobly::detail::node;
 
 // ---- one text and its parse
 
 /// One token of a parse: its kind, its byte range, its span.
 struct token_info {
-    ::villanelle::token_kind kind;
+    ::knobly::token_kind kind;
     std::size_t start;
     std::size_t end;
-    ::villanelle::source_span span;
+    ::knobly::source_span span;
 };
 
 /// A text and its parse (a document's, an override's or an edit's), with the tokens read once.
 struct parsed_text {
     std::string text;
-    ::villanelle::syntax::syntax syntax;
+    ::knobly::syntax::syntax syntax;
     std::vector<token_info> tokens;
 
-    parsed_text(std::string source, ::villanelle::syntax::syntax parsed)
+    parsed_text(std::string source, ::knobly::syntax::syntax parsed)
         : text(std::move(source)), syntax(std::move(parsed)) {
         tokens.reserve(syntax.tokens().size());
-        for (const ::villanelle::syntax::token& token : syntax.tokens()) {
-            const ::villanelle::source_span span = token.span();
+        for (const ::knobly::syntax::token& token : syntax.tokens()) {
+            const ::knobly::source_span span = token.span();
             tokens.push_back({token.kind(), static_cast<std::size_t>(span.start().offset()),
                               static_cast<std::size_t>(span.end().offset()), span});
         }
@@ -58,7 +58,7 @@ struct parsed_text {
     std::int64_t size() const noexcept { return static_cast<std::int64_t>(tokens.size()); }
     bool has(std::int64_t i) const noexcept { return i >= 0 && i < size(); }
     /// Whether token i exists and is of `kind` (TypeScript's tokens[i]?.kind === kind).
-    bool is(std::int64_t i, ::villanelle::token_kind kind) const noexcept {
+    bool is(std::int64_t i, ::knobly::token_kind kind) const noexcept {
         return has(i) && tokens[static_cast<std::size_t>(i)].kind == kind;
     }
     const token_info& at(std::int64_t i) const { return tokens[static_cast<std::size_t>(i)]; }
@@ -73,12 +73,12 @@ struct parsed_text {
     /// Token i's start offset; 0 past the end.
     std::size_t start_of(std::int64_t i) const noexcept { return has(i) ? at(i).start : 0; }
     /// The position just after the text.
-    ::villanelle::source_position text_end() const noexcept {
-        return tokens.empty() ? ::villanelle::source_position(0, 0, 0) : tokens.back().span.end();
+    ::knobly::source_position text_end() const noexcept {
+        return tokens.empty() ? ::knobly::source_position(0, 0, 0) : tokens.back().span.end();
     }
     /// The span of the token range [start, end) (syntax::span_of, without its range check).
-    ::villanelle::source_span span_of(std::int64_t start, std::int64_t end) const noexcept {
-        const ::villanelle::source_position first = has(start) ? at(start).span.start() : text_end();
+    ::knobly::source_span span_of(std::int64_t start, std::int64_t end) const noexcept {
+        const ::knobly::source_position first = has(start) ? at(start).span.start() : text_end();
         if (start >= end) {
             return {first, first};
         }
@@ -86,7 +86,7 @@ struct parsed_text {
     }
     /// The byte offsets [start, end) of a token range.
     std::pair<std::size_t, std::size_t> offsets(std::int64_t start, std::int64_t end) const noexcept {
-        const ::villanelle::source_span span = span_of(start, end);
+        const ::knobly::source_span span = span_of(start, end);
         return {static_cast<std::size_t>(span.start().offset()), static_cast<std::size_t>(span.end().offset())};
     }
     /// The text of a token range.
@@ -100,10 +100,10 @@ struct parsed_text {
 struct value_ref {
     std::int64_t start = 0;
     std::int64_t end = 0;
-    std::optional<::villanelle::syntax::node> tree;  // the list or slice node; empty for one token
+    std::optional<::knobly::syntax::node> tree;  // the list or slice node; empty for one token
 
     static value_ref token(std::int64_t at) { return {at, at + 1, std::nullopt}; }
-    static value_ref of(const ::villanelle::syntax::node& n) { return {n.start(), n.end(), n}; }
+    static value_ref of(const ::knobly::syntax::node& n) { return {n.start(), n.end(), n}; }
     bool is_token() const noexcept { return !tree.has_value(); }
 };
 
@@ -111,14 +111,14 @@ struct value_ref {
 struct anatomy {
     std::int64_t name = 0;
     std::vector<value_ref> values;
-    std::optional<::villanelle::syntax::node> block;
+    std::optional<::knobly::syntax::node> block;
 };
 
 // ---- arenas and handles (detail/arena.hpp, shared with the rendered layer)
 
-using ::villanelle::detail::arena;
-using ::villanelle::detail::make_handle;
-using ::villanelle::detail::node_of;
+using ::knobly::detail::arena;
+using ::knobly::detail::make_handle;
+using ::knobly::detail::node_of;
 
 // ---- the graph's nodes
 
@@ -147,11 +147,11 @@ struct block_node : node {
 };
 
 struct statement_node : handle_node {
-    statement_node(::villanelle::statement_kind k, document_node* d)
-        : handle_node('s'), kind(k), doc(d), tree(0, 0, ::villanelle::node_kind::error, {}) {}
-    ::villanelle::statement_kind kind;
+    statement_node(::knobly::statement_kind k, document_node* d)
+        : handle_node('s'), kind(k), doc(d), tree(0, 0, ::knobly::node_kind::error, {}) {}
+    ::knobly::statement_kind kind;
     document_node* doc;
-    ::villanelle::syntax::node tree;  // its directive or error node in the current parse
+    ::knobly::syntax::node tree;  // its directive or error node in the current parse
     statement_node* parent = nullptr;
     std::vector<value_node*> values;  // none for a snippet or unreadable line
     block_node* block = nullptr;
@@ -163,8 +163,8 @@ struct statement_node : handle_node {
 enum class value_role : std::uint8_t { value, bound, name };
 
 struct value_node : handle_node {
-    value_node(::villanelle::value_kind k, document_node* d) : handle_node('v'), kind(k), doc(d) {}
-    ::villanelle::value_kind kind;
+    value_node(::knobly::value_kind k, document_node* d) : handle_node('v'), kind(k), doc(d) {}
+    ::knobly::value_kind kind;
     document_node* doc;
     value_ref ref;
     statement_node* statement = nullptr;
@@ -179,8 +179,8 @@ struct value_node : handle_node {
 };
 
 struct variable_node : handle_node {
-    explicit variable_node(::villanelle::variable_kind k) : handle_node('p'), kind(k) {}
-    ::villanelle::variable_kind kind;
+    explicit variable_node(::knobly::variable_kind k) : handle_node('p'), kind(k) {}
+    ::knobly::variable_kind kind;
     statement_node* line = nullptr;  // a set variable's set line, a parameter's snippet line
     std::int64_t token = 0;          // a parameter's VARIABLE token in the current parse
     std::string name;                // an override's name
@@ -203,9 +203,9 @@ struct document_node : node {
 
 /// One copy of a statement: the statement, and the steps that brought it there.
 struct copy_node : node {
-    copy_node(statement_node* s, ::villanelle::sequence<::villanelle::step> v) : statement(s), via(std::move(v)) {}
+    copy_node(statement_node* s, ::knobly::sequence<::knobly::step> v) : statement(s), via(std::move(v)) {}
     statement_node* statement;
-    ::villanelle::sequence<::villanelle::step> via;
+    ::knobly::sequence<::knobly::step> via;
 };
 
 struct edge_node : node {
@@ -227,8 +227,8 @@ struct resolution_node : node {
 
 /// One value after expansion (value.ts ExpandedRecord): kind, canonical text, origin and links.
 struct expanded_node : node {
-    explicit expanded_node(::villanelle::origin o) : origin(std::move(o)) {}
-    ::villanelle::value_kind kind = ::villanelle::value_kind::word;
+    explicit expanded_node(::knobly::origin o) : origin(std::move(o)) {}
+    ::knobly::value_kind kind = ::knobly::value_kind::word;
     std::string text;   // canonical
     std::string value;  // a word's text, a string's decoded value
     std::vector<expanded_node*> items;
@@ -236,7 +236,7 @@ struct expanded_node : node {
     std::optional<std::int64_t> start;
     std::optional<std::int64_t> end;
     std::int64_t index = 0;
-    ::villanelle::origin origin;
+    ::knobly::origin origin;
     value_node* definition = nullptr;     // the written value at the end of its chain; null for an override's
     std::vector<resolution_node*> chain;  // one per variable step, the statement's own $name first
 };
@@ -250,26 +250,26 @@ struct expansion_block_node : node {
 };
 
 struct directive_expansion_node : node {
-    directive_expansion_node(statement_node* w, ::villanelle::directive_origin o) : written(w), origin(std::move(o)) {}
+    directive_expansion_node(statement_node* w, ::knobly::directive_origin o) : written(w), origin(std::move(o)) {}
     statement_node* written;
-    ::villanelle::directive_origin origin;
+    ::knobly::directive_origin origin;
     std::vector<expanded_node*> values;
     expansion_block_node* block = nullptr;
     std::vector<unreadable_node*> unreadable;
 };
 
 struct unreadable_node : node {
-    unreadable_node(statement_node* w, ::villanelle::unreadable_reason r, ::villanelle::directive_origin o)
+    unreadable_node(statement_node* w, ::knobly::unreadable_reason r, ::knobly::directive_origin o)
         : written(w), reason(r), origin(std::move(o)) {}
     statement_node* written;
-    ::villanelle::unreadable_reason reason;
-    ::villanelle::directive_origin origin;
+    ::knobly::unreadable_reason reason;
+    ::knobly::directive_origin origin;
 };
 
 struct expansion_node : node {
     expansion_block_node* block = nullptr;
     std::vector<unreadable_node*> unreadable;
-    std::vector<::villanelle::located_diagnostic> diagnostics;
+    std::vector<::knobly::located_diagnostic> diagnostics;
 };
 
 /// What one container (the root's top level, or a directive's block) holds at one copy, in walk order.
@@ -278,7 +278,7 @@ struct bound_item {
     copy_node* copy = nullptr;
     bool has_children = false;  // a directive written with a block
     std::vector<bound_item> children;
-    ::villanelle::unreadable_reason reason = ::villanelle::unreadable_reason::syntax;
+    ::knobly::unreadable_reason reason = ::knobly::unreadable_reason::syntax;
 };
 
 /// What an unread edge still needs from the source: specs to resolve, or paths to read.
@@ -298,7 +298,7 @@ struct binding_core : node {
     std::vector<bound_item> items;
     std::vector<edge_node*> edges;
     std::vector<edge_node*> unread;
-    std::vector<::villanelle::located_diagnostic> diagnostics;
+    std::vector<::knobly::located_diagnostic> diagnostics;
     std::map<edge_node*, read_need> needs;
     std::unordered_map<statement_node*, std::vector<copy_node*>> copies;
     std::unordered_map<value_node*, std::vector<resolution_node*>> by_reference;
@@ -307,7 +307,7 @@ struct binding_core : node {
     /// Per directive copy, each written value's expanded values; absent for a copy whose values did not expand.
     std::unordered_map<copy_node*, std::unordered_map<value_node*, std::vector<expanded_node*>>> expanded;
     // The graph-level caches of this version.
-    std::optional<std::vector<::villanelle::located_diagnostic>> all_diagnostics;
+    std::optional<std::vector<::knobly::located_diagnostic>> all_diagnostics;
     expansion_node* expansion = nullptr;
 };
 
@@ -326,11 +326,11 @@ struct ledger_entry {
 
 struct graph_core : node {
     arena nodes{this};
-    std::shared_ptr<::villanelle::document_source> source;
-    std::vector<std::pair<std::string, std::shared_ptr<::villanelle::written::extension>>> extensions;
+    std::shared_ptr<::knobly::document_source> source;
+    std::vector<std::pair<std::string, std::shared_ptr<::knobly::written::extension>>> extensions;
     std::set<std::string> extension_names;
     std::vector<document_node*> documents;  // in read order, the root first
-    ::villanelle::ordered_map<std::string, ::villanelle::config_text> override_texts;
+    ::knobly::ordered_map<std::string, ::knobly::config_text> override_texts;
     std::map<std::string, override_values> overrides;
     std::map<std::string, variable_node*> override_variables;  // kept for the graph's life
     std::map<std::pair<std::string, std::string>, ledger_entry> resolved;
@@ -364,15 +364,15 @@ inline binding_core::binding_core(graph_core* g) : graph(g) { outer = g; }
 
 /// The processor's state (spec 6.2): its source and extensions, by name.
 struct processor_node : node {
-    std::shared_ptr<::villanelle::document_source> source;
-    std::vector<std::pair<std::string, std::shared_ptr<::villanelle::written::extension>>> extensions;
+    std::shared_ptr<::knobly::document_source> source;
+    std::vector<std::pair<std::string, std::shared_ptr<::knobly::written::extension>>> extensions;
 };
 
 // ---- liveness (contract 4.3: every member but kind() of a detached handle raises detached_error first)
 
 [[noreturn]] inline void raise_detached(std::string_view what) {
-    ::villanelle::detail::raise(::villanelle::detached_error(
-        "this " + std::string(what) + " was removed by an edit or its document's text was replaced"));
+    ::knobly::detail::raise(::knobly::detached_error("this " + std::string(what) +
+                                                     " was removed by an edit or its document's text was replaced"));
 }
 
 inline statement_node* live(statement_node* s) {
@@ -391,7 +391,7 @@ inline value_node* live(value_node* v) {
 
 /// A set variable lives while its set line does; a parameter is detached itself, or with its snippet line.
 inline variable_node* live(variable_node* v) {
-    if (v->kind == ::villanelle::variable_kind::parameter && v->detached) {
+    if (v->kind == ::knobly::variable_kind::parameter && v->detached) {
         raise_detached("parameter");
     }
     if (v->line != nullptr) {
@@ -401,15 +401,15 @@ inline variable_node* live(variable_node* v) {
 }
 
 /// A stale variant view's own member (finding F4): the node changed kind under set.
-inline void require_kind(const value_node* v, ::villanelle::value_kind kind, std::string_view member) {
+inline void require_kind(const value_node* v, ::knobly::value_kind kind, std::string_view member) {
     if (v->kind != kind) {
-        ::villanelle::detail::raise(::villanelle::misuse_error(
-            std::string(member) + "(): this value is now a " + std::string(to_string(v->kind)) + ", not a " +
-            std::string(to_string(kind)) + " (set changed its kind)"));
+        ::knobly::detail::raise(::knobly::misuse_error(std::string(member) + "(): this value is now a " +
+                                                       std::string(to_string(v->kind)) + ", not a " +
+                                                       std::string(to_string(kind)) + " (set changed its kind)"));
     }
 }
 
 }  // namespace written::detail
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_DETAIL_WRITTEN_CORE_HPP
+#endif  // KNOBLY_DETAIL_WRITTEN_CORE_HPP

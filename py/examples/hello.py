@@ -2,8 +2,8 @@
 # region between the --8<-- markers; py/tests/test_examples.py runs this file and compares what it prints with
 # examples/expected/hello.txt.
 # --8<-- [start:main]
-from villanelle import rendered, written
-from villanelle.files import file_source
+from knobly import rendered, written
+from knobly.files import file_source
 
 config = written.Processor(source=file_source())
 tree = rendered.render(config.load("hello.conf"))

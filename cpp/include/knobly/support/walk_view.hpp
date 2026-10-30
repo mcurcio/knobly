@@ -1,8 +1,8 @@
-// villanelle::walk_view<Item>: the range a block's walk returns (codegen 3's walk trait; design.md 2.3, D12;
+// knobly::walk_view<Item>: the range a block's walk returns (codegen 3's walk trait; design.md 2.3, D12;
 // frozen-m2.md 3.1). Written once over detail::block_traits<Item>; every member is defined here, so compiled mode's
 // explicit instantiations cover it.
-#ifndef VILLANELLE_SUPPORT_WALK_VIEW_HPP
-#define VILLANELLE_SUPPORT_WALK_VIEW_HPP
+#ifndef KNOBLY_SUPPORT_WALK_VIEW_HPP
+#define KNOBLY_SUPPORT_WALK_VIEW_HPP
 
 #include <cstddef>
 #include <functional>
@@ -11,11 +11,11 @@
 #include <utility>
 #include <vector>
 
-#include <villanelle/support/config.hpp>
-#include <villanelle/support/sequence.hpp>
-#include <villanelle/support/view.hpp>
+#include <knobly/support/config.hpp>
+#include <knobly/support/sequence.hpp>
+#include <knobly/support/view.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 
 template <class Item, class Directive>
 class block;
@@ -93,6 +93,6 @@ private:
     friend struct detail::access;
 };
 
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_SUPPORT_WALK_VIEW_HPP
+#endif  // KNOBLY_SUPPORT_WALK_VIEW_HPP

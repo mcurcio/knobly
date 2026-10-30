@@ -1,6 +1,6 @@
-// villanelle::sequence<T>: the binding's one list type (design.md 1.3, 2.3; frozen-m1.md section 5).
-#ifndef VILLANELLE_SUPPORT_SEQUENCE_HPP
-#define VILLANELLE_SUPPORT_SEQUENCE_HPP
+// knobly::sequence<T>: the binding's one list type (design.md 1.3, 2.3; frozen-m1.md section 5).
+#ifndef KNOBLY_SUPPORT_SEQUENCE_HPP
+#define KNOBLY_SUPPORT_SEQUENCE_HPP
 
 #include <compare>
 #include <cstddef>
@@ -10,10 +10,10 @@
 #include <utility>
 #include <vector>
 
-#include <villanelle/detail/raise.hpp>
-#include <villanelle/support/config.hpp>
+#include <knobly/detail/raise.hpp>
+#include <knobly/support/config.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 
 /// An immutable, shared list: copying is one pointer; elements come back by value, so nothing it returns can
 /// dangle. T may be incomplete where the sequence is declared (a node holds a sequence of nodes).
@@ -93,16 +93,16 @@ public:
     iterator end() const noexcept { return iterator(items_, static_cast<std::ptrdiff_t>(size())); }
     std::size_t size() const noexcept { return items_ ? items_->size() : 0; }
     bool empty() const noexcept { return size() == 0; }
-    /// @throws villanelle::index_out_of_range when index is not below size()
+    /// @throws knobly::index_out_of_range when index is not below size()
     T at(std::size_t index) const {
         if (index >= size()) {
-            ::villanelle::detail::raise_index_out_of_range(index, size());
+            ::knobly::detail::raise_index_out_of_range(index, size());
         }
         return (*items_)[index];
     }
-    /// @throws villanelle::index_out_of_range when empty
+    /// @throws knobly::index_out_of_range when empty
     T front() const { return at(0); }
-    /// @throws villanelle::index_out_of_range when empty
+    /// @throws knobly::index_out_of_range when empty
     T back() const { return at(empty() ? 0 : size() - 1); }
 
     /// Element by element.
@@ -122,6 +122,6 @@ private:
     storage items_;  // null for an empty sequence: making one allocates nothing
 };
 
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_SUPPORT_SEQUENCE_HPP
+#endif  // KNOBLY_SUPPORT_SEQUENCE_HPP

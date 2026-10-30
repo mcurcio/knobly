@@ -1,13 +1,13 @@
-"""Directive anatomy (vil-g7n.1.3): which tokens of a ``directive`` node are its name, its values and its block.
+"""Directive anatomy (kno-g7n.1.3): which tokens of a ``directive`` node are its name, its values and its block.
 Private to the load layer; a port of ts/src/ast/anatomy.ts."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from villanelle._api.kinds import NodeKind, TokenKind
-from villanelle._api.syntax import Node, Token
-from villanelle.syntax._cst import ValueRef
+from knobly._api.kinds import NodeKind, TokenKind
+from knobly._api.syntax import Node, Token
+from knobly.syntax._cst import ValueRef
 
 _VALUE_TOKENS = frozenset(
     {TokenKind.WORD, TokenKind.AT_WORD, TokenKind.INTEGER, TokenKind.DIGIT_WORD, TokenKind.STRING, TokenKind.VARIABLE}

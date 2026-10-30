@@ -1,10 +1,10 @@
 # Getting started
 
-This page is for a program that reads villanelle config: it makes a processor, loads a file, renders it, and reads
+This page is for a program that reads knobly config: it makes a processor, loads a file, renders it, and reads
 the values it wants. Problems in the config are reported, never thrown; the few things that do throw are at the end.
 
-The samples read [`fixtures/rasl/split`](https://github.com/mcurcio/villanelle/tree/main/fixtures/rasl/split), the
-config of rasl, the light controller villanelle was built for. `main.conf` sets two variables and includes
+The samples read [`fixtures/rasl/split`](https://github.com/mcurcio/knobly/tree/main/fixtures/rasl/split), the
+config of rasl, the light controller knobly was built for. `main.conf` sets two variables and includes
 `sink.conf` twice, at lines 19 and 24, each time with its own `$name` and `$host`:
 
 ```conf
@@ -117,10 +117,10 @@ reloads](walking.md#readers).
 ## Overrides from the program
 
 An **override** is a value the program gives a variable when it loads a file, without editing the file (rasl's
-`--set leds_host=...`). It is config text, made with `quote` (a program's string, written as a villanelle string) or
-`text` (text already written in villanelle syntax: `text("8080 443")` is two values). An override wins over every
+`--set leds_host=...`). It is config text, made with `quote` (a program's string, written as a knobly string) or
+`text` (text already written in knobly syntax: `text("8080 443")` is two values). An override wins over every
 `@set` of its name, at any depth and in every included file, so a `@set` acts as the default; it never wins over a
-snippet parameter ([`spec/expansion.md`](https://github.com/mcurcio/villanelle/blob/main/spec/expansion.md) 6 has the
+snippet parameter ([`spec/expansion.md`](https://github.com/mcurcio/knobly/blob/main/spec/expansion.md) 6 has the
 whole precedence table).
 
 The sample loads the split config twice with one processor, without and with `leds_host`:
@@ -204,9 +204,9 @@ code is listed in [Diagnostics and your own checks](diagnostics.md#error-codes).
 ## Exceptions
 
 What is wrong in the config is a diagnostic. An exception means the program cannot go on as written, and there are
-two sorts ([`spec/spec.md`](https://github.com/mcurcio/villanelle/blob/main/spec/spec.md) 2.8):
+two sorts ([`spec/spec.md`](https://github.com/mcurcio/knobly/blob/main/spec/spec.md) 2.8):
 
-- **Expected outcomes** extend one base class, the villanelle error, so one `catch` handles them all and never hides
+- **Expected outcomes** extend one base class, the knobly error, so one `catch` handles them all and never hides
   a bug: a root file that cannot be read (a read error, with the root path in `paths`), a reader on the wrong kind of
   value (a diagnostic error, carrying the located diagnostic), an edit's text refused (a bad text error), and a
   writer that failed (a save error, and its lost update error).
@@ -258,7 +258,7 @@ Every error, per binding:
 | the writer failed | `SaveError` (`paths`, `cause`) | `SaveError` (`paths`, `__cause__`) | `save_error` (`paths()`, `std::nested_exception (std::rethrow_if_nested)`) | `save` ([Saving](editing.md#saving)) |
 | the root file cannot be read | `ReadError` (`paths`, `cause`) | `ReadError` (`paths`, `__cause__`) | `read_error` (`paths()`, `std::nested_exception (std::rethrow_if_nested)`) | `load` |
 | the handle's tokens are gone (a bug) | `DetachedError` | `DetachedError` | `detached_error` | [Handles](editing.md#handles) |
-| villanelle text was not given (a bug) | `TypeError` | `TypeError` | `argument_type_error` | a number, `null` / `None` or anything else where text is taken |
+| knobly text was not given (a bug) | `TypeError` | `TypeError` | `argument_type_error` | a number, `null` / `None` or anything else where text is taken |
 | a bad name (a bug) | `MisuseError` | `ValueError` | `misuse_error` | `rename`, `setOverride`, an override `load` takes |
 | an index outside the block (a bug) | `RangeError` | `IndexError` | `index_out_of_range` | `insertStatements` |
 <!-- end generated -->

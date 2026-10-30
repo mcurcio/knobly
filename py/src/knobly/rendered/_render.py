@@ -10,14 +10,14 @@ from collections.abc import Mapping, Sequence
 from types import MappingProxyType
 from typing import TypeAlias, final
 
-from villanelle._api import rendered as api
-from villanelle._api.errors import DiagnosticError
-from villanelle._api.rendered import Added, AddressStep, Change, Changed, KeyRule, Removed, Unknown
-from villanelle._api.shared import DirectiveOrigin, SourcePosition, SourceSpan
-from villanelle._origin import Place
-from villanelle._report import LocatedDiagnostic, check_program_code
-from villanelle.rendered._tree import Address, Directive, RenderedBlock
-from villanelle.written import DocumentGraph, UnreadableExpansion
+from knobly._api import rendered as api
+from knobly._api.errors import DiagnosticError
+from knobly._api.rendered import Added, AddressStep, Change, Changed, KeyRule, Removed, Unknown
+from knobly._api.shared import DirectiveOrigin, SourcePosition, SourceSpan
+from knobly._origin import Place
+from knobly._report import LocatedDiagnostic, check_program_code
+from knobly.rendered._tree import Address, Directive, RenderedBlock
+from knobly.written import DocumentGraph, UnreadableExpansion
 
 _START = SourcePosition(0, 0, 0)
 

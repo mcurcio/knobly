@@ -57,11 +57,11 @@ but under two weeks old, so 9.7.7.
 | `examples/samples.json` | **the sample table**: each sample id and the fixture folder it runs in (`null`: an empty folder) |
 | `examples/expected/<id>.txt` | what the sample prints, byte for byte, in every language (committed by the skeleton) |
 | `examples/fixtures/<name>/` | config files the samples read; samples also use `fixtures/rasl/split/` |
-| `ts/examples/<id>.ts` | the TypeScript sample; imports the package as a program does (`villanelle/written`) |
+| `ts/examples/<id>.ts` | the TypeScript sample; imports the package as a program does (`knobly/written`) |
 | `py/examples/<id>.py` | the Python sample, run as a program |
 | `cpp/examples/<id>.cpp` | the C++ sample, one executable each |
 | `ts/examples/examples.test.ts` | runs every `ts/examples/*.ts` (vitest; `pnpm test`) |
-| `ts/vitest.config.ts`, `ts/examples/tsconfig.json` | resolve `villanelle/...` to `src/` in the tests and the type check (`pnpm typecheck` runs `tsc -p examples`) |
+| `ts/vitest.config.ts`, `ts/examples/tsconfig.json` | resolve `knobly/...` to `src/` in the tests and the type check (`pnpm typecheck` runs `tsc -p examples`) |
 | `py/tests/test_examples.py` | runs every `py/examples/*.py` (`pytest`); mypy checks `examples/` |
 | `cpp/examples/CMakeLists.txt`, `cpp/examples/run_example.cmake` | builds every `cpp/examples/*.cpp` and adds ctest `examples_<id>` |
 
@@ -79,7 +79,7 @@ a reader copies: imports and code), then nothing else. TypeScript and Python sam
 names a region. Markers are comments: `// --8<-- [start:name]` (TS, C++), `# --8<-- [start:name]` (Python). Each
 language's sample does the same steps in the same order with that language's idiomatic API
 (`for...of` / generator / range-for, `match` where Python narrows, `std::optional` and exceptions in C++), aliases
-`namespace vl = villanelle;`, `vw`, `vr` in C++ (cpp/README.md, "Namespaces"), and passes the binding's lint, type
+`namespace vl = knobly;`, `vw`, `vr` in C++ (cpp/README.md, "Namespaces"), and passes the binding's lint, type
 check and formatter (TS: eslint with the type-aware rules, `noUncheckedIndexedAccess`; Python: ruff, ruff format,
 mypy strict; C++: the tests' `-Wall -Wextra -Werror`, the pinned clang-format).
 
@@ -119,9 +119,9 @@ are shown whole from their fixture (` ```conf ` around `--8<-- "examples/fixture
 `nav` order. Each page: its outline, and the samples it shows (ids from section 4).
 
 1. **Quickstart** (`index.md`)
-   - What villanelle is (three layers in one paragraph: syntax tree, the files as written, the rendered tree).
+   - What knobly is (three layers in one paragraph: syntax tree, the files as written, the rendered tree).
    - Get it, one tab per language. TypeScript: the `npm pack` tarball from the GitHub release. Python: the wheel from
-     the release. C++: copy the single header `villanelle.hpp`, or `FetchContent` of the release archive: the CMake
+     the release. C++: copy the single header `knobly.hpp`, or `FetchContent` of the release archive: the CMake
      shown is a region of the file the C++ package job configures (section 6, packaging), so it cannot rot.
    - Hello: `hello.conf` and sample `hello`.
    - A real file: `app.conf` and sample `quickstart` (a variable, three typed reads, no problems).
@@ -218,8 +218,8 @@ regions `main` and its extra regions, each printing its expected file. Done when
 
 **cpp-samples.** Owns `cpp/examples/**` (`CMakeLists.txt` and `run_example.cmake` are the runner; change them only
 to fix a bug, and report it). Task: write `cpp/examples/<id>.cpp` for every id but `hello`, same rules. Done when a
-build tree under `/Volumes/Dock/tmp/vil-cpp-build-cpp-samples` (configure with `-DVILLANELLE_SANITIZE=ON`) builds
-and `ctest -R examples_` passes, once more in compiled mode (`-DVILLANELLE_COMPILED=ON -DCMAKE_CXX_STANDARD=23`), and
+build tree under `/Volumes/Dock/tmp/kno-cpp-build-cpp-samples` (configure with `-DKNOBLY_SANITIZE=ON`) builds
+and `ctest -R examples_` passes, once more in compiled mode (`-DKNOBLY_COMPILED=ON -DCMAKE_CXX_STANDARD=23`), and
 the pinned clang-format (`tools/api/emit_cpp.py` `CLANG_FORMAT`) leaves the files unchanged.
 
 Shared by the three: `examples/**` (the table, the expected files, the fixtures) is frozen. A sample that cannot
@@ -233,16 +233,16 @@ review decides whether the expected file or the binding changes.
 `cpp-package` job of `.github/workflows/ci.yml` (only that job), the "Using it" and "Build and test" sections of
 `cpp/README.md`, and the C++ paragraph of `README.md`. Task:
 
-1. Delete the install: option `VILLANELLE_INSTALL`, `include(GNUInstallDirs)`, `$<INSTALL_INTERFACE:...>`, the
+1. Delete the install: option `KNOBLY_INSTALL`, `include(GNUInstallDirs)`, `$<INSTALL_INTERFACE:...>`, the
    `install(...)` rules, `CMakePackageConfigHelpers` and the version file. The target stays
-   `villanelle::villanelle` (an `ALIAS` of an `INTERFACE` library); the version still comes from
+   `knobly::knobly` (an `ALIAS` of an `INTERFACE` library); the version still comes from
    `support/config.hpp`. No alias, shim or message for the removed option.
 2. The routes, each tested in the `cpp-package` job with `python`, `python3`, `uv` and `curl` stubbed to fail and
    nothing installed anywhere:
    - `FetchContent` of the release archive built by `.github/release-cpp.sh` (a `file://` URL with its `URL_HASH`)
-     into the consumer's build folder, then `target_link_libraries(... villanelle::villanelle)`, in header-only and
-     compiled mode (`VILLANELLE_COMPILED=ON` as a cache option of the subproject, or the program defining
-     `VILLANELLE_HEADER_ONLY=0` and compiling `<villanelle/implementation.hpp>` once);
+     into the consumer's build folder, then `target_link_libraries(... knobly::knobly)`, in header-only and
+     compiled mode (`KNOBLY_COMPILED=ON` as a cache option of the subproject, or the program defining
+     `KNOBLY_HEADER_ONLY=0` and compiling `<knobly/implementation.hpp>` once);
    - `add_subdirectory` of the extracted archive;
    - the single header alone (as today);
    - every route builds and runs `cpp/tests/consumer/consumer.cpp` and checks the stamped inline namespace (`nm`).
@@ -252,9 +252,9 @@ review decides whether the expected file or the binding changes.
    URL and hash come in as variables the test sets; name them so the page can say "the release's URL and SHA-256").
 4. `cpp/README.md` "Using it": the two routes and `add_subdirectory`, compiled mode, versions; no install text.
    Root `README.md`: the C++ paragraph says the same in one sentence (drop "`cmake --install` makes
-   `find_package(villanelle)` work").
-5. Done when the `cpp-package` steps pass locally (archive under `/Volumes/Dock/tmp/vil-cpp-build-packaging`), the
-   main C++ build and `ctest` still pass, and `grep -rn "find_package\|cmake --install\|VILLANELLE_INSTALL"` finds
+   `find_package(knobly)` work").
+5. Done when the `cpp-package` steps pass locally (archive under `/Volumes/Dock/tmp/kno-cpp-build-packaging`), the
+   main C++ build and `ctest` still pass, and `grep -rn "find_package\|cmake --install\|KNOBLY_INSTALL"` finds
    nothing outside `.claude/design/` and `.beads/`.
 
 ### Wave 2 (one slice, after wave 1 lands)
@@ -263,7 +263,7 @@ review decides whether the expected file or the binding changes.
 `docs/low-level-api.md`, `docs/rendered-tree.md` (deleted), `docs/tables.json`, `README.md`, `ts/README.md`,
 `py/README.md`, `cpp/README.md` (links and pointers only; packaging's sections stay), `spec/**/*.md` and
 `spec/schema/diagnostics.json` (links only), `tools/api/*.py` and `tools/gen-api.py` (comments and the docs paths
-only), `.claude/skills/villanelle-binding/SKILL.md` (links). Task:
+only), `.claude/skills/knobly-binding/SKILL.md` (links). Task:
 
 1. Write every page of section 3 from the old pages' prose (their test-backed examples are the starting material;
    replace each code example by the sample that shows it, in three tabs, with its output). Keep the plain style of the
@@ -272,7 +272,7 @@ only), `.claude/skills/villanelle-binding/SKILL.md` (links). Task:
    `file` in `docs/tables.json`; run `python3 tools/gen-api.py docs`; `python3 tools/gen-api.py --check` passes.
 3. Fix every link to the old pages across the repository (not `.claude/design/` history or `.beads/`): `README.md`,
    the binding READMEs, `spec/`, `tools/`, the skill. Point README.md and each binding README at the guide (the Pages
-   URL, `https://mcurcio.github.io/villanelle/`, and the page source under `docs/site/pages/`).
+   URL, `https://mcurcio.github.io/knobly/`, and the page source under `docs/site/pages/`).
 4. Make completeness a build failure: a MkDocs hook (`docs/site/hooks/samples.py`, `hooks:` in `mkdocs.yml`) fails
    the build unless every id in `examples/samples.json` is included on some page from all three of
    `ts/examples/<id>.ts`, `py/examples/<id>.py` and `cpp/examples/<id>.cpp`. Show it bites by planting a missing tab.
@@ -292,7 +292,7 @@ only), `.claude/skills/villanelle-binding/SKILL.md` (links). Task:
 - The runners cut the run folder from the output, because TypeScript's file source makes paths absolute; the pages
   show the relative form, and `differences.md` says so.
 - TypeScript samples are top-level programs run in the vitest process (default `forks` pool, so `process.chdir`
-  works) with `console.log` captured; `villanelle/...` resolves to `src/` through `ts/vitest.config.ts`, derived from
+  works) with `console.log` captured; `knobly/...` resolves to `src/` through `ts/vitest.config.ts`, derived from
   the package's export map, and through `paths` in `ts/examples/tsconfig.json` (one wildcard rule, not a second list).
 - Python samples run as programs (`subprocess`, the test's own interpreter); C++ samples are one executable each, built
   with the tests' warnings, run by a CMake script as the design programs are.

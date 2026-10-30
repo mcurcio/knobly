@@ -2,7 +2,7 @@
 module. Nodes are read-only objects with ``__match_args__``, read with ``match``; a block's ``walk()`` iterates a
 subtree as ``ast.walk`` does (here in written order); every node carries where it came from. Directives and values
 are expanded (variables replaced, snippets and extension files spliced in). A directive is built on its directive
-expansion's own objects (vil-umh.8): its ``values`` are the low level's expanded values and its ``unreadable`` the
+expansion's own objects (kno-umh.8): its ``values`` are the low level's expanded values and its ``unreadable`` the
 low level's unreadable expansions, the same objects; this layer adds ``name``, ``parent``, ``closest``, the address
 and ``error``, and its block (``RenderedBlock``) the walk. It names low-level handles, never the other way round."""
 
@@ -13,13 +13,13 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import final
 
-from villanelle._api import rendered as api
-from villanelle._api.errors import DiagnosticError
-from villanelle._api.rendered import AddressStep
-from villanelle._api.shared import DirectiveOrigin
-from villanelle._block import BlockBase
-from villanelle._report import LocatedDiagnostic, check_program_code
-from villanelle.written import DirectiveExpansion, ExpandedValue, UnreadableExpansion, WrittenDirective
+from knobly._api import rendered as api
+from knobly._api.errors import DiagnosticError
+from knobly._api.rendered import AddressStep
+from knobly._api.shared import DirectiveOrigin
+from knobly._block import BlockBase
+from knobly._report import LocatedDiagnostic, check_program_code
+from knobly.written import DirectiveExpansion, ExpandedValue, UnreadableExpansion, WrittenDirective
 
 
 @final
@@ -96,7 +96,7 @@ class Directive(api.Directive):
 
     @property
     def written(self) -> WrittenDirective:
-        # The user doc is the schema's, inherited from the generated Protocol (closes vil-uji).
+        # The user doc is the schema's, inherited from the generated Protocol (closes kno-uji).
         return self._written
 
     def closest(self, predicate: Callable[[Directive], bool], /) -> Directive | None:

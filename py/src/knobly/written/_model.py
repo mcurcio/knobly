@@ -13,7 +13,7 @@ tree, splices and edit checks), ``_graph`` (the read ledger, the overrides and t
 binding) and ``_expand`` (the expansion ``expand()`` returns).
 
 Every edit that takes new values takes config text only, as ``text`` (``ConfigText``, spec 6.9): made by
-``villanelle.quote`` from a program string or by ``villanelle.text`` from a text already written as villanelle text,
+``knobly.quote`` from a program string or by ``knobly.text`` from a text already written as knobly text,
 so a type checker refuses a plain str; at run time anything but a str raises TypeError before anything changes."""
 
 from __future__ import annotations
@@ -23,22 +23,22 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Literal, TypeAlias, cast, final
 
-from villanelle._api import written as api
-from villanelle._api.errors import DetachedError
-from villanelle._api.kinds import StatementKind, ValueKind, VariableKind
-from villanelle._api.shared import ConfigText
-from villanelle._api.syntax import Node, Syntax
-from villanelle._api.written import Copy, DirectiveExpansion, DocumentEdge, Expansion, ReferenceResolution, Resolution
-from villanelle._block import BlockBase
-from villanelle._origin import Place
-from villanelle._text import require_text
-from villanelle.syntax._cst import ValueRef
+from knobly._api import written as api
+from knobly._api.errors import DetachedError
+from knobly._api.kinds import StatementKind, ValueKind, VariableKind
+from knobly._api.shared import ConfigText
+from knobly._api.syntax import Node, Syntax
+from knobly._api.written import Copy, DirectiveExpansion, DocumentEdge, Expansion, ReferenceResolution, Resolution
+from knobly._block import BlockBase
+from knobly._origin import Place
+from knobly._text import require_text
+from knobly.syntax._cst import ValueRef
 
 if TYPE_CHECKING:
-    from villanelle._api.io import DocumentSource, DocumentWriter
-    from villanelle._api.written import Extension
-    from villanelle._report import LocatedDiagnostic
-    from villanelle.written._bind import Binding, OverrideValues
+    from knobly._api.io import DocumentSource, DocumentWriter
+    from knobly._api.written import Extension
+    from knobly._report import LocatedDiagnostic
+    from knobly.written._bind import Binding, OverrideValues
 
 
 def _detached(what: str) -> DetachedError:
@@ -82,7 +82,7 @@ class DocumentGraph(api.DocumentGraph):
         self, source: DocumentSource, extensions: Mapping[str, Extension], overrides: Mapping[str, ConfigText]
     ) -> None:
         """Made by ``Processor.load`` only. Checks each override as ``set_override`` does (one check)."""
-        from villanelle.written import _graph
+        from knobly.written import _graph
 
         _graph.init(self, source, extensions, overrides)
 
@@ -102,23 +102,23 @@ class DocumentGraph(api.DocumentGraph):
 
     @property
     def diagnostics(self) -> tuple[LocatedDiagnostic, ...]:
-        from villanelle.written import _graph
+        from knobly.written import _graph
 
         return _graph.diagnostics(self)
 
     def set_override(self, name: str, text: ConfigText | None, /) -> None:
-        from villanelle.written import _graph
+        from knobly.written import _graph
 
         _graph.set_override(self, name, text)
 
     def read(self) -> tuple[str, ...]:
-        from villanelle.written import _read
+        from knobly.written import _read
 
         return tuple(_read.read_unread(self))
 
     def save(self, writer: DocumentWriter, /) -> tuple[str, ...]:
-        from villanelle._api.errors import LostUpdateError, SaveError
-        from villanelle._api.io import FileWrite
+        from knobly._api.errors import LostUpdateError, SaveError
+        from knobly._api.io import FileWrite
 
         if not callable(getattr(writer, "write", None)):
             raise TypeError(
@@ -148,19 +148,19 @@ class DocumentGraph(api.DocumentGraph):
         return self._binding().unread
 
     def variables(self, name: str | None = None) -> tuple[Variable, ...]:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         found: list[Variable] = [v for doc in self._documents.values() for v in _document.variables(doc)]
         found.extend(self._override_variables[n] for n in self._override_texts)
         return tuple(v for v in found if name is None or v.name == name)
 
     def expand(self) -> Expansion:
-        from villanelle.written import _expand
+        from knobly.written import _expand
 
         return _expand.expand(self)
 
     def _binding(self) -> Binding:
-        from villanelle.written import _graph
+        from knobly.written import _graph
 
         return _graph.binding(self)
 
@@ -184,7 +184,7 @@ class Document(api.Document):
 
     def __init__(self, graph: DocumentGraph, resolved_path: str, text: str) -> None:
         """Made by the read loop only."""
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._graph = graph
         self._path = resolved_path
@@ -219,7 +219,7 @@ class Document(api.Document):
         return tuple(e for e in self._graph._binding().edges if self._path in e.targets)
 
     def replace_with_text(self, text: ConfigText, /) -> None:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         _document.replace_document(self, require_text(text, member="replace_with_text", parameter="text"))
 
@@ -266,14 +266,14 @@ class _Statement:
 
     @property
     def place(self) -> Place:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         return _document.place(self._doc, _document.owned_range(self._doc, self._node))
 
     @property
     def text(self) -> str:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         return _document.text_of_range(self._doc, _document.owned_range(self._doc, self._node))
@@ -283,14 +283,14 @@ class _Statement:
         return self._doc._graph._binding().copies_of(cast("Statement", self))
 
     def replace_with_text(self, text: ConfigText, /) -> tuple[Statement, ...]:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         given = require_text(text, member="replace_with_text", parameter="text")
         return _document.replace_statement(cast("Statement", self), given)
 
     def remove(self) -> None:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         _document.remove_statement(cast("Statement", self))
@@ -302,7 +302,7 @@ class _Statement:
         return self._insert(text, "insert_after", 1)
 
     def _insert(self, text: ConfigText, member: str, after: int) -> tuple[Statement, ...]:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         given = require_text(text, member=member, parameter="text")
@@ -338,7 +338,7 @@ class _NamedLine(_Statement):
         return self._block
 
     def set(self, text: ConfigText, /) -> None:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         given = require_text(text, member="set", parameter="text")
@@ -354,7 +354,7 @@ class WrittenDirective(_NamedLine, api.WrittenDirective):
         return StatementKind.DIRECTIVE
 
     def rename(self, name: str, /) -> None:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         _document.rename_directive(self, require_text(name, member="rename", parameter="name"))
@@ -398,7 +398,7 @@ class SetLine(_Statement, api.SetLine):
         return tuple(self._value_list)
 
     def set(self, text: ConfigText, /) -> None:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         given = require_text(text, member="set", parameter="text")
@@ -421,7 +421,7 @@ class SnippetLine(_Statement, api.SnippetLine):
 
     @property
     def name(self) -> str:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         return self._doc._syntax.tokens[_document.first_arg_token(self)].text
@@ -448,14 +448,14 @@ class UseLine(_Statement, api.UseLine):
 
     @property
     def snippet_name(self) -> str:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         return self._doc._syntax.tokens[_document.first_arg_token(self)].text
 
     @property
     def snippet(self) -> SnippetLine | None:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         name = self.snippet_name
         found = _document.above(self, lambda s: isinstance(s, SnippetLine) and s.name == name)
@@ -471,7 +471,7 @@ class UseLine(_Statement, api.UseLine):
         return tuple(self._value_list)
 
     def set(self, text: ConfigText, /) -> None:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         given = require_text(text, member="set", parameter="text")
@@ -522,14 +522,14 @@ class WrittenBlock(BlockBase["Statement", "WrittenDirective"], api.WrittenBlock)
         return item._block
 
     def insert_statements(self, index: int, text: ConfigText, /) -> tuple[Statement, ...]:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         given = require_text(text, member="insert_statements", parameter="text")
         return _document.insert_statements(self, index, given)
 
     def add_statements(self, text: ConfigText, /) -> tuple[Statement, ...]:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         items = self._live()
         given = require_text(text, member="add_statements", parameter="text")
@@ -607,14 +607,14 @@ class _Value:
 
     @property
     def text(self) -> str:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         return _document.text_of_range(self._doc, _document.ref_range(self._ref))
 
     @property
     def place(self) -> Place:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         return _document.place(self._doc, _document.ref_range(self._ref))
@@ -630,21 +630,21 @@ class _Value:
         return self._list
 
     def set(self, text: ConfigText, /) -> None:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         given = require_text(text, member="set", parameter="text")
         _document.set_value(cast("WrittenValue", self), given)
 
     def replace_with_text(self, text: ConfigText, /) -> tuple[WrittenValue, ...]:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         given = require_text(text, member="replace_with_text", parameter="text")
         return _document.replace_value(cast("WrittenValue", self), given)
 
     def remove(self) -> None:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         _document.remove_value(cast("WrittenValue", self))
@@ -747,7 +747,7 @@ class Reference(_Value, api.Reference):
 
     @property
     def declaration(self) -> SetVariable | Parameter | None:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._live()
         return _document.declaration_of(self)
@@ -782,7 +782,7 @@ class _Variable:
         raise NotImplementedError
 
     def references(self) -> tuple[Reference, ...]:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         graph = self._graph_of()
         me: object = self
@@ -813,7 +813,7 @@ class SetVariable(_Variable, api.SetVariable):
         return f"SetVariable({self.name!r})"
 
     def _token(self) -> int:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         self._line._live()
         return _document.first_arg_token(self._line)
@@ -832,7 +832,7 @@ class SetVariable(_Variable, api.SetVariable):
 
     @property
     def place(self) -> Place:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         token = self._token()
         return _document.place(self._line._doc, (token, token + 1))
@@ -843,7 +843,7 @@ class SetVariable(_Variable, api.SetVariable):
         return self._line
 
     def rename(self, name: str, /) -> None:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         token = self._token()
         given = require_text(name, member="rename", parameter="name")
@@ -894,7 +894,7 @@ class Parameter(_Variable, api.Parameter):
 
     @property
     def place(self) -> Place:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         line = self._owner()
         return _document.place(line._doc, (self._token, self._token + 1))
@@ -904,7 +904,7 @@ class Parameter(_Variable, api.Parameter):
         return self._owner()
 
     def rename(self, name: str, /) -> None:
-        from villanelle.written import _document
+        from knobly.written import _document
 
         line = self._owner()
         given = require_text(name, member="rename", parameter="name")

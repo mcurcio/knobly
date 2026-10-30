@@ -2,16 +2,16 @@
 // then the same edit made on a fresh load. ctest examples_lost_update compares what it prints with
 // examples/expected/lost_update.txt.
 // --8<-- [start:main]
-#include <villanelle/files.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/files.hpp>
+#include <knobly/written.hpp>
 
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
+namespace vl = knobly;
+namespace vw = knobly::written;
 
 std::string read_file(const std::string& path) {
     std::ostringstream text;

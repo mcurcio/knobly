@@ -45,16 +45,16 @@ The reviewers rated 18 findings high. I checked each one against the code myself
 | Finding | Claim | Result |
 |---|---|---|
 | NT-1, C1, TS-1 | `written` has four meanings; a value's `written` is the end of the chain | **Confirmed.** `ts/src/load/directive.ts:35` (a value's `written` is "the written value at the end of its chain"), `:122` (Statement), `:144` (written directive); `ts/src/load/origin.ts:52` (`IOrigin.written: IPlace \| IHanded`). |
-| NT-2, py-newcomer-2, TS-3, PY-6, C3 | Operations in three homes; checking that a graph belongs to its processor only at run time | **Confirmed.** `ts/src/load/processor.ts:170-194` (a WeakSet guard throws TypeError); `ts/src/written/save.ts:18` (`save` is a free function that reaches a private method by duck typing, `:39-43`); `py/src/villanelle/processor.py:223` (`graph._owner is not self`). This was a design choice (D27), not something you asked for. |
+| NT-2, py-newcomer-2, TS-3, PY-6, C3 | Operations in three homes; checking that a graph belongs to its processor only at run time | **Confirmed.** `ts/src/load/processor.ts:170-194` (a WeakSet guard throws TypeError); `ts/src/written/save.ts:18` (`save` is a free function that reaches a private method by duck typing, `:39-43`); `py/src/knobly/processor.py:223` (`graph._owner is not self`). This was a design choice (D27), not something you asked for. |
 | NT-3, py-newcomer-1, PY-2, C4 | values/args, block/body, `.statements` in TS but a sequence in Python | **Confirmed.** `directive.ts:134,136`; `ts/src/written/model.ts:56,112,114,161`; `py/.../written/model.py` (the block is a `Sequence`). |
 | py-newcomer-1 | `resolutions` is a property in one layer and a method in the other, and counts different things | **Confirmed.** `directive.ts:41` (one per step along the chain) against `model.ts:232` (`resolutions()`, one per copy). |
 | py-newcomer-3 | Values passed from Python crash or split in two | **Partly kept.** The crash is real: `set_values(2400)` fails inside the library because `py/.../written/model.py:328` never checks its input type. Turning program values into text automatically goes against your pick of 2026-10-28 ("values: A, new values written as villanelle text, with quote()"). That part is question 3 below, not a defect. |
 | TS-2 | `kind` fields do not narrow the type, so methods that cannot work for a kind exist anyway and throw | **Confirmed.** `model.ts:236-251` (`IVariable` has `setValues` for every kind; `NoSetLineError` exists only because of this). |
-| PY-1 | Python positions count UTF-16 units, so slicing a `str` gives the wrong text | **Confirmed.** `py/src/villanelle/span.py:5-7` says so. |
+| PY-1 | Python positions count UTF-16 units, so slicing a `str` gives the wrong text | **Confirmed.** `py/src/knobly/span.py:5-7` says so. |
 | PY-3 | Python separates kinds four ways | **Confirmed.** Literal strings in `written/model.py:303…`, StrEnums in `value.py:11`, `directives.py:236` and `origin.py:31`, and classes with no `kind` at `processor.py:125`. |
 | C2 | `source` means both the reader and the last-saved text | **Confirmed.** `model.ts:51` against `processor.ts:44`. |
 | P1 | No language-neutral spec; the rules live in agent notes | **Confirmed.** `conformance/written/format.md:4-6` points to `.claude/design/.../round12/slices.md`; there is no `spec/` folder. |
-| P2 | Every fixed list is copied by hand | **Confirmed.** `py/src/villanelle/diagnostics.py:3` says "This mirrors the TypeScript package's registry value for value". |
+| P2 | Every fixed list is copied by hand | **Confirmed.** `py/src/knobly/diagnostics.py:3` says "This mirrors the TypeScript package's registry value for value". |
 | P3 | The two languages disagree on `-0` and on a lone carriage return, and no shared test catches it | **Confirmed at the code level** (Python reads it with `int(word)` at `_values.py:23`). The reviewer's run showed both differences. I did not run it again. |
 
 **None of the high findings was dropped.** I changed two of them:
@@ -168,7 +168,7 @@ by another processor (D27). That error exists only because of where the API put 
 
 ```ts
 // BEFORE: three homes, and a run-time TypeError for a graph from another processor
-const config = villanelle({ source: fileSource(), extensions: [include()] });
+const config = knobly({ source: fileSource(), extensions: [include()] });
 const graph = await config.load("main.conf");
 await config.read(graph);
 const r1 = config.render(graph);
@@ -176,8 +176,8 @@ await save(graph, fsWriter());
 const changes = config.diff(r1, config.render(graph), { key });
 
 // AFTER (recommended, question 1 option A)
-import { render } from "villanelle/rendered";
-const config = villanelle({ source: fileSource(), extensions: [include()] });
+import { render } from "knobly/rendered";
+const config = knobly({ source: fileSource(), extensions: [include()] });
 const graph = await config.load("main.conf");   // the processor makes graphs; that is all it does
 await graph.read();                             // reads includes not yet read, using the graph's own reader
 const r1 = render(graph);                       // going up a layer: the rendered tree's function
@@ -194,7 +194,7 @@ vl.save(graph, vl.fs_writer())
 changes = config.diff(r1, config.render(graph), key=key)
 
 # AFTER
-from villanelle import rendered
+from knobly import rendered
 config = vl.Processor(source=vl.FileSource(), extensions=[vl.Include()])
 graph = config.load("main.conf")
 graph.read()
@@ -348,7 +348,7 @@ str(p)                                      # 'sink.conf:4:5'
 text[s.start.offset:s.end.offset]           # right: Python positions count code points
 graph.save(vl.MemoryWriter(files))          # updates the same dict MemorySource reads
 try: ...
-except vl.VillanelleError: ...
+except vl.KnoblyError: ...
 ```
 
 Cost: TypeScript and Python report different offsets for the same place when the text has
@@ -403,7 +403,7 @@ Conformance levels a binding claims:
 - **L3** extensions (include);
 - **L4** adapters.
 
-The high level (vil-xlo) stays per language and outside the levels. The spec governs only its
+The high level (kno-xlo) stays per language and outside the levels. The spec governs only its
 names and error groups.
 
 **Codegen primitives** (what a new binding gets without hand work):
@@ -416,7 +416,7 @@ names and error groups.
 The algorithms (binding, edits, render) stay hand-written and are checked by the corpora.
 Generating those is not worth it.
 
-**Skill:** `.claude/skills/villanelle-binding/SKILL.md` in the villanelle repo. It covers starting
+**Skill:** `.claude/skills/knobly-binding/SKILL.md` in the knobly repo. It covers starting
 a binding (generate, write the adapter, climb the levels), the idiom checks below as a list, and
 the traps found this round (UTF-16 against native units, `-0`, a lone CR, `match` on every layer).
 It points to `spec/binding-guide.md` instead of repeating it, so the rules have one home.
@@ -425,20 +425,20 @@ Module layout (both bindings): one module per layer, the same short names in eac
 level.
 
 ```ts
-import { villanelle, quote, BadTextError } from "villanelle";
-import type { Directive, Block } from "villanelle/written";    // written.Directive
-import { render, type Directive as Rendered } from "villanelle/rendered";
-import { fileSource, fileWriter } from "villanelle/file";
+import { knobly, quote, BadTextError } from "knobly";
+import type { Directive, Block } from "knobly/written";    // written.Directive
+import { render, type Directive as Rendered } from "knobly/rendered";
+import { fileSource, fileWriter } from "knobly/file";
 ```
 
 ```python
-import villanelle as vl                      # Processor, quote, errors, MemorySource, ...
-from villanelle import written, rendered     # written.Directive, rendered.Directive
-from villanelle.file import FileSource, FileWriter
+import knobly as vl                      # Processor, quote, errors, MemorySource, ...
+from knobly import written, rendered     # written.Directive, rendered.Directive
+from knobly.file import FileSource, FileWriter
 ```
 
 This replaces Python's 81-name flat namespace. That namespace forced prefixes such as
-`WrittenDirective` and `Slice` against `SliceValue`, and `from villanelle import *` replaced
+`WrittenDirective` and `Slice` against `SliceValue`, and `from knobly import *` replaced
 `typing.List`.
 
 ---
@@ -458,7 +458,7 @@ These go in `spec/binding-guide.md`, and the public-name check enforces them.
 
 2. **No language-specific prefixes on type names.** TypeScript drops the `I` prefix. It came from
    rasl's style guide (`reference/rasl-config-ts/STYLE.md` 3.6), and you never asked for it in
-   villanelle. Without it, the same types have the same names in both languages. Where a short name
+   knobly. Without it, the same types have the same names in both languages. Where a short name
    would collide with a built-in, the module provides the context (`written.String`), not a prefix.
 3. **Factories.** Every binding uses one convention. TypeScript uses lowercase nouns with no
    `create` (`fileSource()`, `fetchSource()`, `memorySource()`, `include()`). Python uses public
@@ -550,11 +550,11 @@ Nothing has been edited in `ts/`, `py/`, `docs/` or `conformance/`. With your an
 4. Add the readers, addresses and format corpora and the shared driver.
 5. Write the skill.
 
-I would track each step as a bead under vil-e4x.
+I would track each step as a bead under kno-e4x.
 
 ## Deferred or out of scope
 
-- **The high level (vil-xlo).** Only its names and error groups follow the spec.
+- **The high level (kno-xlo).** Only its names and error groups follow the spec.
 - **Async Python** (an asyncio source and load). It is still an open question in the requirements.
   I have not decided it here.
 - **Fetch adapters for Python.** They are a documented gap. The spec lists them under L4 as

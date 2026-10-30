@@ -1,10 +1,10 @@
 // Sample "diff_reload" (examples/samples.json): reload a config after it changed on disk and list what changed.
 // ctest examples_diff_reload compares what it prints with examples/expected/diff_reload.txt.
 // --8<-- [start:main]
-#include <villanelle/extensions.hpp>
-#include <villanelle/files.hpp>
-#include <villanelle/rendered.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/extensions.hpp>
+#include <knobly/files.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/written.hpp>
 
 #include <fstream>
 #include <iostream>
@@ -12,9 +12,9 @@
 #include <sstream>
 #include <string>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 void edit_on_disk() {  // someone else edits the file
     std::ostringstream read;

@@ -1,4 +1,4 @@
-"""Token checks for the lexer rules of a .g4 (the subset Villanelle.g4 uses): each non-fragment
+"""Token checks for the lexer rules of a .g4 (the subset Knobly.g4 uses): each non-fragment
 lexer rule becomes a regex over code points, and interegular decides two things.
   1. Overlap: for every pair of token kinds, whether some string matches both.
   2. Adjacency (longest match): for every pair of tokens A B the parser rules can place next to each other with

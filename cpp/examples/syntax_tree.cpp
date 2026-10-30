@@ -2,12 +2,12 @@
 // problems of text that does not parse. ctest examples_syntax_tree compares what it prints with
 // examples/expected/syntax_tree.txt.
 // --8<-- [start:main]
-#include <villanelle/syntax.hpp>
+#include <knobly/syntax.hpp>
 
 #include <iostream>
 #include <string>
 
-namespace vl = villanelle;
+namespace vl = knobly;
 
 // --8<-- [start:tree]
 void print_tree(const vl::syntax::syntax& tree, const vl::syntax::node& node, int depth) {

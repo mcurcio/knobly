@@ -2,11 +2,11 @@
 // nothing, and a save. ts/examples/examples.test.ts runs this file and compares what it prints with
 // examples/expected/edit_statements.txt.
 // --8<-- [start:main]
-import { BadTextError, memorySource, memoryWriter, quote, text } from "villanelle";
-import { villanelle } from "villanelle/written";
+import { BadTextError, memorySource, memoryWriter, quote, text } from "knobly";
+import { knobly } from "knobly/written";
 
 const files = { "main.conf": "server {\n    host a;\n    # the port\n    port 80;\n}\n" };
-const graph = await villanelle({ source: memorySource(files) }).load("main.conf");
+const graph = await knobly({ source: memorySource(files) }).load("main.conf");
 const server = graph.root.block.directives("server")[0];
 if (server?.block === undefined) throw new Error("main.conf has no server block");
 const host = server.block.directives("host")[0];

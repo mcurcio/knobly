@@ -1,4 +1,4 @@
-# Milestone 5, frozen for the binding lanes (beads vil-umh.6, vil-umh.12 rest, vil-umh.14)
+# Milestone 5, frozen for the binding lanes (beads kno-umh.6, kno-umh.12 rest, kno-umh.14)
 
 This page is what the TypeScript lane (`ts/`) and the Python lane (`py/`) build in milestone 5. It is frozen: a lane
 that finds it wrong appends the finding to `.claude/errata.md` and does not diverge silently. The rules live in
@@ -8,7 +8,7 @@ that finds it wrong appends the finding to `.claude/errata.md` and does not dive
 
 The owner's answers of 2026-10-29, quoted, not widened:
 
-- Smaller language fixes (vil-umh.14), each put to him in plain words:
+- Smaller language fixes (kno-umh.14), each put to him in plain words:
   1. single quotes become raw strings (TOML), double quotes keep the escapes: "yes";
   2. delete the `plain()` reader: "agreed. the raw strings are raw/plain/tokens until some schema-aware layer decides
      "this one is a number" or "this is a string"" (the typed readers stay: they are the program deciding);
@@ -17,13 +17,13 @@ The owner's answers of 2026-10-29, quoted, not widened:
   4. language statements behind one sigil, `@set`, `@snippet`, `@use` and extension statements such as `@include`;
      no directive name reserved; an unknown `@name` a located error ('no extension for @name'); a directive name
      cannot start with `@`: "yes".
-- The value-level set (vil-umh.12): "the natural loop should work. i figured that they were references anyway, so
+- The value-level set (kno-umh.12): "the natural loop should work. i figured that they were references anyway, so
   both nodes essentially held the same pointer and editing either was fine".
-- Config text (vil-umh.6): he picked "Yes, its own type": made only by `quote()` or an explicit `text(...)`; a
+- Config text (kno-umh.6): he picked "Yes, its own type": made only by `quote()` or an explicit `text(...)`; a
   TypeScript branded string, a Python `NewType`; every edit and override parameter takes it.
 
 Not in this milestone (approved for the next one; do not start them, do not make them harder): the typed schema and
-generated declarations (vil-umh.9, .10), generated enumerations, TS `as const` objects and a no-raw-string lint
+generated declarations (kno-umh.9, .10), generated enumerations, TS `as const` objects and a no-raw-string lint
 (.11), per-layer namespaces and their renames (.13).
 
 Design calls of this milestone (revisable; each in "Behaviour changes" and in the errata): `~` for the separator
@@ -44,14 +44,14 @@ tree instead of a second copy of the value rules in the grammar (G1).
 
 | Path | What |
 |---|---|
-| `grammar/Villanelle.g4` | single-quoted `STRING` raw; `BAD_ESCAPE` and `UNTERMINATED_STRING` follow; `COLON` gone, `TILDE : '~'`; `:` in `NAME_CHAR` for every word; `WORD` cannot start with `@`; `AT_WORD : '@' NAME_CHAR*`; `header : (WORD \| AT_WORD) rest`; `value` adds `AT_WORD`; `slicedWord : sliceName '[' bounds ']'`, `sliceName : WORD \| AT_WORD \| VARIABLE`; `bounds` with `'~'`; entry rules `valueText`, `sliceNameText` added; fragment `NUMBER_CHAR` folded into `NAME_CHAR` |
-| `grammar/villanelle.ebnf` | kept in step by hand |
+| `grammar/Knobly.g4` | single-quoted `STRING` raw; `BAD_ESCAPE` and `UNTERMINATED_STRING` follow; `COLON` gone, `TILDE : '~'`; `:` in `NAME_CHAR` for every word; `WORD` cannot start with `@`; `AT_WORD : '@' NAME_CHAR*`; `header : (WORD \| AT_WORD) rest`; `value` adds `AT_WORD`; `slicedWord : sliceName '[' bounds ']'`, `sliceName : WORD \| AT_WORD \| VARIABLE`; `bounds` with `'~'`; entry rules `valueText`, `sliceNameText` added; fragment `NUMBER_CHAR` folded into `NAME_CHAR` |
+| `grammar/knobly.ebnf` | kept in step by hand |
 | `spec/spec.md`, `expansion.md`, `glossary.md`, `binding-guide.md`, `contract.md`, `conformance.md`, `codegen.md`, `README.md` | every item below |
 | `spec/schema/diagnostics.json` | E3008 `unknown extension`, E4007 `bad slice name` added; E1005, E2007, E3006 meanings |
 | `spec/schema/api.json` | concept `config text`; free function `text`; `quote` returns config text; `render` errors; written value `set`; slice and index `name` a `word or reference`; `plain` gone from expanded value; every edit's and override's `text` typed `config text`; `reserved names` reworded; error groups; argument type error message; `removed in milestone 5` |
 | `conformance/` | every source respelled (`@`, `~`; 4 syntax sources adjusted, below); 16 new syntax, 7 new load, 10 new written and 1 new contract case; 10 `plain-*` contract cases deleted; `rename-kind-refused` rewritten; driver: written `["render", target]`, token `TypeError`, a slice's `name` walked as a value, contract `list` results only for the `list` reader |
 | `fixtures/rasl/` | `@set`, `@snippet`, `@use`, `@include`, `[a~b]` (commented-out lines too); README |
-| `docs/`, `README.md`, `.claude/skills/villanelle-binding/SKILL.md` | the new spellings; `text(...)` around every edit argument in examples; the edit loop without a skip list |
+| `docs/`, `README.md`, `.claude/skills/knobly-binding/SKILL.md` | the new spellings; `text(...)` around every edit argument in examples; the edit loop without a skip list |
 
 `bash tools/check.sh` passes: 0 conflicts for the document and the seven entry rules (`statementsText`, `valuesText`,
 `valueText`, `itemsText`, `boundText`, `sliceNameText`, `nameText`); 21 token kinds, 210 pairs, 0 overlapping; 9
@@ -65,7 +65,7 @@ TypeScript: NOT RUN against the new corpus (its build needs the lane's changes t
 
 ## 2. Per item
 
-### A. Raw single quotes (vil-umh.14 point 1; spec 3.1, 2.9)
+### A. Raw single quotes (kno-umh.14 point 1; spec 3.1, 2.9)
 
 - **Grammar** (generated, nothing to call): `STRING : '"' (~["\\ ctrl] | ESCAPE)* '"' | '\'' ~[' ctrl]* '\''`;
   `UNTERMINATED_STRING`'s single alternative `'\'' ~[' ctrl]*`; `BAD_ESCAPE` only double-quoted. `\'` stays one of
@@ -81,21 +81,21 @@ TypeScript: NOT RUN against the new corpus (its build needs the lane's changes t
   `raw-single-unterminated`, `edge-bad-escape-single` (now valid), `edge-escape-quote` (now the string `'c\'` touching
   the word `d`: E2009); load `load-raw-string`; contract `string-raw-single`; written `set-raw-string`.
 
-### B. No `plain` reader (vil-umh.14 point 2; spec 2.9)
+### B. No `plain` reader (kno-umh.14 point 2; spec 2.9)
 
 - **Signatures:** the expanded value's readers are exactly `word`, `string`, `number`, `integer`, `boolean`, `list`,
   `slice`, `error`. Nothing else reads a value.
 - **Delete:** TypeScript `plain()` on the expanded value variants and `PlainValue` (`ts/src/written/value.ts`, its
   export in `ts/src/written/index.ts` and the package root), the test "plain: one rule for every value; quoting means
-  text" (`ts/src/rendered/readers.test.ts`); Python `plain()` and `PlainValue` (`villanelle/written/value.py`,
-  `villanelle.written.__all__`, `villanelle.__all__`), `test_plain_reads_by_the_one_rule_quoting_means_text`
+  text" (`ts/src/rendered/readers.test.ts`); Python `plain()` and `PlainValue` (`knobly/written/value.py`,
+  `knobly.written.__all__`, `knobly.__all__`), `test_plain_reads_by_the_one_rule_quoting_means_text`
   (`py/tests/test_readers.py`); each adapter's `plain` reader and the `list`-of-results encoding it needed
   (`{"list": [...]}` is now only the `list` reader's items, each `{"value": text}`).
 - **Add (the red check):** each binding's public-name test fails when a name listed in `api.json` `removed in
   milestone 5` is exported (`plain`, `PlainValue`, `COLON`); this is the reverse check for removed names only.
 - **Pinned by:** the 10 deleted `plain-*` contract cases (`zero-plain` and `plain-*`), and the public-name tests.
 
-### C. The `~` separator and subscripts on variables (vil-umh.14 point 3; spec 3.1, 2.9, 6.6, expansion.md 8)
+### C. The `~` separator and subscripts on variables (kno-umh.14 point 3; spec 3.1, 2.9, 6.6, expansion.md 8)
 
 - **Grammar entry rules each binding calls** (generated parser, same recovery and classifier, first error only, as
   every entry rule):
@@ -147,7 +147,7 @@ TypeScript: NOT RUN against the new corpus (its build needs the lane's changes t
   `load-var-subscript-not-word`, `load-literal-bound`, `load-var-slice-bound`; written `references-slice-name`,
   `value-set-item-and-bound`, `bound-replace-non-integer`; contract `slice-*`, `string-slice`.
 
-### D. `@` statements, no reserved names (vil-umh.14 point 4; spec 2.5, 5, 6.5)
+### D. `@` statements, no reserved names (kno-umh.14 point 4; spec 2.5, 5, 6.5)
 
 - **Classification** (TypeScript `ts/src/written/shape.ts`, `bind.ts` `statement`, `document.ts`; Python
   `written/_shape.py`, `_bind.py` `_statement`, `_document.py`): the statement head's **token kind** decides.
@@ -161,7 +161,7 @@ TypeScript: NOT RUN against the new corpus (its build needs the lane's changes t
 - **Names:** an extension line's `name` is the extension's name without `@` (`include`); a step of kind `extension`
   has `name` `include` and `place` the `@include` token; a use step's place is the `@use` token.
 - **Signatures and errors:**
-  - `make processor` (TypeScript `villanelle({ source, extensions })`, Python `Processor(source=, extensions=)`):
+  - `make processor` (TypeScript `knobly({ source, extensions })`, Python `Processor(source=, extensions=)`):
     misuse error (`MisuseError` / `ValueError`) for an extension whose `directive` is in `RESERVED` (`set`,
     `snippet`, `use`), already taken, or refused by the `nameText` entry rule.
   - `IWrittenDirective.rename(name: string): void` / `WrittenDirective.rename(name: str, /) -> None`: misuse error
@@ -176,7 +176,7 @@ TypeScript: NOT RUN against the new corpus (its build needs the lane's changes t
   `rename-kind-refused` (`@set`, `a b`, `@include`: three misuse errors), `rename-to-keyword-word`,
   `add-unknown-extension`, every converted written case; contract `format-via`, `format-no-graph`, `print-step`.
 
-### E. A written value's `set` keeps its handle (vil-umh.12; spec 6.1, 6.6)
+### E. A written value's `set` keeps its handle (kno-umh.12; spec 6.1, 6.6)
 
 - **Signature** on every written value variant (`word`, `string`, `list`, `slice`, `index`, `reference`):
 
@@ -209,7 +209,7 @@ TypeScript: NOT RUN against the new corpus (its build needs the lane's changes t
   README loop: two copies, one handle, two sets). Each binding tests the kind change (TypeScript `kind`, Python
   `isinstance` and `match`).
 
-### F. Config text, its own type (vil-umh.6; spec 6.9)
+### F. Config text, its own type (kno-umh.6; spec 6.9)
 
 - **Signatures:**
 
@@ -226,7 +226,7 @@ TypeScript: NOT RUN against the new corpus (its build needs the lane's changes t
   def text(raw: str, /) -> ConfigText: ...                 # ConfigText(raw), after the run-time str check
   ```
 
-  Both from the package root (TypeScript `ts/src/text.ts`, Python `villanelle/_text.py`, root `__all__`).
+  Both from the package root (TypeScript `ts/src/text.ts`, Python `knobly/_text.py`, root `__all__`).
 - **Every parameter typed `ConfigText`:** `set(text)` (written directive, extension line, set line, use line, set
   variable, written value), `replaceWithText` / `replace_with_text` (statement, value, document), `insertStatements`
   / `insert_statements`, `addStatements` / `add_statements`, `insertBefore` / `insert_before`, `insertAfter` /
@@ -235,8 +235,8 @@ TypeScript: NOT RUN against the new corpus (its build needs the lane's changes t
   overrides: Mapping[str, ConfigText] | None = None)`, and the graph's `overrides`: `ReadonlyMap<string,
   ConfigText>` / `Mapping[str, ConfigText]`. Names stay plain text: `rename(name)`, `setOverride`'s `name`.
 - **Run time:** unchanged `requireText` / `require_text` on every one, plus `quote` and `text`; the message (api.json
-  `argument type error message`) now ends "villanelle edits take config text: quote() a program string, text() one
-  already written as villanelle text, String() a number first" (Python `str()`).
+  `argument type error message`) now ends "knobly edits take config text: quote() a program string, text() one
+  already written as knobly text, String() a number first" (Python `str()`).
 - **Delete:** nothing; every call site in tests, docs examples and the adapters passes `text(...)` or `quote(...)`,
   never a cast (`as ConfigText`, `cast(...)`): the adapters wrap each text the driver sends with `text()`.
 - **Pinned by:** each binding's type tests (TypeScript: a `@ts-expect-error` on `statement.set("8080")`; Python: a

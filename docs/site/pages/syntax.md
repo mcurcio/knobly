@@ -38,6 +38,6 @@ It prints:
   `;`, which may be on a later line: in the sample, `b "open;` swallows `c 3;`.
 - `span_of(syntax, node)` and `text_of(syntax, node)` (TypeScript `spanOf`, `textOf`) give a node's span and text.
 
-The grammar file [`grammar/Villanelle.g4`](https://github.com/mcurcio/villanelle/blob/main/grammar/Villanelle.g4) is
+The grammar file [`grammar/Knobly.g4`](https://github.com/mcurcio/knobly/blob/main/grammar/Knobly.g4) is
 the specification of the syntax, and every binding's parser is generated from it, so every parser accepts exactly the
 grammar's language. Blocks and lists may nest 100 deep in one text; deeper is E2010.

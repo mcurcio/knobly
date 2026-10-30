@@ -1,11 +1,11 @@
 {
-  "name": "villanelle",
+  "name": "knobly",
   "version": "0.0.0-development",
   "description": "A configuration language defined by one formal grammar, with a lossless syntax tree",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mcurcio/villanelle.git",
+    "url": "git+https://github.com/mcurcio/knobly.git",
     "directory": "ts"
   },
   "type": "module",

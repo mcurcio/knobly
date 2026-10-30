@@ -1,6 +1,6 @@
 [project]
-name = "villanelle"
-# Placeholder: the release job stamps the real version at build time (vil-g7n.3).
+name = "knobly"
+# Placeholder: the release job stamps the real version at build time (kno-g7n.3).
 version = "0.0.0"
 description = "A configuration language defined by one formal grammar, with a lossless syntax tree"
 license = "MIT"
@@ -8,7 +8,7 @@ requires-python = ">=3.11"
 dependencies = ["antlr4-python3-runtime==4.13.2"]
 
 [project.urls]
-Repository = "https://github.com/mcurcio/villanelle"
+Repository = "https://github.com/mcurcio/knobly"
 
 [dependency-groups]
 # ruff is pinned exactly: the generator (tools/gen-api.py) runs this ruff on the generated code (its import sorting, then
@@ -19,15 +19,15 @@ dev = ["pytest", "ruff==0.17.2", "mypy"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-# src/villanelle/_gen/ (the parser) and src/villanelle/_api/ (the API lists from spec/schema/) are made by
+# src/knobly/_gen/ (the parser) and src/knobly/_api/ (the API lists from spec/schema/) are made by
 # `bash ../tools/gen.sh py` and ignored by git, so hatchling would drop them: artifacts force them into the wheel and
 # sdist (proven by tests/test_build.py). Run gen.sh before building.
 [tool.hatch.build.targets.wheel]
-packages = ["src/villanelle"]
-artifacts = ["src/villanelle/_gen/*", "src/villanelle/_api/*"]
+packages = ["src/knobly"]
+artifacts = ["src/knobly/_gen/*", "src/knobly/_api/*"]
 
 [tool.hatch.build.targets.sdist]
-artifacts = ["src/villanelle/_gen/*", "src/villanelle/_api/*"]
+artifacts = ["src/knobly/_gen/*", "src/knobly/_api/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -35,8 +35,8 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-extend-exclude = ["src/villanelle/_gen"]
-# The generated src/villanelle/_api/ is git-ignored but must stay checked (the generator emits clean code); ruff skips
+extend-exclude = ["src/knobly/_gen"]
+# The generated src/knobly/_api/ is git-ignored but must stay checked (the generator emits clean code); ruff skips
 # git-ignored files unless told not to. .venv/ and dist/ are in ruff's default excludes.
 respect-gitignore = false
 
@@ -48,9 +48,9 @@ strict = true
 python_version = "3.11"
 mypy_path = "src"
 files = ["src", "tests", "conformance", "examples"]
-exclude = ["src/villanelle/_gen/"]
+exclude = ["src/knobly/_gen/"]
 
 [[tool.mypy.overrides]]
-module = ["antlr4", "antlr4.*", "villanelle._gen", "villanelle._gen.*"]
+module = ["antlr4", "antlr4.*", "knobly._gen", "knobly._gen.*"]
 ignore_missing_imports = true
 follow_imports = "skip"

@@ -1,4 +1,4 @@
-# Milestone 7, frozen for the binding lanes (beads vil-umh.16, vil-umh.17, vil-umh.18)
+# Milestone 7, frozen for the binding lanes (beads kno-umh.16, kno-umh.17, kno-umh.18)
 
 This page is what the TypeScript lane (`ts/`) and the Python lane (`py/`) build in milestone 7. It is frozen: a lane
 that finds it wrong appends the finding to `.claude/errata.md` and does not diverge silently. The rules live in
@@ -12,10 +12,10 @@ The owner's words, quoted, not widened:
   across layers", and codegen "so we dont have to maintain n languages by hand".
 - Q3 on the round 15 review page (2026-10-29), picked A: the schema is the source of every public signature.
 - He merged PR 5 (2026-10-30) after these three leftovers were reported with a recommendation to do them in a
-  follow-up PR. Each item below is that recommendation (beads vil-umh.16 to .18); the choices inside them are design
+  follow-up PR. Each item below is that recommendation (beads kno-umh.16 to .18); the choices inside them are design
   calls, revisable.
 
-Not in this milestone: vil-umh.15 (may `:` start a word; the grammar is unchanged), the high level, and any public
+Not in this milestone: kno-umh.15 (may `:` start a word; the grammar is unchanged), the high level, and any public
 rename beyond what an item needs (none is needed: "Behaviour changes" lists every visible change).
 
 ## 1. What landed outside `ts/src` and `py/src` (this lane, done)
@@ -34,34 +34,34 @@ rename beyond what an item needs (none is needed: "Behaviour changes" lists ever
 | `py/.gitignore` (build wiring) | ignores the generated `tests/api_contract.py` |
 | `spec/codegen.md` | status; section 1 (stub); section 3 (no per-language data; "Docs and rationale"); section 4 (Python's public types; the module table); section 10 rewritten; section 11 costs |
 | `spec/spec.md` | the argument type sentence's home; regenerated tables (2.4, 2.5) |
-| `spec/binding-guide.md` (section 5), `README.md`, `.claude/skills/villanelle-binding/SKILL.md` | a new binding's facts go in its emitter; the generated `api_contract.py` |
+| `spec/binding-guide.md` (section 5), `README.md`, `.claude/skills/knobly-binding/SKILL.md` | a new binding's facts go in its emitter; the generated `api_contract.py` |
 
 `bash tools/check.sh` passes: "27 planted breakages caught; ts and py rendered; a third binding's stub rendered 114
 names with no schema edit; docs tables current", and the meta-schema check catches 8.
 
 ## 2. Per item
 
-### A. Python's public types and generated types are one (vil-umh.16)
+### A. Python's public types and generated types are one (kno-umh.16)
 
 **Mechanism.** Every annotation in generated Python that names a concept the binding implements by hand (a
 `Protocol` concept, or a union over them) names the binding's public class, imported for the type checker only:
 
 ```python
 if TYPE_CHECKING:
-    import villanelle
-    import villanelle.rendered
-    import villanelle.written
+    import knobly
+    import knobly.rendered
+    import knobly.written
 
 class Directive(Protocol):
     @property
-    def parent(self) -> villanelle.rendered.Directive | None: ...
+    def parent(self) -> knobly.rendered.Directive | None: ...
     @property
-    def written(self) -> villanelle.written.WrittenDirective: ...
+    def written(self) -> knobly.written.WrittenDirective: ...
 
-KeyRule: TypeAlias = Callable[["villanelle.rendered.Directive"], "str | None"]
+KeyRule: TypeAlias = Callable[["knobly.rendered.Directive"], "str | None"]
 
-class DiagnosticError(VillanelleError):
-    diagnostic: villanelle.LocatedDiagnostic
+class DiagnosticError(KnoblyError):
+    diagnostic: knobly.LocatedDiagnostic
 ```
 
 A concept the generator writes whole (a plain record, a named type, a callback, a union of records: `Change`) is
@@ -75,7 +75,7 @@ as typeshed and `lsprotocol` do; making the Protocols public was rejected (two p
 
 | Before | Now |
 |---|---|
-| record fields, Protocol members, error fields and `KeyRule` typed with `_api` Protocols (`LocatedDiagnostic`, `Directive`) | typed with the public classes (`villanelle.LocatedDiagnostic`, `villanelle.rendered.Directive`) |
+| record fields, Protocol members, error fields and `KeyRule` typed with `_api` Protocols (`LocatedDiagnostic`, `Directive`) | typed with the public classes (`knobly.LocatedDiagnostic`, `knobly.rendered.Directive`) |
 | `_api.written.Statement`, `WrittenValue`, `Variable`, `ExpandedValue` (unions over Protocols) | gone: the binding's own unions are the only ones; `api_contract.UNIONS` lists each public union's variant classes |
 | `_api/names.py` (`PUBLIC_NAMES`, `ERROR_GROUP_OF_CLASS`, `MATCH_ARGS`) | gone: `PUBLIC_NAMES` and `MATCH_ARGS` in `py/tests/api_contract.py`, `ERROR_GROUP_OF_CLASS` in `py/conformance/shapes.py` |
 | `<Module>Functions` and `<Class>Constructor` Protocols in `_api/<layer>.py` | in `py/tests/api_contract.py`, every type named through its public module |
@@ -84,25 +84,25 @@ as typeshed and `lsprotocol` do; making the Protocols public was rejected (two p
 
 **The Python lane changes** (each from `mypy` and `pytest` on this commit; none is in generated code):
 
-- `src/villanelle/written/_value.py`, `_model.py`, `rendered/_tree.py`: stop importing `Statement`, `WrittenValue`,
-  `Variable`, `ExpandedValue` from `villanelle._api.written` (the package fails to import until then); use the
+- `src/knobly/written/_value.py`, `_model.py`, `rendered/_tree.py`: stop importing `Statement`, `WrittenValue`,
+  `Variable`, `ExpandedValue` from `knobly._api.written` (the package fails to import until then); use the
   binding's own unions. `_value.py:387`: narrow `origin.place` (`Place | Override`) before reading `.variable`.
 - Return and parameter types that name `_api` Protocols where the generated signature now names the public class:
   `_report.py` (`LocatedDiagnostic.place` / `via` fields; `Diagnostics.__iter__`), `written/_model.py`
   (`DocumentGraph.diagnostics`, `UseLine.snippets`), `written/_document.py` and `_graph.py` (the
   `BadTextError(...)` arguments: public `Diagnostic`), `written/_expand.py` (`Expansion(diagnostics=...)`),
   `rendered/_tree.py` (`Directive.written`), `rendered/_render.py` (`Rendered.diagnostics`, `graph`, `addresses`).
-- `conformance/adapter.py`: no `villanelle._api` import: annotate with the public classes (`rendered.Directive`,
-  `written.Statement`, `villanelle.Place`, ...), import `ERROR_GROUP_OF_CLASS` from `shapes`; fix its docstring.
+- `conformance/adapter.py`: no `knobly._api` import: annotate with the public classes (`rendered.Directive`,
+  `written.Statement`, `knobly.Place`, ...), import `ERROR_GROUP_OF_CLASS` from `shapes`; fix its docstring.
 - `tests/test_api_names.py`: import `PUBLIC_NAMES`, `MATCH_ARGS`, `UNIONS` and the `<Module>Functions` /
   `<Class>Constructor` Protocols from `api_contract`; compare each public union with `UNIONS[name]` instead of a
   generated alias. `tests/test_readers.py`, `test_load.py`, `test_tracer.py`: the public types in place of
-  `villanelle._api.shared` / `written`.
+  `knobly._api.shared` / `written`.
 - The milestone 6 workarounds go: `Rendered.addresses` / `diff` taking a function of either `Directive`, and the
   helpers annotated with `_api` types (errata, milestone 6 Python lane).
-- Done when `grep -rn "villanelle._api" py/tests py/conformance docs` is empty and the four Python gates pass.
+- Done when `grep -rn "knobly._api" py/tests py/conformance docs` is empty and the four Python gates pass.
 
-### B. No language in the schema (vil-umh.17)
+### B. No language in the schema (kno-umh.17)
 
 Every fact about one language moved from `api.json` into that emitter's `LANGUAGE` (spec/codegen.md section 10):
 
@@ -121,7 +121,7 @@ The proof is `tools/api/stub.py`: a made-up third language (its own error classe
 **Generated output.** Identical in both languages (same classes, bases, factories, modules, sentences, public
 names); only doc comments changed (item C). **Each binding deletes or changes:** nothing.
 
-### C. Docs and rationale (vil-umh.18), and `Diagnostics.toArray()`
+### C. Docs and rationale (kno-umh.18), and `Diagnostics.toArray()`
 
 Each schema entry has `doc` (emitted as JSDoc and docstrings) and `rationale` (never emitted). About 35 notes were
 split: history (`milestone N`, "was ..."), owner quotes, bead ids and one-language advice ("TypeScript checks ...",
@@ -131,7 +131,7 @@ a language's name in every emitted text (each `doc`, a group's `raised when`, a 
 generated code.
 
 **Generated output.** Both languages: doc comments only (for example `render`'s doc no longer quotes the owner,
-`ConfigText`'s no longer cites vil-umh.6, `collect` now says what it does, `ProgramCode`'s no longer explains
+`ConfigText`'s no longer cites kno-umh.6, `collect` now says what it does, `ProgramCode`'s no longer explains
 TypeScript and Python). Every generated file's header drops its owner quote.
 
 **`Diagnostics.toArray()`: dropped** (design call). It is in no schema or spec; the iterate trait already gives
@@ -145,13 +145,13 @@ changes its one use, `ts/src/rendered/report.test.ts`, to `[...sink]`.
 - Python, type checking only (no run-time change): generated records, error fields, `KeyRule`, Protocol members and
   the `<Module>Functions` / `<Class>Constructor` Protocols are typed with the public classes. A program annotating
   with public classes now type-checks where it needed narrowing (`def key(d: rendered.Directive)` is a
-  `rendered.KeyRule`); a program that annotated with `villanelle._api` Protocols still type-checks where it only
+  `rendered.KeyRule`); a program that annotated with `knobly._api` Protocols still type-checks where it only
   reads (a public class satisfies its Protocol), but `_api` is private and its names may go.
-- Python: `villanelle._api.written.Statement`, `WrittenValue`, `Variable`, `ExpandedValue` and `villanelle._api.names`
+- Python: `knobly._api.written.Statement`, `WrittenValue`, `Variable`, `ExpandedValue` and `knobly._api.names`
   no longer exist (private; the public unions are unchanged), and the `<Module>Functions` / `<Class>Constructor`
-  Protocols left `villanelle._api` for `py/tests/api_contract.py`.
+  Protocols left `knobly._api` for `py/tests/api_contract.py`.
 - Python: `typing.get_type_hints()` on a generated class resolves only once the public module it names is imported
-  (it is whenever `villanelle` is).
+  (it is whenever `knobly` is).
 - Doc comments of the generated declarations changed in both languages (item C); spec 2.4's and 2.5's generated
   text lost its milestone clauses.
 - No public name, import path, signature, error class or message changed.
@@ -160,7 +160,7 @@ changes its one use, `ts/src/rendered/report.test.ts`, to `[...sink]`.
 
 - Python checks are red at this commit until the Python lane lands section A's list (errata, milestone 7).
 - A language's facts are Python data in its emitter; the spec 2.8 and contract 4.2 tables still show them.
-- The doc check is lexical: it catches `vil-`, `milestone N`, `owner, <date>` and language names, not every kind of
+- The doc check is lexical: it catches `kno-`, `milestone N`, `owner, <date>` and language names, not every kind of
   history ("was statement") or advice; review still reads `doc`.
 - `py/tests/` now holds one generated file beside hand-written tests (git-ignored, regenerated by `conftest.py`'s
   `tools/gen.sh py` run).

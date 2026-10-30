@@ -1,19 +1,19 @@
-"""``villanelle.include``: the first-party include extension. ``@include "palettes.conf";``, or with this place's
+"""``knobly.include``: the first-party include extension. ``@include "palettes.conf";``, or with this place's
 own variables: ``@include "palettes.conf" { @set $hue 0.3; }``. What an included file sees, and where its own
 ``@set`` and ``@snippet`` lines are visible, is spec/expansion.md (3, 4 and 7)."""
 
 from __future__ import annotations
 
-from villanelle import _docs
-from villanelle._api.codes import DiagnosticCode, describe
-from villanelle._api.errors import DiagnosticError
-from villanelle._api.written import Extension, ExtensionUse
-from villanelle._report import LocatedDiagnostic
-from villanelle.written._value import ExpandedString, value_error
+from knobly import _docs
+from knobly._api.codes import DiagnosticCode, describe
+from knobly._api.errors import DiagnosticError
+from knobly._api.written import Extension, ExtensionUse
+from knobly._report import LocatedDiagnostic
+from knobly.written._value import ExpandedString, value_error
 
 
 def include() -> Extension:
-    # The include ordering both bindings share: vil-bgz.1.
+    # The include ordering both bindings share: kno-bgz.1.
     return _Include()
 
 

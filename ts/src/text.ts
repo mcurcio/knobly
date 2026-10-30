@@ -1,7 +1,7 @@
 /**
  * Values going in (spec 6.9): every edit takes config text only, its own type (owner, 2026-10-29, "Yes, its own
- * type"), made only by `quote` (a program string written as a villanelle string) or `text` (text already written as
- * villanelle text). A branded string: the TypeScript handbook's and Zod's `.brand()` pattern, as the browser's Trusted
+ * type"), made only by `quote` (a program string written as a knobly string) or `text` (text already written as
+ * knobly text). A branded string: the TypeScript handbook's and Zod's `.brand()` pattern, as the browser's Trusted
  * Types accept a sink's string only from a named factory. Shared: the one home of the argument type check and its
  * message (spec/schema/api.json, "argument type error message", generated as `argumentTypeMessage`). The type
  * `ConfigText` is generated (gen/api/shared.ts).

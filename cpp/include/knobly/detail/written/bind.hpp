@@ -4,8 +4,8 @@
 // rule (spec/expansion.md). Pure: no input or output (the read ledger stands in for the files). A statement that
 // cannot be read is a `problem` returned up the walk (no exceptions: frozen-m2.md 3.3 rule 7), kept unreadable where
 // the statement is. Package-internal.
-#ifndef VILLANELLE_DETAIL_WRITTEN_BIND_HPP
-#define VILLANELLE_DETAIL_WRITTEN_BIND_HPP
+#ifndef KNOBLY_DETAIL_WRITTEN_BIND_HPP
+#define KNOBLY_DETAIL_WRITTEN_BIND_HPP
 
 #include <algorithm>
 #include <cstddef>
@@ -21,21 +21,21 @@
 #include <variant>
 #include <vector>
 
-#include <villanelle/detail/raise.hpp>
-#include <villanelle/detail/shared/rules.hpp>
-#include <villanelle/detail/written/core.hpp>
-#include <villanelle/detail/written/edits.hpp>
-#include <villanelle/detail/written/entry.hpp>
-#include <villanelle/detail/written/shape.hpp>
+#include <knobly/detail/raise.hpp>
+#include <knobly/detail/shared/rules.hpp>
+#include <knobly/detail/written/core.hpp>
+#include <knobly/detail/written/edits.hpp>
+#include <knobly/detail/written/entry.hpp>
+#include <knobly/detail/written/shape.hpp>
 
-VILLANELLE_NAMESPACE_BEGIN
+KNOBLY_NAMESPACE_BEGIN
 namespace written::detail {
 
 // ---- expanded values (value.ts ExpandedRecord)
 
 /// What an expanded value holds, by kind.
 struct expanded_data {
-    ::villanelle::value_kind kind = ::villanelle::value_kind::word;
+    ::knobly::value_kind kind = ::knobly::value_kind::word;
     std::string value;  // a word's text, a string's decoded value
     std::vector<expanded_node*> items;
     std::string name;
@@ -47,9 +47,9 @@ struct expanded_data {
 /// The canonical text of a value (spec 2.9).
 inline std::string canonical_text_of(const expanded_data& data) {
     switch (data.kind) {
-        case ::villanelle::value_kind::string:
-            return ::villanelle::detail::rules::canonical_string(data.value);
-        case ::villanelle::value_kind::list: {
+        case ::knobly::value_kind::string:
+            return ::knobly::detail::rules::canonical_string(data.value);
+        case ::knobly::value_kind::list: {
             std::string out = "[";
             for (std::size_t i = 0; i < data.items.size(); ++i) {
                 if (i > 0) {
@@ -59,16 +59,16 @@ inline std::string canonical_text_of(const expanded_data& data) {
             }
             return out + "]";
         }
-        case ::villanelle::value_kind::slice:
-            return ::villanelle::detail::rules::canonical_slice(data.name, data.start, data.end);
-        case ::villanelle::value_kind::index:
-            return ::villanelle::detail::rules::canonical_index(data.name, data.index);
+        case ::knobly::value_kind::slice:
+            return ::knobly::detail::rules::canonical_slice(data.name, data.start, data.end);
+        case ::knobly::value_kind::index:
+            return ::knobly::detail::rules::canonical_index(data.name, data.index);
         default:
             return data.value;
     }
 }
 
-inline expanded_node* make_expanded(arena& a, expanded_data data, ::villanelle::origin origin,
+inline expanded_node* make_expanded(arena& a, expanded_data data, ::knobly::origin origin,
                                     value_node* definition = nullptr, std::vector<resolution_node*> chain = {}) {
     expanded_node* made = a.make<expanded_node>(std::move(origin));
     made->text = canonical_text_of(data);
@@ -88,9 +88,9 @@ inline expanded_node* make_expanded(arena& a, expanded_data data, ::villanelle::
 /// by `append`, and `resolution` (when given) leads its chain. A variable's value is stored with drop = the set line's
 /// own steps, and read with append = the variable step and the reading place's steps.
 inline expanded_node* rebase(arena& a, const expanded_node* value, std::size_t drop,
-                             const std::vector<::villanelle::step>& append, resolution_node* resolution) {
-    const ::villanelle::sequence<::villanelle::step> old = value->origin.via();
-    std::vector<::villanelle::step> via(old.begin(), old.begin() + static_cast<std::ptrdiff_t>(old.size() - drop));
+                             const std::vector<::knobly::step>& append, resolution_node* resolution) {
+    const ::knobly::sequence<::knobly::step> old = value->origin.via();
+    std::vector<::knobly::step> via(old.begin(), old.begin() + static_cast<std::ptrdiff_t>(old.size() - drop));
     via.insert(via.end(), append.begin(), append.end());
     expanded_data data{value->kind, value->value, {}, value->name, value->start, value->end, value->index};
     for (const expanded_node* item : value->items) {
@@ -101,8 +101,8 @@ inline expanded_node* rebase(arena& a, const expanded_node* value, std::size_t d
         chain.push_back(resolution);
     }
     chain.insert(chain.end(), value->chain.begin(), value->chain.end());
-    return make_expanded(a, std::move(data), ::villanelle::origin(value->origin.place(), std::move(via)),
-                         value->definition, std::move(chain));
+    return make_expanded(a, std::move(data), ::knobly::origin(value->origin.place(), std::move(via)), value->definition,
+                         std::move(chain));
 }
 
 // ---- problems
@@ -110,18 +110,18 @@ inline expanded_node* rebase(arena& a, const expanded_node* value, std::size_t d
 /// Why a statement cannot be read at a copy; `diagnostic` is absent when the problem is already one of a document's
 /// syntax diagnostics. `value`: a problem with one of a directive's values (bind.ts ValueProblem).
 struct problem {
-    ::villanelle::unreadable_reason reason;
-    std::optional<::villanelle::located_diagnostic> diagnostic;
+    ::knobly::unreadable_reason reason;
+    std::optional<::knobly::located_diagnostic> diagnostic;
     bool value = false;
 };
 using failure = std::optional<problem>;
 
-/// A statement's problem with villanelle's code: its message and its unreadable reason, from the code.
-inline problem located(::villanelle::diagnostic_code code, const ::villanelle::place& place,
-                       const std::vector<::villanelle::step>& via, const std::optional<std::string>& detail) {
-    const ::villanelle::described d = detail ? ::villanelle::describe(code, *detail) : ::villanelle::describe(code);
-    return {d.reason.value_or(::villanelle::unreadable_reason::expansion),
-            ::villanelle::located_diagnostic(code, d.message, place, via)};
+/// A statement's problem with knobly's code: its message and its unreadable reason, from the code.
+inline problem located(::knobly::diagnostic_code code, const ::knobly::place& place,
+                       const std::vector<::knobly::step>& via, const std::optional<std::string>& detail) {
+    const ::knobly::described d = detail ? ::knobly::describe(code, *detail) : ::knobly::describe(code);
+    return {d.reason.value_or(::knobly::unreadable_reason::expansion),
+            ::knobly::located_diagnostic(code, d.message, place, via)};
 }
 
 // ---- scopes (spec/expansion.md)
@@ -133,13 +133,13 @@ struct text_ref {
     std::string resolved_path;
     std::string override_name;
 
-    std::variant<::villanelle::place, ::villanelle::override> written(const ::villanelle::source_span& span) const {
+    std::variant<::knobly::place, ::knobly::override> written(const ::knobly::source_span& span) const {
         if (doc == nullptr) {
-            return ::villanelle::override(override_name);
+            return ::knobly::override(override_name);
         }
         return place(span);
     }
-    ::villanelle::place place(const ::villanelle::source_span& span) const { return {resolved_path, span}; }
+    ::knobly::place place(const ::knobly::source_span& span) const { return {resolved_path, span}; }
 };
 
 inline text_ref document_text(document_node* doc) { return {doc, &doc->parsed, doc->path, {}}; }
@@ -167,7 +167,7 @@ struct scope_view;
 struct snippet_def {
     std::string name;
     std::vector<std::string> params;
-    ::villanelle::syntax::node block;
+    ::knobly::syntax::node block;
     text_ref text;
     const scope_view* scope;
     statement_node* line;
@@ -304,13 +304,13 @@ using open_item = std::variant<const snippet_def*, std::string>;
 struct place_context {
     text_ref text;
     block_scope* scope;
-    std::vector<::villanelle::step> via;  // innermost first
+    std::vector<::knobly::step> via;  // innermost first
     std::vector<open_item> open;
     std::vector<bound_item>* into;
 };
 
-inline std::vector<::villanelle::step> with_step(::villanelle::step first, const std::vector<::villanelle::step>& via) {
-    std::vector<::villanelle::step> out{std::move(first)};
+inline std::vector<::knobly::step> with_step(::knobly::step first, const std::vector<::knobly::step>& via) {
+    std::vector<::knobly::step> out{std::move(first)};
     out.insert(out.end(), via.begin(), via.end());
     return out;
 }
@@ -343,12 +343,12 @@ public:
 
     /// One written value, expanded: a $name becomes all its values; a list's items expand the same way.
     failure value(const text_ref& text, const value_ref& ref, const scope_view& sc,
-                  const std::vector<::villanelle::step>& via, copy_node* copy, std::vector<expanded_node*>& out) {
+                  const std::vector<::knobly::step>& via, copy_node* copy, std::vector<expanded_node*>& out) {
         const parsed_text& p = *text.parsed;
-        const ::villanelle::origin origin(text.written(p.span_of(ref.start, ref.end)), via);
+        const ::knobly::origin origin(text.written(p.span_of(ref.start, ref.end)), via);
         value_node* const written = value_of(text, ref.start);
         if (!ref.is_token()) {
-            if (ref.tree->kind() == ::villanelle::node_kind::list) {
+            if (ref.tree->kind() == ::knobly::node_kind::list) {
                 std::vector<expanded_node*> items;
                 for (const value_ref& item : items_of(p, *ref.tree)) {
                     if (failure f = value(text, item, sc, via, copy, items)) {
@@ -356,7 +356,7 @@ public:
                     }
                 }
                 expanded_data data;
-                data.kind = ::villanelle::value_kind::list;
+                data.kind = ::knobly::value_kind::list;
                 data.items = std::move(items);
                 out.push_back(make_expanded(arena_, std::move(data), origin, written));
                 return std::nullopt;
@@ -370,15 +370,15 @@ public:
             out.push_back(make_expanded(arena_, std::move(data), origin, written));
             return std::nullopt;
         }
-        if (token.kind == ::villanelle::token_kind::STRING) {
+        if (token.kind == ::knobly::token_kind::STRING) {
             expanded_data data;
-            data.kind = ::villanelle::value_kind::string;
-            data.value = ::villanelle::detail::rules::decode_string(p.text_at(ref.start));
+            data.kind = ::knobly::value_kind::string;
+            data.value = ::knobly::detail::rules::decode_string(p.text_at(ref.start));
             out.push_back(make_expanded(arena_, std::move(data), origin, written));
             return std::nullopt;
         }
         return variable(text, ref.start, sc, via, copy,
-                        written != nullptr && written->kind == ::villanelle::value_kind::reference ? written : nullptr,
+                        written != nullptr && written->kind == ::knobly::value_kind::reference ? written : nullptr,
                         out);
     }
 
@@ -402,30 +402,30 @@ private:
         return found == text.doc->values_by_token.end() ? nullptr : found->second;
     }
 
-    copy_node* copy_of(statement_node* statement, const std::vector<::villanelle::step>& via) {
-        copy_node* copy = binding_->nodes.make<copy_node>(statement, ::villanelle::sequence<::villanelle::step>(via));
+    copy_node* copy_of(statement_node* statement, const std::vector<::knobly::step>& via) {
+        copy_node* copy = binding_->nodes.make<copy_node>(statement, ::knobly::sequence<::knobly::step>(via));
         binding_->copies[statement].push_back(copy);
         return copy;
     }
 
-    problem at(::villanelle::diagnostic_code code, const text_ref& text, const ::villanelle::source_span& span,
-               const std::vector<::villanelle::step>& via, std::optional<std::string> detail = std::nullopt) const {
+    problem at(::knobly::diagnostic_code code, const text_ref& text, const ::knobly::source_span& span,
+               const std::vector<::knobly::step>& via, std::optional<std::string> detail = std::nullopt) const {
         return located(code, text.place(span), via, detail);
     }
 
     /// Walk the statements of a document or block node at a place.
-    void statements(const ::villanelle::syntax::node& container, place_context context) {
+    void statements(const ::knobly::syntax::node& container, place_context context) {
         document_node* const doc = context.text.doc;
-        for (const ::villanelle::syntax::node& n : container.children()) {
+        for (const ::knobly::syntax::node& n : container.children()) {
             if (stopped_) {
                 return;
             }
-            if (n.kind() != ::villanelle::node_kind::directive && n.kind() != ::villanelle::node_kind::error) {
+            if (n.kind() != ::knobly::node_kind::directive && n.kind() != ::knobly::node_kind::error) {
                 continue;
             }
             copy_node* const copy = copy_of(doc->statements_by_token.at(n.start()), context.via);
-            if (n.kind() == ::villanelle::node_kind::error) {
-                context.into->push_back(unreadable(copy, ::villanelle::unreadable_reason::syntax));
+            if (n.kind() == ::knobly::node_kind::error) {
+                context.into->push_back(unreadable(copy, ::knobly::unreadable_reason::syntax));
                 continue;
             }
             if (failure f = statement(n, copy, context)) {
@@ -440,7 +440,7 @@ private:
         }
     }
 
-    static bound_item unreadable(copy_node* copy, ::villanelle::unreadable_reason reason) {
+    static bound_item unreadable(copy_node* copy, ::knobly::unreadable_reason reason) {
         bound_item item;
         item.copy = copy;
         item.reason = reason;
@@ -449,20 +449,20 @@ private:
 
     /// One directive node. Its head's token kind decides (spec 2.5): an @ statement does its work; a WORD head is a
     /// directive, and its block is walked.
-    failure statement(const ::villanelle::syntax::node& n, copy_node* copy, place_context& context) {
+    failure statement(const ::knobly::syntax::node& n, copy_node* copy, place_context& context) {
         const parsed_text& p = *context.text.parsed;
         const anatomy a = anatomy_of(p, n);
         const token_info& name = p.at(a.name);
-        if (name.kind == ::villanelle::token_kind::AT_WORD) {
+        if (name.kind == ::knobly::token_kind::AT_WORD) {
             const std::string keyword(p.text_at(a.name).substr(1));
-            const std::optional<::villanelle::statement_kind> language = statement_of_keyword(keyword);
-            if (language == ::villanelle::statement_kind::set) {
+            const std::optional<::knobly::statement_kind> language = statement_of_keyword(keyword);
+            if (language == ::knobly::statement_kind::set) {
                 return set(a, copy, context.text, *context.scope, context.via);
             }
-            if (language == ::villanelle::statement_kind::snippet) {
+            if (language == ::knobly::statement_kind::snippet) {
                 return snippet(a, copy, context);
             }
-            if (language == ::villanelle::statement_kind::use) {
+            if (language == ::knobly::statement_kind::use) {
                 return use(a, name, copy, context);
             }
             for (const auto& [directive, extension] : graph_->extensions) {
@@ -470,7 +470,7 @@ private:
                     return this->extension(directive, *extension, a, name, copy, context);
                 }
             }
-            return at(::villanelle::diagnostic_code::unknown_extension, context.text, name.span, context.via,
+            return at(::knobly::diagnostic_code::unknown_extension, context.text, name.span, context.via,
                       std::string(p.text_at(a.name)));
         }
         statement_node* const statement = copy->statement;
@@ -484,10 +484,10 @@ private:
             values.emplace(v, std::move(out));
         }
         binding_->expanded[copy] = std::move(values);
-        if (++count_ > static_cast<std::size_t>(::villanelle::written::max_directives)) {
+        if (++count_ > static_cast<std::size_t>(::knobly::written::max_directives)) {
             stopped_ = true;
-            return at(::villanelle::diagnostic_code::too_many_directives, context.text, name.span, context.via,
-                      "more than " + std::to_string(::villanelle::written::max_directives));
+            return at(::knobly::diagnostic_code::too_many_directives, context.text, name.span, context.via,
+                      "more than " + std::to_string(::knobly::written::max_directives));
         }
         bound_item item;
         item.directive = true;
@@ -502,7 +502,7 @@ private:
     }
 
     /// A set, snippet or use line's text-alone shape (shape.hpp, the one home of those rules), or its problem.
-    failure well_formed(const anatomy& a, const text_ref& text, const std::vector<::villanelle::step>& via) const {
+    failure well_formed(const anatomy& a, const text_ref& text, const std::vector<::knobly::step>& via) const {
         static const std::set<std::string> none;
         const shape s = shape_of_anatomy(*text.parsed, a, none);
         if (s.fault) {
@@ -513,7 +513,7 @@ private:
 
     /// @set $name value...; binds from this line to the end of the enclosing block.
     failure set(const anatomy& a, copy_node* copy, const text_ref& text, block_scope& sc,
-                const std::vector<::villanelle::step>& via) {
+                const std::vector<::knobly::step>& via) {
         if (failure f = well_formed(a, text, via)) {
             return f;
         }
@@ -521,7 +521,7 @@ private:
         const std::int64_t variable = a.values.front().start;
         const std::string name(p.text_at(variable).substr(1));
         if (!sc.claim(name)) {
-            return at(::villanelle::diagnostic_code::variable_set_twice, text, p.at(variable).span, via,
+            return at(::knobly::diagnostic_code::variable_set_twice, text, p.at(variable).span, via,
                       std::string(p.text_at(variable)));
         }
         statement_node* const line = copy->statement;
@@ -552,24 +552,24 @@ private:
         }
         statement_node* const line = copy->statement;
         bool defined = false;
-        if (line->kind == ::villanelle::statement_kind::snippet) {
+        if (line->kind == ::knobly::statement_kind::snippet) {
             snippets_.push_back(snippet_def{std::string(p.text_at(name)), std::move(params), *a.block, context.text,
                                             context.scope, line});
             defined = context.scope->define(&snippets_.back());
         }
         if (!defined) {
-            return at(::villanelle::diagnostic_code::snippet_defined_twice, context.text, p.at(name).span, context.via,
+            return at(::knobly::diagnostic_code::snippet_defined_twice, context.text, p.at(name).span, context.via,
                       std::string(p.text_at(name)));
         }
         return std::nullopt;
     }
 
     failure check_depth(const std::vector<open_item>& open, const text_ref& text, const token_info& name,
-                        const std::vector<::villanelle::step>& via) const {
+                        const std::vector<::knobly::step>& via) const {
         // `open` holds the root file and every expansion around this place: its length is this expansion's depth.
-        if (static_cast<std::int64_t>(open.size()) > ::villanelle::written::max_depth) {
-            return at(::villanelle::diagnostic_code::expansion_too_deep, text, name.span, via,
-                      "more than " + std::to_string(::villanelle::written::max_depth));
+        if (static_cast<std::int64_t>(open.size()) > ::knobly::written::max_depth) {
+            return at(::knobly::diagnostic_code::expansion_too_deep, text, name.span, via,
+                      "more than " + std::to_string(::knobly::written::max_depth));
         }
         return std::nullopt;
     }
@@ -594,7 +594,7 @@ private:
         }
         binding_->by_use[copy->statement].push_back(resolution);
         if (visible.empty()) {
-            return at(::villanelle::diagnostic_code::unknown_snippet, text, p.at(name_token).span, context.via, name);
+            return at(::knobly::diagnostic_code::unknown_snippet, text, p.at(name_token).span, context.via, name);
         }
         const snippet_def* const snippet = visible.front();
         std::vector<value_node*> written;
@@ -609,12 +609,12 @@ private:
         }
         if (values.size() != snippet->params.size()) {
             return at(
-                ::villanelle::diagnostic_code::snippet_arity, text, keyword.span, context.via,
+                ::knobly::diagnostic_code::snippet_arity, text, keyword.span, context.via,
                 name + " takes " + std::to_string(snippet->params.size()) + ", given " + std::to_string(values.size()));
         }
         for (const open_item& item : context.open) {
             if (const auto* open = std::get_if<const snippet_def*>(&item); open != nullptr && *open == snippet) {
-                return at(::villanelle::diagnostic_code::expansion_cycle, text, keyword.span, context.via, name);
+                return at(::knobly::diagnostic_code::expansion_cycle, text, keyword.span, context.via, name);
             }
         }
         if (failure f = check_depth(context.open, text, keyword, context.via)) {
@@ -638,36 +638,34 @@ private:
         }
         std::vector<open_item> open = context.open;
         open.emplace_back(snippet);
-        statements(
-            snippet->block,
-            {snippet->text, body,
-             with_step(::villanelle::step(::villanelle::step_kind::use, name, text.place(keyword.span)), context.via),
-             std::move(open), context.into});
+        statements(snippet->block,
+                   {snippet->text, body,
+                    with_step(::knobly::step(::knobly::step_kind::use, name, text.place(keyword.span)), context.via),
+                    std::move(open), context.into});
         return std::nullopt;
     }
 
     /// An extension directive's block: only set lines (E5012), bound for the spliced files.
-    failure extension_block(const std::optional<::villanelle::syntax::node>& block, const text_ref& text,
-                            block_scope& sc, const std::vector<::villanelle::step>& via,
-                            std::map<std::string, const definition*>& forced) {
+    failure extension_block(const std::optional<::knobly::syntax::node>& block, const text_ref& text, block_scope& sc,
+                            const std::vector<::knobly::step>& via, std::map<std::string, const definition*>& forced) {
         if (!block) {
             return std::nullopt;
         }
         scope* own = make_scope(&sc);
         const parsed_text& p = *text.parsed;
-        for (const ::villanelle::syntax::node& n : block->children()) {
+        for (const ::knobly::syntax::node& n : block->children()) {
             // Already reported by the parser; the broken line may be a set the files need: the include is unreadable.
-            if (n.kind() == ::villanelle::node_kind::error) {
-                return problem{::villanelle::unreadable_reason::syntax, std::nullopt};
+            if (n.kind() == ::knobly::node_kind::error) {
+                return problem{::knobly::unreadable_reason::syntax, std::nullopt};
             }
-            if (n.kind() != ::villanelle::node_kind::directive || text.doc == nullptr) {
+            if (n.kind() != ::knobly::node_kind::directive || text.doc == nullptr) {
                 continue;
             }
             const anatomy a = anatomy_of(p, n);
             const token_info& name = p.at(a.name);
-            if (name.kind != ::villanelle::token_kind::AT_WORD ||
-                statement_of_keyword(p.text_at(a.name).substr(1)) != ::villanelle::statement_kind::set) {
-                return at(::villanelle::diagnostic_code::extension_block_not_set, text, name.span, via);
+            if (name.kind != ::knobly::token_kind::AT_WORD ||
+                statement_of_keyword(p.text_at(a.name).substr(1)) != ::knobly::statement_kind::set) {
+                return at(::knobly::diagnostic_code::extension_block_not_set, text, name.span, via);
             }
             if (failure f = set(a, copy_of(text.doc->statements_by_token.at(n.start()), via), text, *own, via)) {
                 return f;
@@ -678,7 +676,7 @@ private:
     }
 
     /// An extension directive: the files its specs name, spliced in place.
-    failure extension(const std::string& directive, const ::villanelle::written::extension& ext, const anatomy& a,
+    failure extension(const std::string& directive, const ::knobly::written::extension& ext, const anatomy& a,
                       const token_info& name, copy_node* copy, place_context& context) {
         const text_ref& text = context.text;
         edge_node* const edge = binding_->nodes.make<edge_node>(copy);
@@ -693,32 +691,32 @@ private:
         if (failure f = extension_block(a.block, text, *context.scope, context.via, forced)) {
             return f;
         }
-        const auto fail = [&](::villanelle::diagnostic_code code, std::string detail) {
+        const auto fail = [&](::knobly::diagnostic_code code, std::string detail) {
             return at(code, text, name.span, context.via, std::move(detail));
         };
-        std::vector<::villanelle::written::expanded_value> handles;
+        std::vector<::knobly::written::expanded_value> handles;
         handles.reserve(values.size());
         for (expanded_node* v : values) {
-            handles.push_back(make_handle<::villanelle::written::expanded_value>(v));
+            handles.push_back(make_handle<::knobly::written::expanded_value>(v));
         }
-        const ::villanelle::written::extension_use use(
-            handles, ::villanelle::directive_origin(text.place(name.span), context.via));
-        ::villanelle::sequence<std::string> given;
-        const std::exception_ptr error = ::villanelle::detail::catch_exception([&] { given = ext.specs(use); });
+        const ::knobly::written::extension_use use(handles,
+                                                   ::knobly::directive_origin(text.place(name.span), context.via));
+        ::knobly::sequence<std::string> given;
+        const std::exception_ptr error = ::knobly::detail::catch_exception([&] { given = ext.specs(use); });
         if (error) {
-            std::optional<::villanelle::located_diagnostic> own;
-            if (::villanelle::detail::when_caught<::villanelle::diagnostic_error>(
-                    error, [&](const ::villanelle::diagnostic_error& e) { own = e.diagnostic(); })) {
-                return problem{::villanelle::unreadable_reason::extension, own};
+            std::optional<::knobly::located_diagnostic> own;
+            if (::knobly::detail::when_caught<::knobly::diagnostic_error>(
+                    error, [&](const ::knobly::diagnostic_error& e) { own = e.diagnostic(); })) {
+                return problem{::knobly::unreadable_reason::extension, own};
             }
-            return fail(::villanelle::diagnostic_code::extension_failed,
-                        directive + ": " + ::villanelle::detail::message_of(error));
+            return fail(::knobly::diagnostic_code::extension_failed,
+                        directive + ": " + ::knobly::detail::message_of(error));
         }
         edge->specs.assign(given.begin(), given.end());
         const auto unread = [&](read_need need) {
             binding_->needs[edge] = std::move(need);
             binding_->unread.push_back(edge);
-            return fail(::villanelle::diagnostic_code::unread_copy, directive);
+            return fail(::knobly::diagnostic_code::unread_copy, directive);
         };
         std::vector<std::string> found;
         for (const std::string& spec : edge->specs) {
@@ -727,11 +725,11 @@ private:
                 return unread({true, text.resolved_path, edge->specs, {}});
             }
             if (resolved->second.failure) {
-                return fail(::villanelle::diagnostic_code::include_resolver_failed,
+                return fail(::knobly::diagnostic_code::include_resolver_failed,
                             spec + ": " + *resolved->second.failure);
             }
             if (resolved->second.paths.empty()) {
-                return fail(::villanelle::diagnostic_code::include_not_found, spec);
+                return fail(::knobly::diagnostic_code::include_not_found, spec);
             }
             std::vector<std::string> paths = resolved->second.paths;
             std::sort(paths.begin(), paths.end());  // byte order is code point order (design.md 2.4)
@@ -740,7 +738,7 @@ private:
         for (const std::string& path : found) {
             for (const open_item& item : context.open) {
                 if (const auto* open = std::get_if<std::string>(&item); open != nullptr && *open == path) {
-                    return at(::villanelle::diagnostic_code::expansion_cycle, text, name.span, context.via, path);
+                    return at(::knobly::diagnostic_code::expansion_cycle, text, name.span, context.via, path);
                 }
             }
         }
@@ -757,11 +755,11 @@ private:
             if (failed == graph_->failed_reads.end()) {
                 return unread({false, {}, {}, found});
             }
-            return fail(::villanelle::diagnostic_code::include_resolver_failed, path + ": " + failed->second);
+            return fail(::knobly::diagnostic_code::include_resolver_failed, path + ": " + failed->second);
         }
         edge->targets = found;
         // The step's name is the extension's, without @, as a variable step's is without $; its place the @name.
-        const ::villanelle::step step(::villanelle::step_kind::extension, directive, text.place(name.span));
+        const ::knobly::step step(::knobly::step_kind::extension, directive, text.place(name.span));
         splices_.push_back(std::make_unique<splice_scope>(context.scope, std::move(forced)));
         block_scope* const spliced = splices_.back().get();
         for (document_node* file : files) {
@@ -776,7 +774,7 @@ private:
     /// $name's values as read here: each with the variable step, then the reading place's steps (and a resolution for
     /// `reference`, its written handle: the token's own value, or a slice's name).
     failure variable(const text_ref& text, std::int64_t token, const scope_view& sc,
-                     const std::vector<::villanelle::step>& via, copy_node* copy, value_node* reference,
+                     const std::vector<::knobly::step>& via, copy_node* copy, value_node* reference,
                      std::vector<expanded_node*>& out) {
         const parsed_text& p = *text.parsed;
         const std::string name(p.text_at(token).substr(1));
@@ -801,17 +799,17 @@ private:
             binding_->by_reference[reference].push_back(resolution);
         }
         if (winner == nullptr) {
-            return at(::villanelle::diagnostic_code::unknown_variable, text, p.at(token).span, via,
+            return at(::knobly::diagnostic_code::unknown_variable, text, p.at(token).span, via,
                       std::string(p.text_at(token)));
         }
         if (winner->problem) {
             // An override is written in no file: its problem is placed on the $name that used it.
-            return problem{::villanelle::unreadable_reason::value,
-                           ::villanelle::located_diagnostic(::villanelle::diagnostic_code::non_integer_bound,
-                                                            *winner->problem, text.place(p.at(token).span), via)};
+            return problem{::knobly::unreadable_reason::value,
+                           ::knobly::located_diagnostic(::knobly::diagnostic_code::non_integer_bound, *winner->problem,
+                                                        text.place(p.at(token).span), via)};
         }
-        const std::vector<::villanelle::step> steps =
-            with_step(::villanelle::step(::villanelle::step_kind::variable, name, text.place(p.at(token).span)), via);
+        const std::vector<::knobly::step> steps =
+            with_step(::knobly::step(::knobly::step_kind::variable, name, text.place(p.at(token).span)), via);
         for (const expanded_node* v : winner->values) {
             out.push_back(rebase(arena_, v, 0, steps, resolution));
         }
@@ -820,17 +818,17 @@ private:
 
     /// name[bounds]: the name a word, or a variable holding exactly one word (E4007 otherwise); each bound a literal
     /// INTEGER or a variable holding exactly one IntegerText (E4001 otherwise). Read where written.
-    failure slice(const text_ref& text, const ::villanelle::syntax::node& n, const scope_view& sc,
-                  const std::vector<::villanelle::step>& via, copy_node* copy, value_node* written,
+    failure slice(const text_ref& text, const ::knobly::syntax::node& n, const scope_view& sc,
+                  const std::vector<::knobly::step>& via, copy_node* copy, value_node* written,
                   std::vector<expanded_node*>& out) {
         const parsed_text& p = *text.parsed;
-        value_node* written_name = written != nullptr && (written->kind == ::villanelle::value_kind::slice ||
-                                                          written->kind == ::villanelle::value_kind::index)
+        value_node* written_name = written != nullptr && (written->kind == ::knobly::value_kind::slice ||
+                                                          written->kind == ::knobly::value_kind::index)
                                        ? written->name
                                        : nullptr;
         std::string name;
         if (failure f = slice_name(text, n.start(), sc, via, copy,
-                                   written_name != nullptr && written_name->kind == ::villanelle::value_kind::reference
+                                   written_name != nullptr && written_name->kind == ::knobly::value_kind::reference
                                        ? written_name
                                        : nullptr,
                                    name)) {
@@ -851,10 +849,10 @@ private:
             value = read;
             return std::nullopt;
         };
-        const ::villanelle::origin origin(text.written(p.span_of(n.start(), n.end())), via);
+        const ::knobly::origin origin(text.written(p.span_of(n.start(), n.end())), via);
         std::optional<std::size_t> tilde;
         for (std::size_t i = 0; i < inner.size(); ++i) {
-            if (p.is(inner[i], ::villanelle::token_kind::TILDE)) {
+            if (p.is(inner[i], ::knobly::token_kind::TILDE)) {
                 tilde = i;
                 break;
             }
@@ -866,10 +864,10 @@ private:
             if (failure f = bound_at(0, index)) {
                 return f;
             }
-            data.kind = ::villanelle::value_kind::index;
+            data.kind = ::knobly::value_kind::index;
             data.index = index.value_or(0);
         } else {
-            data.kind = ::villanelle::value_kind::slice;
+            data.kind = ::knobly::value_kind::slice;
             if (*tilde != 0) {
                 if (failure f = bound_at(0, data.start)) {
                     return f;
@@ -888,10 +886,10 @@ private:
     /// A slice's name: a word's text, or the one word its variable holds, a word that may name a slice (sliceNameText:
     /// a WORD or an AT_WORD); E4007 otherwise, placed as E4001 is.
     failure slice_name(const text_ref& text, std::int64_t token, const scope_view& sc,
-                       const std::vector<::villanelle::step>& via, copy_node* copy, value_node* reference,
+                       const std::vector<::knobly::step>& via, copy_node* copy, value_node* reference,
                        std::string& name) {
         const parsed_text& p = *text.parsed;
-        if (!p.is(token, ::villanelle::token_kind::VARIABLE)) {
+        if (!p.is(token, ::knobly::token_kind::VARIABLE)) {
             name = std::string(p.text_at(token));
             return std::nullopt;
         }
@@ -900,23 +898,23 @@ private:
             return f;
         }
         const expanded_node* const only = values.empty() ? nullptr : values.front();
-        if (values.size() == 1 && only->kind == ::villanelle::value_kind::word &&
+        if (values.size() == 1 && only->kind == ::knobly::value_kind::word &&
             parse_entry(only->text, entry_rule::slice_name_text).syntax.diagnostics().empty()) {
             name = only->text;
             return std::nullopt;
         }
-        return through_variable(::villanelle::diagnostic_code::bad_slice_name, text, token, via, only);
+        return through_variable(::knobly::diagnostic_code::bad_slice_name, text, token, via, only);
     }
 
     /// One slice bound's integer: E4001 at a literal beyond the integer range, or for a variable at its value's place
     /// via the variable.
     failure bound(const text_ref& text, std::int64_t token, const scope_view& sc,
-                  const std::vector<::villanelle::step>& via, copy_node* copy, std::int64_t& read) {
+                  const std::vector<::knobly::step>& via, copy_node* copy, std::int64_t& read) {
         const parsed_text& p = *text.parsed;
-        if (p.is(token, ::villanelle::token_kind::INTEGER)) {
-            const std::optional<std::int64_t> value = ::villanelle::detail::rules::integer_of(p.text_at(token));
+        if (p.is(token, ::knobly::token_kind::INTEGER)) {
+            const std::optional<std::int64_t> value = ::knobly::detail::rules::integer_of(p.text_at(token));
             if (!value) {
-                return at(::villanelle::diagnostic_code::non_integer_bound, text, p.at(token).span, via,
+                return at(::knobly::diagnostic_code::non_integer_bound, text, p.at(token).span, via,
                           std::string(p.text_at(token)));
             }
             read = *value;
@@ -924,36 +922,35 @@ private:
         }
         value_node* const written = value_of(text, token);
         std::vector<expanded_node*> values;
-        if (failure f =
-                variable(text, token, sc, via, copy,
-                         written != nullptr && written->kind == ::villanelle::value_kind::reference ? written : nullptr,
-                         values)) {
+        if (failure f = variable(
+                text, token, sc, via, copy,
+                written != nullptr && written->kind == ::knobly::value_kind::reference ? written : nullptr, values)) {
             return f;
         }
         const expanded_node* const only = values.empty() ? nullptr : values.front();
-        if (values.size() == 1 && only->kind == ::villanelle::value_kind::word) {
-            if (const std::optional<std::int64_t> value = ::villanelle::detail::rules::integer_of(only->text)) {
+        if (values.size() == 1 && only->kind == ::knobly::value_kind::word) {
+            if (const std::optional<std::int64_t> value = ::knobly::detail::rules::integer_of(only->text)) {
                 read = *value;
                 return std::nullopt;
             }
         }
-        return through_variable(::villanelle::diagnostic_code::non_integer_bound, text, token, via, only);
+        return through_variable(::knobly::diagnostic_code::non_integer_bound, text, token, via, only);
     }
 
     /// A slice name's or bound's problem through a variable: at its (first) value's place via the variable, or at the
     /// $name when that value is an override's (written in no file).
-    problem through_variable(::villanelle::diagnostic_code code, const text_ref& text, std::int64_t token,
-                             const std::vector<::villanelle::step>& via, const expanded_node* only) const {
+    problem through_variable(::knobly::diagnostic_code code, const text_ref& text, std::int64_t token,
+                             const std::vector<::knobly::step>& via, const expanded_node* only) const {
         const parsed_text& p = *text.parsed;
         if (only == nullptr) {
             return at(code, text, p.at(token).span, via, std::string(p.text_at(token)));
         }
         const auto place = only->origin.place();
-        const auto* file = std::get_if<::villanelle::place>(&place);
+        const auto* file = std::get_if<::knobly::place>(&place);
         if (file == nullptr) {
             return at(code, text, p.at(token).span, via, std::string(p.text_at(token)));
         }
-        const ::villanelle::sequence<::villanelle::step> steps = only->origin.via();
+        const ::knobly::sequence<::knobly::step> steps = only->origin.via();
         return located(code, *file, {steps.begin(), steps.end()}, std::string(p.text_at(token)) + " is " + only->text);
     }
 
@@ -993,6 +990,6 @@ inline void derive(binding_core* binding, document_node* root) {
 }
 
 }  // namespace written::detail
-VILLANELLE_NAMESPACE_END
+KNOBLY_NAMESPACE_END
 
-#endif  // VILLANELLE_DETAIL_WRITTEN_BIND_HPP
+#endif  // KNOBLY_DETAIL_WRITTEN_BIND_HPP

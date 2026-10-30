@@ -9,7 +9,7 @@ tree is lossless, prints the result by the rules below and compares it with the 
 - Inputs: `conformance/*.json` (not `conformance/load/`, which has its own format), each a JSON array of `{"name": ..., "src": ...}` cases. A name is unique
   across all of them. `cases.json` and `extra.json` hold the general and recovery cases, `depth.json` the long
   and deeply nested inputs, `edge.json` the alphabet-edge inputs (characters at the edges of what each token
-  kind accepts), `tracer.json` the tracer cases (vil-g7n.1.1), and `variables.json` the variable syntax
+  kind accepts), `tracer.json` the tracer cases (kno-g7n.1.1), and `variables.json` the variable syntax
   (`$name`, a lone `$`, variables touching other values).
 - Expected output: one file per case, `conformance/expected/<name>.json`, for every case.
 
@@ -22,7 +22,7 @@ One JSON object with exactly these keys, in this order:
 ```
 
 - `tokens`: every token of the input in order, as `[kind, text]`. `kind` is the token's name as written in
-  `grammar/Villanelle.g4`, in capitals (`WORD`, `SPACE`, `BAD_CHAR`; all 21 are listed in `spec/spec.md` 3.1). Node
+  `grammar/Knobly.g4`, in capitals (`WORD`, `SPACE`, `BAD_CHAR`; all 21 are listed in `spec/spec.md` 3.1). Node
   kinds (below) are lowercase. There is no end-of-file token.
 - `cst`: the root node, as `[kind, start, end, children]`. `kind` is a CST node kind (`document`,
   `directive`, `block`, `list`, `slice`, `error`). `start` and `end` are the token range: indices

@@ -1,6 +1,6 @@
 // Edits (spec 6.4 to 6.7; frozen-m2.md 3.3 rule 4): each edit's refusal leaves the text and every handle unchanged
 // (the strong guarantee), and a bad text error's diagnostics are in the positions of the text the edit was given.
-#include <villanelle/written.hpp>
+#include <knobly/written.hpp>
 
 #include <cstdint>
 #include <string>
@@ -10,8 +10,8 @@
 
 #include "written_fixture.hpp"
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
+namespace vl = knobly;
+namespace vw = knobly::written;
 
 namespace {
 

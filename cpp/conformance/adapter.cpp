@@ -4,11 +4,11 @@
 // print, format and cut on the rendered layer and the contract; and the include extension. It uses the public headers
 // only, like any program: members are spelled by the generated shapes::spelling and thrown errors named by the
 // generated shapes::error_group_of.
-#include <villanelle/extensions.hpp>
-#include <villanelle/rendered.hpp>
-#include <villanelle/syntax.hpp>
-#include <villanelle/villanelle.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/extensions.hpp>
+#include <knobly/knobly.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/syntax.hpp>
+#include <knobly/written.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -36,9 +36,9 @@ static_assert(adapter::shapes::spelling("set override") == "set_override");
 
 namespace {
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 using adapter::json::array;
 using adapter::json::object;

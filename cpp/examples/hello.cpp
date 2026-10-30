@@ -2,15 +2,15 @@
 // region between the --8<-- markers; cpp/examples/CMakeLists.txt builds this file and ctest runs it (examples_hello),
 // comparing what it prints with examples/expected/hello.txt.
 // --8<-- [start:main]
-#include <villanelle/files.hpp>
-#include <villanelle/rendered.hpp>
-#include <villanelle/written.hpp>
+#include <knobly/files.hpp>
+#include <knobly/rendered.hpp>
+#include <knobly/written.hpp>
 
 #include <iostream>
 
-namespace vl = villanelle;
-namespace vw = villanelle::written;
-namespace vr = villanelle::rendered;
+namespace vl = knobly;
+namespace vw = knobly::written;
+namespace vr = knobly::rendered;
 
 int main() {
     const vw::processor config({.source = vl::files::file_source()});
