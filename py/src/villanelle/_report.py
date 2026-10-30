@@ -13,7 +13,8 @@ from villanelle._api import shared
 from villanelle._api.codes import DiagnosticCode
 from villanelle._api.errors import DiagnosticError
 from villanelle._api.limits import PROGRAM_CODE
-from villanelle._api.shared import Locatable, Place, Step
+from villanelle._api.shared import Locatable
+from villanelle._origin import Place, Step
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,16 +78,16 @@ class Diagnostics(shared.Diagnostics):
 
     __slots__ = ("_items",)
 
-    def __init__(self, initial: Iterable[shared.LocatedDiagnostic] | None = None, /) -> None:
-        self._items: list[shared.LocatedDiagnostic] = list(initial or ())
+    def __init__(self, initial: Iterable[LocatedDiagnostic] | None = None, /) -> None:
+        self._items: list[LocatedDiagnostic] = list(initial or ())
 
     def __len__(self) -> int:
         return len(self._items)
 
-    def __iter__(self) -> Iterator[shared.LocatedDiagnostic]:
+    def __iter__(self) -> Iterator[LocatedDiagnostic]:
         return iter(tuple(self._items))
 
-    def add(self, diagnostic: shared.LocatedDiagnostic, /) -> None:
+    def add(self, diagnostic: LocatedDiagnostic, /) -> None:
         """Record one problem."""
         self._items.append(diagnostic)
 

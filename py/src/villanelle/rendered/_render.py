@@ -6,27 +6,20 @@ home of that rule) and reads no file. A port of ts/src/rendered/."""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from types import MappingProxyType
 from typing import TypeAlias, final
 
 from villanelle._api import rendered as api
-from villanelle._api import shared
 from villanelle._api.errors import DiagnosticError
-from villanelle._api.rendered import Added, AddressStep, Change, Changed, Removed, Unknown
+from villanelle._api.rendered import Added, AddressStep, Change, Changed, KeyRule, Removed, Unknown
 from villanelle._api.shared import DirectiveOrigin, SourcePosition, SourceSpan
-from villanelle._api.written import DocumentGraph
 from villanelle._origin import Place
 from villanelle._report import LocatedDiagnostic, check_program_code
 from villanelle.rendered._tree import Address, Directive, RenderedBlock
-from villanelle.written import UnreadableExpansion
+from villanelle.written import DocumentGraph, UnreadableExpansion
 
 _START = SourcePosition(0, 0, 0)
-
-_Key: TypeAlias = Callable[[Directive], "str | None"]
-"""What ``addresses`` and ``diff`` take as ``key``: the generated ``KeyRule`` (a function of the generated
-``Directive`` Protocol) or a function of this layer's ``Directive``, which every directive they call it with is. Wider
-than ``KeyRule`` (parameters are contravariant), so the generated Protocol still holds."""
 
 
 @final
@@ -41,7 +34,7 @@ class Rendered(api.Rendered):
         block: RenderedBlock,
         unreadable: tuple[UnreadableExpansion, ...],
         origin: DirectiveOrigin,
-        diagnostics: tuple[shared.LocatedDiagnostic, ...],
+        diagnostics: tuple[LocatedDiagnostic, ...],
         graph: DocumentGraph,
     ) -> None:
         """Made by ``render`` only."""
@@ -68,7 +61,7 @@ class Rendered(api.Rendered):
         return self._origin
 
     @property
-    def diagnostics(self) -> tuple[shared.LocatedDiagnostic, ...]:
+    def diagnostics(self) -> tuple[LocatedDiagnostic, ...]:
         """The graph's one diagnostics list (spec 7.1): every file's syntax diagnostics (documents in order), then
         the low level's problems in walk order."""
         return self._diagnostics
@@ -78,12 +71,12 @@ class Rendered(api.Rendered):
         """The graph it was rendered from."""
         return self._graph
 
-    def addresses(self, *, key: _Key | None = None) -> Mapping[api.Directive, Address]:
+    def addresses(self, *, key: KeyRule | None = None) -> Mapping[Directive, Address]:
         """Every directive's address under ``key``, in walk order (the mapping's order). The key rule is called once
         per directive, parents before children; what it raises propagates. The one home of the address rule (D4);
         ``diff`` uses it. Without a key rule, a directive is named by its position among same-name siblings. Raises
         TypeError when the key rule returns anything but a str or None."""
-        out: dict[api.Directive, Address] = {}
+        out: dict[Directive, Address] = {}
 
         def name(container: Sequence[Directive], parent: tuple[AddressStep, ...]) -> None:
             occurrences: dict[tuple[str, str | None], int] = {}
@@ -105,7 +98,7 @@ class Rendered(api.Rendered):
         name(self._block, ())
         return MappingProxyType(out)
 
-    def diff(self, after: api.Rendered, /, *, key: _Key | None = None) -> tuple[Change, ...]:
+    def diff(self, after: Rendered, /, *, key: KeyRule | None = None) -> tuple[Change, ...]:
         """What differs from this render to ``after``, by address under ``key`` (D4): removed and unknown in this
         render's walk order, then added and changed in ``after``'s. A directive missing from ``after`` is Unknown, not
         Removed, when its block in ``after`` (or the top level) holds an unreadable statement. Raises whatever the key
@@ -142,7 +135,7 @@ def render(graph: DocumentGraph, /) -> Rendered:
     return Rendered(block, expansion.unreadable, origin, expansion.diagnostics, graph)
 
 
-_Addresses: TypeAlias = Mapping[api.Directive, Address]
+_Addresses: TypeAlias = Mapping[Directive, Address]
 
 
 def _compare_before(

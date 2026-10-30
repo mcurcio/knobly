@@ -18,8 +18,6 @@ from typing import TYPE_CHECKING, Protocol, TypeAlias
 
 from villanelle import _values
 from villanelle._anatomy import Anatomy, anatomy_of, items_of, values_of
-from villanelle._api import shared
-from villanelle._api import written as api
 from villanelle._api.codes import DiagnosticCode, describe
 from villanelle._api.errors import DiagnosticError
 from villanelle._api.kinds import (
@@ -51,7 +49,6 @@ from villanelle.written._model import (
     UseLine,
     Variable,
     WrittenValue,
-    own,
 )
 from villanelle.written._shape import shape_of_anatomy
 from villanelle.written._value import (
@@ -87,7 +84,7 @@ class BoundUnreadable:
 
     copy: Copy
     reason: UnreadableReason
-    diagnostic: shared.LocatedDiagnostic | None
+    diagnostic: LocatedDiagnostic | None
     """None when the problem is already one of a document's syntax diagnostics."""
 
 
@@ -97,7 +94,7 @@ BoundItem: TypeAlias = BoundDirective | BoundUnreadable
 class BindingProblem(Exception):
     """A written value that cannot be expanded at a copy (E5001, E4001): the statement is unreadable there."""
 
-    def __init__(self, reason: UnreadableReason, diagnostic: shared.LocatedDiagnostic) -> None:
+    def __init__(self, reason: UnreadableReason, diagnostic: LocatedDiagnostic) -> None:
         super().__init__(diagnostic.message)
         self.reason = reason
         self.diagnostic = diagnostic
@@ -199,7 +196,7 @@ def _document_text(doc: Document) -> _Text:
 class _Problem(Exception):
     """A statement that cannot be read: raised inside a statement, caught where it is kept unreadable."""
 
-    def __init__(self, reason: UnreadableReason, diagnostic: shared.LocatedDiagnostic | None) -> None:
+    def __init__(self, reason: UnreadableReason, diagnostic: LocatedDiagnostic | None) -> None:
         super().__init__(reason if diagnostic is None else diagnostic.message)
         self.reason = reason
         self.diagnostic = diagnostic
@@ -421,7 +418,7 @@ class Binding:
         self.edges: tuple[DocumentEdge, ...] = ()
         """Every copy of every extension line, in walk order (a failed or unread one included)."""
         self.unread: tuple[DocumentEdge, ...] = ()
-        self.diagnostics: list[shared.LocatedDiagnostic] = []
+        self.diagnostics: list[LocatedDiagnostic] = []
         """Every diagnostic the walk found, in walk order: the second half of the graph's one list."""
         self.resolutions: list[ReferenceResolution] = []
         """Every resolution, in walk order."""
@@ -429,7 +426,7 @@ class Binding:
         self._needs: dict[DocumentEdge, Need] = {}
         self._copies: dict[Statement, list[Copy]] = {}
         self._by_reference: dict[Reference, list[ReferenceResolution]] = {}
-        self._by_use: dict[UseLine, list[Resolution[api.SnippetLine]]] = {}
+        self._by_use: dict[UseLine, list[Resolution[SnippetLine]]] = {}
         self._args: dict[Copy, dict[WrittenValue, tuple[ExpandedValue, ...]] | BindingProblem] = {}
         self._count = 0
         self._stopped = False
@@ -445,7 +442,7 @@ class Binding:
     def resolutions_of(self, reference: Reference) -> tuple[ReferenceResolution, ...]:
         return tuple(self._by_reference.get(reference, ()))
 
-    def snippets_of(self, use: UseLine) -> tuple[Resolution[api.SnippetLine], ...]:
+    def snippets_of(self, use: UseLine) -> tuple[Resolution[SnippetLine], ...]:
         return tuple(self._by_use.get(use, ()))
 
     def arguments_at(self, value: WrittenValue, copy: Copy) -> tuple[ExpandedValue, ...]:
@@ -521,7 +518,7 @@ class Binding:
                 code = DiagnosticCode.UNKNOWN_EXTENSION
                 raise self._problem(code, text, name.span, via, name.text)
             return
-        statement = own(copy.statement)
+        statement = copy.statement
         values: dict[WrittenValue, tuple[ExpandedValue, ...]] = {}
         for value in statement._value_list:
             try:
@@ -601,7 +598,7 @@ class Binding:
         scope.snippets(name.text, visible)
         use = copy.statement
         assert isinstance(use, UseLine)
-        resolution: Resolution[api.SnippetLine] = Resolution(
+        resolution: Resolution[SnippetLine] = Resolution(
             copy, visible[0].line if visible else None, tuple(s.line for s in visible[1:])
         )
         self._by_use.setdefault(use, []).append(resolution)

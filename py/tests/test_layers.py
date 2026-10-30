@@ -1,8 +1,9 @@
 """The layer check (spec 5, "Layer direction"; owner, 2026-10-29: "The low level shouldn't "depend on" the middle
-layer"): no module of the package but the rendered layer itself imports ``villanelle.rendered``, in any form,
-``if TYPE_CHECKING:`` blocks included. The package entry point is no exception: it holds only the shared and io
-layers, which sit below the rendered one (binding guide rule 9). An allow-list over every module, so an indirect
-import through a shared module is caught too (prior art: import-linter's layers contract)."""
+layer"): no module of the package but the rendered layer itself imports ``villanelle.rendered`` or the rendered
+layer's generated declarations (``villanelle._api.rendered``, whose annotations name ``villanelle.rendered``'s public
+classes), in any form, ``if TYPE_CHECKING:`` blocks included. The package entry point is no exception: it holds only
+the shared and io layers, which sit below the rendered one (binding guide rule 9). An allow-list over every module,
+so an indirect import through a shared module is caught too (prior art: import-linter's layers contract)."""
 
 from __future__ import annotations
 
@@ -12,7 +13,12 @@ from pathlib import Path
 import pytest
 
 PACKAGE = Path(__file__).resolve().parents[1] / "src" / "villanelle"
-RENDERED = "villanelle.rendered"
+RENDERED = ("villanelle.rendered", "villanelle._api.rendered")
+"""The rendered layer: its package and its generated declarations."""
+
+
+def in_rendered(name: str) -> bool:
+    return any(name == layer or name.startswith(layer + ".") for layer in RENDERED)
 
 
 def module_name(path: Path) -> str:
@@ -29,31 +35,29 @@ def forbidden_imports(source: str, module: str, *, package: bool) -> list[str]:
     here = module.split(".") if package else module.split(".")[:-1]
     found: list[str] = []
 
-    def rendered(name: str) -> bool:
-        return name == RENDERED or name.startswith(RENDERED + ".")
-
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.Import):
-            found += [f"import {a.name}" for a in node.names if rendered(a.name)]
+            found += [f"import {a.name}" for a in node.names if in_rendered(a.name)]
         elif isinstance(node, ast.ImportFrom):
             base = here[: len(here) - node.level + 1] if node.level else []
             target = ".".join([*base, *([node.module] if node.module else [])])
-            if rendered(target) or any(rendered(f"{target}.{a.name}") for a in node.names):
+            if in_rendered(target) or any(in_rendered(f"{target}.{a.name}") for a in node.names):
                 names = ", ".join(a.name for a in node.names)
                 found.append(f"from {'.' * node.level}{node.module or ''} import {names}")
     return found
 
 
 def governed() -> list[Path]:
-    """Every module but the rendered layer's (the package entry point, ``_api/`` and ``_gen/`` included)."""
-    return [path for path in sorted(PACKAGE.rglob("*.py")) if not module_name(path).startswith(RENDERED)]
+    """Every module but the rendered layer's (the package entry point, the other ``_api/`` modules and ``_gen/``
+    included)."""
+    return [path for path in sorted(PACKAGE.rglob("*.py")) if not in_rendered(module_name(path))]
 
 
 def test_the_check_covers_the_low_level_the_shared_modules_and_the_generated_ones() -> None:
     names = {module_name(path) for path in governed()}
     assert {"villanelle.written._model", "villanelle.written._processor", "villanelle.written._value"} <= names
     assert {"villanelle", "villanelle._api.kinds", "villanelle.include"} <= names
-    assert not any(name.startswith(RENDERED) for name in names)
+    assert not any(in_rendered(name) for name in names)
 
 
 @pytest.mark.parametrize("path", governed(), ids=lambda path: module_name(path))

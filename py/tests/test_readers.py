@@ -7,8 +7,6 @@ import pytest
 
 import villanelle as vl
 from villanelle import rendered, written
-from villanelle._api import shared
-from villanelle._api import written as api
 
 
 def _render(processor: written.Processor, overrides: dict[str, vl.ConfigText] | None = None) -> rendered.Rendered:
@@ -16,18 +14,18 @@ def _render(processor: written.Processor, overrides: dict[str, vl.ConfigText] | 
     return rendered.render(processor.load("main.conf", overrides=overrides))
 
 
-def args(text: str) -> tuple[api.ExpandedValue, ...]:
+def args(text: str) -> tuple[written.ExpandedValue, ...]:
     loaded = _render(written.Processor(source=vl.memory_source({"main.conf": f"x {text};\n"})))
     assert loaded.diagnostics == ()
     return loaded.block[0].values
 
 
-def arg(text: str) -> api.ExpandedValue:
+def arg(text: str) -> written.ExpandedValue:
     [only] = args(text)
     return only
 
 
-def raises(read: object, code: str) -> shared.LocatedDiagnostic:
+def raises(read: object, code: str) -> vl.LocatedDiagnostic:
     assert callable(read)
     with pytest.raises(vl.DiagnosticError) as raised:
         read()

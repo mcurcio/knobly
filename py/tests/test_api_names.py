@@ -1,9 +1,11 @@
-"""The public-name check (spec/codegen.md section 10; frozen-m6.md 2.B): every public module's ``__all__`` equals its
-generated ``PUBLIC_NAMES`` entry, both ways (a name the schema lacks, a removed name among them, fails as surely as a
-missing one), every listed name exists, and every class with a generated ``MATCH_ARGS`` entry has those
-``__match_args__``. Each module is also checked against its generated ``<Module>Functions`` Protocol, by mypy
-(modules as protocols, PEP 544): a free function whose signature drifts from the schema is a type error. Members are
-checked by mypy too, where each handle class subclasses its generated Protocol."""
+"""The public-name check (spec/codegen.md section 10): every public module's ``__all__`` equals its generated
+``PUBLIC_NAMES`` entry, both ways (a name the schema lacks, a removed name among them, fails as surely as a missing
+one), every listed name exists, every class with a generated ``MATCH_ARGS`` entry has those ``__match_args__``, and
+every public union holds exactly the variant classes of its ``UNIONS`` entry. Each module is also checked against its
+generated ``<Module>Functions`` Protocol, by mypy (modules as protocols, PEP 544): a free function whose signature
+drifts from the schema is a type error. Members are checked by mypy too, where each handle class subclasses its
+generated Protocol. All of these come from ``api_contract`` (generated beside this file), which names every type
+through its public module."""
 
 from __future__ import annotations
 
@@ -14,15 +16,23 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from api_contract import (
+    MATCH_ARGS,
+    PUBLIC_NAMES,
+    UNIONS,
+    DiagnosticsConstructor,
+    FilesFunctions,
+    IncludeFunctions,
+    IoFunctions,
+    ProcessorConstructor,
+    RenderedFunctions,
+    SharedFunctions,
+    SyntaxFunctions,
+    WrittenFunctions,
+)
 
 import villanelle
 from villanelle import files, include, rendered, syntax, written
-from villanelle._api.io import FilesFunctions, IoFunctions
-from villanelle._api.names import MATCH_ARGS, PUBLIC_NAMES
-from villanelle._api.rendered import RenderedFunctions
-from villanelle._api.shared import DiagnosticsConstructor, SharedFunctions
-from villanelle._api.syntax import SyntaxFunctions
-from villanelle._api.written import IncludeFunctions, ProcessorConstructor, WrittenFunctions
 
 _shared: SharedFunctions = villanelle
 _io: IoFunctions = villanelle
@@ -69,25 +79,19 @@ def test_a_class_matches_by_the_generated_fields(name: str, cls: type) -> None:
 
 
 def union_cases() -> list[object]:
-    """Each public union alias with the generated alias of the same name (the binding's union is over its own classes,
-    so it is written by hand: this ties its members to the schema's variant list)."""
+    """Each ``UNIONS`` entry with the public alias of that name (the binding's own union over its own classes, or the
+    generated one for a union of generated records)."""
     cases: list[object] = []
-    for layer in ("shared", "syntax", "io", "written", "rendered"):
-        generated = importlib.import_module(f"villanelle._api.{layer}")
-        for path in PUBLIC_NAMES:
-            module = importlib.import_module(path)
-            for name in module.__all__:
-                theirs = getattr(generated, name, None)
-                if isinstance(theirs, types.UnionType):
-                    cases.append(pytest.param(getattr(module, name), theirs, id=f"{path}.{name}"))
+    for name, variants in sorted(UNIONS.items()):
+        [path] = [path for path, names in PUBLIC_NAMES.items() if name in names]
+        cases.append(pytest.param(getattr(importlib.import_module(path), name), variants, id=f"{path}.{name}"))
     return cases
 
 
-@pytest.mark.parametrize(("public", "generated"), union_cases())
-def test_a_public_union_has_the_schema_variants(public: object, generated: types.UnionType) -> None:
-    names = sorted(t.__name__ for t in typing.get_args(generated))
+@pytest.mark.parametrize(("public", "variants"), union_cases())
+def test_a_public_union_has_the_schema_variants(public: object, variants: tuple[str, ...]) -> None:
     assert isinstance(public, types.UnionType)
-    assert sorted(t.__name__ for t in typing.get_args(public)) == names
+    assert sorted(t.__name__ for t in typing.get_args(public)) == sorted(variants)
 
 
 def test_there_are_union_cases() -> None:

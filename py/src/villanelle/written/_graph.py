@@ -9,7 +9,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
-from villanelle._api import shared
 from villanelle._api.errors import BadTextError
 from villanelle._api.shared import ConfigText
 from villanelle._report import LocatedDiagnostic
@@ -93,7 +92,7 @@ def changed(graph: DocumentGraph) -> None:
     graph._version += 1
 
 
-def syntax_diagnostics(graph: DocumentGraph) -> list[shared.LocatedDiagnostic]:
+def syntax_diagnostics(graph: DocumentGraph) -> list[LocatedDiagnostic]:
     """Each document's syntax diagnostics, documents in order, located."""
     return [
         LocatedDiagnostic(d.code, d.message, _document.place_of_span(doc, d.span), ())
@@ -102,7 +101,7 @@ def syntax_diagnostics(graph: DocumentGraph) -> list[shared.LocatedDiagnostic]:
     ]
 
 
-def diagnostics(graph: DocumentGraph) -> tuple[shared.LocatedDiagnostic, ...]:
+def diagnostics(graph: DocumentGraph) -> tuple[LocatedDiagnostic, ...]:
     """The one list (spec 6.3): each document's syntax diagnostics, then everything the binding found, in walk
     order. The expansion and the render show it unchanged."""
     return (*syntax_diagnostics(graph), *binding(graph).diagnostics)

@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from typing import TypeAlias
 
 from villanelle._anatomy import anatomy_of, items_of, values_of
-from villanelle._api import shared
 from villanelle._api.codes import DiagnosticCode, describe
 from villanelle._api.errors import BadTextError
 from villanelle._api.kinds import NodeKind, StatementKind, TokenKind
@@ -455,7 +454,7 @@ def _splice(
     start: int,
     end: int,
     insert: str | _Insert,
-    given: Sequence[shared.Diagnostic],
+    given: Sequence[Diagnostic],
     keep: Handle | None = None,
 ) -> list[Handle]:
     """Replace ``doc._text[start:end]`` with ``insert``, after ``given`` (the given text's own problems) and the
@@ -536,7 +535,7 @@ def _is_blank(text: str) -> bool:
     return _BLANK.fullmatch(text) is not None
 
 
-def _statements_text_problems(text: str) -> tuple[shared.Diagnostic, ...]:
+def _statements_text_problems(text: str) -> tuple[Diagnostic, ...]:
     """A statements text's check: the grammar's ``statementsText`` entry rule (2.8), so a byte-order mark is refused."""
     return parse_entry(text, "statementsText").diagnostics
 
@@ -614,7 +613,7 @@ def replace_values(statement: Statement, after: int, text: str) -> None:
     _splice(doc, start, end, text, given)
 
 
-def _no_value_problems(text: str) -> tuple[shared.Diagnostic, ...]:
+def _no_value_problems(text: str) -> tuple[Diagnostic, ...]:
     """A statement ``set``'s rule after its entry rule: a text that holds no value must be the empty text."""
     syntax = parse_entry(text, "valuesText")
     if text == "" or values_of(syntax.tokens, syntax.root):
@@ -771,7 +770,7 @@ def _insert_into_empty_block(
     lines: Sequence[Piece],
     parent_indentation: str,
     eol: str,
-    given: Sequence[shared.Diagnostic],
+    given: Sequence[Diagnostic],
 ) -> list[Handle]:
     """An empty block: ``{}`` (or only whitespace and line breaks between) becomes ``{``, a line break, the lines, a
     line break, the parent's indentation, ``}`` (D14, D-F1-1); a block holding only comments takes the lines before
@@ -905,7 +904,7 @@ def at(given: str, index: int, code: DiagnosticCode) -> Diagnostic:
     return Diagnostic(code, describe(code).message, SourceSpan(position, position))
 
 
-def entry_problems(text: str, rule: EntryRule) -> tuple[shared.Diagnostic, ...]:
+def entry_problems(text: str, rule: EntryRule) -> tuple[Diagnostic, ...]:
     """2.8's check of a text that depends only on the text: the grammar's entry rule ``rule`` (``valuesText`` for a
     statement's ``set`` or a value's replace, ``valueText`` for a value's ``set``, ``itemsText`` for a list item's
     replace, ``boundText`` for a slice or index bound's, ``sliceNameText`` for a slice or index name's), its first error
@@ -915,11 +914,11 @@ def entry_problems(text: str, rule: EntryRule) -> tuple[shared.Diagnostic, ...]:
 
 def _rule_problems(
     syntax: Syntax, starts: Sequence[int], extensions: frozenset[str], frm: int, insert: _Insert
-) -> list[shared.Diagnostic]:
+) -> list[Diagnostic]:
     """The text-alone rules (E5002, E5005, E5009-E5011) a spliced text would break, on the statements the splice
     touches (D-S1-6; a ``set`` claiming the name of a snippet parameter the splice touches counts too): located in
     the caller's text when the problem lies in what it gave (2.3), else at 0:0 (D-S1-5)."""
-    out: list[shared.Diagnostic] = []
+    out: list[Diagnostic] = []
     tokens = syntax.tokens
     to = frm + len(insert.text)
 
@@ -962,7 +961,7 @@ def _rule_problems(
     return out
 
 
-def override_text_problems(text: str) -> tuple[shared.Diagnostic, ...]:
+def override_text_problems(text: str) -> tuple[Diagnostic, ...]:
     """The text half of the check of an override (spec 6.3): the ``valuesText`` entry rule's first error, else E2001
     at the first ``$name`` (an override holds values only), or at 0:0 when the text holds no value."""
     syntax = parse_entry(text, "valuesText")

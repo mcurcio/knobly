@@ -11,7 +11,7 @@ from villanelle._api.written import DirectiveExpansion, Expansion, UnreadableExp
 from villanelle._origin import Place
 from villanelle.written import _document, _graph
 from villanelle.written._bind import Binding, BoundDirective, BoundItem
-from villanelle.written._model import DocumentGraph, ExpansionBlock, WrittenDirective, own
+from villanelle.written._model import DocumentGraph, ExpansionBlock, WrittenDirective
 
 
 def expand(graph: DocumentGraph) -> Expansion:
@@ -25,7 +25,7 @@ def _items(binding: Binding, items: Sequence[BoundItem]) -> tuple[ExpansionBlock
     block: list[DirectiveExpansion] = []
     unreadable: list[UnreadableExpansion] = []
     for item in items:
-        statement = own(item.copy.statement)
+        statement = item.copy.statement
         doc, node = statement._doc, statement._node
         if not isinstance(item, BoundDirective):
             place = _document.place(doc, (node.start, node.end))

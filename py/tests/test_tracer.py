@@ -11,14 +11,13 @@ from conftest import REPO
 
 import villanelle as vl
 from villanelle import rendered, written
-from villanelle._api import shared
 from villanelle.include import include
 
 SPLIT = REPO / "fixtures" / "rasl" / "split"
 FILES = {name: (SPLIT / name).read_text(encoding="utf-8") for name in ("main.conf", "sink.conf")}
 
 
-def line_of(place: shared.Place) -> str:
+def line_of(place: vl.Place) -> str:
     """1-based ``file:line``, as design.md §1 prints it."""
     return f"{place.resolved_path}:{place.span.start.line + 1}"
 
