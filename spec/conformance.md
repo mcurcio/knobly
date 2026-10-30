@@ -225,7 +225,7 @@ inline), its level and its format page. The driver reads nothing else to find ca
 | Corpus | Cases | Expected | Format |
 |---|---|---|---|
 | `syntax` | `conformance/{cases,extra,depth,edge,tracer,variables}.json` | `conformance/expected/` | [format.md](../conformance/format.md) |
-| `written` | `conformance/written/cases.json` | `conformance/written/expected/` | [written/format.md](../conformance/written/format.md) |
+| `written` | `conformance/written/{cases,diagnostics}.json` | `conformance/written/expected/` | [written/format.md](../conformance/written/format.md) |
 | `load` | `conformance/load/cases.json` | `conformance/load/expected/` | [load/format.md](../conformance/load/format.md) |
 | `rendered` | `conformance/rendered/cases.json` | `conformance/rendered/expected/` | [rendered/format.md](../conformance/rendered/format.md) |
 | `contract` | `conformance/contract/cases.json` | inline (`expect`) | [contract/format.md](../conformance/contract/format.md) |

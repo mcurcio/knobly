@@ -1,0 +1,126 @@
+[
+  {
+    "name": "diag-use-unknown-snippet",
+    "needs": [
+      "snippet"
+    ],
+    "files": {
+      "main.conf": "@use nope;\nok;\n"
+    },
+    "root": "main.conf",
+    "steps": [
+      [
+        "list"
+      ]
+    ]
+  },
+  {
+    "name": "diag-snippet-twice",
+    "needs": [
+      "snippet"
+    ],
+    "files": {
+      "main.conf": "@snippet s { x; }\n@snippet s { y; }\n@use s;\n"
+    },
+    "root": "main.conf",
+    "steps": [
+      [
+        "list"
+      ]
+    ]
+  },
+  {
+    "name": "diag-bad-snippet",
+    "needs": [
+      "snippet"
+    ],
+    "files": {
+      "main.conf": "@snippet;\n@snippet a $p $p { y; }\n@snippet b x { y; }\nok;\n"
+    },
+    "root": "main.conf",
+    "steps": [
+      [
+        "list"
+      ]
+    ]
+  },
+  {
+    "name": "diag-bad-use",
+    "needs": [
+      "snippet"
+    ],
+    "files": {
+      "main.conf": "@snippet s { y; }\n@use;\n@use s { x; }\n@use \"s\";\nok;\n"
+    },
+    "root": "main.conf",
+    "steps": [
+      [
+        "list"
+      ]
+    ]
+  },
+  {
+    "name": "diag-use-depth-16",
+    "needs": [
+      "snippet"
+    ],
+    "files": {
+      "main.conf": "@snippet s0 { leaf; }\n@snippet s1 { @use s0; }\n@snippet s2 { @use s1; }\n@snippet s3 { @use s2; }\n@snippet s4 { @use s3; }\n@snippet s5 { @use s4; }\n@snippet s6 { @use s5; }\n@snippet s7 { @use s6; }\n@snippet s8 { @use s7; }\n@snippet s9 { @use s8; }\n@snippet s10 { @use s9; }\n@snippet s11 { @use s10; }\n@snippet s12 { @use s11; }\n@snippet s13 { @use s12; }\n@snippet s14 { @use s13; }\n@snippet s15 { @use s14; }\n@use s15;\n"
+    },
+    "root": "main.conf",
+    "steps": [
+      [
+        "list"
+      ]
+    ]
+  },
+  {
+    "name": "diag-use-depth-17",
+    "needs": [
+      "snippet"
+    ],
+    "files": {
+      "main.conf": "@snippet s0 { leaf; }\n@snippet s1 { @use s0; }\n@snippet s2 { @use s1; }\n@snippet s3 { @use s2; }\n@snippet s4 { @use s3; }\n@snippet s5 { @use s4; }\n@snippet s6 { @use s5; }\n@snippet s7 { @use s6; }\n@snippet s8 { @use s7; }\n@snippet s9 { @use s8; }\n@snippet s10 { @use s9; }\n@snippet s11 { @use s10; }\n@snippet s12 { @use s11; }\n@snippet s13 { @use s12; }\n@snippet s14 { @use s13; }\n@snippet s15 { @use s14; }\n@snippet s16 { @use s15; }\n@use s16;\n"
+    },
+    "root": "main.conf",
+    "steps": [
+      [
+        "list"
+      ]
+    ]
+  },
+  {
+    "name": "diag-too-many-directives",
+    "needs": [
+      "snippet"
+    ],
+    "files": {
+      "main.conf": "@snippet a {\n  x;\n  x;\n  x;\n  x;\n  x;\n  x;\n  x;\n  x;\n  x;\n  x;\n}\n@snippet b {\n  @use a;\n  @use a;\n  @use a;\n  @use a;\n  @use a;\n  @use a;\n  @use a;\n  @use a;\n  @use a;\n  @use a;\n}\n@snippet c {\n  @use b;\n  @use b;\n  @use b;\n  @use b;\n  @use b;\n  @use b;\n  @use b;\n  @use b;\n  @use b;\n  @use b;\n}\n@snippet d {\n  @use c;\n  @use c;\n  @use c;\n  @use c;\n  @use c;\n  @use c;\n  @use c;\n  @use c;\n  @use c;\n  @use c;\n}\n@snippet e {\n  @use d;\n  @use d;\n  @use d;\n  @use d;\n  @use d;\n  @use d;\n  @use d;\n  @use d;\n  @use d;\n  @use d;\n}\nfirst;\n@use e;\nnever;\n"
+    },
+    "root": "main.conf",
+    "steps": [
+      [
+        "list"
+      ]
+    ]
+  },
+  {
+    "name": "diag-include-glob-empty",
+    "needs": [
+      "include"
+    ],
+    "files": {
+      "main.conf": "@include \"d/*.conf\";\nok;\n",
+      "d/a.txt": "x;\n"
+    },
+    "root": "main.conf",
+    "extensions": [
+      "include"
+    ],
+    "steps": [
+      [
+        "list"
+      ]
+    ]
+  }
+]
