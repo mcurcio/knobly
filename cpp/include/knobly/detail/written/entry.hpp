@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -78,15 +79,12 @@ inline parsed_text parse_entry(std::string_view text, entry_rule rule) {
             done = parser.r_nameText();
             break;
     }
-    if (const std::size_t too_deep = parser.too_deep(); too_deep != sd::npos) {
-        const auto code = ::knobly::diagnostic_code::nesting_too_deep;
-        diagnostics.push_back({code, too_deep, ::knobly::describe(code).message});
-    } else {
-        diagnostics = parser.take_diagnostics();
-    }
+    diagnostics = parser.take_diagnostics();  // E2010 alone when nesting passed the limit (spec 2.5)
     if (done && diagnostics.empty()) {
         parser.close_node();
-        root = parser.take_root();
+        if (std::optional<sd::raw_node> made = parser.take_root()) {
+            root = std::move(*made);
+        }
     }
     root.start = 0;
     root.end = count;

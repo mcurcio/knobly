@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -84,15 +85,12 @@ KNOBLY_API ::knobly::syntax::syntax parse(std::string_view text) {
     std::vector<detail::raw_diagnostic> raw_diagnostics;
     detail::parser parser(text, raw_tokens);
     parser.r_document();
-    if (const std::size_t too_deep = parser.too_deep(); too_deep != detail::npos) {
-        // Nesting past the limit makes the whole text one error node with one diagnostic, E2010 (spec 2.5).
-        root = {::knobly::node_kind::document, 0, count, {{::knobly::node_kind::error, 0, count, {}}}};
-        const auto code = ::knobly::diagnostic_code::nesting_too_deep;
-        raw_diagnostics.push_back({code, too_deep, ::knobly::describe(code).message});
-    } else {
-        root = parser.take_root();
-        raw_diagnostics = parser.take_diagnostics();
-    }
+    // Nesting past the limit leaves no tree: the whole text is one error node, and its one diagnostic E2010 (spec 2.5).
+    std::optional<detail::raw_node> made = parser.take_root();
+    root =
+        made ? std::move(*made)
+             : detail::raw_node{::knobly::node_kind::document, 0, count, {{::knobly::node_kind::error, 0, count, {}}}};
+    raw_diagnostics = parser.take_diagnostics();
     root.start = 0;
     root.end = count;
 

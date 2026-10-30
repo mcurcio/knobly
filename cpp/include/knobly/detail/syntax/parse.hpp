@@ -6,6 +6,7 @@
 #define KNOBLY_DETAIL_SYNTAX_PARSE_HPP
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -169,12 +170,23 @@ class parser : public generated_parser<parser> {
 public:
     parser(std::string_view text, const std::vector<raw_token>& tokens) : text_(text), tokens_(tokens) {}
 
-    /// The tree and the diagnostics, after r_document().
-    raw_node take_root() { return std::move(root_); }
-    std::vector<raw_diagnostic> take_diagnostics() { return std::move(diagnostics_); }
-    /// The index of the '{' or '[' that opened nesting level max_nesting + 1 (E2010; spec 2.5), or npos. Once it is
-    /// set the parse is over: the tree and the diagnostics are void, and the caller reports E2010 alone.
-    std::size_t too_deep() const noexcept { return too_deep_; }
+    /// The tree, after the rule ran; absent when the nesting guard ended the parse (spec 2.5), so no caller can read
+    /// the half-built tree it left.
+    std::optional<raw_node> take_root() {
+        if (too_deep_ != npos) {
+            return std::nullopt;
+        }
+        return std::move(root_);
+    }
+    /// The diagnostics, after the rule ran: when the nesting guard ended the parse, E2010 alone, on the '{' or '['
+    /// that opened nesting level max_nesting + 1 (spec 2.5), the one home of that diagnostic.
+    std::vector<raw_diagnostic> take_diagnostics() {
+        if (too_deep_ != npos) {
+            const auto code = ::knobly::diagnostic_code::nesting_too_deep;
+            return {{code, too_deep_, ::knobly::describe(code).message}};
+        }
+        return std::move(diagnostics_);
+    }
 
     // ---- the hooks the generated parser calls (frozen-m1.md section 3.2)
 
