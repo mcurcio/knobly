@@ -9,14 +9,16 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_villanelle_sa
 file(GLOB _villanelle_examples CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 foreach(_villanelle_example IN LISTS _villanelle_examples)
   get_filename_component(_villanelle_id "${_villanelle_example}" NAME_WE)
-  string(JSON _villanelle_fixture ERROR_VARIABLE _villanelle_missing GET "${_villanelle_table}" samples
+  string(JSON _villanelle_fixture_type ERROR_VARIABLE _villanelle_missing TYPE "${_villanelle_table}" samples
          ${_villanelle_id} fixture)
   if(_villanelle_missing)
     message(FATAL_ERROR "examples/${_villanelle_id}.cpp is not in examples/samples.json")
   endif()
-  if(_villanelle_fixture STREQUAL "null")
+  # GET gives an empty string for a JSON null, so ask the type: null runs in an empty folder.
+  if(_villanelle_fixture_type STREQUAL "NULL")
     set(_villanelle_fixture "")
   else()
+    string(JSON _villanelle_fixture GET "${_villanelle_table}" samples ${_villanelle_id} fixture)
     set(_villanelle_fixture "${VILLANELLE_REPO}/${_villanelle_fixture}")
   endif()
   add_executable(villanelle_example_${_villanelle_id} "${_villanelle_example}")
