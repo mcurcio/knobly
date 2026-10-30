@@ -570,6 +570,22 @@ def view_class(model: Model, c: Concept, out: Out) -> List[str]:
     return [*doc(c.doc), *class_key(model, c, ctx), *body, "};"]
 
 
+def literal_split(model: Model, c: Concept, flds: List[Member]) -> Optional[int]:
+    """The index of the record field whose union has an arm checked at compile time (a code with a pattern, made from a
+    literal by a consteval constructor), else None. Such a field is taken by one constructor per arm, never as one
+    std::variant: a literal reaches a consteval constructor only at the call itself, and std::variant's converting
+    constructor forwards it to a runtime construction, which no compiler without C++23's consteval propagation (P2564,
+    absent from gcc 13) accepts. A record with two such fields is refused rather than multiplied out."""
+    def literal(t: Type) -> bool:
+        a = model.concept.get(t.name) if t.form == "name" else None
+        return a is not None and a.nature == "named type" and a.pattern is not None and not a.brand
+    found = [i for i, m in enumerate(flds)
+             if m.type.form == "union" and not m.type.may_be_absent and any(literal(a) for a in m.type.args)]
+    if len(found) > 1:
+        raise SchemaError(f"C++ emitter: record {c.name!r} has more than one union field with a literal-checked arm")
+    return found[0] if found else None
+
+
 def record_class(model: Model, c: Concept, out: Out) -> List[str]:
     """A plain record: an immutable class written whole (frozen-m1.md 4.3): one constructor taking its fields, a const
     accessor per property (noexcept when its copy cannot throw), member-by-member equality. A field holding its own
@@ -600,7 +616,14 @@ def record_class(model: Model, c: Concept, out: Out) -> List[str]:
         else:
             inits.append(f"{n}_({n})" if nothrow_copy(model, m.type) else f"{n}_(std::move({n}))")
     explicit = "explicit " if len(params) == 1 else ""
-    body = ["public:", f"{explicit}{name}({signature(params)}){' : ' + ', '.join(inits) if inits else ''} {{}}"]
+    init = f"{' : ' + ', '.join(inits) if inits else ''} {{}}"
+    split = literal_split(model, c, flds)
+    if split is None:
+        ctors = [f"{explicit}{name}({signature(params)}){init}"]
+    else:  # one constructor per arm of the field, so a literal code meets its consteval constructor at the call
+        ctors = [f"{explicit}{name}({signature([(value_type(a, ctx), n) if i == split else (t, n) for i, (t, n) in enumerate(params)])}){init}"
+                 for a in flds[split].type.args]
+    body = ["public:", *ctors]
     for m in c.members:
         if m.trait == "people form":
             continue
