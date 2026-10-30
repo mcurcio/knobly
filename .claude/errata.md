@@ -903,3 +903,18 @@
   tool, off in every consumer route, not villanelle's own package. Followed the intent: no `find_package(villanelle`,
   no `cmake --install`, no `VILLANELLE_INSTALL` remain outside `.claude/design/` and `.beads/`; the one hit left is
   that Python line.
+
+## 2026-10-30, user guide pages, slice pages (PR 8, overnight)
+
+- **W1. frozen-docs.md section 6, pages step 4 cannot pass while G1 stands: the hook requires the Python tab of
+  `include_read`, and `py/examples/include_read.py` is not on the branch** (kept on `wip/py-samples`, errata G1). By
+  design the build fails (`SnippetMissingError` for the page's include, and the hook names the file). Checked: with
+  G1's fix (Python's `_unread` in `py/src/villanelle/written/_bind.py` passing `name.text[1:]` as the `detail`, as
+  TypeScript and C++ do) and the wip file, all 18 Python samples pass and `mkdocs build --strict` passes. Neither is
+  in the pages slice's owned paths, so the pages work is on `wip/pages` until they land.
+- **W2. frozen-docs.md section 6, pages step 5: the grep `low-level-api.md\|rendered-tree.md\|docs/language.md`
+  cannot find nothing outside `.claude/design/` and `.beads/`.** `design/RECORD.md` (the grammar's design record, not
+  in the slice's owned paths) still links the three deleted pages at lines 128-129 and 168 (live links, now broken
+  on GitHub) and names them as history at 82-83; `.claude/errata.md`'s own history entries name them too. Followed
+  the intent: every other file now points at the guide. Pointing RECORD.md's three links at the guide is a
+  follow-up.
