@@ -1,0 +1,208 @@
+/**
+ * The document graph (spec 6.3): the files one load read, the overrides, the read ledger, and the document source
+ * it reads through. Everything else (copies, edges, variables, resolutions, diagnostics) is derived from them by
+ * `bind`, cached per graph version; every edit, `setOverride` and read bumps the version. Package-internal: programs
+ * see `DocumentGraph` (gen/api/written.ts).
+ */
+
+import { makeLocated } from "../report.js";
+import { typeNameOf } from "../text.js";
+import { bind, type BindingWithNeeds, type OverrideInput, type OverrideValues, type ReadLedger } from "./bind.js";
+import { Document, type DocumentHost } from "./document.js";
+import { expansionOf } from "./expansion.js";
+import { checkOverride, checkOverrideName } from "./override.js";
+import { readUnread } from "./read.js";
+import { OverrideVariable } from "./statements.js";
+import { LostUpdateError, SaveError } from "../gen/api/errors.js";
+import type { DocumentSource, DocumentWriter, FileWrite } from "../gen/api/io.js";
+import type { ConfigText, LocatedDiagnostic } from "../gen/api/shared.js";
+import type { DocumentEdge, Expansion, Extension, Variable } from "../gen/api/written.js";
+import type * as api from "../gen/api/written.js";
+
+export class DocumentGraph implements api.DocumentGraph, DocumentHost, ReadLedger {
+  readonly documents = new Map<string, Document>();
+  readonly extensionNames: ReadonlySet<string>;
+  private readonly overrideTexts = new Map<string, ConfigText>();
+  private readonly overrideValues = new Map<string, OverrideValues>();
+  private readonly overrideVariables = new Map<string, OverrideVariable>();
+  /** Per `JSON.stringify([parentPath, spec])`: the paths or the rejection. */
+  private readonly resolutions = new Map<string, readonly string[] | Error>();
+  /** Per path whose read rejected: the rejection (a read document is in `documents`). */
+  private readonly failedReads = new Map<string, Error>();
+  private version = 0;
+  private cache:
+    | { readonly version: number; readonly binding: BindingWithNeeds; diagnostics?: readonly LocatedDiagnostic[]; expansion?: Expansion }
+    | undefined;
+  private rootDocument: Document | undefined;
+
+  /**
+   * Each override goes through the check of an override, in order; the first refusal throws.
+   * @throws MisuseError for a bad override name; TypeError for a text that is not a string; BadTextError for a refused
+   * text
+   */
+  constructor(
+    private readonly source: DocumentSource,
+    readonly extensions: ReadonlyMap<string, Extension>,
+    overrides: Readonly<Record<string, unknown>>,
+  ) {
+    this.extensionNames = new Set(extensions.keys());
+    for (const [name, text] of Object.entries(overrides)) {
+      const values = checkOverride(name, text, { member: "load", textParameter: `overrides[${JSON.stringify(name)}]` });
+      this.putOverride(name, text as ConfigText, values);
+    }
+  }
+
+  get root(): Document {
+    if (this.rootDocument === undefined) throw new Error("the graph has no root yet");
+    return this.rootDocument;
+  }
+
+  get overrides(): ReadonlyMap<string, ConfigText> {
+    return this.overrideTexts;
+  }
+
+  setOverride(name: string, text: ConfigText | undefined): void {
+    if (text === undefined) {
+      checkOverrideName(name, "setOverride");
+      if (!this.overrideTexts.has(name)) return;
+      this.overrideTexts.delete(name);
+      this.overrideValues.delete(name);
+      this.changed();
+      return;
+    }
+    const values = checkOverride(name, text, { member: "setOverride", textParameter: "text" });
+    this.putOverride(name, text, values);
+    this.changed();
+  }
+
+  /** A changed name keeps its place in `overrides`; a new one (or one removed before) goes at the end (6.2). */
+  private putOverride(name: string, text: ConfigText, values: OverrideValues): void {
+    this.overrideTexts.set(name, text);
+    this.overrideValues.set(name, values);
+    if (!this.overrideVariables.has(name)) this.overrideVariables.set(name, new OverrideVariable(name, () => this.binding()));
+  }
+
+  async read(): Promise<readonly string[]> {
+    return await readUnread(this, this.source);
+  }
+
+  /**
+   * Hand every document whose `text` differs from its `savedText` to the writer in one batch, in `documents` order;
+   * with none, the writer is not called. When the writer resolves, each written document's `savedText` becomes the
+   * text handed over (an edit made while the writer ran stays unsaved); when it rejects, no `savedText` changes.
+   */
+  async save(writer: DocumentWriter): Promise<readonly string[]> {
+    if (typeof (writer as Partial<DocumentWriter> | null)?.write !== "function") {
+      throw new TypeError(
+        `save(): argument "writer" must be a document writer (an object with a write method), not ${typeNameOf(writer)}`,
+      );
+    }
+    const files: FileWrite[] = [];
+    for (const doc of this.documents.values()) {
+      if (doc.text !== doc.savedText) files.push({ resolvedPath: doc.resolvedPath, text: doc.text, savedText: doc.savedText });
+    }
+    if (files.length === 0) return [];
+    try {
+      await writer.write(files);
+    } catch (error) {
+      // A lost update is already a save error, with only the conflicting files: raised as it is (spec 6.8).
+      if (error instanceof LostUpdateError) throw error;
+      const message = `the writer rejected: ${error instanceof Error ? error.message : String(error)}`;
+      throw new SaveError(message, files.map((file) => file.resolvedPath), { cause: error });
+    }
+    for (const file of files) this.documents.get(file.resolvedPath)?.markSaved(file.text);
+    return files.map((file) => file.resolvedPath);
+  }
+
+  edges(): readonly DocumentEdge[] {
+    return this.binding().edges;
+  }
+
+  unread(): readonly DocumentEdge[] {
+    return this.binding().unread;
+  }
+
+  variables(name?: string): readonly Variable[] {
+    const all: Variable[] = [...this.documents.values()].flatMap((doc) => doc.variables());
+    for (const override of this.overrideTexts.keys()) {
+      const variable = this.overrideVariables.get(override);
+      if (variable !== undefined) all.push(variable);
+    }
+    return name === undefined ? all : all.filter((v) => v.name === name);
+  }
+
+  /** The one list (spec 6.3): every syntax diagnostic, then every problem the walk found, in walk order. */
+  get diagnostics(): readonly LocatedDiagnostic[] {
+    const binding = this.binding();
+    const cache = this.cache;
+    if (cache === undefined) throw new Error("no binding");
+    cache.diagnostics ??= [...this.syntaxDiagnostics(), ...binding.diagnostics];
+    return cache.diagnostics;
+  }
+
+  expand(): Expansion {
+    const diagnostics = this.diagnostics;
+    const cache = this.cache;
+    if (cache === undefined) throw new Error("no binding");
+    cache.expansion ??= expansionOf(cache.binding, diagnostics);
+    return cache.expansion;
+  }
+
+  /** Each document's syntax diagnostics, documents in order, located. */
+  private syntaxDiagnostics(): LocatedDiagnostic[] {
+    return [...this.documents.values()].flatMap((doc) =>
+      doc.syntax.diagnostics.map((d) => makeLocated(d.code, d.message, doc.place(d.span), [])),
+    );
+  }
+
+  // --- DocumentHost ---
+
+  binding(): BindingWithNeeds {
+    if (this.cache?.version !== this.version) {
+      const overrides = new Map<string, OverrideInput>();
+      for (const [name, values] of this.overrideValues) {
+        const variable = this.overrideVariables.get(name);
+        if (variable !== undefined) overrides.set(name, { variable, ...values });
+      }
+      this.cache = { version: this.version, binding: bind({ root: this.root, extensions: this.extensions, overrides, reads: this }) };
+    }
+    return this.cache.binding;
+  }
+
+  allDocuments(): readonly Document[] {
+    return [...this.documents.values()];
+  }
+
+  changed(): void {
+    this.version++;
+  }
+
+  // --- ReadLedger, and what the read loop records ---
+
+  resolved(parentPath: string, spec: string): readonly string[] | Error | undefined {
+    return this.resolutions.get(JSON.stringify([parentPath, spec]));
+  }
+
+  /** The document read at `resolvedPath`, the rejection, or undefined (the ledger's `read`; the I/O is `read()`). */
+  readOf(resolvedPath: string): Document | Error | undefined {
+    return this.documents.get(resolvedPath) ?? this.failedReads.get(resolvedPath);
+  }
+
+  recordResolved(parentPath: string, spec: string, paths: readonly string[] | Error): void {
+    this.resolutions.set(JSON.stringify([parentPath, spec]), paths);
+    this.changed();
+  }
+
+  /** Record one read: the document made from its text (the root first), or the rejection. */
+  recordRead(resolvedPath: string, text: string | Error): Document | undefined {
+    this.changed();
+    if (text instanceof Error) {
+      this.failedReads.set(resolvedPath, text);
+      return undefined;
+    }
+    const doc = new Document(this, resolvedPath, text);
+    this.documents.set(resolvedPath, doc);
+    this.rootDocument ??= doc;
+    return doc;
+  }
+}

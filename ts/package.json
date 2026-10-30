@@ -14,6 +14,18 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./syntax": {
+      "types": "./dist/syntax/index.d.ts",
+      "import": "./dist/syntax/index.js"
+    },
+    "./written": {
+      "types": "./dist/written/index.d.ts",
+      "import": "./dist/written/index.js"
+    },
+    "./rendered": {
+      "types": "./dist/rendered/index.d.ts",
+      "import": "./dist/rendered/index.js"
+    },
     "./include": {
       "types": "./dist/include.d.ts",
       "import": "./dist/include.js"
@@ -38,8 +50,9 @@
     "gen": "bash ../tools/gen.sh ts",
     "build": "bash ../tools/gen.sh ts && tsc -p tsconfig.build.json",
     "test": "bash ../tools/gen.sh ts && vitest run",
-    "typecheck": "bash ../tools/gen.sh ts && tsc --noEmit",
-    "lint": "bash ../tools/gen.sh ts && eslint ."
+    "typecheck": "bash ../tools/gen.sh ts && tsc --noEmit && tsc -p conformance",
+    "lint": "bash ../tools/gen.sh ts && eslint .",
+    "conformance": "python3 ../conformance/driver/run.py -- node conformance/adapter.ts"
   },
   "dependencies": {
     "antlr4": "4.13.2"

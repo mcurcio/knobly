@@ -1,1 +1,1 @@
-{"files":["main.conf"],"directives":[["connect",false,"main.conf:1:0",[["c[0:3]","main.conf:1:8"],["c[3]","main.conf:1:16"],["c[3:]","main.conf:1:22"]]]],"unreadable":[],"diagnostics":[]}
+{"files":["main.conf"],"directives":[["connect",false,"main.conf:1:0",[["c[0~3]","main.conf:1:8"],["c[3]","main.conf:1:16"],["c[3~]","main.conf:1:22"]]]],"unreadable":[],"diagnostics":[]}

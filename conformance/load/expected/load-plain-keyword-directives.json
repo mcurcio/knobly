@@ -1,0 +1,1 @@
+{"files":["main.conf"],"directives":[["events",true,"main.conf:0:0",[]],["events > use",false,"main.conf:1:4",[["epoll","main.conf:1:8"]]],["events > set",false,"main.conf:2:4",[["x","main.conf:2:8"]]],["events > snippet",false,"main.conf:3:4",[["y","main.conf:3:12"]]]],"unreadable":[],"diagnostics":[]}

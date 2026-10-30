@@ -3,8 +3,9 @@ nesting-depth guard. Private to villanelle.syntax. Ported from ts/src/syntax/rec
 design/experiments/v4/antlr/ts/recovery.ts; the Python experiment is design/experiments/v4/antlr/py/recovery.py).
 
 Recovery is per statement: the first error of a statement is reported at its real position, the rest of the
-statement is skipped (it becomes one error node), and parsing resumes at the next statement, so later siblings are
-kept. No token is ever conjured.
+statement is skipped to its ``;`` or the end of a block it opened (it becomes one error node), and parsing resumes at
+the next statement, so later siblings are kept. No token is ever conjured. An entry rule (``parse_entry``) has no
+statement to resume at: its first error ends the parse.
 
 ``classify_error`` and ``nesting_overflow`` are pure functions over token kinds, copied line for line from the
 TypeScript ``classifyError`` and ``nestingOverflow``.
@@ -21,12 +22,10 @@ from antlr4 import Token as AntlrToken
 from antlr4.error.Errors import InputMismatchException
 from antlr4.error.ErrorStrategy import DefaultErrorStrategy
 
+from villanelle._api.codes import DiagnosticCode, describe
+from villanelle._api.kinds import TokenKind
+from villanelle._api.limits import MAX_NESTING
 from villanelle._gen.VillanelleParser import VillanelleParser
-from villanelle.diagnostics import DiagnosticCode
-from villanelle.syntax.tokens import TokenKind
-
-MAX_NESTING = 100
-"""Blocks and lists may nest this deep; one more level is E2010 (owner, vil-bzv.3)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,10 +53,20 @@ def nesting_overflow(kinds: Sequence[TokenKind]) -> int | None:
     return None
 
 
+_VALUE_TOKENS = frozenset(
+    {TokenKind.WORD, TokenKind.AT_WORD, TokenKind.INTEGER, TokenKind.DIGIT_WORD, TokenKind.STRING, TokenKind.VARIABLE}
+)
+"""The tokens that are one value each: two of them touching is E2009 (``AT_WORD``, ``INTEGER`` and ``DIGIT_WORD``
+are words)."""
+
+_SLICE_NAMES = frozenset({TokenKind.WORD, TokenKind.AT_WORD, TokenKind.VARIABLE})
+"""The tokens a ``[`` right after opens a slice bracket (the grammar's ``sliceName``)."""
+
+
 def classify_error(kinds: Sequence[TokenKind], at: int, start: int, in_block: bool) -> DiagnosticCode:
     """The code for a syntax error at token ``at`` (``at == len(kinds)`` is the end of input), given the start of the
     statement it belongs to (``start``) and whether that statement is inside a block. First match wins."""
-    # Brackets open in this statement before `at` (True = a slice bracket, one that follows a WORD) and braces.
+    # Brackets open in this statement before `at` (True = a slice bracket, one right after a slice name) and braces.
     brackets: list[bool] = []
     braces = 0
     closes_value = False  # the token right before `at` is a `]` that closed a bracket
@@ -65,7 +74,7 @@ def classify_error(kinds: Sequence[TokenKind], at: int, start: int, in_block: bo
         kind = kinds[i]
         closes_value = False
         if kind is TokenKind.LBRACK:
-            brackets.append(i > 0 and kinds[i - 1] is TokenKind.WORD)
+            brackets.append(i > 0 and kinds[i - 1] in _SLICE_NAMES)
         elif kind is TokenKind.RBRACK:
             closes_value = len(brackets) > 0
             if brackets:
@@ -78,10 +87,6 @@ def classify_error(kinds: Sequence[TokenKind], at: int, start: int, in_block: bo
     in_bracket = len(brackets) > 0
     in_slice = in_bracket and brackets[-1]
 
-    # The token before `at` on its line, skipping spaces and comments.
-    prev = at - 1
-    while prev >= 0 and (kinds[prev] is TokenKind.SPACE or kinds[prev] is TokenKind.COMMENT):
-        prev -= 1
     before = kinds[at - 1] if at > 0 else None
 
     if t is TokenKind.BAD_CHAR or (t is TokenKind.BOM and at > 0):
@@ -90,63 +95,19 @@ def classify_error(kinds: Sequence[TokenKind], at: int, start: int, in_block: bo
         return DiagnosticCode.LONE_DOLLAR
     if t is TokenKind.UNTERMINATED_STRING:
         return DiagnosticCode.UNTERMINATED_STRING
+    if t is TokenKind.BAD_ESCAPE:
+        return DiagnosticCode.BAD_ESCAPE
     if in_slice:
         return DiagnosticCode.BAD_SLICE
     if t is TokenKind.RBRACK or (in_bracket and (t is TokenKind.RBRACE or t is None)):
         return DiagnosticCode.EXPECTED_CLOSING_BRACKET
-    if t is TokenKind.LBRACE and (prev < 0 or kinds[prev] is TokenKind.NEWLINE):
-        return DiagnosticCode.BRACE_ON_OWN_LINE
     if t is None and (in_block or braces > 0):
         return DiagnosticCode.EXPECTED_CLOSING_BRACE
-    if (t is TokenKind.WORD or t is TokenKind.STRING or t is TokenKind.VARIABLE or t is TokenKind.LBRACK) and (
-        before is TokenKind.WORD
-        or before is TokenKind.STRING
-        or before is TokenKind.VARIABLE
-        or (before is TokenKind.RBRACK and closes_value)
+    if (t in _VALUE_TOKENS or t is TokenKind.LBRACK) and (
+        before in _VALUE_TOKENS or (before is TokenKind.RBRACK and closes_value)
     ):
         return DiagnosticCode.VALUES_TOUCH
     return DiagnosticCode.UNEXPECTED_TOKEN
-
-
-_MESSAGES: dict[DiagnosticCode, str] = {
-    DiagnosticCode.UNTERMINATED_STRING: "unterminated string",
-    DiagnosticCode.UNEXPECTED_CHARACTER: "unexpected character",
-    DiagnosticCode.LONE_DOLLAR: "'$' must be followed by a variable name",
-    DiagnosticCode.UNEXPECTED_TOKEN: "unexpected token",
-    DiagnosticCode.EXPECTED_CLOSING_BRACE: "expected '}' to close the block",
-    DiagnosticCode.EXPECTED_CLOSING_BRACKET: "unmatched bracket",
-    DiagnosticCode.BAD_SLICE: "malformed slice",
-    DiagnosticCode.BRACE_ON_OWN_LINE: "'{' must open on its directive's line",
-    DiagnosticCode.VALUES_TOUCH: "values must be separated by a space or comment",
-    DiagnosticCode.NESTING_TOO_DEEP: f"blocks and lists nest deeper than {MAX_NESTING} levels",
-    DiagnosticCode.INCLUDE_NOT_FOUND: "include not found",
-    DiagnosticCode.INCLUDE_RESOLVER_FAILED: "include resolver failed",
-    DiagnosticCode.INCLUDE_BAD_PATH: "include takes one quoted path",
-    DiagnosticCode.EXTENSION_FAILED: "extension failed",
-    DiagnosticCode.NON_INTEGER_BOUND: "bound is not an integer",
-    DiagnosticCode.WRONG_VALUE_KIND: "wrong kind of value",
-    DiagnosticCode.BAD_ESCAPE: "unknown escape",
-    DiagnosticCode.NOT_A_NUMBER: "not a number",
-    DiagnosticCode.NOT_AN_INTEGER: "not an integer",
-    DiagnosticCode.NOT_A_BOOLEAN: "not true or false",
-    DiagnosticCode.UNKNOWN_VARIABLE: "unknown variable",
-    DiagnosticCode.VARIABLE_SET_TWICE: "variable set twice in one block",
-    DiagnosticCode.UNKNOWN_SNIPPET: "unknown snippet",
-    DiagnosticCode.SNIPPET_ARITY: "wrong number of values for the snippet",
-    DiagnosticCode.SNIPPET_DEFINED_TWICE: "snippet defined twice in one block",
-    DiagnosticCode.EXPANSION_CYCLE: "expansion reaches itself",
-    DiagnosticCode.EXPANSION_TOO_DEEP: "expansion nests too deep",
-    DiagnosticCode.TOO_MANY_DIRECTIVES: "too many directives after expansion",
-    DiagnosticCode.BAD_SET: "write set $name value...;",
-    DiagnosticCode.BAD_SNIPPET: "write snippet name $param... { ... }",
-    DiagnosticCode.BAD_USE: "write use name value...;",
-    DiagnosticCode.EXTENSION_BLOCK_NOT_SET: "an extension's block holds only set lines",
-}
-
-
-def message_of(code: DiagnosticCode) -> str:
-    """The message for a code; not part of the cross-language contract."""
-    return _MESSAGES[code]
 
 
 # --- the ANTLR strategy -------------------------------------------------------------------------------------------
@@ -178,11 +139,12 @@ def _scope(p: Any) -> tuple[Any, bool]:
 
 
 def _statement_start(statements: Any, current: int) -> int:
-    """The first token index of the statement being parsed in ``statements`` (or ``current`` before any)."""
+    """The first token index of the statement being parsed in ``statements`` (or ``current`` before any); 0 outside
+    any statements, in an entry rule (``parse_entry``), whose text is one statement's worth from its start."""
+    if statements is None:
+        return 0
     kids = [
-        k
-        for k in ((statements.children or []) if statements is not None else [])
-        if _rule_of(k) in (P.RULE_directive, P.RULE_lastDirective)
+        k for k in ((statements.children or []) if statements is not None else []) if _rule_of(k) == P.RULE_directive
     ]
     return int(kids[-1].start.tokenIndex) if kids else current
 
@@ -211,11 +173,12 @@ class _Recovery(DefaultErrorStrategy):  # type: ignore[misc]
         statements, in_block = _scope(p)
         code = classify_error(kinds, at, _statement_start(statements, p._input.index), in_block)
         what = "end of input" if offending.type == _EOF else json.dumps(offending.text)
-        self._report(RawDiagnostic(code, at, min(at + 1, len(kinds)), f"{message_of(code)}: {what}"))
+        self._report(RawDiagnostic(code, at, min(at + 1, len(kinds)), describe(code, what).message))
 
     def _skip(self, p: Any) -> None:
-        """Consume to the end of the bad statement: a ``;`` or newline outside brackets and braces, or a whole nested
-        block; stop before the ``}`` that closes the enclosing block, or at the end of input."""
+        """Consume to the end of the bad statement (spec 3.2): a ``;`` outside brackets and braces, or a whole block it
+        opened; never a line break (a line break is whitespace). Stop before the ``}`` that closes the enclosing
+        block, or at the end of input; at the top level a stray ``}`` is consumed and ends the statement."""
         statements, in_block = _scope(p)
         current: int = p._input.index
         kinds = self._kinds_of(p)
@@ -238,8 +201,9 @@ class _Recovery(DefaultErrorStrategy):  # type: ignore[misc]
             if t == P.RBRACE and braces == 0:
                 if in_block:
                     return
-                p.consume()
-                continue
+                p.consume()  # a stray '}' at the top level ends the bad statement
+                self.endErrorCondition(p)
+                return
             p.consume()
             if t == P.LBRACK:
                 brackets += 1
@@ -249,9 +213,7 @@ class _Recovery(DefaultErrorStrategy):  # type: ignore[misc]
                 braces += 1
             elif t == P.RBRACE:
                 braces -= 1
-            if (t == P.RBRACE and braces == 0 and brackets == 0) or (
-                t in (P.NEWLINE, P.SEMI) and brackets == 0 and braces == 0
-            ):
+            if (t == P.RBRACE and braces == 0 and brackets == 0) or (t == P.SEMI and brackets == 0 and braces == 0):
                 # The statement ended: the next error gets reported.
                 self.endErrorCondition(p)
                 return

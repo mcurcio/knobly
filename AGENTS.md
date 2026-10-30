@@ -13,6 +13,8 @@ and Python parsers. It began as `@rasl/config` in mcurcio/rasl, and rasl will co
   refuses them because they can hide a conflict.
 - Whitespace, comments and newlines are ordinary tokens. Nothing goes on a hidden channel, so the
   parse tree keeps every character.
+- The API every binding offers is specified in `spec/` (canonical: it wins over the TypeScript and
+  Python code). Read `.claude/skills/villanelle-binding/SKILL.md` before changing any API shape.
 - Current design choices and the work outline are in `design/RECORD.md`. The older requirement
   plans are in `design/plans/`. Code carried over from rasl is in `reference/`
   (see `reference/README.md`).

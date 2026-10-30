@@ -1,0 +1,58 @@
+[
+ {
+  "id": "Q1",
+  "section": "4.1 Language concepts",
+  "question": "How should a statement end? Today both a line break and ';' end one, and a directive name may start with a digit, so a wrapped line silently becomes two directives.",
+  "options": [
+   {
+    "label": "';' is required and a line break is plain whitespace (nginx); directive names cannot start with a digit or '-'",
+    "recommended": true,
+    "cost": "Authors must type ';' (every rasl fixture already does), and a last directive with no ';' becomes an error. In return: the silent split is impossible, braces may sit on their own line (E2008 goes away), long directives may wrap, and the line-break half of the values-text check is deleted."
+   },
+   {
+    "label": "A line break only; ';' is no longer a terminator (HCL)",
+    "recommended": false,
+    "cost": "Every rasl file and fixture must be rewritten, and lists stay the only way to wrap a line."
+   },
+   {
+    "label": "Keep both endings and document them",
+    "recommended": false,
+    "cost": "The silent split stays; wrapped matrix or ranges lines keep producing wrong configs with no diagnostic."
+   }
+  ]
+ },
+ {
+  "id": "Q2",
+  "section": "4.1 Language concepts",
+  "question": "Which variables may a program override, and what does an included file see?",
+  "options": [
+   {
+    "label": "One lexical model: an included file is its own scope, its top-level set lines are defaults its include block may replace, and nothing leaks out to the includer. An override binds only names set at the root file's top level, and any other override name is an error at load (Terraform root variables, Nix --arg).",
+    "recommended": true,
+    "cost": "split/sink.conf must receive $pixels through its include blocks instead of reading main.conf's, and a program cannot reach a nested variable unless the author lifts it to the root. Load conformance cases and both binders change."
+   },
+   {
+    "label": "Keep today's model and write it down in the spec",
+    "recommended": false,
+    "cost": "Per-place bindings stay one --set away from being overwritten, a reusable file still cannot set its own default or be included twice in one block, and authors keep two scoping rules."
+   }
+  ]
+ },
+ {
+  "id": "Q3",
+  "section": "5 Proposed codegen target",
+  "question": "Should api.json become the source of every public signature, with generated TypeScript interfaces and Python Protocols that the hand-written classes must implement, moving the line spec/codegen.md:115 draws at 'only fixed lists and data records'?",
+  "options": [
+   {
+    "label": "Yes, with idiom expressed as typed per-language traits; start after the scoping and layer decisions",
+    "recommended": true,
+    "cost": "api.json needs a type grammar and a meta-schema; all 231 members are retyped once; about 300-500 lines of emitter per language. Removes 93 hand-written TS interfaces and most of the 669 lines of name tests, and name drift becomes a compile error."
+   },
+   {
+    "label": "Keep today's line: generate lists, codes, limits and records only",
+    "recommended": false,
+    "cost": "Every binding keeps hand-writing about 73 concepts' declarations and error trees, held in step by run-time tests; a third language repeats all of it."
+   }
+  ]
+ }
+]

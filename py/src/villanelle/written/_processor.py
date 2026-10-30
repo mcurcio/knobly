@@ -1,0 +1,52 @@
+"""The processor (spec 6.1; round 12 design.md §6). A ``Processor`` is made once with its document source and
+extensions (as ``jinja2.Environment`` is made with its loader and extensions); ``load`` reads a root file and
+everything it includes into a document graph (the files as written), synchronously. Loading is its only operation:
+every later one is a method on what it returned (``graph.read()``, ``graph.save(writer)``), and the rendered layer
+builds on the graph (``villanelle.rendered.render(graph)``)."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from typing import final
+
+from villanelle._api import written as api
+from villanelle._api.io import DocumentSource
+from villanelle._api.limits import RESERVED
+from villanelle._api.shared import ConfigText
+from villanelle._api.written import Extension
+from villanelle._text import require_text
+from villanelle.written import _names
+from villanelle.written._model import DocumentGraph
+
+
+@final
+class Processor(api.Processor):
+    """Made once with the document source and extensions; loads."""
+
+    __slots__ = ("_extensions", "_source")
+
+    def __init__(self, *, source: DocumentSource, extensions: Sequence[Extension] | None = None) -> None:
+        """Raises TypeError for an extension whose name is not a str; then ValueError (misuse) for one whose name the
+        ``nameText`` entry rule refuses (it is written ``@`` and its name, one AT_WORD), then for one named ``set``,
+        ``snippet`` or ``use`` (the language statements), or two extensions with one name (one name has one owner)."""
+        self._source = source
+        self._extensions: dict[str, Extension] = {}
+        for extension in extensions or ():
+            given = require_text(extension.directive, member="Processor", parameter="directive")
+            name = _names.directive_name(given, member="Processor")
+            if name in RESERVED or name in self._extensions:
+                raise ValueError(f"extension directive name taken: {name!r}")
+            self._extensions[name] = extension
+
+    def load(self, path: str, *, overrides: Mapping[str, ConfigText] | None = None) -> DocumentGraph:
+        """Read the root file at ``path`` (resolved through the source, as an included file's spec is, so the root
+        has one path in the graph) and every file its include lines name, once each (R21), repeating until nothing
+        new is named. Never raises for anything in the text. ``overrides`` are by name without ``$``, each config text
+        (``{"host": quote("10.0.60.30"), "port": text("8080")}``); which ``set`` lines an override wins over is
+        spec/expansion.md 5. Each is checked as ``DocumentGraph.set_override`` checks it: TypeError for a text that is
+        not a str, ValueError (misuse) for a name that is not letters, digits and ``_``, BadTextError for a text that
+        is not one or more values. Raises ReadError (``paths``: ``[path]``; ``__cause__``: the source's failure) when
+        the source cannot resolve the root to exactly one file or read it."""
+        from villanelle.written import _read
+
+        return _read.load_graph(self._source, self._extensions, path, overrides or {})

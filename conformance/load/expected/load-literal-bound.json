@@ -1,0 +1,1 @@
+{"files":["main.conf"],"directives":[["z",false,"main.conf:2:0",[["a[0~2]","main.conf:2:2"]]]],"unreadable":[["","syntax","main.conf:0:0"],["","syntax","main.conf:1:0"]],"diagnostics":[["E2007","main.conf:0:4"],["E2007","main.conf:1:4"]]}

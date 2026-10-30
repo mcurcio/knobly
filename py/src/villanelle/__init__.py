@@ -1,94 +1,78 @@
-"""villanelle: a configuration language defined by one grammar (grammar/Villanelle.g4), with a lossless syntax tree
-(tier 1: ``parse``) and a load layer (tier 2: ``Processor``) that expands variables, snippets and included files into
-directives a program reads. The core does no I/O: ``villanelle.files`` gives a filesystem source."""
+"""villanelle: a configuration language defined by one grammar (grammar/Villanelle.g4). One namespace per layer
+(binding guide rule 9): this package root holds the shared and io names (positions, places, origins, diagnostics,
+the error tree, config text, the document source and writer ports and the in-memory adapters);
+``villanelle.syntax`` the lossless syntax tree (``parse``); ``villanelle.written`` the config as written (the low
+level: ``Processor.load`` returns a ``DocumentGraph`` of editable documents, read further with ``graph.read()`` and
+saved back with ``graph.save(writer)``); ``villanelle.rendered`` the rendered tree (``render(graph)``: variables,
+snippets and included files expanded into directives a program reads). The core does no I/O: ``villanelle.files``
+gives a filesystem source and writer, ``villanelle.include`` the include extension.
 
-from villanelle.diagnostics import Diagnostic, DiagnosticCode, DiagnosticError
-from villanelle.directives import (
-    Address,
-    AddressStep,
-    Argument,
-    Directive,
-    KeyInput,
-    KeyRule,
-    PlainValue,
-    Unreadable,
-    UnreadableKind,
-    walk,
+Every public signature is generated from spec/schema/api.json (``villanelle._api``); each module's ``__all__`` equals
+the generated ``PUBLIC_NAMES`` for it (tests/test_api_names.py)."""
+
+from villanelle._api.codes import DiagnosticCode
+from villanelle._api.errors import (
+    BadTextError,
+    DetachedError,
+    DiagnosticError,
+    LostUpdateError,
+    ReadError,
+    SaveError,
+    VillanelleError,
 )
-from villanelle.graph import DocumentEdge, DocumentGraph, DocumentNode
-from villanelle.origin import DirectiveOrigin, Handed, Origin, Place, Step, StepKind
-from villanelle.processor import (
-    Added,
-    Change,
-    Changed,
-    Extension,
-    ExtensionUse,
-    Loaded,
-    Processor,
-    Removed,
-    Unknown,
+from villanelle._api.io import DocumentSource, DocumentWriter, FileWrite, LoadContext
+from villanelle._api.kinds import PlaceKind, StepKind
+from villanelle._api.limits import PROGRAM_CODE
+from villanelle._api.shared import (
+    Block,
+    ConfigText,
+    DirectiveOrigin,
+    Locatable,
+    Origin,
+    ProgramCode,
+    SourcePosition,
+    SourceSpan,
 )
-from villanelle.report import Collecting, Diagnostics, Locatable, LocatedDiagnostic, format_diagnostic
-from villanelle.source import DocumentSource, LoadContext, memory_source
-from villanelle.span import SourcePosition, SourceSpan
-from villanelle.syntax.cst import Node, NodeKind, Syntax, TokenRange, ValueRef, span_of, text_of
-from villanelle.syntax.parse import parse
-from villanelle.syntax.tokens import Token, TokenKind
-from villanelle.value import IndexValue, SliceValue, ValueKind
+from villanelle._diagnostics import Diagnostic
+from villanelle._origin import Override, Place, Step
+from villanelle._report import Collecting, Diagnostics, LocatedDiagnostic
+from villanelle._source import check_lost_updates, memory_source, memory_writer
+from villanelle._text import quote, text
 
 __all__ = [
-    "Added",
-    "Address",
-    "AddressStep",
-    "Argument",
-    "Change",
-    "Changed",
+    "PROGRAM_CODE",
+    "BadTextError",
+    "Block",
     "Collecting",
+    "ConfigText",
+    "DetachedError",
     "Diagnostic",
     "DiagnosticCode",
     "DiagnosticError",
     "Diagnostics",
-    "Directive",
     "DirectiveOrigin",
-    "DocumentEdge",
-    "DocumentGraph",
-    "DocumentNode",
     "DocumentSource",
-    "Extension",
-    "ExtensionUse",
-    "Handed",
-    "IndexValue",
-    "KeyInput",
-    "KeyRule",
+    "DocumentWriter",
+    "FileWrite",
     "LoadContext",
-    "Loaded",
     "Locatable",
     "LocatedDiagnostic",
-    "Node",
-    "NodeKind",
+    "LostUpdateError",
     "Origin",
+    "Override",
     "Place",
-    "PlainValue",
-    "Processor",
-    "Removed",
-    "SliceValue",
+    "PlaceKind",
+    "ProgramCode",
+    "ReadError",
+    "SaveError",
     "SourcePosition",
     "SourceSpan",
     "Step",
     "StepKind",
-    "Syntax",
-    "Token",
-    "TokenKind",
-    "TokenRange",
-    "Unknown",
-    "Unreadable",
-    "UnreadableKind",
-    "ValueKind",
-    "ValueRef",
-    "format_diagnostic",
+    "VillanelleError",
+    "check_lost_updates",
     "memory_source",
-    "parse",
-    "span_of",
-    "text_of",
-    "walk",
+    "memory_writer",
+    "quote",
+    "text",
 ]

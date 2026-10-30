@@ -2,19 +2,20 @@
  * The "villanelle/node" entry: filesystem I/O edges for Node.js.
  */
 
-import { readdir, readFile, stat, writeFile } from "node:fs/promises";
-import { basename, dirname, resolve } from "node:path";
+import { randomBytes } from "node:crypto";
+import { readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
 
 import { globToRegExp, hasGlob } from "./graph/glob.js";
-import type { IDocumentWriter } from "./graph/save.js";
-import type { IDocumentSource } from "./load/source.js";
+import { checkLostUpdates } from "./source.js";
+import type { DocumentSource, DocumentWriter } from "./gen/api/io.js";
 
 /**
  * A document source over the filesystem. `read` reads a path as given, as UTF-8; `resolve` joins a spec to the
  * directory of `context.parentPath`; a glob (`*` and `?` in the last path segment only) lists that directory and
  * returns every matching file. A missing file resolves to no paths (E3001).
  */
-export function createFileSource(): IDocumentSource {
+export function fileSource(): DocumentSource {
   return {
     async resolve(spec, context) {
       const path = resolve(dirname(context.parentPath), spec);
@@ -51,11 +52,51 @@ function isMissing(error: unknown): boolean {
   return code === "ENOENT" || code === "ENOTDIR";
 }
 
-/** A writer that replaces the file at resolvedPath with the text, as UTF-8. */
-export function createFsWriter(): IDocumentWriter {
+/**
+ * One batch on disk (D18): reads each target first and calls `checkLostUpdates` with what is there (a missing file is
+ * absent), so a lost update rejects with a LostUpdateError, writing nothing; else writes each text, as UTF-8, to
+ * a temporary file beside its target (`<name>.<random>.tmp`), then renames each over its target in batch order. A
+ * failure while staging removes the temporaries and rejects with nothing replaced; a failure while renaming can
+ * leave earlier files replaced (stated cost) and removes the temporaries not yet renamed.
+ */
+export function fileWriter(): DocumentWriter {
   return {
-    async write(resolvedPath, source) {
-      await writeFile(resolvedPath, source, "utf8");
+    async write(files) {
+      const current: (string | undefined)[] = [];
+      for (const file of files) current.push(await readIfThere(file.resolvedPath));
+      checkLostUpdates(files, current);
+      const staged: { readonly temporary: string; readonly target: string }[] = [];
+      const removeLeft = async (from: number): Promise<void> => {
+        await Promise.all(staged.slice(from).map(({ temporary }) => rm(temporary, { force: true })));
+      };
+      try {
+        for (const file of files) {
+          const temporary = join(dirname(file.resolvedPath), `${basename(file.resolvedPath)}.${randomBytes(6).toString("hex")}.tmp`);
+          staged.push({ temporary, target: file.resolvedPath });
+          await writeFile(temporary, file.text, { encoding: "utf8", flag: "wx" });
+        }
+      } catch (error) {
+        await removeLeft(0);
+        throw error;
+      }
+      for (const [i, { temporary, target }] of staged.entries()) {
+        try {
+          await rename(temporary, target);
+        } catch (error) {
+          await removeLeft(i);
+          throw error;
+        }
+      }
     },
   };
+}
+
+/** A file's text, or undefined when nothing is there. Other failures reject. */
+async function readIfThere(path: string): Promise<string | undefined> {
+  try {
+    return await readFile(path, "utf8");
+  } catch (error) {
+    if (isMissing(error)) return undefined;
+    throw error;
+  }
 }

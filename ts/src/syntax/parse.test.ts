@@ -1,31 +1,30 @@
 import { describe, expect, it } from "vitest";
 
-import { DiagnosticCode } from "../diagnostics.js";
-import { NodeKind, spanOf, textOf } from "./cst.js";
 import { parse } from "./parse.js";
-import { TokenKind } from "./tokens.js";
+import { DiagnosticCode } from "../index.js";
+import { spanOf, textOf } from "./index.js";
 
 describe("parse", () => {
   it("parses the tracer slice into a directive holding a slice node", () => {
-    const syntax = parse("connect hyperhdr_color[144:152];");
+    const syntax = parse("connect hyperhdr_color[144~152];");
     expect(syntax.diagnostics).toEqual([]);
     expect(syntax.tokens.map((t) => [t.kind, t.text])).toEqual([
       ["WORD", "connect"],
       ["SPACE", " "],
       ["WORD", "hyperhdr_color"],
       ["LBRACK", "["],
-      ["WORD", "144"],
-      ["COLON", ":"],
-      ["WORD", "152"],
+      ["INTEGER", "144"],
+      ["TILDE", "~"],
+      ["INTEGER", "152"],
       ["RBRACK", "]"],
       ["SEMI", ";"],
     ]);
     expect(syntax.root).toEqual({
-      kind: NodeKind.Document,
+      kind: "document",
       start: 0,
       end: 9,
       children: [
-        { kind: NodeKind.Directive, start: 0, end: 9, children: [{ kind: NodeKind.Slice, start: 2, end: 8, children: [] }] },
+        { kind: "directive", start: 0, end: 9, children: [{ kind: "slice", start: 2, end: 8, children: [] }] },
       ],
     });
   });
@@ -33,31 +32,33 @@ describe("parse", () => {
   it("parses the index form foo[1]", () => {
     const syntax = parse("connect foo[1];");
     expect(syntax.diagnostics).toEqual([]);
-    expect(syntax.root.children[0]?.children[0]).toMatchObject({ kind: NodeKind.Slice, start: 2, end: 6 });
+    expect(syntax.root.children[0]?.children[0]).toMatchObject({ kind: "slice", start: 2, end: 6 });
   });
 
   it("covers leading and trailing whitespace with the document node", () => {
     const syntax = parse(" \tconnect foo[1]; ");
     expect(syntax.root).toMatchObject({ start: 0, end: syntax.tokens.length });
-    expect(syntax.tokens[0]?.kind).toBe(TokenKind.Space);
-    expect(syntax.tokens.at(-1)?.kind).toBe(TokenKind.Space);
+    expect(syntax.tokens[0]?.kind).toBe("SPACE");
+    expect(syntax.tokens.at(-1)?.kind).toBe("SPACE");
   });
 
   it("reports [:] as one located diagnostic", () => {
-    const syntax = parse("connect foo[:];");
+    const syntax = parse("connect foo[~];");
     expect(syntax.diagnostics).toHaveLength(1);
     expect(syntax.diagnostics[0]).toMatchObject({
       code: DiagnosticCode.BadSlice,
       span: { start: { offset: 13, line: 0, column: 13 }, end: { offset: 14, line: 0, column: 14 } },
     });
-    expect(textOf(syntax, syntax.root)).toBe("connect foo[:];");
+    expect(textOf(syntax, syntax.root)).toBe("connect foo[~];");
   });
 
   it("codes lexical errors by the offending token", () => {
-    expect(parse("a \u0001").diagnostics.map((d) => d.code)).toEqual([DiagnosticCode.UnexpectedCharacter]);
+    expect(parse("a \u0001;").diagnostics.map((d) => d.code)).toEqual([DiagnosticCode.UnexpectedCharacter]);
     expect(parse('a "b').diagnostics.map((d) => d.code)).toEqual([DiagnosticCode.UnterminatedString]);
-    expect(parse("a ﻿").diagnostics.map((d) => d.code)).toEqual([DiagnosticCode.UnexpectedCharacter]);
-    expect(parse("﻿a").diagnostics).toEqual([]);
+    expect(parse("a ﻿;").diagnostics.map((d) => d.code)).toEqual([DiagnosticCode.UnexpectedCharacter]);
+    expect(parse('a "\\q";').diagnostics.map((d) => [d.code, d.span.start.column])).toEqual([[DiagnosticCode.BadEscape, 2]]);
+    expect(parse('a "\\q";').tokens.map((t) => t.kind)).toEqual(["WORD", "SPACE", "BAD_ESCAPE", "SEMI"]);
+    expect(parse("﻿a;").diagnostics).toEqual([]);
   });
 
   it("locates an unexpected end of input at the end of the text", () => {

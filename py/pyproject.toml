@@ -11,20 +11,23 @@ dependencies = ["antlr4-python3-runtime==4.13.2"]
 Repository = "https://github.com/mcurcio/villanelle"
 
 [dependency-groups]
-dev = ["pytest", "ruff", "mypy"]
+# ruff is pinned exactly: the generator (tools/api/emit_py.py) writes what this ruff format writes, and `ruff format
+# --check` gates the generated code, so a ruff upgrade is a generator change (spec/codegen.md section 4).
+dev = ["pytest", "ruff==0.17.2", "mypy"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-# src/villanelle/_gen/ is made by `bash ../tools/gen.sh py` and ignored by git, so hatchling would drop it:
-# artifacts force it into the wheel and sdist (proven by tests/test_build.py). Run gen.sh before building.
+# src/villanelle/_gen/ (the parser) and src/villanelle/_api/ (the API lists from spec/schema/) are made by
+# `bash ../tools/gen.sh py` and ignored by git, so hatchling would drop them: artifacts force them into the wheel and
+# sdist (proven by tests/test_build.py). Run gen.sh before building.
 [tool.hatch.build.targets.wheel]
 packages = ["src/villanelle"]
-artifacts = ["src/villanelle/_gen/*"]
+artifacts = ["src/villanelle/_gen/*", "src/villanelle/_api/*"]
 
 [tool.hatch.build.targets.sdist]
-artifacts = ["src/villanelle/_gen/*"]
+artifacts = ["src/villanelle/_gen/*", "src/villanelle/_api/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -33,6 +36,9 @@ testpaths = ["tests"]
 line-length = 120
 target-version = "py311"
 extend-exclude = ["src/villanelle/_gen"]
+# The generated src/villanelle/_api/ is git-ignored but must stay checked (the generator emits clean code); ruff skips
+# git-ignored files unless told not to. .venv/ and dist/ are in ruff's default excludes.
+respect-gitignore = false
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
@@ -41,7 +47,7 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
 strict = true
 python_version = "3.11"
 mypy_path = "src"
-files = ["src", "tests"]
+files = ["src", "tests", "conformance"]
 exclude = ["src/villanelle/_gen/"]
 
 [[tool.mypy.overrides]]

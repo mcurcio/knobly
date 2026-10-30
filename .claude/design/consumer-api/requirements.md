@@ -104,3 +104,17 @@ Existing open owner decisions the architect should propose answers for (not add 
 - Approved: the language features and design as of page v10 (directives everywhere, decentralized and recursive, many mixed values, variables as whole values, snippets, own-body escape hatch, include as a first-party extension).
 - Plan he said yes to (main session's proposal, not his words): (1) the low-level API (R15 tiers 1-2: tokens/parse tree and the directive layer) is designed and built next; (2) it must carry what the sugar needs: located errors, a stable identity per written place, the change list, include as a file graph, variables and snippets expanded with each value traceable to where it was written; (3) design rule: the round-10 sugar (final-py dataclasses, final-ts NestJS) must be buildable purely on top of it, checked by a reviewer before the gate; (4) done = rasl loads family_room.conf and hyperhdr.conf through the low-level API in Python and TypeScript.
 - Deferred with the sugar (vil-xlo): pyholds, tsread, @OnChange vs applied(failures), and the startup check for wrong-block reads (needs declared directives).
+
+## Owner in chat, 2026-10-28 (after PR 3 merged)
+
+- On the layers: "a rendered config tree is not something that we currently have. that seems like a medium layer between the low-level API (AST level?) and the high-level (idiomatic integrations)."
+- "the most important detail here is that you have incorrectly written the middle layer representation as if it were the low-level API. lets start there. consumers need to be able to see which files were included in a config load, what variables exist, and where they were overloaded. consumers should be able to manipulate/alter that data so that it can be written back to the source files"
+- On diff (a steer, for the middle layer): content-level changes, not whitespace; flags when two directives swap order; flags changes in nested blocks; open: "would a change in a nested block also flag a change to the parent directive?"
+- On variables: one set per name per block is fine: "i was concerned that there was no way to modify the variables, but there does appear to be".
+- Earlier, 2026-10-24: "How will includes be round-tripped through modifications to an included subtree?"
+- On editing a value that came from a variable (asked: edit the `set` line, or the one use?): "It depends if the integration program changes the `$pixels` variable itself, or if it instead changes `max_count` to no longer use the variable. both kinds of changes should be possible" (2026-10-28).
+
+## Owner gate answers v12 (round 12 page), 2026-10-28
+- names: A (load returns the files as written; render builds the rendered tree). Note: "i like this layered approach, because it allows consumers to build on top of any of the APIs"
+- copies: A (an edit lands on the written line; every place that reads it changes). Note: "the API _could_ provide helpers to do other operations like \"disconnect\" the variable or to \"inline\" the include, for example"
+- values: A (new values written as villanelle text, with quote()).

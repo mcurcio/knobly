@@ -1,9 +1,18 @@
 #!/usr/bin/env bash
 # Soundness checks for grammar/Villanelle.g4. Exits non-zero on any failure.
 #   1. The parser rules, translated to Bison, have 0 conflicts (proves the grammar unambiguous).
-#   2. No two token kinds can match the same text.
-#   3. Each planted bad grammar in tools/planted/ is caught (the checks still bite).
-# Needs: python3, bison, uv (for interegular).
+#   2. No two token kinds can match the same text, and no two tokens the parser places side by side lex as one
+#      longer token (tools/g4overlap.py: overlap, then longest-match adjacency).
+#   3. Each planted bad grammar in tools/planted/ is caught by the Bison check, and each in tools/planted-tokens/ by
+#      the token check (the checks still bite).
+#   4. spec/schema/ is consistent: every type resolves, the layer direction and the error tree hold, each check bites on a
+#      planted broken copy, both bindings render, and the committed docs tables are current (tools/gen-api.py --check).
+#   5. spec/schema/*.json match their JSON Schema, spec/schema/api.schema.json, which bites too (tools/api/validate.py).
+#   6. The kind lint's own test (tools/lint/kind_lint.py, under py's pinned Python so `match` is checked too; its
+#      TypeScript twin tools/lint/kind-rule.mjs runs in ts lint).
+#   7. The shared conformance driver's own test (conformance/driver/test_driver.py; spec/conformance.md).
+# The public-name check runs in each package's tests against the generated names module (spec/codegen.md section 4).
+# Needs: python3, bison, uv (for interegular and jsonschema).
 set -u
 cd "$(dirname "$0")/.."
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
@@ -18,11 +27,24 @@ if bison_check grammar/Villanelle.g4; then echo "ok   grammar: 0 conflicts"
 else echo "FAIL grammar: $(cat "$tmp/err" "$tmp/bison" 2>/dev/null)"; fail=1; fi
 
 if uv run -q --with interegular python tools/g4overlap.py grammar/Villanelle.g4 > "$tmp/ov" 2>&1
-then echo "ok   tokens: $(tail -1 "$tmp/ov")"
+then echo "ok   tokens: $(tail -2 "$tmp/ov" | paste -sd ";" -)"
 else echo "FAIL tokens: $(cat "$tmp/ov")"; fail=1; fi
 
 for f in tools/planted/*.g4; do
   if bison_check "$f"; then echo "FAIL planted $(basename "$f"): not caught"; fail=1
   else echo "ok   planted $(basename "$f"): caught"; fi
 done
+for f in tools/planted-tokens/*.g4; do
+  if uv run -q --with interegular python tools/g4overlap.py "$f" > /dev/null 2>&1; then
+    echo "FAIL planted $(basename "$f"): not caught"; fail=1
+  else echo "ok   planted $(basename "$f"): caught"; fi
+done
+if python3 tools/gen-api.py --check > "$tmp/api" 2>&1; then echo "ok   api schema: $(cat "$tmp/api")"
+else echo "FAIL api schema: $(cat "$tmp/api")"; fail=1; fi
+if uv run -q --with jsonschema==4.23.0 python tools/api/validate.py > "$tmp/meta" 2>&1; then echo "ok   meta-schema: $(cat "$tmp/meta")"
+else echo "FAIL meta-schema: $(cat "$tmp/meta")"; fail=1; fi
+if uv run -q --project py --locked python tools/lint/kind_lint.py --self-test > "$tmp/lint" 2>&1; then echo "ok   $(cat "$tmp/lint")"
+else echo "FAIL $(cat "$tmp/lint")"; fail=1; fi
+if python3 conformance/driver/test_driver.py > "$tmp/driver" 2>&1; then echo "ok   conformance driver: self-test"
+else echo "FAIL conformance driver: $(cat "$tmp/driver")"; fail=1; fi
 exit $fail

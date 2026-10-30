@@ -1,1 +1,1 @@
-{"files":["main.conf","vars.conf"],"directives":[["port",false,"main.conf:1:0",[["80","vars.conf:0:7 < variable p main.conf:1:5"]]]],"unreadable":[],"diagnostics":[]}
+{"files":["main.conf","vars.conf"],"directives":[["port",false,"main.conf:1:0",[["80","vars.conf:0:8 < variable p main.conf:1:5"]]]],"unreadable":[],"diagnostics":[]}

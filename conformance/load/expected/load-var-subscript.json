@@ -1,0 +1,1 @@
+{"files":["main.conf"],"directives":[["a",false,"main.conf:2:0",[["leds[0~3]","main.conf:2:2"]]],["b",false,"main.conf:3:0",[["leds[1]","main.conf:3:2"]]],["c",false,"main.conf:4:0",[["[leds[~2]]","main.conf:4:2"]]]],"unreadable":[],"diagnostics":[]}

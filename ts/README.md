@@ -12,33 +12,119 @@ It is not on npm. Releases attach the `npm pack` tarball to the GitHub Release (
 
 | Import | What it has |
 |---|---|
-| `villanelle` | The core. It does no input or output |
+| `villanelle` | The shared layer and the I/O ports: places, origins, diagnostics (`Diagnostics`, `DiagnosticCode`), the error classes, config text (`quote`, `text`), `PlaceKind`, `StepKind`, `WalkControl`, `PROGRAM_CODE`. It does no input or output; `memorySource(files)` and `memoryWriter(files)` keep texts in one object; `checkLostUpdates(files, current)` is the one lost-update check every writer calls |
+| `villanelle/syntax` | The syntax layer: `parse`, `spanOf`, `textOf`, `Token`, `Node`, `TokenKind`, `NodeKind`, `MAX_NESTING` |
+| `villanelle/written` | The low level: `villanelle(...)`, the document graph and its statements, values and variables, `formatDiagnostic`, `StatementKind`, `ValueKind`, `VariableKind`, `UnreadableReason`, the limits (`MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`) |
+| `villanelle/rendered` | The rendered tree: `render(graph)`, `Rendered`, `Directive`, `Address`, `Change`, `ChangeKind` |
 | `villanelle/include` | `include()`: the include extension |
-| `villanelle/node` | `createFileSource()` and `createFsWriter()`: files on disk |
-| `villanelle/browser` | `createFetchSource(fetch)` and `createFetchWriter(fetch, options?)`: files over `fetch` |
+| `villanelle/node` | `fileSource()` and `fileWriter()`: files on disk |
+| `villanelle/browser` | `fetchSource(fetch)` and `fetchWriter(fetch, options?)`: files over `fetch` |
 
-The core has two tiers:
+Adapters are named by medium (`memory`, `file`, `fetch`) and port (`source`, `writer`). A memory source reads the
+object it was given at every call, so a memory writer over the same object saves into what the next load reads.
 
-- **Syntax.** `parse(text)` returns `{ tokens, root, diagnostics }`. It is synchronous and never
-  throws. The tree is lossless: every character of the text is in exactly one token, and
+Each layer has its own import path (binding guide rule 9), and no type has an `I` prefix. Every public type, kind
+list, error class and limit is generated from [`spec/schema/api.json`](../spec/schema/api.json) (spec/codegen.md);
+the package's classes implement the generated interfaces. The core has three layers, each built on the one below:
+
+- **The syntax tree.** `parse(text)` returns `{ tokens, root, diagnostics }`. It is synchronous and never
+  throws. Every statement ends with `;` or a block, and a line break is whitespace (spec 3.2). The tree is lossless: every character of the text is in exactly one token, and
   `textOf(syntax, syntax.root)` gives the text back. Node kinds are `document`, `directive`,
   `block`, `list`, `slice` and `error`.
-- **Directives (the load layer).** `villanelle({ source, extensions, key })` makes a processor;
-  `await processor.load(path, { variables })` reads the root file and every file it includes, and
-  expands variables and snippets. The result has the directives (`body`, `walk`), each value's
-  readers (`word()`, `number()`, `integer()`, `boolean()`, `items()`, `slice()`, `plain()`), the
-  origin of every directive and value, an address per directive, every problem as a located
-  diagnostic, and the file graph. `processor.diff(before, after)` lists what changed between two
-  loads. `Diagnostics` collects problems; `formatDiagnostic` prints one with its source line.
-  `save(graph, writer)` writes files back.
+- **The low level: the files as written.** `villanelle({ source, extensions })` makes a processor, and `load` is
+  its only operation: `await processor.load(path, { overrides })` reads the root file and every file it includes
+  and returns the document graph: the documents (`savedText`, `text`, `block`), their statements and values, the
+  include copies, the variables and what each `$name` reads at each place. Overrides are values the program passes
+  in by name, as villanelle text; each wins over every `@set` of its name. Every edit and override takes config
+  text (`ConfigText`), its own type, made only by `quote()` (a program string, written as a villanelle string) or
+  `text()` (text already written as villanelle text): passing a plain string is a type error. A number goes through
+  `text(String(n))`.
 
-The reference, with examples from the tests, is [docs/low-level-api.md](../docs/low-level-api.md);
-the language is [docs/language.md](../docs/language.md).
+  ```ts
+  import { quote, text } from "villanelle";
+  import { fileSource, fileWriter } from "villanelle/node";
+  import { villanelle } from "villanelle/written";
+
+  const graph = await villanelle({ source: fileSource() }).load("main.conf", { overrides: { port: text("8080") } });
+  const server = graph.root.block.directives("server")[0];
+  server?.set(quote("10.0.60.31")); // replaces the statement's values (not the language's `@set` line)
+  graph.setOverride("port", text("9090"));
+  await graph.save(fileWriter());
+  ```
+
+  The language's own statements are written behind `@` (`@set`, `@snippet`, `@use`, and an extension's `@include`),
+  so no directive name is reserved: `events { use epoll; }` is a plain directive, and an `@name` no extension owns is
+  an unreadable line (E3008).
+
+  Statements, values and variables are unions narrowed by `kind`, and each kind has only the members that can
+  succeed on it: an include line (`ExtensionLine`) has no `rename`, a parameter no `set`, an override variable no
+  `place`, `rename` or `set` (use `graph.setOverride`). Every kind list is an `as const` object and the
+  string-literal union derived from it, under one name (spec 2.10): `StatementKind.Set` is `"set"`, and a program may
+  compare with either. So narrowing needs no cast:
+
+  ```ts
+  for (const s of graph.root.block) if (s.kind === StatementKind.Set) s.variable.set(text("2"));
+  ```
+
+  Every block has one shape in every layer (spec 2.11): iterate it (`for...of`, `[...block]`), count it
+  (`block.length`), index it (`block.at(i)`, undefined out of range), take its directives (`block.directives(name?)`)
+  and walk everything below it (`block.walk(visit)`, the callback returning `WalkControl.Skip` or `WalkControl.Stop`).
+  A written block also has `insertStatements` and `addStatements`.
+
+  `set(text)` replaces a statement's or a variable's values (a text with no value must be empty: `set(text(""))`
+  clears them); on a written value it replaces that one value and keeps the handle, which takes the new value's kind
+  (`$pixels` set to `2400` becomes a `word`; a variable narrowed on `kind` before is stale after). `replaceWithText`,
+  `insertStatements`, `addStatements`, `insertBefore`, `insertAfter` and `rename` are the other named edits. Each
+  text is checked by the grammar's own entry rule (`statementsText`, `valuesText`, `valueText`, `itemsText`,
+  `boundText`, `sliceNameText`, `nameText` in `Villanelle.g4`; spec 2.8): a values text may span lines, but one that
+  ends in a comment is refused, since the comment would swallow the `;` after it. Each edit keeps comments and layout, and given anything but a string it throws a `TypeError` naming the
+  member and the parameter; a bad name (`rename`, `setOverride`, an override of `load`) throws a `MisuseError`. `graph.setOverride(name, text)` changes an override without a
+  reload, checked as `load` checks its overrides. `await graph.read()` reads files an edit added, through the
+  source the graph was loaded with; `await graph.save(writer)` hands the changed files to a writer in one batch.
+  `graph.expand()` gives the expansion: each directive copy with its values expanded (`ExpandedValue`s, with their
+  readers and their links back to the written lines) and what won over each `$name`; an include copy not read yet
+  is an unreadable expansion with reason `unread` (E3007). `graph.diagnostics` is the one list of every problem.
+  Which definition a `$name` reaches is [spec/expansion.md](../spec/expansion.md). A variable's `references()` are lexical: the `$name`s in its own file that it declares. A use in an
+  included file is resolved per copy, so it is only in `wins()` and `shadowedAt()`. The low level never imports the
+  rendered tree (`pnpm lint` checks it). Reference: [docs/low-level-api.md](../docs/low-level-api.md).
+- **The rendered tree.** `render(graph)` builds on the low level's public objects only (`graph.expand()`; `pnpm
+  lint` refuses a rendered module importing anything under `written/` but `written/index.js`): it gives the
+  directives (`block`, `values`; `rendered.block.walk` visits them all), each value its expansion's own `ExpandedValue`, narrowed by `kind` (a list has `items`, a slice
+  `name`, `start`, `end`, an index `name`, `index`) with its typed readers (`word()`, `string()`, `number()`,
+  `integer()`, `boolean()`, `list()`, `slice()`: a word is untyped until the program reads it as one), its origin, and `written` (the value on its own line),
+  `definition` (where it is written) and `chain` (the `$name` steps between) leading back to the low level.
+  `rendered.addresses({ key })` names each directive under a key rule, and `before.diff(after, { key })` lists what
+  changed between two renders. `Diagnostics` collects problems; `formatDiagnostic` prints one with its source line.
+  A file included twice renders as two copies that share one written line, so an edit loop over the render meets
+  the same `written` handle twice; a value's `set` keeps its handle, so the natural loop just writes it again:
+
+  ```ts
+  loaded.block.walk((d) => {
+    const arg = d.values[0];
+    if (d.name === "max_count" && arg !== undefined) arg.written.set(text("2400"));
+  });
+  ```
+
+  Reference: [docs/rendered-tree.md](../docs/rendered-tree.md).
+
+Every example in those pages is copied from a test that runs. The language is
+[docs/language.md](../docs/language.md).
 
 Problems are diagnostics with stable codes (`DiagnosticCode`: 1xxx lexical, 2xxx syntax, 3xxx
 files and extensions, 4xxx values, 5xxx expansion); a program's own codes are
-`<namespace>/<name>`. Lines and columns are 0-based; offsets and columns count UTF-16 code units.
-Only a diagnostic's code and place are a contract, not its message.
+`<namespace>/<name>`. Lines and columns are 0-based; offsets and columns count UTF-16 code units, JavaScript's
+string unit, so `text.slice(start.offset, end.offset)` is the spanned text. Only a diagnostic's code and place are a
+contract, not its message. A place, an override, a step and a diagnostic print as people read them (`String(place)`
+is `main.conf:4:5`, 1-based), the same text `formatDiagnostic` starts with. Numbers follow
+[spec/contract.md](../spec/contract.md) 3: no reader returns negative zero, and `1e400` is not a number (E4004).
+
+Errors come in the spec's two sorts (spec 2.8). Every expected outcome extends `VillanelleError`, so one `catch`
+handles them all and no bug: `DiagnosticError` (a reader's or a program's located problem), `ReadError` (`load`
+cannot read the root file; `paths`, `cause`), `BadTextError` (an edit's text refused, nothing changed; its message
+lists its diagnostics), `SaveError` (the writer failed; `paths`, `cause`) and its `LostUpdateError` (a file changed
+since it was read; `paths` are the conflicting files). Program bugs are outside it: `DetachedError` (a
+`ReferenceError`: a handle whose tokens are gone), `MisuseError` (a bad name or program code), `TypeError` (an
+argument of the wrong type) and `RangeError` (an index out of range).
 
 ## Build and test
 
@@ -46,22 +132,37 @@ From the repository root, under Node 24 (`nvm use` reads `.nvmrc`):
 
 ```bash
 corepack pnpm -C ts install
-corepack pnpm -C ts test        # vitest, including the conformance corpus
-corepack pnpm -C ts typecheck
+corepack pnpm -C ts test        # vitest: the binding's own unit tests
+corepack pnpm -C ts typecheck   # the package and its conformance adapter
 corepack pnpm -C ts lint
 corepack pnpm -C ts build       # dist/
+corepack pnpm -C ts conformance # the shared conformance driver, on the build above
 ```
 
-Each script first runs `bash ../tools/gen.sh ts`, which regenerates the parser into `src/gen/`
-(ignored by git, never committed). That needs Java 11+; the ANTLR jar is cached in
+Each script first runs `bash ../tools/gen.sh ts`, which regenerates the parser into `src/gen/`, and from
+`spec/schema/` the declarations into `src/gen/api/` (each layer's interfaces, the kind lists, the diagnostic codes,
+the error classes, the limits and `PUBLIC_NAMES`) and the adapter's protocol types into `conformance/shapes.ts`
+(ignored by git, never committed). `src/api-names.test.ts` checks every entry's exports against `PUBLIC_NAMES`, both
+ways. `pnpm lint` also runs the kind rule (`tools/lint/kind-rule.mjs`): inside the package a `.kind`, `.reason` or
+`.code` is compared with a generated member, never a string literal. That needs Java 11+; the ANTLR jar is cached in
 `$ANTLR_JAR_DIR` (default `~/.cache/antlr`).
 
 Two settings exist because of the generated code:
 
-- `gen.sh` puts `// @ts-nocheck` at the top of each generated file. The `antlr4` 4.13.2 typings
+- `gen.sh` puts `// @ts-nocheck` at the top of each generated parser file (not `src/gen/api/`). The `antlr4` 4.13.2 typings
   are incomplete, and the generated code gives 206 type errors without it, though it runs.
 - `verbatimModuleSyntax` is off in `tsconfig.json`. With it on, the generated files' type-only
   imports stay in the JavaScript output and fail at run time.
 
-To rewrite the conformance expected files after an intended change, run the tests with
-`VILLANELLE_WRITE_EXPECTED=1`, and review what it writes.
+## Conformance
+
+The shared corpora under [`conformance/`](../conformance/) are run by one driver for every binding
+([spec/conformance.md](../spec/conformance.md)); no test in this package reads them. This binding's part is its
+conformance adapter, [`conformance/adapter.ts`](conformance/adapter.ts): a process that answers the driver's
+requests (one JSON object per line on standard input and output) through the built package's public entry points,
+with positions in UTF-16 units. Its messages are typed by the generated `conformance/shapes.ts`, members are spelled
+by its `SPELLING` table and thrown errors named by `ERROR_GROUP_OF_CLASS`. It claims level L3 (spec/README.md). `corepack pnpm conformance` runs
+`python3 ../conformance/driver/run.py -- node conformance/adapter.ts` (Python 3.9 or later) after `build`; it prints
+TAP, one line per case, and exits 0 when every case at or below the claimed level passes. To run fewer cases, run
+that command yourself with `--corpus NAME` or `--case NAME` before the `--`. The adapter is typechecked and linted with the package but is not
+built or published.

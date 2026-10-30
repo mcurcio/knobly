@@ -1,0 +1,1 @@
+{"files":["main.conf"],"directives":[["path",false,"main.conf:0:0",[["\"C:\\\\new\\\\x\"","main.conf:0:5"],["\"C:\\\\new\"","main.conf:0:16"]]],["q",false,"main.conf:1:0",[["\"a\\\"b\"","main.conf:1:2"]]]],"unreadable":[],"diagnostics":[]}

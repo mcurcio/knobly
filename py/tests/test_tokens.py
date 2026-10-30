@@ -4,7 +4,7 @@ import re
 
 from conftest import REPO
 
-from villanelle import TokenKind
+from villanelle.syntax import TokenKind
 
 
 def grammar_token_names() -> list[str]:

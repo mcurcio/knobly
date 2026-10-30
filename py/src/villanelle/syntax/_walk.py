@@ -9,14 +9,14 @@ from typing import Any
 from antlr4 import ParserRuleContext
 from antlr4.tree.Tree import ErrorNode, TerminalNode
 
+from villanelle._api.kinds import NodeKind
+from villanelle._api.syntax import Node
 from villanelle._gen.VillanelleParser import VillanelleParser
-from villanelle.syntax.cst import Node, NodeKind
 
 # Grammar rule name -> concept node kind. Every other rule is transparent.
 _CONCEPTS: dict[str, NodeKind] = {
     "document": NodeKind.DOCUMENT,
     "directive": NodeKind.DIRECTIVE,
-    "lastDirective": NodeKind.DIRECTIVE,
     "block": NodeKind.BLOCK,
     "slicedWord": NodeKind.SLICE,
     "list": NodeKind.LIST,
@@ -66,6 +66,13 @@ def _items(tree: Any) -> list[_Item]:
         return [_ErrorItem(index, tree.parentCtx) if isinstance(tree, ErrorNode) else _TokenItem(index)]
     kids = [item for child in (tree.children or []) for item in _items(child)]
     kind = _CONCEPT_BY_RULE.get(tree.getRuleIndex())
+    if (
+        kind is NodeKind.DIRECTIVE
+        and tree.exception is not None
+        and not any(isinstance(k, _NodeItem) and k.node.kind is NodeKind.BLOCK for k in kids)
+    ):
+        # A directive the parser could not finish before its block is part of its statement's one error node.
+        return [_ErrorItem(i, tree.parentCtx) for i in _token_indices(kids)]
     return kids if kind is None else [_NodeItem(_make_node(kind, kids, tree))]
 
 
@@ -91,7 +98,7 @@ def _make_node(kind: NodeKind, kids: list[_Item], ctx: ParserRuleContext) -> Nod
                     break
                 last = nxt
                 i += 1
-            children.append(Node(NodeKind.ERROR, kid.index, last.index + 1, ()))
+            children.append(Node(kind=NodeKind.ERROR, start=kid.index, end=last.index + 1, children=()))
             cover(kid.index, last.index + 1)
         elif isinstance(kid, _TokenItem):
             cover(kid.index, kid.index + 1)
@@ -101,7 +108,25 @@ def _make_node(kind: NodeKind, kids: list[_Item], ctx: ParserRuleContext) -> Nod
         i += 1
     if lo is None or hi is None:
         lo = hi = ctx.start.tokenIndex if ctx.start is not None else 0
-    return Node(kind, lo, hi, tuple(children))
+    return Node(kind=kind, start=lo, end=hi, children=tuple(children))
+
+
+def _token_indices(kids: list[_Item]) -> list[int]:
+    """Every token index under ``kids``, in order."""
+    out: list[int] = []
+    for kid in kids:
+        if isinstance(kid, _NodeItem):
+            out.extend(range(kid.node.start, kid.node.end))
+        else:
+            out.append(kid.index)
+    return out
+
+
+def to_entry_cst(entry: ParserRuleContext, length: int) -> Node:
+    """The CST of an entry rule's parse tree (``parse_entry``): a ``document`` node over all ``length`` tokens, its
+    children the concept nodes the text holds (its slices and lists)."""
+    children = tuple(item.node for item in _items(entry) if isinstance(item, _NodeItem))
+    return Node(kind=NodeKind.DOCUMENT, start=0, end=length, children=children)
 
 
 def to_cst(document: ParserRuleContext) -> Node:

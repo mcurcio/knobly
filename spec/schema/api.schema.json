@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mcurcio/villanelle/spec/schema/api.schema.json",
+  "title": "villanelle API schema",
+  "description": "Checks the shape of spec/schema/api.json, diagnostics.json and protocol.json (spec/codegen.md). Every object is closed (no key it does not list), every closed set is an enum, and every type is text in the type grammar's alphabet, so free prose cannot stand where a type goes. What a shape check cannot see (every name resolves, variants cover their kind list, the layer direction, the error tree) tools/api/loader.py checks; tools/check.sh runs both.",
+  "oneOf": [
+    {"$ref": "#/$defs/api"},
+    {"$ref": "#/$defs/diagnostics"},
+    {"$ref": "#/$defs/protocol"}
+  ],
+  "$defs": {
+    "specName": {"type": "string", "pattern": "^[a-z0-9]+([ -][a-z0-9]+)*$", "description": "a spec name: lowercase words (binding guide rule 1)"},
+    "prose": {"type": "string", "minLength": 1},
+    "type": {"type": "string", "pattern": "^[a-z0-9 ()\\[\\]-]+$", "description": "a type in the closed type grammar (spec/codegen.md section 2)"},
+    "wireType": {"type": "string", "pattern": "^[a-z0-9 ()\\[\\]\"-]+$", "description": "a type in the protocol grammar (spec/codegen.md section 5)"},
+    "layerName": {"$ref": "#/$defs/specName", "description": "a layer api.json lists under 'layers' (tools/api/loader.py checks it: one home)"},
+    "languages": {"type": "array", "items": {"enum": ["ts", "py"]}, "minItems": 1, "uniqueItems": true},
+    "errorName": {"$ref": "#/$defs/specName"},
+
+    "param": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type"],
+      "properties": {
+        "name": {"$ref": "#/$defs/specName"},
+        "type": {"$ref": "#/$defs/type"},
+        "optional": {"type": "boolean"},
+        "passed": {"enum": ["position", "keyword", "option"], "description": "keyword: Python keyword-only, TypeScript positional; option: Python keyword-only, a TypeScript options object"},
+        "note": {"$ref": "#/$defs/prose"}
+      }
+    },
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "member"],
+      "properties": {
+        "name": {"$ref": "#/$defs/specName"},
+        "member": {"enum": ["property", "method"]},
+        "type": {"$ref": "#/$defs/type"},
+        "returns": {"$ref": "#/$defs/type"},
+        "params": {"type": "array", "items": {"$ref": "#/$defs/param"}},
+        "optional": {"type": "boolean"},
+        "trait": {"enum": ["people form", "iterate", "count", "index", "walk", "collect"]},
+        "io": {"type": "boolean"},
+        "errors": {"type": "array", "items": {"$ref": "#/$defs/errorName"}},
+        "order": {"$ref": "#/$defs/prose"},
+        "options": {"$ref": "#/$defs/specName"},
+        "type parameters": {"type": "array", "items": {"$ref": "#/$defs/specName"}},
+        "note": {"$ref": "#/$defs/prose"}
+      },
+      "if": {"properties": {"member": {"const": "property"}}},
+      "then": {"required": ["type"], "not": {"anyOf": [{"required": ["returns"]}, {"required": ["params"]}]}},
+      "else": {"required": ["returns"], "not": {"required": ["type"]}}
+    },
+    "concept": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "layer", "nature"],
+      "properties": {
+        "name": {"$ref": "#/$defs/specName"},
+        "layer": {"$ref": "#/$defs/layerName"},
+        "nature": {"enum": ["handle", "snapshot", "record", "port", "named type", "interface", "shape", "callback", "options"]},
+        "members": {"type": "array", "items": {"$ref": "#/$defs/member"}},
+        "variant of": {"$ref": "#/$defs/specName"},
+        "kind": {"$ref": "#/$defs/specName"},
+        "variants": {"type": "array", "items": {"$ref": "#/$defs/specName"}, "minItems": 1},
+        "kind list": {"$ref": "#/$defs/specName"},
+        "except": {"type": "array", "items": {"$ref": "#/$defs/specName"}},
+        "extends": {"$ref": "#/$defs/type"},
+        "type parameters": {"type": "array", "items": {"$ref": "#/$defs/specName"}},
+        "match args": {"type": "array", "items": {"$ref": "#/$defs/specName"}},
+        "languages": {"$ref": "#/$defs/languages"},
+        "module": {"enum": ["node", "browser", "files", "include"]},
+        "is": {"enum": ["text", "native"]},
+        "brand": {"type": "boolean"},
+        "pattern": {"$ref": "#/$defs/specName"},
+        "template": {"type": "string", "pattern": "^([^{}]|\\{text\\})+$", "description": "a named type's form where a type system can state it: '{text}' is any text, the rest literal"},
+        "type": {"$ref": "#/$defs/type"},
+        "note": {"$ref": "#/$defs/prose"}
+      }
+    },
+    "kindList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["layer", "sort"],
+      "properties": {
+        "layer": {"$ref": "#/$defs/layerName"},
+        "values": {"type": "array", "items": {"$ref": "#/$defs/specName"}, "minItems": 1, "uniqueItems": true},
+        "values from": {"const": "grammar"},
+        "sort": {"enum": ["variant set", "tag"]},
+        "variants": {"type": "object", "additionalProperties": {"$ref": "#/$defs/specName"}},
+        "tag of": {"type": "array", "items": {"$ref": "#/$defs/specName"}},
+        "languages": {"$ref": "#/$defs/languages"},
+        "note": {"$ref": "#/$defs/prose"}
+      },
+      "oneOf": [{"required": ["values"]}, {"required": ["values from"]}]
+    },
+    "languageBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "properties": {
+        "base": {"enum": ["Error", "ReferenceError", "Exception"]},
+        "builtin": {"enum": ["TypeError", "RangeError", "ValueError", "IndexError"]}
+      }
+    },
+    "errorGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sort", "raised when"],
+      "properties": {
+        "name": {"$ref": "#/$defs/specName"},
+        "sort": {"enum": ["base", "expected outcome", "program bug"]},
+        "parent": {"$ref": "#/$defs/specName"},
+        "raised when": {"$ref": "#/$defs/prose"},
+        "fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "type"],
+          "properties": {"name": {"$ref": "#/$defs/specName"}, "type": {"$ref": "#/$defs/type"}}}},
+        "message": {"type": "object", "additionalProperties": false, "properties": {
+          "given": {"const": true}, "template": {"$ref": "#/$defs/prose"}, "separator": {"type": "string"}},
+          "oneOf": [{"required": ["given"]}, {"required": ["template"]}]},
+        "cause": {"enum": ["chained"]},
+        "ts": {"$ref": "#/$defs/languageBase"},
+        "py": {"$ref": "#/$defs/languageBase"},
+        "note": {"$ref": "#/$defs/prose"}
+      }
+    },
+    "function": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "layer", "params", "returns"],
+      "properties": {
+        "name": {"$ref": "#/$defs/specName"},
+        "layer": {"$ref": "#/$defs/layerName"},
+        "params": {"type": "array", "items": {"$ref": "#/$defs/param"}},
+        "returns": {"$ref": "#/$defs/type"},
+        "errors": {"type": "array", "items": {"$ref": "#/$defs/errorName"}},
+        "factory": {"type": "object", "additionalProperties": false, "required": ["of", "ts", "py"], "properties": {
+          "of": {"$ref": "#/$defs/specName"}, "ts": {"enum": ["package function", "constructor"]}, "py": {"enum": ["constructor"]}}},
+        "module": {"type": "object", "additionalProperties": false, "minProperties": 1, "properties": {
+          "ts": {"enum": ["node", "browser", "include"]}, "py": {"enum": ["files", "include"]}}},
+        "options": {"$ref": "#/$defs/specName"},
+        "note": {"$ref": "#/$defs/prose"}
+      }
+    },
+    "constantName": {"$ref": "#/$defs/specName"},
+
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "package", "layers", "layer direction", "kinds", "keywords", "limits", "reserved names", "patterns",
+                   "error groups", "argument type error message", "free functions", "concepts"],
+      "properties": {
+        "$schema": {"type": "string"},
+        "$comment": {"type": "string"},
+        "version": {"const": 3},
+        "package": {"$ref": "#/$defs/specName"},
+        "layers": {"type": "array", "items": {"type": "object", "additionalProperties": false,
+          "required": ["name", "holds", "may import", "namespace"],
+          "properties": {"name": {"$ref": "#/$defs/layerName"}, "holds": {"$ref": "#/$defs/prose"},
+            "may import": {"type": "array", "items": {"$ref": "#/$defs/layerName"}}, "namespace": {"enum": ["package", "own"]}}}},
+        "layer direction": {"$ref": "#/$defs/prose"},
+        "kinds": {"type": "object", "propertyNames": {"$ref": "#/$defs/specName"}, "additionalProperties": {"$ref": "#/$defs/kindList"}},
+        "keywords": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["word", "statement kind"],
+          "properties": {"word": {"$ref": "#/$defs/specName"}, "statement kind": {"$ref": "#/$defs/specName"}}}},
+        "limits": {"type": "array", "items": {"type": "object", "additionalProperties": false,
+          "required": ["name", "constant", "layer", "value", "means", "code"],
+          "properties": {"name": {"$ref": "#/$defs/specName"}, "constant": {"$ref": "#/$defs/constantName"}, "layer": {"$ref": "#/$defs/layerName"},
+            "value": {"type": "integer"}, "means": {"$ref": "#/$defs/prose"}, "code": {"type": "string", "pattern": "^E[0-9]{4}$"}}}},
+        "reserved names": {"type": "object", "additionalProperties": false, "required": ["constant", "layer", "words from", "means"],
+          "properties": {"constant": {"$ref": "#/$defs/constantName"}, "layer": {"$ref": "#/$defs/layerName"}, "words from": {"const": "keywords"},
+            "means": {"$ref": "#/$defs/prose"}}},
+        "patterns": {"type": "object", "propertyNames": {"$ref": "#/$defs/specName"}, "additionalProperties": {"type": "object",
+          "additionalProperties": false, "required": ["constant", "layer", "regex", "means"],
+          "properties": {"constant": {"$ref": "#/$defs/constantName"}, "layer": {"$ref": "#/$defs/layerName"},
+            "regex": {"type": "string", "pattern": "^\\^.*\\$$"}, "means": {"$ref": "#/$defs/prose"}}}},
+        "error groups": {"type": "array", "items": {"$ref": "#/$defs/errorGroup"}},
+        "argument type error message": {"type": "object", "additionalProperties": false,
+          "required": ["rule", "ts", "py", "got", "member", "parameter", "other"],
+          "properties": {"rule": {"$ref": "#/$defs/prose"}, "ts": {"$ref": "#/$defs/prose"}, "py": {"$ref": "#/$defs/prose"},
+            "got": {"$ref": "#/$defs/prose"}, "member": {"$ref": "#/$defs/prose"}, "parameter": {"$ref": "#/$defs/prose"},
+            "other": {"$ref": "#/$defs/prose"}}},
+        "free functions": {"type": "array", "items": {"$ref": "#/$defs/function"}},
+        "concepts": {"type": "array", "items": {"$ref": "#/$defs/concept"}}
+      }
+    },
+
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "ranges", "retired", "rules", "codes"],
+      "properties": {
+        "$schema": {"type": "string"},
+        "$comment": {"type": "string"},
+        "version": {"const": 2},
+        "ranges": {"type": "object", "propertyNames": {"pattern": "^[1-9]xxx$"}, "additionalProperties": {"$ref": "#/$defs/prose"}},
+        "retired": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["code", "was", "now"],
+          "properties": {"code": {"type": "string", "pattern": "^E[0-9]{4}$"}, "was": {"$ref": "#/$defs/prose"}, "now": {"$ref": "#/$defs/prose"}}}},
+        "rules": {"type": "array", "items": {"$ref": "#/$defs/prose"}},
+        "codes": {"type": "array", "items": {"type": "object", "additionalProperties": false,
+          "required": ["code", "name", "layer", "found by", "unreadable reason", "message", "meaning", "summary", "placed at"],
+          "properties": {
+            "code": {"type": "string", "pattern": "^E[0-9]{4}$"},
+            "name": {"$ref": "#/$defs/specName"},
+            "layer": {"enum": ["syntax", "written", "include"]},
+            "found by": {"type": "array", "minItems": 1, "uniqueItems": true,
+              "items": {"enum": ["parse", "edit", "load and read", "low level", "readers", "include extension"]}},
+            "unreadable reason": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/specName"}]},
+            "message": {"$ref": "#/$defs/prose"},
+            "meaning": {"$ref": "#/$defs/prose"},
+            "summary": {"$ref": "#/$defs/prose"},
+            "placed at": {"$ref": "#/$defs/prose"}
+          }}}
+      }
+    },
+
+    "shape": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {"$ref": "#/$defs/specName"},
+        "fields": {"type": "object", "additionalProperties": {"$ref": "#/$defs/wireType"}},
+        "optional": {"type": "array", "items": {"type": "string"}},
+        "by kind": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/$defs/wireType"}}},
+        "other kinds": {"type": "array", "items": {"$ref": "#/$defs/specName"}, "uniqueItems": true, "description": "the kinds with no fields of their own beside 'by kind': together they are every kind the shape takes"},
+        "tuple": {"type": "array", "items": {"$ref": "#/$defs/wireType"}, "minItems": 1},
+        "one of": {"type": "object", "additionalProperties": {"$ref": "#/$defs/wireType"}, "minProperties": 1},
+        "note": {"$ref": "#/$defs/prose"}
+      },
+      "oneOf": [{"required": ["fields"]}, {"required": ["tuple"]}, {"required": ["one of"]}]
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "protocol", "shapes", "requests", "results", "edit members", "readers"],
+      "properties": {
+        "$schema": {"type": "string"},
+        "$comment": {"type": "string"},
+        "version": {"const": 1},
+        "protocol": {"type": "integer", "minimum": 1},
+        "shapes": {"type": "array", "items": {"$ref": "#/$defs/shape"}},
+        "results": {"type": "array", "items": {"$ref": "#/$defs/shape"}},
+        "requests": {"type": "array", "items": {"type": "object", "additionalProperties": false,
+          "required": ["op", "params", "result", "level", "note", "params note"],
+          "properties": {"op": {"$ref": "#/$defs/specName"}, "params": {"type": "object", "additionalProperties": {"$ref": "#/$defs/wireType"}},
+            "optional": {"type": "array", "items": {"type": "string"}}, "result": {"$ref": "#/$defs/wireType"},
+            "level": {"enum": ["all", "L0", "L1", "L2", "L3", "L4"]}, "note": {"$ref": "#/$defs/prose"}, "params note": {"$ref": "#/$defs/prose"}}}},
+        "edit members": {"type": "array", "items": {"$ref": "#/$defs/specName"}},
+        "readers": {"type": "array", "items": {"$ref": "#/$defs/specName"}}
+      }
+    }
+  }
+}

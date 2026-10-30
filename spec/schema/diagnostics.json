@@ -1,0 +1,494 @@
+{
+  "$schema": "./api.schema.json",
+  "$comment": "The one home of villanelle's diagnostic codes. spec/spec.md 2.4's table is generated from this file (tools/gen-api.py docs). 'layer' owns the code: syntax (parse), written (the low level: the graph's diagnostics, spec 6.3; the expanded value's readers, spec 2.9), include (the include extension). 'found by' is from a closed list: parse, edit (a bad text error's diagnostics), load and read, low level (worked out from the current texts), readers, include extension. 'message' is the base message (a binding may append ': <detail>'; messages are for people, spec 2.3); '{nesting depth}' names the limit of that name in api.json. 'unreadable reason' is the reason of the statement the code makes unreadable, null when it never does (readers raise it). 'meaning' (the spec's), 'summary' and 'placed at' (the user guide's, docs/rendered-tree.md) are Markdown; both tables are generated from this file.",
+  "version": 2,
+  "ranges": {
+    "1xxx": "lexical",
+    "2xxx": "syntax",
+    "3xxx": "files and extensions",
+    "4xxx": "values",
+    "5xxx": "expansion",
+    "6xxx": "reserved for the high level"
+  },
+  "retired": [
+    {
+      "code": "E2006",
+      "was": "include's path",
+      "now": "E3005"
+    },
+    {
+      "code": "E3002",
+      "was": "include cycle",
+      "now": "E5006"
+    },
+    {
+      "code": "E3003",
+      "was": "include depth",
+      "now": "E5007"
+    },
+    {
+      "code": "E2008",
+      "was": "brace on own line",
+      "now": "nothing: a line break is whitespace, so a '{' may start its line (owner, 2026-10-29, Q1)"
+    },
+    {
+      "code": "E4003",
+      "was": "bad escape, found by render",
+      "now": "E1005, found by parse (the BAD_ESCAPE error token)"
+    }
+  ],
+  "rules": [
+    "Codes are stable across bindings and releases and are never reused for another meaning.",
+    "Every code is an error; there are no warning codes.",
+    "A program's own codes are '<namespace>/<name>' (api.json patterns, program code) and never collide with these."
+  ],
+  "codes": [
+    {
+      "code": "E1001",
+      "name": "unterminated string",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "unterminated string",
+      "meaning": "A string reaches the end of its line or of the text without its closing quote.",
+      "summary": "a string with no closing quote",
+      "placed at": "per `conformance/`"
+    },
+    {
+      "code": "E1003",
+      "name": "unexpected character",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "unexpected character",
+      "meaning": "A character no token may start with, or a byte-order mark after the first character.",
+      "summary": "a character the language does not use",
+      "placed at": "per `conformance/`"
+    },
+    {
+      "code": "E1004",
+      "name": "lone dollar",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "'$' must be followed by a variable name",
+      "meaning": "A `$` not followed by a variable name.",
+      "summary": "`$` not followed by a name",
+      "placed at": "the `$` (case `var-lone-dollar`)"
+    },
+    {
+      "code": "E1005",
+      "name": "bad escape",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "unknown escape",
+      "meaning": "A closed double-quoted string holding a backslash escape other than the six (the `BAD_ESCAPE` error token), placed on the string. A single-quoted string is raw: it has no escapes (milestone 5).",
+      "summary": "a double-quoted string escape other than the six (found by the parser; a single-quoted string is raw)",
+      "placed at": "the string"
+    },
+    {
+      "code": "E2001",
+      "name": "unexpected token",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "unexpected token",
+      "meaning": "A token the grammar does not allow here, when no more specific code applies: among them the end of the text or a `}` where a directive's `;` or block is due. Also an edit's bad text error, from its entry rule (2.8): at the first token the entry rule does not allow, or at the end of the text.",
+      "summary": "a token where it cannot go, a missing `;` at the end of a block or file among them",
+      "placed at": "per `conformance/`"
+    },
+    {
+      "code": "E2003",
+      "name": "expected closing brace",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "expected '}' to close the block",
+      "meaning": "The text ends inside a block.",
+      "summary": "a block with no `}`",
+      "placed at": "per `conformance/`"
+    },
+    {
+      "code": "E2004",
+      "name": "expected closing bracket",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "unmatched bracket",
+      "meaning": "A stray `]`, or a `[` list with no matching `]`.",
+      "summary": "an unmatched bracket",
+      "placed at": "per `conformance/`"
+    },
+    {
+      "code": "E2007",
+      "name": "bad slice",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "malformed slice",
+      "meaning": "A malformed slice after a slice name (a word or a `$name`): `a[~]`, `a[1~b c]`, an unclosed slice, or a literal bound that is not an integer (`a[i]`, `a[1.5]`, `a[1:3]`, whose `1:3` is one word).",
+      "summary": "a malformed slice (`[~]` among them, and `[1:3]`, whose `1:3` is one word), or a literal bound that is not a whole number",
+      "placed at": "per `conformance/`"
+    },
+    {
+      "code": "E2009",
+      "name": "values touch",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "values must be separated by a space or comment",
+      "meaning": "Two values with nothing between them, such as `a\"b\"`.",
+      "summary": "two values with no space or comment between",
+      "placed at": "per `conformance/`"
+    },
+    {
+      "code": "E2010",
+      "name": "nesting too deep",
+      "layer": "syntax",
+      "found by": [
+        "parse"
+      ],
+      "unreadable reason": "syntax",
+      "message": "blocks and lists nest deeper than {nesting depth} levels",
+      "meaning": "Blocks and lists nested deeper than 100 levels.",
+      "summary": "blocks and lists nested deeper than 100",
+      "placed at": "per `conformance/`"
+    },
+    {
+      "code": "E3001",
+      "name": "include not found",
+      "layer": "written",
+      "found by": [
+        "load and read"
+      ],
+      "unreadable reason": "extension",
+      "message": "include not found",
+      "meaning": "An extension's spec matched no file.",
+      "summary": "a spec matched no file",
+      "placed at": "the extension line's name"
+    },
+    {
+      "code": "E3004",
+      "name": "include resolver failed",
+      "layer": "written",
+      "found by": [
+        "load and read"
+      ],
+      "unreadable reason": "extension",
+      "message": "include resolver failed",
+      "meaning": "The document source rejected while resolving or reading a file. For the root file, `load` fails instead (6.2).",
+      "summary": "the source threw (for the root file `load` fails)",
+      "placed at": "the extension line's name; the root file at 0:0"
+    },
+    {
+      "code": "E3005",
+      "name": "include bad path",
+      "layer": "include",
+      "found by": [
+        "include extension"
+      ],
+      "unreadable reason": "extension",
+      "message": "include takes one quoted path",
+      "meaning": "An `include` whose values are not exactly one quoted path.",
+      "summary": "include needs exactly one quoted path",
+      "placed at": "the bad value, or the name when there is none"
+    },
+    {
+      "code": "E3006",
+      "name": "extension failed",
+      "layer": "written",
+      "found by": [
+        "load and read"
+      ],
+      "unreadable reason": "extension",
+      "message": "extension failed",
+      "meaning": "An extension threw something other than a diagnostic error, or returned something other than a list of texts.",
+      "summary": "an extension threw something other than a located error, or returned something other than a list of texts",
+      "placed at": "the extension line's name"
+    },
+    {
+      "code": "E3007",
+      "name": "unread copy",
+      "layer": "written",
+      "found by": [
+        "low level"
+      ],
+      "unreadable reason": "unread",
+      "message": "extension copy not read yet",
+      "meaning": "An extension line's copy whose specs are not resolved or whose files are not read yet (it is in `unread ()`); `read ()` reads them. Placed on the extension line's name.",
+      "summary": "an include copy whose files are not read yet (`graph.read()` reads them)",
+      "placed at": "the extension line's name"
+    },
+    {
+      "code": "E3008",
+      "name": "unknown extension",
+      "layer": "written",
+      "found by": [
+        "low level"
+      ],
+      "unreadable reason": "extension",
+      "message": "no extension for this @name",
+      "meaning": "A statement written `@name` where `name` is no language statement (`set`, `snippet`, `use`) and no registered extension's name (milestone 5). Placed on the `@name`; the statement is an `unreadable line`.",
+      "summary": "an `@name` that is no language statement and no registered extension",
+      "placed at": "the `@name`"
+    },
+    {
+      "code": "E4001",
+      "name": "non-integer bound",
+      "layer": "written",
+      "found by": [
+        "low level"
+      ],
+      "unreadable reason": "value",
+      "message": "bound is not an integer",
+      "meaning": "A slice or index bound reached through a variable that is not one integer word, or a literal integer beyond the integer range. A literal bound that is not an integer is E2007, found by parse.",
+      "summary": "a bound from a variable that is not one whole number, or a literal whole number beyond the range",
+      "placed at": "the bound (a bound from a variable: the value, via the variable)"
+    },
+    {
+      "code": "E4002",
+      "name": "wrong value kind",
+      "layer": "written",
+      "found by": [
+        "readers"
+      ],
+      "unreadable reason": null,
+      "message": "wrong kind of value",
+      "meaning": "A reader asked for a kind the value is not.",
+      "summary": "a reader met the wrong kind of value",
+      "placed at": "the value"
+    },
+    {
+      "code": "E4004",
+      "name": "not a number",
+      "layer": "written",
+      "found by": [
+        "readers"
+      ],
+      "unreadable reason": null,
+      "message": "not a number",
+      "meaning": "A word read as a number that is not a JSON number, or one beyond the double range (`1e400`; contract 2).",
+      "summary": "`number()` met a word that is not a number",
+      "placed at": "the value"
+    },
+    {
+      "code": "E4005",
+      "name": "not an integer",
+      "layer": "written",
+      "found by": [
+        "readers"
+      ],
+      "unreadable reason": null,
+      "message": "not an integer",
+      "meaning": "A word read as an integer that is not one, or one beyond plus or minus 2^53-1.",
+      "summary": "`integer()` met a word that is not a whole number",
+      "placed at": "the value"
+    },
+    {
+      "code": "E4006",
+      "name": "not a boolean",
+      "layer": "written",
+      "found by": [
+        "readers"
+      ],
+      "unreadable reason": null,
+      "message": "not true or false",
+      "meaning": "A word other than `true` or `false`, read as a boolean.",
+      "summary": "`boolean()` met a word other than `true`, `false`",
+      "placed at": "the value"
+    },
+    {
+      "code": "E4007",
+      "name": "bad slice name",
+      "layer": "written",
+      "found by": [
+        "low level"
+      ],
+      "unreadable reason": "value",
+      "message": "slice name is not one word",
+      "meaning": "A slice or index whose name is a `$name` that does not hold exactly one `WORD` or `AT_WORD`, the words the grammar's `sliceName` takes (`$src[0~3]` with `$src` a string, a list, two values, or a number-like word such as `5`, `1.5`, `-` or `07:30`); placed as E4001 is (milestone 5).",
+      "summary": "a slice's `$name` that does not hold one word",
+      "placed at": "as E4001"
+    },
+    {
+      "code": "E5001",
+      "name": "unknown variable",
+      "layer": "written",
+      "found by": [
+        "low level"
+      ],
+      "unreadable reason": "expansion",
+      "message": "unknown variable",
+      "meaning": "A `$name` with no `set` visible and no override.",
+      "summary": "`$name` with no `set`, parameter or override",
+      "placed at": "the `$name`"
+    },
+    {
+      "code": "E5002",
+      "name": "variable set twice",
+      "layer": "written",
+      "found by": [
+        "low level",
+        "edit"
+      ],
+      "unreadable reason": "expansion",
+      "message": "variable set twice in one block",
+      "meaning": "Two `set` lines for one name in one block.",
+      "summary": "two `set` of one name in one block",
+      "placed at": "the second `$name`"
+    },
+    {
+      "code": "E5003",
+      "name": "unknown snippet",
+      "layer": "written",
+      "found by": [
+        "low level"
+      ],
+      "unreadable reason": "expansion",
+      "message": "unknown snippet",
+      "meaning": "A `use` naming no visible snippet.",
+      "summary": "`use` of a snippet not seen there",
+      "placed at": "the name"
+    },
+    {
+      "code": "E5004",
+      "name": "snippet arity",
+      "layer": "written",
+      "found by": [
+        "low level"
+      ],
+      "unreadable reason": "expansion",
+      "message": "wrong number of values for the snippet",
+      "meaning": "A `use` with a different number of values than its snippet's parameters.",
+      "summary": "wrong number of values for the snippet",
+      "placed at": "`@use`"
+    },
+    {
+      "code": "E5005",
+      "name": "snippet defined twice",
+      "layer": "written",
+      "found by": [
+        "low level",
+        "edit"
+      ],
+      "unreadable reason": "expansion",
+      "message": "snippet defined twice in one block",
+      "meaning": "Two `snippet` lines for one name in one block.",
+      "summary": "two snippets of one name in one block",
+      "placed at": "the second name"
+    },
+    {
+      "code": "E5006",
+      "name": "expansion cycle",
+      "layer": "written",
+      "found by": [
+        "low level"
+      ],
+      "unreadable reason": "expansion",
+      "message": "expansion reaches itself",
+      "meaning": "A `use` or extension line that reaches itself again.",
+      "summary": "a snippet or file reaches itself",
+      "placed at": "the `@use` or extension line that closes the loop"
+    },
+    {
+      "code": "E5007",
+      "name": "expansion too deep",
+      "layer": "written",
+      "found by": [
+        "low level"
+      ],
+      "unreadable reason": "expansion",
+      "message": "expansion nests too deep",
+      "meaning": "`use` and extension lines nested deeper than 16.",
+      "summary": "more than 16 snippets or files open inside each other",
+      "placed at": "the `use` or extension line"
+    },
+    {
+      "code": "E5008",
+      "name": "too many directives",
+      "layer": "written",
+      "found by": [
+        "low level"
+      ],
+      "unreadable reason": "expansion",
+      "message": "too many directives after expansion",
+      "meaning": "More than 100,000 directives after expansion.",
+      "summary": "more than 100,000 directives after expansion; expansion stops",
+      "placed at": "the statement that is one too many"
+    },
+    {
+      "code": "E5009",
+      "name": "bad set",
+      "layer": "written",
+      "found by": [
+        "low level",
+        "edit"
+      ],
+      "unreadable reason": "expansion",
+      "message": "write @set $name value...;",
+      "meaning": "A `set` line that is not `@set $name value...;`.",
+      "summary": "any other form of `@set`",
+      "placed at": "`@set`"
+    },
+    {
+      "code": "E5010",
+      "name": "bad snippet",
+      "layer": "written",
+      "found by": [
+        "low level",
+        "edit"
+      ],
+      "unreadable reason": "expansion",
+      "message": "write @snippet name $param... { ... }",
+      "meaning": "A malformed `snippet` line (`@snippet name $p... { ... }`), or one naming a parameter twice.",
+      "summary": "any other form of `@snippet`",
+      "placed at": "`@snippet`"
+    },
+    {
+      "code": "E5011",
+      "name": "bad use",
+      "layer": "written",
+      "found by": [
+        "low level",
+        "edit"
+      ],
+      "unreadable reason": "expansion",
+      "message": "write @use name value...;",
+      "meaning": "A `use` line that is not `@use name value...;`.",
+      "summary": "any other form of `@use`",
+      "placed at": "`@use`"
+    },
+    {
+      "code": "E5012",
+      "name": "extension block not set",
+      "layer": "written",
+      "found by": [
+        "low level"
+      ],
+      "unreadable reason": "extension",
+      "message": "an extension's block holds only @set lines",
+      "meaning": "An extension line whose block holds a line other than `@set`.",
+      "summary": "an extension line's block holds a line other than `@set`",
+      "placed at": "that line's name"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"tokens":[["WORD","matrix"],["SPACE"," "],["DIGIT_WORD","0.3"],["SPACE"," "],["INTEGER","0"],["SPACE"," "],["INTEGER","0"],["SPACE"," "],["COMMENT","# first row"],["NEWLINE","\n"],["SPACE","       "],["INTEGER","0"],["SPACE"," "],["DIGIT_WORD","0.3"],["SPACE"," "],["INTEGER","0"],["SEMI",";"],["NEWLINE","\n"]],"cst":["document",0,18,[["directive",0,17,[]]]],"diagnostics":[]}

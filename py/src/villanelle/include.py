@@ -1,17 +1,14 @@
-"""``villanelle.include``: the first-party include extension (R20). ``include "palettes.conf";``, or with this place's
-own variables (R22): ``include "palettes.conf" { set $hue 0.3; }``. An included file's top-level ``set`` and
-``snippet`` are visible after the include line in the including block (L2)."""
+"""``villanelle.include``: the first-party include extension (R20). ``@include "palettes.conf";``, or with this place's
+own variables (R22): ``@include "palettes.conf" { @set $hue 0.3; }``. What an included file sees, and where its own
+``@set`` and ``@snippet`` lines are visible, is spec/expansion.md (3, 4 and 7)."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-
-from villanelle.diagnostics import DiagnosticCode, DiagnosticError
-from villanelle.directives import value_error
-from villanelle.processor import Extension, ExtensionUse
-from villanelle.report import LocatedDiagnostic
-from villanelle.syntax._recovery import message_of
-from villanelle.value import ValueKind
+from villanelle._api.codes import DiagnosticCode, describe
+from villanelle._api.errors import DiagnosticError
+from villanelle._api.written import Extension, ExtensionUse
+from villanelle._report import LocatedDiagnostic
+from villanelle.written._value import ExpandedString, value_error
 
 
 def include() -> Extension:
@@ -27,14 +24,17 @@ class _Include:
     def directive(self) -> str:
         return "include"
 
-    def specs(self, use: ExtensionUse, /) -> Sequence[str]:
+    def specs(self, use: ExtensionUse, /) -> tuple[str, ...]:
         """D18: exactly one quoted path or glob. E3005 at the first value that breaks that: the first value when it
         is not a string, else the second value; with no value, at the directive's name (F1-05)."""
         code = DiagnosticCode.INCLUDE_BAD_PATH
-        if not use.args:
-            raise DiagnosticError(LocatedDiagnostic(code, message_of(code), use.origin.written, use.origin.via))
-        first = use.args[0]
-        bad = first if first.kind is not ValueKind.STRING else (use.args[1] if len(use.args) > 1 else None)
+        if not use.values:
+            raise DiagnosticError(LocatedDiagnostic(code, describe(code).message, use.origin.place, use.origin.via))
+        first = use.values[0]
+        bad = first if not isinstance(first, ExpandedString) else (use.values[1] if len(use.values) > 1 else None)
         if bad is not None:
-            raise value_error(bad, code, f"{message_of(code)}: {bad.text}")
-        return [use.args[0].as_str()]
+            raise value_error(bad, code, describe(code, bad.text).message)
+        return (first.string(),)
+
+
+__all__ = ["include"]

@@ -1,0 +1,1 @@
+{"files":["main.conf","f.conf"],"directives":[["t",false,"f.conf:0:0 < extension include main.conf:0:0",[["o","override n < variable n f.conf:0:2 < extension include main.conf:0:0"]]]],"unreadable":[],"diagnostics":[]}

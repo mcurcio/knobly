@@ -1,64 +1,29 @@
 /**
- * The lossless concrete syntax tree: concept nodes over token ranges (design/RECORD.md, "The CST").
+ * The lossless concrete syntax tree: concept nodes over token ranges (design/RECORD.md, "The CST"). The types are
+ * generated (gen/api/syntax.ts). A node's `children` are in source order, do not overlap, and lie inside [start, end);
+ * tokens of the range not covered by a child belong to the node directly (names, punctuation, spaces); a `directive`
+ * node starts at its name token; a `slice` node spans `name[bounds]` exactly. An error node is one bad statement, or a
+ * run of tokens the parser could not use; it never has children.
  */
 
-import type { IDiagnostic } from "../diagnostics.js";
-import type { ISourcePosition, ISourceSpan } from "../span.js";
-import type { IToken } from "./tokens.js";
-
-export const NodeKind = {
-  Document: "document",
-  Directive: "directive",
-  Block: "block",
-  List: "list",
-  Slice: "slice",
-  /** One bad statement, or a run of tokens the parser could not use. Never has children. */
-  Error: "error",
-} as const;
-export type NodeKind = (typeof NodeKind)[keyof typeof NodeKind];
-
-/** A half-open range [start, end) of token indices. */
-export interface ITokenRange {
-  readonly start: number;
-  readonly end: number;
-}
-
-/**
- * A CST node. Invariants:
- * - `children` are in source order, do not overlap, and lie inside [start, end);
- * - tokens of the range not covered by a child belong to this node directly (names, punctuation, spaces);
- * - a `directive` node starts at its name token (a WORD); a `slice` node spans `name[bounds]` exactly.
- */
-export interface INode extends ITokenRange {
-  readonly kind: NodeKind;
-  readonly children: readonly INode[];
-}
-
-/** The result of `parse`: every token, the tree over them, and what went wrong. */
-export interface ISyntax {
-  /** Every token of the input; see IToken for the round-trip invariant. */
-  readonly tokens: readonly IToken[];
-  /** A `document` node with `start === 0` and `end === tokens.length`. */
-  readonly root: INode;
-  /** Lexical and syntax diagnostics in source order; empty exactly when the input is in the grammar's language. */
-  readonly diagnostics: readonly IDiagnostic[];
-}
+import type { SourcePosition, SourceSpan } from "../gen/api/shared.js";
+import type { Node, Syntax, TokenRange } from "../gen/api/syntax.js";
 
 /**
  * A reference to one value of a directive or list: the index of a WORD, STRING or VARIABLE token, or a `slice` or
- * `list` node. The load layer reads it into an `IArgument`.
+ * `list` node. The binding expands it into an expanded value. Package-internal.
  */
-export type ValueRef = number | INode;
+export type ValueRef = number | Node;
 
 /**
  * The span of a token range. An empty range at index i is a zero-width span at the start of token i, or at the
  * end of the text when i === tokens.length.
  * @throws RangeError when the range is outside [0, tokens.length] or start > end.
  */
-export function spanOf(syntax: ISyntax, range: ITokenRange): ISourceSpan {
+export function spanOf(syntax: Syntax, range: TokenRange): SourceSpan {
   const { tokens } = syntax;
   checkRange(tokens.length, range);
-  const at = (i: number): ISourcePosition =>
+  const at = (i: number): SourcePosition =>
     tokens[i]?.span.start ?? tokens.at(-1)?.span.end ?? { offset: 0, line: 0, column: 0 };
   const start = at(range.start);
   if (range.start === range.end) return { start, end: start };
@@ -69,14 +34,14 @@ export function spanOf(syntax: ISyntax, range: ITokenRange): ISourceSpan {
  * The exact source text of a token range. `textOf(syntax, syntax.root)` is the whole input (the round trip).
  * @throws RangeError when the range is outside [0, tokens.length] or start > end.
  */
-export function textOf(syntax: ISyntax, range: ITokenRange): string {
+export function textOf(syntax: Syntax, range: TokenRange): string {
   checkRange(syntax.tokens.length, range);
   let text = "";
   for (let i = range.start; i < range.end; i++) text += syntax.tokens[i]?.text ?? "";
   return text;
 }
 
-function checkRange(length: number, range: ITokenRange): void {
+function checkRange(length: number, range: TokenRange): void {
   const { start, end } = range;
   if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > length || start > end) {
     throw new RangeError(`token range [${start}, ${end}) is outside [0, ${length}]`);

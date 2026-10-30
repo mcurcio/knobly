@@ -1,12 +1,14 @@
 # villanelle
 
-A small configuration language: directives, `{ }` blocks, lists and slices, `#` comments, variables and
-snippets, with parsers for TypeScript and Python generated from one grammar.
+A small configuration language: directives ended by `;` (a line break is a space, as in nginx), `{ }` blocks,
+lists and slices (`name[1~3]`), raw single-quoted strings, `#` comments, and variables and snippets written as
+`@` statements (`@set`, `@snippet`, `@use`, and an extension's `@include`), with parsers for TypeScript and Python
+generated from one grammar.
 
 ```conf
-set $pixels 2284;
+@set $pixels 2284;
 
-snippet twinkle $source {
+@snippet twinkle $source {
     seed 11337;
     mode brightness;
     frequency_hz 0.3;
@@ -19,44 +21,70 @@ snippet twinkle $source {
 ```
 
 (Excerpt of [`fixtures/rasl/family_room.conf`](fixtures/rasl/family_room.conf), which both packages' tests load.)
-The language, with every rule the load applies, is described in [docs/language.md](docs/language.md).
+The language is taught in [docs/language.md](docs/language.md); its rules live in the grammar and in
+[spec/expansion.md](spec/expansion.md) (which `@set` a `$name` reaches, and which definition wins).
 
-## Reading a config from a program
+## Using it from a program
 
-A program makes a processor once, with a document source (where files come from), the include extension if it
-wants includes, and a key rule (how to name a directive among its siblings), then loads a root file:
+villanelle has three layers, each built on the one below; a program can work at any of them.
+
+- **The syntax tree.** `parse(text)` reads one text into tokens and a tree, with every character in exactly one
+  token. It never fails: problems are diagnostics.
+- **The low level: the files as written.** `processor.load(path)` reads a root file and every file it includes into
+  a document graph, and shows which files were read, what variables exist and which `set` line wins where. A
+  program can change any of it (`set(text)` on a line, a variable or a value, `setOverride` / `set_override` for an
+  override), each edit taking config text made by `quote()` or `text()`, and `graph.save(writer)` writes the changed files back, comments and layout kept; `graph.read()` reads
+  files an edit newly includes. The low level knows nothing of the rendered tree. Reference:
+  [docs/low-level-api.md](docs/low-level-api.md).
+- **The rendered tree.** `render(graph)` works out variables, snippets and included files into the directives a
+  program reads, each value with the place it was written. It also gives every directive an address under the
+  program's key rule, and `before.diff(after, { key })` (Python: `before.diff(after, key=...)`) lists what changed
+  between two renders. Reference: [docs/rendered-tree.md](docs/rendered-tree.md).
 
 ```ts
-    const processor = villanelle({ source: files, extensions: [include()], key: RASL_KEY });
-    const path = fileURLToPath(new URL(name, FIXTURES));
-    const options = { variables: HANDED };
-    const first = await processor.load(path, options);
+  // import { memorySource, quote } from "villanelle"; import { villanelle } from "villanelle/written";
+  const config = villanelle({ source: memorySource(FILES), extensions: [include()] });
+  const graph = await config.load("main.conf", { overrides: { leds_host: quote("10.0.70.1") } });
 ```
 
 ```python
-    processor = vl.Processor(source=file_source(), extensions=[include()], key=rasl_key)
-    variables = {"leds_host": '"10.0.0.9"'} if handed else None
-    first = processor.load(str(root), variables=variables)
+    # import villanelle as vl; from villanelle import written
+    config = written.Processor(source=vl.memory_source(FILES), extensions=[include()])
+    return config.load("main.conf", overrides={"leds_host": vl.quote("10.0.70.1")})
 ```
 
-(Excerpts of `ts/src/load/rasl.test.ts` and `py/tests/test_rasl.py`.) The load gives back the directives with
-variables, snippets and included files expanded, every value's origin, an address per directive, and every problem
-as a located diagnostic; `processor.diff(first, second)` lists what changed between two loads. The reference for
-both languages is [docs/low-level-api.md](docs/low-level-api.md).
+(Excerpts of `ts/src/written/tracer.test.ts` and `py/tests/test_tracer.py`, which go on to list the variables of
+[`fixtures/rasl/split`](fixtures/rasl/split/), change `$pixels`, save, and render.) Every example in the docs is
+copied from a test that runs.
+
+Each layer is its own import path, and every name has exactly one (milestone 6; [spec/binding-guide.md](spec/binding-guide.md)
+rule 9). Type names carry no prefix (`DocumentGraph`, `Rendered`), the same in both languages.
 
 | Entry point | TypeScript | Python |
 |---|---|---|
-| the core (no input or output) | `villanelle`: `parse`, `villanelle`, `memorySource`, `Diagnostics`, `formatDiagnostic`, ... | `villanelle`: `parse`, `Processor`, `memory_source`, `Diagnostics`, `format_diagnostic`, `walk`, ... |
+| what every layer shares, and the ports | `villanelle`: `quote`, `text`, `ConfigText`, `memorySource`, `memoryWriter`, `Diagnostics`, the error classes, `DocumentSource`, `Place`, ... | `villanelle`: `quote`, `text`, `ConfigText`, `memory_source`, `memory_writer`, `Diagnostics`, the error classes, `DocumentSource`, `Place`, ... |
+| the syntax tree | `villanelle/syntax`: `parse`, `spanOf`, `textOf`, `Syntax`, `Token`, `Node`, `TokenKind`, ... | `villanelle.syntax`: `parse`, `span_of`, `text_of`, `Syntax`, `Token`, `Node`, `TokenKind`, ... |
+| the low level | `villanelle/written`: `villanelle`, `formatDiagnostic`, `DocumentGraph`, `Statement`, `StatementKind`, ... | `villanelle.written`: `Processor`, `format_diagnostic`, `DocumentGraph`, `Statement`, `StatementKind`, ... |
+| the rendered tree | `villanelle/rendered`: `render`, `Rendered`, `Directive`, `KeyRule`, ... | `villanelle.rendered`: `render`, `Rendered`, `Directive`, `KeyRule`, ... |
 | the include extension | `villanelle/include`: `include()` | `villanelle.include`: `include()` |
-| files on disk | `villanelle/node`: `createFileSource()`, `createFsWriter()` | `villanelle.files`: `file_source()` |
-| files over `fetch` | `villanelle/browser`: `createFetchSource(fetch)`, `createFetchWriter(fetch, options?)` | none |
+| files on disk | `villanelle/node`: `fileSource()`, `fileWriter()` | `villanelle.files`: `file_source()`, `file_writer()` |
+| files over `fetch` | `villanelle/browser`: `fetchSource(fetch)`, `fetchWriter(fetch, options?)` | none |
 
 ## The language is defined by one file
 
 [`grammar/Villanelle.g4`](grammar/Villanelle.g4) (ANTLR4) is the specification. ANTLR4
 generates the TypeScript and Python parsers from it, so both parsers accept exactly the
-grammar's language. [`grammar/villanelle.ebnf`](grammar/villanelle.ebnf) is the same grammar
-in W3C EBNF, kept as a readable view.
+grammar's language. Its entry rules (`statementsText`, `valuesText`, `valueText`, `itemsText`, `boundText`,
+`sliceNameText`, `nameText`) also check the shape of every text a program hands to an edit, so no binding keeps a scanner of its own. [`grammar/villanelle.ebnf`](grammar/villanelle.ebnf)
+is the same grammar in W3C EBNF, kept by hand as a readable view (whether to derive or retire it is an open question
+in `.claude/errata.md`).
+
+The API every language binding offers on top of the parsers is specified, language-neutrally, in
+[`spec/`](spec/README.md): the layers, one word per concept ([`spec/glossary.md`](spec/glossary.md)),
+and the schema in [`spec/schema/`](spec/schema/), from which each binding's declarations (every public signature,
+kind list, error class and diagnostic code) are generated ([`spec/codegen.md`](spec/codegen.md)). The spec wins over either
+binding's code (owner, 2026-10-27: "Within villanelle I want the spec to win over a reference
+language").
 
 The grammar is checked to be unambiguous, so every valid file has exactly one parse:
 
@@ -64,10 +92,14 @@ The grammar is checked to be unambiguous, so every valid file has exactly one pa
 tools/check.sh
 ```
 
-The script runs three checks:
-- it translates the parser rules to Bison and requires 0 conflicts;
+The script runs these checks:
+- it translates the parser rules to Bison and requires 0 conflicts, for the document rule and each entry rule;
 - it checks that no two token kinds can match the same text;
-- it confirms that both checks still catch the planted bad grammars in `tools/planted/`.
+- it confirms that both checks still catch the planted bad grammars in `tools/planted/`;
+- it checks the API schema (every type resolves, the layer direction, the error tree), renders both bindings'
+  declarations, checks the generated docs tables are current, and validates the schema files against their JSON
+  Schema, each check also run against planted broken copies;
+- it runs the kind lint's and the conformance driver's own tests.
 
 It needs `python3`, `bison` and `uv`.
 
@@ -76,12 +108,12 @@ It needs `python3`, `bison` and `uv`.
 | Path | What it is |
 |---|---|
 | `grammar/` | The grammar (`Villanelle.g4`) and its EBNF view |
-| `tools/` | The soundness checks (`check.sh`), the planted bad grammars they must catch, and the parser generator script (`gen.sh`) |
+| `tools/` | The soundness checks (`check.sh`), the planted bad grammars they must catch, the parser generator script (`gen.sh`), the API generator (`gen-api.py`: a loader in `api/loader.py` and one emitter per language) and the kind lint (`lint/`) |
 | `ts/` | The TypeScript package, npm name `villanelle` ([`ts/README.md`](ts/README.md)) |
 | `py/` | The Python package, PyPI name `villanelle` ([`py/README.md`](py/README.md)) |
-| `conformance/` | Test cases both packages must pass, and the expected output for each: syntax cases (format in [`conformance/format.md`](conformance/format.md)) and load cases in `conformance/load/` (format in [`conformance/load/format.md`](conformance/load/format.md)) |
+| `conformance/` | Test cases every package must pass, with the expected output for each, and the one driver that runs them against each package's adapter ([`spec/conformance.md`](spec/conformance.md)): syntax cases ([`conformance/format.md`](conformance/format.md)), low-level cases in `conformance/written/`, load cases in `conformance/load/`, addresses and diff order in `conformance/rendered/`, and readers, positions and formatting in `conformance/contract/`; `conformance/corpora.json` lists them |
 | `fixtures/rasl/` | rasl's real config files, which each package's rasl test loads ([`fixtures/rasl/README.md`](fixtures/rasl/README.md)) |
-| `docs/` | The language ([`docs/language.md`](docs/language.md)) and the low-level API reference ([`docs/low-level-api.md`](docs/low-level-api.md)) |
+| `docs/` | The language ([`docs/language.md`](docs/language.md)), the low level ([`docs/low-level-api.md`](docs/low-level-api.md)) and the rendered tree ([`docs/rendered-tree.md`](docs/rendered-tree.md)) |
 | `.github/` | CI and the release build (`workflows/ci.yml`, `release-build.sh`) |
 | `package.json`, `.releaserc.json` | Release tooling only (semantic-release); the packages are `ts/` and `py/` |
 | `design/` | The design record ([`design/RECORD.md`](design/RECORD.md)), run logs, the older plans, drafts, reviews and experiments |
@@ -90,9 +122,11 @@ It needs `python3`, `bison` and `uv`.
 
 ## Build and test
 
-The generated parsers are not committed (owner, 2026-10-23: "Don't commit the generated code, just
-the source"). `tools/gen.sh ts` and `tools/gen.sh py` write them to `ts/src/gen/` and
-`py/src/villanelle/_gen/` (both ignored by git), and every build and test runs it first. It needs
+The generated parsers and API declarations are not committed (owner, 2026-10-23: "Don't commit the generated
+code, just the source"). `tools/gen.sh ts` and `tools/gen.sh py` write them to `ts/src/gen/` (with
+`ts/conformance/shapes.ts`) and `py/src/villanelle/_gen/` and `_api/` (with `py/conformance/shapes.py`), all ignored
+by git, and every build and test runs it first. The generated docs tables are the one committed output
+(`python3 tools/gen-api.py docs`; [spec/codegen.md](spec/codegen.md) section 6). It needs
 Java 11+ and `curl`: it downloads the ANTLR 4.13.2 jar once, checks its sha256, and caches it in
 `$ANTLR_JAR_DIR` (default `~/.cache/antlr`).
 
@@ -131,8 +165,8 @@ gh variable set RELEASE_ENABLED --body true -R mcurcio/villanelle
 
 ## Status
 
-The TypeScript and Python packages are built from the grammar and pass the same syntax and load
-conformance cases. Both have the low-level API (the syntax tree and the directive layer); the high-level
-API, where a program declares its directives, is deferred (`vil-xlo`). No release has been made yet.
-The grammar design was done in [mcurcio/rasl#2](https://github.com/mcurcio/rasl/pull/2), where this
+The TypeScript and Python packages are built from the grammar and pass the same conformance cases, run by one
+shared driver (`python3 conformance/driver/run.py -- <adapter>`, [`spec/conformance.md`](spec/conformance.md)). Both have the syntax tree, the low level (the files as written, editable and saved back) and the
+rendered tree; the high-level API, where a program declares its directives, is deferred (`vil-xlo`). No release has
+been made yet. The grammar design was done in [mcurcio/rasl#2](https://github.com/mcurcio/rasl/pull/2), where this
 language began as `@rasl/config`.

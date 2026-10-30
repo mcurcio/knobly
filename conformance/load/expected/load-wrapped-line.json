@@ -1,0 +1,1 @@
+{"files":["main.conf"],"directives":[["rescale",true,"main.conf:0:0",[["r","main.conf:0:8"]]],["rescale > range",false,"main.conf:1:2",[["0.0627","main.conf:1:8"],["0.922","main.conf:2:8"]]],["rescale > clamp",false,"main.conf:3:2",[["true","main.conf:3:8"]]]],"unreadable":[],"diagnostics":[]}

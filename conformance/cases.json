@@ -9,7 +9,7 @@
 },
 {
 "name": "pipeline-slices-trailing-space",
-"src": "# Example pipeline with slices\n# One listener fans out to several sliced outputs\n\npipeline {\n    # yields 149 channels\n    # group 0 is 144 channels of 16x9 = 432 bytes\n    # group 1 is 4 channels of 2x2 = 12 bytes\n    # group 2 is 1 channel of 1x1 = 3 bytes\n    \n    listener feed {\n        listen_port 5568;\n\n        group 1 {\n            channels 144;  # 16x9\n        }\n\n        group 2 {\n            channels 8; # 2x4\n        }\n    }\n\n    convert feed_values linear_v2 {\n        source feed.channels;\n    }\n\n    output tail_raw_log {\n        rate 1;\n        as_bytes true;\n        source feed_values[144:152];\n    }\n\n    output tail_range_log {\n        rate 1;\n        as_bytes true;\n        source feed_range[144:152];\n    }\n\n    output feed_log {\n        source feed_values;\n        rate 1;\n    }\n\n    rescale feed_range {\n        range 0.0627 0.922;\n        range 0.0627 0.922;\n        range 0.0627 0.922;\n        clamp true;\n\n        source feed_values;\n    }\n\n    transform feed_matrix {\n        matrix 0.96409927 0.02731212 0.00858861;\n        matrix 0.00451189 1.01313961 -0.01765150;\n        matrix 0.00899431 0.01377757 0.97722811;\n\n        source feed_range;\n    }\n\n    smooth feed_smooth {\n        source feed_matrix input;\n        period 200ms;\n    }\n\n    convert values_a plain {\n        source feed_smooth;\n    }\n\n    convert values_b scaled {\n        source feed_smooth;\n    }\n\n    output log {\n        max_lines 24;\n        as_bytes true;\n        rate 1;\n\n        source values_a;\n    }\n\n    shuffle remote_shuffle {\n        channel_count 2284;\n        seed 424242;\n\n        # remote values (group 1)\n        source values_a[0:144];\n    }\n\n    output remote {\n        target \"192.0.2.30\";\n        rate 20hz;\n        input_port values;\n        max_count 2284;\n\n        source remote_shuffle values;\n    }\n\n    transform tail_dim {\n        matrix 0.3 0 0;\n        matrix 0 0.3 0;\n        matrix 0 0 0.3;\n    \n        source values_a[144:152];\n    }\n    \n    convert tail_values plain {\n        source tail_dim;\n    }\n\n    # output device_1 {\n    #     target \"192.0.2.1\";\n    #     rate 20hz;\n\n    #     source tail_values[1:2];\n    # }\n\n    # output device_2 {\n    #     target \"192.0.2.2\";\n    #     rate 20hz;\n\n    #     source tail_values[3:4];\n    # }\n\n    # output device_3 {\n    #     target \"192.0.2.3\";\n    #     rate 20hz;\n\n    #     source tail_values[5:6];\n    # }\n\n    # output device_4 {\n    #     target \"192.0.2.4\";\n    #     rate 20hz;\n\n    #     source tail_values[7:8];\n    # }\n\n    # output device_8 {\n    #     target \"192.0.2.8\";\n    #     rate 20hz;\n\n    #     source tail_values[0:1];\n    # }\n\n    # output device_7 {\n    #     target \"192.0.2.7\";\n    #     rate 20hz;\n\n    #     source tail_values[2:3];\n    # }\n\n    # output device_6 {\n    #     target \"192.0.2.6\";\n    #     rate 20hz;\n\n    #     source tail_values[4:5];\n    # }\n\n    # output device_5 {\n    #     target \"192.0.2.5\";\n    #     rate 20hz;\n\n    #     source tail_values[6:7];\n    # }\n}\n\n"
+"src": "# Example pipeline with slices\n# One listener fans out to several sliced outputs\n\npipeline {\n    # yields 149 channels\n    # group 0 is 144 channels of 16x9 = 432 bytes\n    # group 1 is 4 channels of 2x2 = 12 bytes\n    # group 2 is 1 channel of 1x1 = 3 bytes\n    \n    listener feed {\n        listen_port 5568;\n\n        group 1 {\n            channels 144;  # 16x9\n        }\n\n        group 2 {\n            channels 8; # 2x4\n        }\n    }\n\n    convert feed_values linear_v2 {\n        source feed.channels;\n    }\n\n    output tail_raw_log {\n        rate 1;\n        as_bytes true;\n        source feed_values[144~152];\n    }\n\n    output tail_range_log {\n        rate 1;\n        as_bytes true;\n        source feed_range[144~152];\n    }\n\n    output feed_log {\n        source feed_values;\n        rate 1;\n    }\n\n    rescale feed_range {\n        range 0.0627 0.922;\n        range 0.0627 0.922;\n        range 0.0627 0.922;\n        clamp true;\n\n        source feed_values;\n    }\n\n    transform feed_matrix {\n        matrix 0.96409927 0.02731212 0.00858861;\n        matrix 0.00451189 1.01313961 -0.01765150;\n        matrix 0.00899431 0.01377757 0.97722811;\n\n        source feed_range;\n    }\n\n    smooth feed_smooth {\n        source feed_matrix input;\n        period 200ms;\n    }\n\n    convert values_a plain {\n        source feed_smooth;\n    }\n\n    convert values_b scaled {\n        source feed_smooth;\n    }\n\n    output log {\n        max_lines 24;\n        as_bytes true;\n        rate 1;\n\n        source values_a;\n    }\n\n    shuffle remote_shuffle {\n        channel_count 2284;\n        seed 424242;\n\n        # remote values (group 1)\n        source values_a[0~144];\n    }\n\n    output remote {\n        target \"192.0.2.30\";\n        rate 20hz;\n        input_port values;\n        max_count 2284;\n\n        source remote_shuffle values;\n    }\n\n    transform tail_dim {\n        matrix 0.3 0 0;\n        matrix 0 0.3 0;\n        matrix 0 0 0.3;\n    \n        source values_a[144~152];\n    }\n    \n    convert tail_values plain {\n        source tail_dim;\n    }\n\n    # output device_1 {\n    #     target \"192.0.2.1\";\n    #     rate 20hz;\n\n    #     source tail_values[1:2];\n    # }\n\n    # output device_2 {\n    #     target \"192.0.2.2\";\n    #     rate 20hz;\n\n    #     source tail_values[3:4];\n    # }\n\n    # output device_3 {\n    #     target \"192.0.2.3\";\n    #     rate 20hz;\n\n    #     source tail_values[5:6];\n    # }\n\n    # output device_4 {\n    #     target \"192.0.2.4\";\n    #     rate 20hz;\n\n    #     source tail_values[7:8];\n    # }\n\n    # output device_8 {\n    #     target \"192.0.2.8\";\n    #     rate 20hz;\n\n    #     source tail_values[0:1];\n    # }\n\n    # output device_7 {\n    #     target \"192.0.2.7\";\n    #     rate 20hz;\n\n    #     source tail_values[2:3];\n    # }\n\n    # output device_6 {\n    #     target \"192.0.2.6\";\n    #     rate 20hz;\n\n    #     source tail_values[4:5];\n    # }\n\n    # output device_5 {\n    #     target \"192.0.2.5\";\n    #     rate 20hz;\n\n    #     source tail_values[6:7];\n    # }\n}\n\n"
 },
 {
 "name": "nested-blocks-commented",
@@ -25,15 +25,15 @@
 },
 {
 "name": "slices",
-"src": "x a[0:3] [1, b[2:]] c[:3]"
+"src": "x a[0~3] [1, b[2~]] c[~3];"
 },
 {
 "name": "slice-empty-rejected",
-"src": "x a[:]"
+"src": "x a[~]"
 },
 {
 "name": "list-multiline",
-"src": "x [a,\n  b, # c\n\n  c,\n]\n"
+"src": "x [a,\n  b, # c\n\n  c,\n];\n"
 },
 {
 "name": "touch-strings",
@@ -49,27 +49,27 @@
 },
 {
 "name": "space-before-slice",
-"src": "x a [0:3]"
+"src": "x a [0~3]"
 },
 {
 "name": "hash-in-word",
-"src": "x a#b"
+"src": "x a#b;"
 },
 {
 "name": "hash-comment",
-"src": "x a #b"
+"src": "x a; #b"
 },
 {
 "name": "include-glob",
-"src": "include /*.conf"
+"src": "@include /*.conf;"
 },
 {
 "name": "block-comment",
-"src": "server {\n  listen 80 # c\n}\n"
+"src": "server {\n  listen 80; # c\n}\n"
 },
 {
 "name": "block-then-dir",
-"src": "x {} y"
+"src": "x {} y;"
 },
 {
 "name": "brace-next-line",
@@ -77,19 +77,19 @@
 },
 {
 "name": "stray-bracket",
-"src": "x ]\ny 1\n"
+"src": "x ];\ny 1;\n"
 },
 {
 "name": "broken-block",
-"src": "server {\n  listen [80\n}\nnext 1\n"
+"src": "server {\n  listen [80\n}\nnext 1;\n"
 },
 {
 "name": "bom",
-"src": "﻿x 1"
+"src": "﻿x 1;"
 },
 {
 "name": "crlf",
-"src": "x 1\r\ny 2"
+"src": "x 1;\r\ny 2;"
 },
 {
 "name": "lone-cr",
@@ -97,7 +97,7 @@
 },
 {
 "name": "unicode-str",
-"src": "x \"é\" # ü"
+"src": "x \"é\"; # ü"
 },
 {
 "name": "emoji-bare",
@@ -105,15 +105,15 @@
 },
 {
 "name": "emoji-str",
-"src": "x \"😀\" y"
+"src": "x \"😀\" y;"
 },
 {
 "name": "ip-port",
-"src": "x 127.0.0.1:3000"
+"src": "x 127.0.0.1:3000;"
 },
 {
 "name": "colon-word",
-"src": "x color:hsl"
+"src": "x color:hsl;"
 },
 {
 "name": "nul",
@@ -129,14 +129,58 @@
 },
 {
 "name": "last-at-eof",
-"src": "x"
+"src": "x;"
 },
 {
 "name": "last-before-brace",
-"src": "a { b }"
+"src": "a { b; }"
 },
 {
 "name": "unterminated",
-"src": "x \"abc\ny 1\n"
+"src": "x \"abc\ny 1;\n"
+},
+{
+"name": "wrapped-line",
+"src": "ranges 0.0627\n 0.922;\n"
+},
+{
+"name": "wrapped-line-comment",
+"src": "matrix 0.3 0 0 # first row\n       0 0.3 0;\n"
+},
+{
+"name": "digit-name",
+"src": "0.922;\n"
+},
+{
+"name": "dash-name",
+"src": "-x 1;\n"
+},
+{
+"name": "last-no-semi",
+"src": "x 1;\ny 2\n"
+},
+{
+"name": "last-no-semi-in-block",
+"src": "a { b }\nc 1;\n"
+},
+{
+"name": "newline-is-space",
+"src": "x\n1\n2;"
+},
+{
+"name": "block-on-next-line",
+"src": "a\n{\n  b;\n}\n"
+},
+{
+"name": "at-statements",
+"src": "@set $a 1;\n@snippet s $p {\n    x $p;\n}\n@use s 2;\n@include \"f.conf\";\n@nope 1;\n"
+},
+{
+"name": "at-value",
+"src": "cron @daily @;"
+},
+{
+"name": "plain-keyword-directives",
+"src": "events { use epoll; set x; snippet y; include z; }\n"
 }
 ]

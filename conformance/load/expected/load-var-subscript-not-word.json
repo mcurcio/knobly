@@ -1,0 +1,1 @@
+{"files":["main.conf"],"directives":[["ok",false,"main.conf:5:0",[["1","main.conf:5:3"]]]],"unreadable":[["","value","main.conf:2:0"],["","value","main.conf:3:0"],["","expansion","main.conf:4:0"]],"diagnostics":[["E4007","main.conf:0:8 < variable s main.conf:2:2"],["E4007","main.conf:1:8 < variable t main.conf:3:2"],["E5001","main.conf:4:2"]]}

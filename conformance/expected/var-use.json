@@ -1,1 +1,1 @@
-{"tokens":[["WORD","use"],["SPACE"," "],["WORD","twinkle"],["SPACE"," "],["WORD","rgb_150"],["SEMI",";"]],"cst":["document",0,6,[["directive",0,6,[]]]],"diagnostics":[]}
+{"tokens":[["AT_WORD","@use"],["SPACE"," "],["WORD","twinkle"],["SPACE"," "],["WORD","rgb_150"],["SEMI",";"]],"cst":["document",0,6,[["directive",0,6,[]]]],"diagnostics":[]}

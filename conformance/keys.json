@@ -1,0 +1,14 @@
+{
+  "$comment": "Key rules as data (spec/conformance.md section 3, spec 7.4). A case names one ('key': \"rasl\"); the driver sends its rules in 'render' and 'diff' requests, and the adapter builds the binding's key rule from them. For a directive, the first rule whose 'directive' is its name, and whose 'parent' (when given) is its parent's name, gives the key: [\"value\", i] is its i-th value's text (absent when it has fewer values); [\"join\", sep] is every value's text joined by sep (empty text when it has none). No rule matches: absent.",
+  "rules": {
+    "rasl": [
+      {"directive": "node", "parent": "graph", "key": ["value", 1]},
+      {"directive": "connect", "key": ["join", " "]},
+      {"directive": "fill", "key": ["value", 0]}
+    ],
+    "pins": [
+      {"directive": "pin", "key": ["value", 0]},
+      {"directive": "connect", "key": ["join", " "]}
+    ]
+  }
+}

@@ -1,0 +1,545 @@
+{
+ "round": 13,
+ "dropped_note": "No finding was dropped as wrong. All 18 high findings were verified against file:line. 'kept-modified' means the defect stands but the proposed fix was changed; 'deferred' means a valid finding left for a bead or later.",
+ "lens_verdicts": {
+  "newcomer-ts": "Low level strong; rasl task in ~40 lines; problems are vocabulary and placement, plus one real bug (handed-text checks).",
+  "newcomer-py": "Task in ~50 lines, ran first time; handle level good; cross-layer naming, verb homes, flat namespace, text-only input are the gaps.",
+  "idiom-ts": "Careful strict TS; types do not carry kinds; layers named separately; I-prefix and factory names off-ecosystem.",
+  "idiom-py": "Mostly idiomatic; TS shows through where Python mirrors member by member with no Python-wide rule (UTF-16, kinds, errors, namespace).",
+  "cross-layer": "Each layer coherent alone; seams show in vocabulary, processor role and error grouping.",
+  "cross-binding": "Close parity, but no neutral spec, hand-copied lists, and corpora gaps that let two real differences through."
+ },
+ "findings": [
+  {
+   "lens": "newcomer-ts",
+   "id": "NT-1",
+   "severity": "high",
+   "title": "`written` means four things; a value's `written` is the end of the chain",
+   "verdict": "kept",
+   "root_cause": "RC1",
+   "note": "Confirmed directive.ts:35,122,144, origin.ts:52. Fix keeps `written` = same-line handle and adds `definition`, rather than NT-1's `statement`/`value` renames."
+  },
+  {
+   "lens": "newcomer-ts",
+   "id": "NT-2",
+   "severity": "high",
+   "title": "Verbs in three homes; processor/graph pairing checked at runtime",
+   "verdict": "kept-modified",
+   "root_cause": "RC2",
+   "note": "Confirmed processor.ts:170-194, save.ts:18. graph.render() rejected (low layer would import the rendered layer); render(graph) as a rendered-layer function recommended; Q1."
+  },
+  {
+   "lens": "newcomer-ts",
+   "id": "NT-3",
+   "severity": "high",
+   "title": "args/values, body/block/statements, walk on one layer only",
+   "verdict": "kept",
+   "root_cause": "RC1",
+   "note": "Confirmed directive.ts:134-147, model.ts:56,112,114,161."
+  },
+  {
+   "lens": "newcomer-ts",
+   "id": "NT-4",
+   "severity": "medium",
+   "title": "overridden()/.overridden, reaches()/resolutions() collide",
+   "verdict": "kept",
+   "root_cause": "RC1",
+   "note": "winner/shadowed vocabulary adopted in glossary."
+  },
+  {
+   "lens": "newcomer-ts",
+   "id": "NT-5",
+   "severity": "medium",
+   "title": "Bug: load and setHanded check handed text differently",
+   "verdict": "kept",
+   "root_cause": "RC2",
+   "note": "Confirmed bind.ts:155 readHanded vs graph.ts:29 handedValues. One check, BadTextError, conformance case for '1;'."
+  },
+  {
+   "lens": "newcomer-ts",
+   "id": "NT-6",
+   "severity": "medium",
+   "title": "Handed values go in as `variables`, come out as `handed`",
+   "verdict": "kept",
+   "root_cause": "RC1",
+   "note": "Owner question 2."
+  },
+  {
+   "lens": "newcomer-ts",
+   "id": "NT-7",
+   "severity": "medium",
+   "title": "Names differ between bindings without idiom reason",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "Naming rules 1-5."
+  },
+  {
+   "lens": "newcomer-ts",
+   "id": "NT-8",
+   "severity": "low",
+   "title": "`I` prefix",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "Origin confirmed: reference/rasl-config-ts/STYLE.md 3.6, not an owner rule. Naming rule 2."
+  },
+  {
+   "lens": "newcomer-ts",
+   "id": "NT-9",
+   "severity": "low",
+   "title": "No place formatter, insert-after, document lookup by spec; text includes block",
+   "verdict": "kept-modified",
+   "root_cause": "RC4",
+   "note": "place toString and insertBefore/After kept; lookup by spec and block-text note deferred as beads."
+  },
+  {
+   "lens": "newcomer-py",
+   "id": "py-newcomer-1",
+   "severity": "high",
+   "title": "resolutions/values/args/body/block mean different things across layers",
+   "verdict": "kept",
+   "root_cause": "RC1",
+   "note": "Confirmed directive.ts:41 vs model.ts:232; rendered chain renamed `chain`."
+  },
+  {
+   "lens": "newcomer-py",
+   "id": "py-newcomer-2",
+   "severity": "high",
+   "title": "Graph knows its processor, yet verbs live on processor; save free",
+   "verdict": "kept-modified",
+   "root_cause": "RC2",
+   "note": "Confirmed py processor.py:223. Same modification as NT-2."
+  },
+  {
+   "lens": "newcomer-py",
+   "id": "py-newcomer-3",
+   "severity": "high",
+   "title": "Values going in are bare text; Python values crash or split",
+   "verdict": "kept-modified",
+   "root_cause": "RC4",
+   "note": "Crash confirmed (model.py:328 no type check): kept as a bug. Typed input conflicts with owner pick v12 'values: A' -> owner question 3, not a defect."
+  },
+  {
+   "lens": "newcomer-py",
+   "id": "py-newcomer-4",
+   "severity": "medium",
+   "title": "Places unreadable; lines from 0; Variable repr hides name",
+   "verdict": "kept",
+   "root_cause": "RC4",
+   "note": "Readable path:line:col; repr as bead."
+  },
+  {
+   "lens": "newcomer-py",
+   "id": "py-newcomer-5",
+   "severity": "medium",
+   "title": "No memory writer; callable writer refused with misleading error",
+   "verdict": "kept",
+   "root_cause": "RC4",
+   "note": "MemoryWriter; writer shape checked before call."
+  },
+  {
+   "lens": "newcomer-py",
+   "id": "py-newcomer-6",
+   "severity": "medium",
+   "title": "Flat namespace of 89 names",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "One module per layer."
+  },
+  {
+   "lens": "newcomer-py",
+   "id": "py-newcomer-7",
+   "severity": "medium",
+   "title": "Python doc examples are fragments",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "Required first-hour example (naming rule 7)."
+  },
+  {
+   "lens": "newcomer-py",
+   "id": "py-newcomer-8",
+   "severity": "low",
+   "title": "Handed values go by several names",
+   "verdict": "kept",
+   "root_cause": "RC1",
+   "note": "Owner question 2."
+  },
+  {
+   "lens": "newcomer-py",
+   "id": "py-newcomer-9",
+   "severity": "low",
+   "title": "Root read failure worded as include failure",
+   "verdict": "deferred",
+   "root_cause": "RC4",
+   "note": "Bead."
+  },
+  {
+   "lens": "idiom-ts",
+   "id": "TS-1",
+   "severity": "high",
+   "title": "One word, different shapes across layers",
+   "verdict": "kept-modified",
+   "root_cause": "RC1",
+   "note": "Confirmed. Chose `block` (iterable) over TS-1's `.statements`/`.directives` arrays to match Python's Sequence; `source` kept for the port, text renamed savedText."
+  },
+  {
+   "lens": "idiom-ts",
+   "id": "TS-2",
+   "severity": "high",
+   "title": "`kind` fields that do not narrow; per-kind methods throw",
+   "verdict": "kept",
+   "root_cause": "RC3",
+   "note": "Confirmed model.ts:236-251."
+  },
+  {
+   "lens": "idiom-ts",
+   "id": "TS-3",
+   "severity": "high",
+   "title": "Graph-taking free operations with runtime ownership checks",
+   "verdict": "kept-modified",
+   "root_cause": "RC2",
+   "note": "Confirmed. Writer-at-construction store not adopted (save(writer) on the graph); graph.render() rejected for layering."
+  },
+  {
+   "lens": "idiom-ts",
+   "id": "TS-4",
+   "severity": "medium",
+   "title": "walk is a callback with skip/stop",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "Generator walk in both (naming rule 5)."
+  },
+  {
+   "lens": "idiom-ts",
+   "id": "TS-5",
+   "severity": "medium",
+   "title": "Docs cast `as ISetLine` seven times",
+   "verdict": "kept",
+   "root_cause": "RC3",
+   "note": "statementsOf(kind, name?)."
+  },
+  {
+   "lens": "idiom-ts",
+   "id": "TS-6",
+   "severity": "medium",
+   "title": "I prefix splits names",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "Module gives context instead of a Written* prefix (differs from TS-6's Written* proposal)."
+  },
+  {
+   "lens": "idiom-ts",
+   "id": "TS-7",
+   "severity": "medium",
+   "title": "Three factory naming schemes; 'browser' names a platform",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "fileSource/fetchSource, villanelle/file entry; ValueRef export dropped (bead)."
+  },
+  {
+   "lens": "idiom-ts",
+   "id": "TS-8",
+   "severity": "low",
+   "title": "Two kind vocabularies",
+   "verdict": "kept",
+   "root_cause": "RC3",
+   "note": "Literal union types in TS, no const objects; StrEnum in Python; generated."
+  },
+  {
+   "lens": "idiom-ts",
+   "id": "TS-9",
+   "severity": "low",
+   "title": "Edits take only villanelle text",
+   "verdict": "kept-modified",
+   "root_cause": "RC4",
+   "note": "Owner question 3 (conflicts with v12 pick)."
+  },
+  {
+   "lens": "idiom-py",
+   "id": "PY-1",
+   "severity": "high",
+   "title": "UTF-16 positions break Python slicing",
+   "verdict": "kept",
+   "root_cause": "RC4",
+   "note": "Confirmed span.py:5-7. Native units per binding, UTF-16 in corpus; revises D-S3-1."
+  },
+  {
+   "lens": "idiom-py",
+   "id": "PY-2",
+   "severity": "high",
+   "title": "block vs body, values vs args",
+   "verdict": "kept",
+   "root_cause": "RC1",
+   "note": "Confirmed; duplicate of NT-3."
+  },
+  {
+   "lens": "idiom-py",
+   "id": "PY-3",
+   "severity": "high",
+   "title": "Four ways to tell kinds apart",
+   "verdict": "kept-modified",
+   "root_cause": "RC3",
+   "note": "Confirmed. Kept `kind` on every class (P5) rather than dropping it (PY-3): one rule either way; kind helps generic code."
+  },
+  {
+   "lens": "idiom-py",
+   "id": "PY-4",
+   "severity": "medium",
+   "title": "Class per kind breaks for include lines and variables",
+   "verdict": "kept",
+   "root_cause": "RC3",
+   "note": "ExtensionLine; SetVariable/Parameter/HandedVariable."
+  },
+  {
+   "lens": "idiom-py",
+   "id": "PY-5",
+   "severity": "medium",
+   "title": "No exception base; DetachedError is a ValueError",
+   "verdict": "kept",
+   "root_cause": "RC4",
+   "note": "VillanelleError base; DetachedError under ReferenceError."
+  },
+  {
+   "lens": "idiom-py",
+   "id": "PY-6",
+   "severity": "medium",
+   "title": "render/read/diff take graph back to processor",
+   "verdict": "kept-modified",
+   "root_cause": "RC2",
+   "note": "As NT-2."
+  },
+  {
+   "lens": "idiom-py",
+   "id": "PY-7",
+   "severity": "medium",
+   "title": "Flat namespace forces prefixes; star import replaces typing.List",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "One module per layer."
+  },
+  {
+   "lens": "idiom-py",
+   "id": "PY-8",
+   "severity": "medium",
+   "title": "Property vs method follows a hidden rule",
+   "verdict": "kept",
+   "root_cause": "RC1",
+   "note": "Property/method rule stated."
+  },
+  {
+   "lens": "idiom-py",
+   "id": "PY-9",
+   "severity": "low",
+   "title": "Setter with None sentinel; factories instead of classes",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "MutableMapping for overrides; public adapter classes."
+  },
+  {
+   "lens": "idiom-py",
+   "id": "PY-10",
+   "severity": "low",
+   "title": "tuple vs list results; constructible internal classes",
+   "verdict": "deferred",
+   "root_cause": "RC5",
+   "note": "Beads."
+  },
+  {
+   "lens": "cross-layer",
+   "id": "C1",
+   "severity": "high",
+   "title": "`written` four meanings; location has four names",
+   "verdict": "kept",
+   "root_cause": "RC1",
+   "note": "Confirmed; `place`/`via` everywhere."
+  },
+  {
+   "lens": "cross-layer",
+   "id": "C2",
+   "severity": "high",
+   "title": "`source` means reader and last-saved text",
+   "verdict": "kept",
+   "root_cause": "RC1",
+   "note": "Confirmed model.ts:51 vs processor.ts:44; savedText."
+  },
+  {
+   "lens": "cross-layer",
+   "id": "C3",
+   "severity": "high",
+   "title": "Processor's job unclear",
+   "verdict": "kept-modified",
+   "root_cause": "RC2",
+   "note": "Confirmed. C3's save-on-processor alternative not chosen; save on the graph."
+  },
+  {
+   "lens": "cross-layer",
+   "id": "C4",
+   "severity": "medium",
+   "title": "Contents named differently per layer/binding",
+   "verdict": "kept-modified",
+   "root_cause": "RC1",
+   "note": "Chose `block` over C4's `body` (4 of 5 lenses, and the written layer already uses block)."
+  },
+  {
+   "lens": "cross-layer",
+   "id": "C5",
+   "severity": "medium",
+   "title": "`kind` used inconsistently; unreadable kind is a reason",
+   "verdict": "kept",
+   "root_cause": "RC3",
+   "note": "reason rename in glossary."
+  },
+  {
+   "lens": "cross-layer",
+   "id": "C6",
+   "severity": "medium",
+   "title": "One rule, different errors by entry point; error groups misaligned",
+   "verdict": "kept",
+   "root_cause": "RC4",
+   "note": "Error groups in contract.md."
+  },
+  {
+   "lens": "cross-layer",
+   "id": "C7",
+   "severity": "medium",
+   "title": "Diagnostics: three shapes; no error() on written handles",
+   "verdict": "kept-modified",
+   "root_cause": "RC4",
+   "note": "Shape unification kept via place/via; statement.error() folded into the error-group work, details for spec writing."
+  },
+  {
+   "lens": "cross-layer",
+   "id": "C8",
+   "severity": "medium",
+   "title": "Handed names, IExtension.directive string, ValueRef vs IReference drift",
+   "verdict": "kept-modified",
+   "root_cause": "RC1",
+   "note": "Handed -> Q2; ValueRef rename deferred as bead."
+  },
+  {
+   "lens": "cross-layer",
+   "id": "C9",
+   "severity": "medium",
+   "title": "Registries and layout mirrored by hand",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "spec/schema and gen-api."
+  },
+  {
+   "lens": "cross-layer",
+   "id": "C10",
+   "severity": "low",
+   "title": "A rendered directive cannot say which copy it is",
+   "verdict": "deferred",
+   "root_cause": "RC1",
+   "note": "Bead: Directive.copy."
+  },
+  {
+   "lens": "cross-layer",
+   "id": "C11",
+   "severity": "low",
+   "title": "List reader: property, method, third Python name",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "Reader naming in deviations rule 6."
+  },
+  {
+   "lens": "cross-binding",
+   "id": "P1",
+   "severity": "high",
+   "title": "No language-neutral spec",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "Confirmed: no spec/; format.md cites round12 notes."
+  },
+  {
+   "lens": "cross-binding",
+   "id": "P2",
+   "severity": "high",
+   "title": "Fixed lists copied by hand",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "Confirmed py diagnostics.py:3."
+  },
+  {
+   "lens": "cross-binding",
+   "id": "P3",
+   "severity": "high",
+   "title": "Shared tests miss readers/addresses/formatting; -0 and lone CR differ",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "Confirmed at code level (_values.py:23 int(word)); reviewer's runs not repeated."
+  },
+  {
+   "lens": "cross-binding",
+   "id": "P4",
+   "severity": "medium",
+   "title": "Words change meaning between layers",
+   "verdict": "kept",
+   "root_cause": "RC1",
+   "note": "Duplicate of C1/NT-3."
+  },
+  {
+   "lens": "cross-binding",
+   "id": "P5",
+   "severity": "medium",
+   "title": "Fixed lists exposed three ways; written kinds do not reuse ValueKind",
+   "verdict": "kept",
+   "root_cause": "RC3",
+   "note": "Kind on every variant adopted."
+  },
+  {
+   "lens": "cross-binding",
+   "id": "P6",
+   "severity": "medium",
+   "title": "Python low level and rendered tree follow two models",
+   "verdict": "kept",
+   "root_cause": "RC3",
+   "note": "__match_args__ in every layer."
+  },
+  {
+   "lens": "cross-binding",
+   "id": "P7",
+   "severity": "medium",
+   "title": "No shared set of error kinds",
+   "verdict": "kept",
+   "root_cause": "RC4",
+   "note": "Merged with C6/PY-5."
+  },
+  {
+   "lens": "cross-binding",
+   "id": "P8",
+   "severity": "medium",
+   "title": "JS limits written as 'TypeScript's' rules",
+   "verdict": "kept-modified",
+   "root_cause": "RC4",
+   "note": "Neutral rules kept; chose native positions per binding instead of P8's UTF-16-plus-helpers."
+  },
+  {
+   "lens": "cross-binding",
+   "id": "P9",
+   "severity": "medium",
+   "title": "Include extension's names in the core code list",
+   "verdict": "deferred",
+   "root_cause": "RC5",
+   "note": "Schema marks code owner; renames wait for the schema."
+  },
+  {
+   "lens": "cross-binding",
+   "id": "P10",
+   "severity": "low",
+   "title": "Reader names follow no shared rule",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "Deviations rule 6."
+  },
+  {
+   "lens": "cross-binding",
+   "id": "P11",
+   "severity": "low",
+   "title": "I/O helper names drift",
+   "verdict": "kept",
+   "root_cause": "RC5",
+   "note": "Naming rule 3."
+  }
+ ]
+}

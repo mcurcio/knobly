@@ -56,6 +56,44 @@ a current choice and can be revised; the others are requirements.
 | 2026-10-28 | picked "whole" (recommended) | a variable is only ever a whole value, never joined to other text | pick |
 | 2026-10-28 | "I approve of the language features and design. Should we move forward with the low-level API for now and defer the high-level sugar API for later?", then "Yes" to the plan | build the low-level API now (syntax tree and directive layer); the high-level API (`vil-xlo`) is deferred; done means rasl's `family_room.conf` and `hyperhdr.conf` load through it in both languages | requirement; the plan's details were the main session's, which he accepted |
 
+## Round 12: the low level as written (2026-10-28)
+
+After PR 3 merged, the owner said its directive layer was the middle layer, not the low level. Round 12 designed
+and built the real low level (gate page v12; working record `.claude/design/consumer-api/round12/` and
+`.claude/design/consumer-api/requirements.md` on branch `feat/low-level-layer`; epic `vil-e4x`).
+
+| Date | Answer (his words) | What it decided | Kind |
+|---|---|---|---|
+| 2026-10-28 | "a rendered config tree is not something that we currently have. that seems like a medium layer between the low-level API (AST level?) and the high-level (idiomatic integrations)." | PR 3's tree is the middle layer, named the rendered tree | requirement |
+| 2026-10-28 | "consumers need to be able to see which files were included in a config load, what variables exist, and where they were overloaded. consumers should be able to manipulate/alter that data so that it can be written back to the source files" | the low level is the files as written: documents, variables, resolutions, edits and save | requirement |
+| 2026-10-28 | "It depends if the integration program changes the `$pixels` variable itself, or if it instead changes `max_count` to no longer use the variable. both kinds of changes should be possible" | both edits, from a rendered value's `resolutions` | requirement |
+| 2026-10-24 | "How will includes be round-tripped through modifications to an included subtree?" | an edit lands in the included file's own document; `save` writes that file | his question, answered by the design |
+| 2026-10-28 | one `set` per name per block: "this seems alright" | E5002 stays | requirement |
+| 2026-10-28 | names: picked A; note: "i like this layered approach, because it allows consumers to build on top of any of the APIs" | `load` returns the files as written; `render(graph)` builds the rendered tree (`ILoaded` became `IRendered`) | pick |
+| 2026-10-28 | copies: picked A; note: "the API _could_ provide helpers to do other operations like \"disconnect\" the variable or to \"inline\" the include, for example" | an edit lands on the written line and every place that reads it changes; the helpers are a proposal (`vil-chn`), not built | pick |
+| 2026-10-28 | values: picked A | new values are written as villanelle text, with `quote()` | pick |
+| 2026-10-28 | "if the low-level API doesnt know about directives, then why is it trying to key them?" (relayed by the run brief) | the key rule left the processor: `rendered.addresses({ key })` and `diff(before, after, { key })` | requirement |
+| 2026-10-28 | "If any questions come up, make a decision and move on." | the build's own choices are recorded one line each in `decisions.md` | instruction |
+
+The current choices of round 12, by id in `.claude/design/consumer-api/round12/decisions.md` (each revisable):
+
+- **Layers and names:** `load` returns the document graph, `render` the rendered tree (O1); the key rule and
+  addresses moved to `addresses()` and `diff` (D1, D4, D5, D6); directory names stay, the low level is
+  `written/` (D21); the new reference took `docs/low-level-api.md` and PR 3's page moved to
+  `docs/rendered-tree.md` (D22).
+- **What is stored:** only the texts, the handed-in values and which files were read; everything else is worked
+  out when asked (D12); `read(graph)` keeps a failure and does not retry it (D12, D26).
+- **Edits:** a refused edit changes nothing and throws `BadTextError` located in the given text (D16, D17, D30);
+  new text takes the file's own indentation and line breaks (D14); a statement owns the comments above it and on
+  its line (D15, D31, D-S1-4).
+- **Handles:** one object per written thing; a handle whose tokens are gone throws `DetachedError` (D20); one
+  variable per handed-in name for the graph's life (D28); `rename` keeps its handle (D-S2-6, D-S3-2).
+- **Save:** one batch to the program's writer, nothing when nothing changed (D18, D19); the filesystem writer
+  refuses a lost update and stages before renaming (D18, D-S2-5, D-S3-8).
+- **Resolutions:** `resolutions[0]` is the `$name` on the value's own line (D7); orders follow rendering (D29).
+- **Both languages:** Python ports the same model and passes the same shared cases (`conformance/written/`, D9,
+  D10); Python splices by `str` index but places count UTF-16 units (D-S3-1).
+
 ## Current choices
 
 - **The spec.**
@@ -86,16 +124,20 @@ a current choice and can be revised; the others are requirements.
   - A custom ANTLR error strategy, about 95 lines per language, meets `vil-bzv.1`.
   - The first error is reported at the real position.
   - A bad statement becomes one error node, and later siblings are kept.
-- **The low-level API** (round 11 build): the language page is [docs/language.md](../docs/language.md) and the API
-  reference for both languages is [docs/low-level-api.md](../docs/low-level-api.md).
-  - A processor is made once with a document source, extensions and a key rule; `load` reads a root file and every
-    file it includes, each once, and expands `set`, `$name`, `snippet`, `use` and include lines.
-  - Every directive and value carries its origin (where it was written and the variables, uses and include lines that
-    brought it); every directive has an address that the key rule keeps stable across edits; `diff` lists added,
-    removed, changed and unknown directives by address.
+- **The layers** (round 11 built the middle one; round 12 the low level under it): the language page is
+  [docs/language.md](../docs/language.md); the low level is [docs/low-level-api.md](../docs/low-level-api.md); the
+  rendered tree is [docs/rendered-tree.md](../docs/rendered-tree.md).
+  - A processor is made once with a document source and extensions. `load` reads a root file and every file it
+    includes, each once, and returns the document graph: the files as written, their variables, and what each
+    `$name` reads at each place where it is read. Named edits change the text and keep comments and layout; `save`
+    hands the changed files to the program's writer in one batch.
+  - `render(graph)` expands `set`, `$name`, `snippet`, `use` and include lines into directives. Every directive and
+    value carries its origin and leads back to what is written (`written`, `resolutions`); `addresses({ key })`
+    names directives under the program's key rule; `diff` lists added, removed, changed and unknown directives by
+    address.
   - Problems are located diagnostics, never exceptions; a line that cannot be read stays in place as unreadable.
-  - Both languages must give the same trees, codes, places, addresses and change lists; `conformance/load/` is the
-    shared test of that.
+  - Both languages must give the same trees, codes, places, addresses, change lists, resolutions and edit results;
+    `conformance/load/` and `conformance/written/` are the shared tests of that.
 - **Runtime:** the official `antlr4` 4.13.2 for TS (sync, pure JS, about 36 KB gzip in the
   browser) and `antlr4-python3-runtime` 4.13.2 for Python, both pinned to the generator
   version. The fallback is antlr4ng, if CI should not need Java.
@@ -123,7 +165,7 @@ since answered them (see Owner answers).
 ## Diagnostic codes
 
 The full table, with what each code means and where it is placed, is in
-[docs/low-level-api.md](../docs/low-level-api.md#error-codes). The bands:
+[docs/rendered-tree.md](../docs/rendered-tree.md#error-codes). The bands:
 
 | Band | What | Codes in use |
 |---|---|---|

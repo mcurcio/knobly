@@ -1,0 +1,3168 @@
+{
+  "$schema": "./api.schema.json",
+  "$comment": "The one home of villanelle's public API: every concept with its typed members, the kind lists, keywords, limits, patterns, error groups and free functions (spec/spec.md and spec/contract.md are canonical for behaviour; this file for the shapes). Types are written in the closed type grammar of spec/codegen.md section 2 and every name must resolve; spec/schema/api.schema.json checks the shape and tools/api/loader.py the rest. Names are spec names (lowercase words); each binding's spelling is derived from them by its casing rule (spec/binding-guide.md rule 1), never stored. Idiom that differs by language is a typed trait (spec/codegen.md section 3), never prose. History (removed names, settled disagreements) is in .claude/design/consumer-api/round15/schema-history.json.",
+  "version": 3,
+  "package": "villanelle",
+  "layers": [
+    {
+      "name": "shared",
+      "holds": "positions, places, origins, diagnostics and the diagnostics sink, error groups, the kind lists",
+      "may import": [],
+      "namespace": "package"
+    },
+    {
+      "name": "syntax",
+      "holds": "parse: tokens, nodes, syntax diagnostics",
+      "may import": [
+        "shared"
+      ],
+      "namespace": "own"
+    },
+    {
+      "name": "io",
+      "holds": "the document source and writer ports, their adapters, and check lost updates (the one lost-update check every writer calls)",
+      "may import": [
+        "shared"
+      ],
+      "namespace": "package"
+    },
+    {
+      "name": "written",
+      "holds": "the low level: processor, document graph, documents, statements, values, variables, the expansion and its expanded values with their readers, the extension port and the include extension (spec 5: an extension is pure, so it belongs to the layer that owns expansion)",
+      "may import": [
+        "shared",
+        "syntax",
+        "io"
+      ],
+      "namespace": "own"
+    },
+    {
+      "name": "rendered",
+      "holds": "the rendered tree: render (graph), directives, arguments, addresses, diff",
+      "may import": [
+        "shared",
+        "syntax",
+        "io",
+        "written"
+      ],
+      "namespace": "own"
+    }
+  ],
+  "layer direction": "A layer imports only the layers in its 'may import' list; nothing below the rendered layer imports, names or returns a rendered type (owner, 2026-10-29: \"The low level shouldn't \\\"depend on\\\" the middle layer\"). Going up a layer is the upper layer's free function: render (graph).",
+  "kinds": {
+    "token kind": {
+      "layer": "syntax",
+      "values from": "grammar",
+      "sort": "tag",
+      "tag of": [
+        "token"
+      ],
+      "note": "the grammar's lexer rule names (fragments aside) in declaration order: the grammar is their one home, and they are the one list whose values are not lowercase words"
+    },
+    "node kind": {
+      "layer": "syntax",
+      "values": [
+        "document",
+        "directive",
+        "block",
+        "list",
+        "slice",
+        "error"
+      ],
+      "sort": "tag",
+      "tag of": [
+        "node"
+      ]
+    },
+    "statement kind": {
+      "layer": "written",
+      "values": [
+        "directive",
+        "extension",
+        "set",
+        "snippet",
+        "use",
+        "unreadable"
+      ],
+      "sort": "variant set",
+      "variants": {
+        "directive": "written directive",
+        "extension": "extension line",
+        "set": "set line",
+        "snippet": "snippet line",
+        "use": "use line",
+        "unreadable": "unreadable line"
+      }
+    },
+    "value kind": {
+      "layer": "written",
+      "values": [
+        "word",
+        "string",
+        "list",
+        "slice",
+        "index",
+        "reference"
+      ],
+      "sort": "variant set",
+      "variants": {
+        "word": "word",
+        "string": "string",
+        "list": "list",
+        "slice": "slice",
+        "index": "index",
+        "reference": "reference"
+      },
+      "note": "the written value variants cover the whole list; an expanded value's variants cover it less 'reference'"
+    },
+    "variable kind": {
+      "layer": "written",
+      "values": [
+        "set",
+        "parameter",
+        "override"
+      ],
+      "sort": "variant set",
+      "variants": {
+        "set": "set variable",
+        "parameter": "parameter",
+        "override": "override variable"
+      }
+    },
+    "step kind": {
+      "layer": "shared",
+      "values": [
+        "variable",
+        "use",
+        "extension"
+      ],
+      "sort": "tag",
+      "tag of": [
+        "step"
+      ]
+    },
+    "place kind": {
+      "layer": "shared",
+      "values": [
+        "file",
+        "override"
+      ],
+      "sort": "variant set",
+      "variants": {
+        "file": "place",
+        "override": "override"
+      }
+    },
+    "unreadable reason": {
+      "layer": "written",
+      "values": [
+        "syntax",
+        "expansion",
+        "value",
+        "extension",
+        "unread"
+      ],
+      "sort": "tag",
+      "tag of": [
+        "unreadable expansion"
+      ],
+      "note": "computed by the low level's expansion (spec 6.10); 'unread' marks an extension copy not read yet (E3007)"
+    },
+    "change kind": {
+      "layer": "rendered",
+      "values": [
+        "added",
+        "removed",
+        "changed",
+        "unknown"
+      ],
+      "sort": "variant set",
+      "variants": {
+        "added": "added",
+        "removed": "removed",
+        "changed": "changed",
+        "unknown": "unknown"
+      }
+    },
+    "walk control": {
+      "layer": "shared",
+      "values": [
+        "skip",
+        "stop"
+      ],
+      "sort": "tag",
+      "tag of": [],
+      "languages": [
+        "ts"
+      ],
+      "note": "what a walk's callback returns to pass over an item's block or end the walk (TypeScript's walk idiom; Python's walk is a generator, so break ends it and descend passes over a block)"
+    }
+  },
+  "keywords": [
+    {
+      "word": "set",
+      "statement kind": "set"
+    },
+    {
+      "word": "snippet",
+      "statement kind": "snippet"
+    },
+    {
+      "word": "use",
+      "statement kind": "use"
+    }
+  ],
+  "limits": [
+    {
+      "name": "nesting depth",
+      "constant": "max nesting",
+      "layer": "syntax",
+      "value": 100,
+      "means": "blocks and lists nested at most this deep",
+      "code": "E2010"
+    },
+    {
+      "name": "expansion depth",
+      "constant": "max depth",
+      "layer": "written",
+      "value": 16,
+      "means": "use and extension lines nested at most this deep",
+      "code": "E5007"
+    },
+    {
+      "name": "directives",
+      "constant": "max directives",
+      "layer": "written",
+      "value": 100000,
+      "means": "directives after expansion, at most",
+      "code": "E5008"
+    },
+    {
+      "name": "integer range",
+      "constant": "max safe integer",
+      "layer": "written",
+      "value": 9007199254740991,
+      "means": "integer words and slice or index bounds lie within plus or minus this (2^53-1)",
+      "code": "E4005"
+    }
+  ],
+  "reserved names": {
+    "constant": "reserved",
+    "layer": "written",
+    "words from": "keywords",
+    "means": "the language statements' names, written @set, @snippet and @use: no extension may take one (spec 2.5, 5). Milestone 5: no directive name is reserved any more; a directive's name is a WORD, which never starts with @"
+  },
+  "patterns": {
+    "variable name": {
+      "constant": "variable name",
+      "layer": "written",
+      "regex": "^[A-Za-z0-9_]+$",
+      "means": "a $name without its $, an override name, a variable rename"
+    },
+    "program code": {
+      "constant": "program code",
+      "layer": "shared",
+      "regex": "^[^/\\t\\n\\u000b\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]+/[^\\t\\n\\u000b\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]+$",
+      "means": "<namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out so JavaScript and Python agree); villanelle's codes start with E"
+    }
+  },
+  "error groups": [
+    {
+      "name": "villanelle error",
+      "sort": "base",
+      "raised when": "never by itself: the base class of every expected-outcome class (spec 2.8), so one except or catch clause catches every outcome the input or the outside world decides, and no program bug",
+      "message": {
+        "given": true
+      },
+      "ts": {
+        "base": "Error"
+      },
+      "py": {
+        "base": "Exception"
+      }
+    },
+    {
+      "name": "diagnostic error",
+      "sort": "expected outcome",
+      "parent": "villanelle error",
+      "raised when": "a reader is given a value of the wrong kind or spelling, or a program's error(...); carries one located diagnostic as 'diagnostic'",
+      "fields": [
+        {
+          "name": "diagnostic",
+          "type": "located diagnostic"
+        }
+      ],
+      "message": {
+        "template": "{diagnostic message}"
+      }
+    },
+    {
+      "name": "read error",
+      "sort": "expected outcome",
+      "parent": "villanelle error",
+      "raised when": "load cannot resolve the root path to exactly one file, or cannot read it. No diagnostic and no code",
+      "fields": [
+        {
+          "name": "paths",
+          "type": "text[]"
+        }
+      ],
+      "message": {
+        "given": true
+      },
+      "cause": "chained"
+    },
+    {
+      "name": "bad text error",
+      "sort": "expected outcome",
+      "parent": "villanelle error",
+      "raised when": "the text given to an edit, or an override's text, is not what its entry rule (spec 2.8) and the text-alone rules take; 'diagnostics' are located in that text, in the binding's string unit; its message is built from them (spec 2.8)",
+      "fields": [
+        {
+          "name": "diagnostics",
+          "type": "diagnostic[]"
+        }
+      ],
+      "message": {
+        "template": "bad text: {diagnostics}",
+        "separator": "; "
+      }
+    },
+    {
+      "name": "save error",
+      "sort": "expected outcome",
+      "parent": "villanelle error",
+      "raised when": "the writer failed",
+      "fields": [
+        {
+          "name": "paths",
+          "type": "text[]"
+        }
+      ],
+      "message": {
+        "given": true
+      },
+      "cause": "chained"
+    },
+    {
+      "name": "lost update error",
+      "sort": "expected outcome",
+      "parent": "save error",
+      "raised when": "a file the save would write changed since it was read or last saved: its current text differs from its saved text (spec 4.2). Raised by check lost updates inside every writer; save raises it as is",
+      "fields": [
+        {
+          "name": "paths",
+          "type": "text[]"
+        }
+      ],
+      "message": {
+        "template": "lost update: changed since read: {paths}",
+        "separator": ", "
+      },
+      "note": "paths are only the conflicting files, in batch order"
+    },
+    {
+      "name": "detached error",
+      "sort": "program bug",
+      "raised when": "any member but kind of a detached handle is used",
+      "message": {
+        "given": true
+      },
+      "ts": {
+        "base": "ReferenceError"
+      },
+      "py": {
+        "base": "ReferenceError"
+      }
+    },
+    {
+      "name": "argument type error",
+      "sort": "program bug",
+      "raised when": "an argument of the wrong type: anything but text where config text or a name is taken (an extension's name at make processor included), and to quote and text (spec 6.9), a writer that is not a document writer, a render given something that is not a document graph (no callable expand; spec 7.0, milestone 5), a key rule that returns anything but text or absent (spec 7.4)",
+      "ts": {
+        "builtin": "TypeError"
+      },
+      "py": {
+        "builtin": "TypeError"
+      }
+    },
+    {
+      "name": "misuse error",
+      "sort": "program bug",
+      "raised when": "a bad argument value a program could have checked: every bad name (a variable or override name not matching the variable name pattern; a directive rename, or an extension's name at make processor, that the nameText entry rule refuses), a program code without '/', a reserved (set, snippet, use) or repeated extension name",
+      "message": {
+        "given": true
+      },
+      "ts": {
+        "base": "Error"
+      },
+      "py": {
+        "builtin": "ValueError"
+      }
+    },
+    {
+      "name": "index out of range",
+      "sort": "program bug",
+      "raised when": "an insert index outside a block; a token range outside a parse",
+      "ts": {
+        "builtin": "RangeError"
+      },
+      "py": {
+        "builtin": "IndexError"
+      }
+    }
+  ],
+  "argument type error message": {
+    "rule": "One helper per binding builds it (one home); every member that takes config text, quote, text, rename, set override, each load override and render call it before changing anything. Messages are for people (spec 2.3); the class and the member and parameter named are the contract.",
+    "ts": "{member}(): argument \"{parameter}\" must be a string, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, String() a number first",
+    "py": "{member}() argument '{parameter}' must be str, not {got}; villanelle edits take config text: quote() a program string, text() one already written as villanelle text, str() a number first",
+    "got": "the argument's type as the language names it: TypeScript null, array or typeof; Python type(value).__name__",
+    "member": "the member in the binding's casing, as the caller wrote it: set, replaceWithText / replace_with_text, insertStatements / insert_statements, addStatements / add_statements, insertBefore / insert_before, insertAfter / insert_after, setOverride / set_override, rename, quote, load, text, render",
+    "parameter": "text; name for rename and for set override's name; overrides[\"<name>\"] for a load override; raw for text; graph for render",
+    "other": "a parameter that takes something other than text names what it takes instead of 'a string' / 'str'"
+  },
+  "free functions": [
+    {
+      "name": "parse",
+      "layer": "syntax",
+      "params": [
+        {
+          "name": "text",
+          "type": "text"
+        }
+      ],
+      "returns": "syntax"
+    },
+    {
+      "name": "span of",
+      "layer": "syntax",
+      "params": [
+        {
+          "name": "syntax",
+          "type": "syntax"
+        },
+        {
+          "name": "range",
+          "type": "token range"
+        }
+      ],
+      "returns": "source span",
+      "errors": [
+        "index out of range"
+      ],
+      "note": "a pure helper over a syntax value (spec 1, 'Where an operation lives', rule 4); stays a free function in milestone 1"
+    },
+    {
+      "name": "text of",
+      "layer": "syntax",
+      "params": [
+        {
+          "name": "syntax",
+          "type": "syntax"
+        },
+        {
+          "name": "range",
+          "type": "token range"
+        }
+      ],
+      "returns": "text",
+      "errors": [
+        "index out of range"
+      ],
+      "note": "a pure helper over a syntax value (spec 1, 'Where an operation lives', rule 4); stays a free function in milestone 1"
+    },
+    {
+      "name": "quote",
+      "layer": "shared",
+      "params": [
+        {
+          "name": "text",
+          "type": "text"
+        }
+      ],
+      "returns": "config text",
+      "errors": [
+        "argument type error"
+      ],
+      "note": "returns config text (spec 6.9, milestone 5): the text written as a villanelle string, escapes included"
+    },
+    {
+      "name": "text",
+      "layer": "shared",
+      "params": [
+        {
+          "name": "raw",
+          "type": "text"
+        }
+      ],
+      "returns": "config text",
+      "errors": [
+        "argument type error"
+      ],
+      "note": "milestone 5 (vil-umh.6): raw as config text, unchanged and unchecked: the program's statement that raw is already written as villanelle text; the edit it is given checks it. With quote, the only maker of config text"
+    },
+    {
+      "name": "render",
+      "layer": "rendered",
+      "params": [
+        {
+          "name": "graph",
+          "type": "document graph"
+        }
+      ],
+      "returns": "rendered",
+      "note": "the rendered layer's entry point: going up a layer is a free function of the upper layer (owner, 2026-10-29). Pure: reads no file. Builds only on the low level's public members (document graph expand (), spec 7.0). Exported only by the rendered layer's namespace (binding guide rule 9). Given anything without a callable expand it raises the argument type error first (milestone 5)",
+      "errors": [
+        "argument type error"
+      ]
+    },
+    {
+      "name": "format diagnostic",
+      "layer": "written",
+      "params": [
+        {
+          "name": "diagnostic",
+          "type": "located diagnostic"
+        },
+        {
+          "name": "graph",
+          "type": "document graph",
+          "optional": true
+        }
+      ],
+      "returns": "text",
+      "note": "takes a document graph (a written type), so it belongs to the low level, not shared; was listed as shared in the first draft of this file"
+    },
+    {
+      "name": "make processor",
+      "layer": "written",
+      "params": [
+        {
+          "name": "source",
+          "type": "document source",
+          "passed": "option"
+        },
+        {
+          "name": "extensions",
+          "type": "extension[]",
+          "optional": true,
+          "passed": "option"
+        }
+      ],
+      "returns": "processor",
+      "errors": [
+        "argument type error",
+        "misuse error"
+      ],
+      "factory": {
+        "of": "processor",
+        "ts": "package function",
+        "py": "constructor"
+      },
+      "options": "processor options"
+    },
+    {
+      "name": "make diagnostics",
+      "layer": "shared",
+      "params": [
+        {
+          "name": "initial",
+          "type": "located diagnostic[]",
+          "optional": true
+        }
+      ],
+      "returns": "diagnostics",
+      "factory": {
+        "of": "diagnostics",
+        "ts": "constructor",
+        "py": "constructor"
+      }
+    },
+    {
+      "name": "memory source",
+      "layer": "io",
+      "params": [
+        {
+          "name": "files",
+          "type": "map of text"
+        }
+      ],
+      "returns": "document source",
+      "note": "reads the map it is given at each call, never a copy: what a memory writer puts in the same map, a later load reads"
+    },
+    {
+      "name": "memory writer",
+      "layer": "io",
+      "params": [
+        {
+          "name": "files",
+          "type": "writable map of text"
+        }
+      ],
+      "returns": "document writer",
+      "note": "writes each batch into the map it is given (the one a memory source reads), refusing a lost update as the file writer does: nothing is written when a file's text in the map (empty when absent) differs from its saved text"
+    },
+    {
+      "name": "file source",
+      "layer": "io",
+      "returns": "document source",
+      "params": [],
+      "module": {
+        "ts": "node",
+        "py": "files"
+      }
+    },
+    {
+      "name": "file writer",
+      "layer": "io",
+      "returns": "document writer",
+      "params": [],
+      "module": {
+        "ts": "node",
+        "py": "files"
+      }
+    },
+    {
+      "name": "fetch source",
+      "layer": "io",
+      "returns": "document source",
+      "params": [
+        {
+          "name": "fetch",
+          "type": "platform fetch"
+        }
+      ],
+      "module": {
+        "ts": "browser"
+      }
+    },
+    {
+      "name": "fetch writer",
+      "layer": "io",
+      "returns": "document writer",
+      "params": [
+        {
+          "name": "fetch",
+          "type": "platform fetch"
+        },
+        {
+          "name": "options",
+          "type": "fetch writer options",
+          "optional": true
+        }
+      ],
+      "module": {
+        "ts": "browser"
+      }
+    },
+    {
+      "name": "include",
+      "layer": "written",
+      "returns": "extension",
+      "params": [],
+      "module": {
+        "ts": "include",
+        "py": "include"
+      }
+    },
+    {
+      "name": "check lost updates",
+      "layer": "io",
+      "params": [
+        {
+          "name": "files",
+          "type": "file write[]"
+        },
+        {
+          "name": "current",
+          "type": "(text or absent)[]",
+          "note": "each file's text in the medium now, in the order of files; absent when there is none (read as empty text)"
+        }
+      ],
+      "returns": "nothing",
+      "errors": [
+        "lost update error"
+      ],
+      "note": "the one lost-update check (spec 4.2): raises a lost update error whose paths are the files whose current text differs from their saved text, in batch order. Every writer calls it before it writes; a program's own writer should too"
+    }
+  ],
+  "concepts": [
+    {
+      "name": "config text",
+      "layer": "shared",
+      "nature": "named type",
+      "note": "milestone 5 (vil-umh.6; owner, 2026-10-29: \"Yes, its own type\"): villanelle text a program hands to an edit or an override, made only by quote or text; every edit's and override's text parameter takes it, so a plain string there is a type error the checker reports. Still the language's string at run time",
+      "members": [],
+      "is": "text",
+      "brand": true
+    },
+    {
+      "name": "source position",
+      "layer": "shared",
+      "nature": "record",
+      "members": [
+        {
+          "name": "offset",
+          "member": "property",
+          "type": "integer"
+        },
+        {
+          "name": "line",
+          "member": "property",
+          "type": "integer"
+        },
+        {
+          "name": "column",
+          "member": "property",
+          "type": "integer"
+        }
+      ]
+    },
+    {
+      "name": "source span",
+      "layer": "shared",
+      "nature": "record",
+      "members": [
+        {
+          "name": "start",
+          "member": "property",
+          "type": "source position"
+        },
+        {
+          "name": "end",
+          "member": "property",
+          "type": "source position"
+        }
+      ]
+    },
+    {
+      "name": "place",
+      "layer": "shared",
+      "nature": "record",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "place kind",
+          "note": "'file'"
+        },
+        {
+          "name": "resolved path",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "span",
+          "member": "property",
+          "type": "source span"
+        },
+        {
+          "name": "people form",
+          "member": "method",
+          "params": [],
+          "returns": "text",
+          "note": "path:line:col, counting from 1, in the binding's string unit: main.conf:4:5",
+          "trait": "people form"
+        }
+      ],
+      "kind": "file",
+      "match args": [
+        "resolved path",
+        "span"
+      ]
+    },
+    {
+      "name": "override",
+      "layer": "shared",
+      "nature": "record",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "place kind",
+          "note": "'override'"
+        },
+        {
+          "name": "variable",
+          "member": "property",
+          "type": "text",
+          "note": "the name without $"
+        },
+        {
+          "name": "people form",
+          "member": "method",
+          "params": [],
+          "returns": "text",
+          "note": "override <variable>: override port",
+          "trait": "people form"
+        }
+      ],
+      "note": "an origin's place when the text came from an override; renamed from handed (IHanded / Handed)",
+      "kind": "override",
+      "match args": [
+        "variable"
+      ]
+    },
+    {
+      "name": "step",
+      "layer": "shared",
+      "nature": "record",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "step kind"
+        },
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "people form",
+          "member": "method",
+          "params": [],
+          "returns": "text",
+          "note": "<kind> <name> at path:line:col: variable pixels at main.conf:4:15",
+          "trait": "people form"
+        }
+      ]
+    },
+    {
+      "name": "origin",
+      "layer": "shared",
+      "nature": "record",
+      "members": [
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place or override"
+        },
+        {
+          "name": "via",
+          "member": "property",
+          "type": "step[]",
+          "note": "innermost first"
+        }
+      ]
+    },
+    {
+      "name": "directive origin",
+      "layer": "shared",
+      "nature": "record",
+      "members": [
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "via",
+          "member": "property",
+          "type": "step[]"
+        }
+      ]
+    },
+    {
+      "name": "diagnostic",
+      "layer": "shared",
+      "nature": "record",
+      "members": [
+        {
+          "name": "code",
+          "member": "property",
+          "type": "diagnostic code"
+        },
+        {
+          "name": "message",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "span",
+          "member": "property",
+          "type": "source span"
+        },
+        {
+          "name": "people form",
+          "member": "method",
+          "params": [],
+          "returns": "text",
+          "note": "line:col: CODE: message, counting from 1",
+          "trait": "people form"
+        }
+      ]
+    },
+    {
+      "name": "program code",
+      "layer": "shared",
+      "nature": "named type",
+      "is": "text",
+      "pattern": "program code",
+      "template": "{text}/{text}",
+      "note": "a program's own diagnostic code, '<namespace>/<name>' (the program code pattern). TypeScript checks the '/' in the type ('${string}/${string}'); Python has no such type, so it is text there, checked at run time",
+      "members": []
+    },
+    {
+      "name": "located diagnostic",
+      "layer": "shared",
+      "nature": "record",
+      "members": [
+        {
+          "name": "code",
+          "member": "property",
+          "type": "diagnostic code or program code"
+        },
+        {
+          "name": "message",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "via",
+          "member": "property",
+          "type": "step[]"
+        },
+        {
+          "name": "people form",
+          "member": "method",
+          "params": [],
+          "returns": "text",
+          "note": "path:line:col: CODE: message, the first line of format diagnostic",
+          "trait": "people form"
+        }
+      ]
+    },
+    {
+      "name": "locatable",
+      "layer": "shared",
+      "nature": "interface",
+      "note": "anything a program can place a problem on: a directive, an expanded value, the render",
+      "members": [
+        {
+          "name": "error",
+          "member": "method",
+          "params": [
+            {
+              "name": "message",
+              "type": "text"
+            },
+            {
+              "name": "code",
+              "type": "program code",
+              "passed": "keyword"
+            }
+          ],
+          "returns": "diagnostic error",
+          "errors": [
+            "misuse error"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "diagnostics",
+      "layer": "shared",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "add",
+          "member": "method",
+          "params": [
+            {
+              "name": "diagnostic",
+              "type": "located diagnostic"
+            }
+          ],
+          "returns": "nothing"
+        },
+        {
+          "name": "report",
+          "member": "method",
+          "params": [
+            {
+              "name": "at",
+              "type": "locatable"
+            },
+            {
+              "name": "message",
+              "type": "text"
+            },
+            {
+              "name": "code",
+              "type": "program code",
+              "passed": "keyword"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "misuse error"
+          ]
+        },
+        {
+          "name": "count",
+          "member": "property",
+          "type": "integer",
+          "trait": "count"
+        },
+        {
+          "name": "iterate",
+          "member": "method",
+          "params": [],
+          "returns": "located diagnostic[]",
+          "order": "as added",
+          "trait": "iterate"
+        },
+        {
+          "name": "collect",
+          "member": "method",
+          "params": [
+            {
+              "name": "read",
+              "type": "function to result"
+            }
+          ],
+          "returns": "result or absent",
+          "note": "Python's context manager is an allowed difference (binding guide section 3)",
+          "trait": "collect",
+          "type parameters": [
+            "result"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "block",
+      "layer": "shared",
+      "nature": "shape",
+      "type parameters": [
+        "item",
+        "directive"
+      ],
+      "note": "the one block shape of every layer (binding guide rule 5; owner, 2026-10-29: \"Yes, rename now\"): iterated and indexed in order, its directives by name, and a depth-first walk over its items at any depth. The written block holds statements, the expansion block directive expansions, the rendered block directives",
+      "members": [
+        {
+          "name": "iterate",
+          "member": "method",
+          "params": [],
+          "returns": "item[]",
+          "trait": "iterate",
+          "order": "written order"
+        },
+        {
+          "name": "count",
+          "member": "property",
+          "type": "integer",
+          "trait": "count"
+        },
+        {
+          "name": "at",
+          "member": "method",
+          "params": [
+            {
+              "name": "index",
+              "type": "integer"
+            }
+          ],
+          "returns": "item",
+          "trait": "index",
+          "errors": [
+            "index out of range"
+          ]
+        },
+        {
+          "name": "directives",
+          "member": "method",
+          "params": [
+            {
+              "name": "name",
+              "type": "text",
+              "optional": true
+            }
+          ],
+          "returns": "directive[]",
+          "order": "written order"
+        },
+        {
+          "name": "walk",
+          "member": "method",
+          "params": [],
+          "returns": "item[]",
+          "trait": "walk",
+          "order": "depth first, written order; not the block's owner"
+        }
+      ]
+    },
+    {
+      "name": "token range",
+      "layer": "syntax",
+      "nature": "record",
+      "note": "a half-open range of token indices; a node is one",
+      "members": [
+        {
+          "name": "start",
+          "member": "property",
+          "type": "integer"
+        },
+        {
+          "name": "end",
+          "member": "property",
+          "type": "integer"
+        }
+      ]
+    },
+    {
+      "name": "token",
+      "layer": "syntax",
+      "nature": "record",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "token kind"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "span",
+          "member": "property",
+          "type": "source span"
+        }
+      ]
+    },
+    {
+      "name": "node",
+      "layer": "syntax",
+      "nature": "record",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "node kind"
+        },
+        {
+          "name": "children",
+          "member": "property",
+          "type": "node[]"
+        }
+      ],
+      "extends": "token range"
+    },
+    {
+      "name": "syntax",
+      "layer": "syntax",
+      "nature": "record",
+      "members": [
+        {
+          "name": "tokens",
+          "member": "property",
+          "type": "token[]"
+        },
+        {
+          "name": "root",
+          "member": "property",
+          "type": "node"
+        },
+        {
+          "name": "diagnostics",
+          "member": "property",
+          "type": "diagnostic[]"
+        }
+      ]
+    },
+    {
+      "name": "load context",
+      "layer": "io",
+      "nature": "record",
+      "members": [
+        {
+          "name": "parent path",
+          "member": "property",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "name": "document source",
+      "layer": "io",
+      "nature": "port",
+      "members": [
+        {
+          "name": "resolve",
+          "member": "method",
+          "params": [
+            {
+              "name": "spec",
+              "type": "text"
+            },
+            {
+              "name": "context",
+              "type": "load context"
+            }
+          ],
+          "returns": "text[]",
+          "io": true
+        },
+        {
+          "name": "read",
+          "member": "method",
+          "params": [
+            {
+              "name": "resolved path",
+              "type": "text"
+            }
+          ],
+          "returns": "text",
+          "io": true
+        }
+      ]
+    },
+    {
+      "name": "file write",
+      "layer": "io",
+      "nature": "record",
+      "members": [
+        {
+          "name": "resolved path",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "saved text",
+          "member": "property",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "name": "document writer",
+      "layer": "io",
+      "nature": "port",
+      "members": [
+        {
+          "name": "write",
+          "member": "method",
+          "params": [
+            {
+              "name": "files",
+              "type": "file write[]"
+            }
+          ],
+          "returns": "nothing",
+          "io": true
+        }
+      ]
+    },
+    {
+      "name": "fetch writer options",
+      "layer": "io",
+      "nature": "options",
+      "module": "browser",
+      "note": "the browser writer's options (spec 4.3)",
+      "members": [
+        {
+          "name": "method",
+          "member": "property",
+          "type": "text",
+          "optional": true,
+          "note": "the HTTP method; default PUT"
+        },
+        {
+          "name": "content type",
+          "member": "property",
+          "type": "text",
+          "optional": true,
+          "note": "the Content-Type header; default text/plain"
+        }
+      ],
+      "languages": [
+        "ts"
+      ]
+    },
+    {
+      "name": "platform fetch",
+      "layer": "io",
+      "nature": "named type",
+      "is": "native",
+      "languages": [
+        "ts"
+      ],
+      "module": "browser",
+      "note": "the platform's fetch, passed in so the core reaches no global (spec 4.3): TypeScript typeof fetch",
+      "members": []
+    },
+    {
+      "name": "extension",
+      "layer": "written",
+      "nature": "port",
+      "members": [
+        {
+          "name": "directive",
+          "member": "property",
+          "type": "text",
+          "note": "the name it owns, without @: include. A line uses it when written @include (milestone 5); make processor refuses a reserved (set, snippet, use), repeated, or malformed (refused by nameText) name"
+        },
+        {
+          "name": "specs",
+          "member": "method",
+          "params": [
+            {
+              "name": "use",
+              "type": "extension use"
+            }
+          ],
+          "returns": "text[]",
+          "errors": [
+            "diagnostic error"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "extension use",
+      "layer": "written",
+      "nature": "record",
+      "members": [
+        {
+          "name": "values",
+          "member": "property",
+          "type": "expanded value[]",
+          "note": "the line's values, expanded, with their links (spec 5)"
+        },
+        {
+          "name": "origin",
+          "member": "property",
+          "type": "directive origin"
+        }
+      ]
+    },
+    {
+      "name": "load options",
+      "layer": "written",
+      "nature": "options",
+      "members": [
+        {
+          "name": "overrides",
+          "member": "property",
+          "type": "map of config text",
+          "optional": true
+        }
+      ],
+      "languages": [
+        "ts"
+      ]
+    },
+    {
+      "name": "processor options",
+      "layer": "written",
+      "nature": "options",
+      "members": [
+        {
+          "name": "source",
+          "member": "property",
+          "type": "document source"
+        },
+        {
+          "name": "extensions",
+          "member": "property",
+          "type": "extension[]",
+          "optional": true
+        }
+      ],
+      "languages": [
+        "ts"
+      ]
+    },
+    {
+      "name": "processor",
+      "layer": "written",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "load",
+          "member": "method",
+          "params": [
+            {
+              "name": "path",
+              "type": "text"
+            },
+            {
+              "name": "overrides",
+              "type": "map of config text",
+              "optional": true,
+              "passed": "option"
+            }
+          ],
+          "returns": "document graph",
+          "errors": [
+            "read error",
+            "misuse error",
+            "argument type error",
+            "bad text error"
+          ],
+          "io": true,
+          "options": "load options"
+        }
+      ],
+      "note": "the factory; load is its only operation (owner, 2026-10-29)"
+    },
+    {
+      "name": "document graph",
+      "layer": "written",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "root",
+          "member": "property",
+          "type": "document"
+        },
+        {
+          "name": "documents",
+          "member": "property",
+          "type": "map of document",
+          "note": "by resolved path; root first, then first-read order"
+        },
+        {
+          "name": "overrides",
+          "member": "property",
+          "type": "map of config text"
+        },
+        {
+          "name": "set override",
+          "member": "method",
+          "params": [
+            {
+              "name": "name",
+              "type": "text"
+            },
+            {
+              "name": "text",
+              "type": "config text or absent"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "misuse error"
+          ]
+        },
+        {
+          "name": "read",
+          "member": "method",
+          "params": [],
+          "returns": "text[]",
+          "io": true,
+          "order": "read order"
+        },
+        {
+          "name": "save",
+          "member": "method",
+          "params": [
+            {
+              "name": "writer",
+              "type": "document writer"
+            }
+          ],
+          "returns": "text[]",
+          "errors": [
+            "save error"
+          ],
+          "io": true,
+          "order": "documents order"
+        },
+        {
+          "name": "edges",
+          "member": "method",
+          "params": [],
+          "returns": "document edge[]",
+          "order": "walk order"
+        },
+        {
+          "name": "unread",
+          "member": "method",
+          "params": [],
+          "returns": "document edge[]",
+          "order": "walk order"
+        },
+        {
+          "name": "variables",
+          "member": "method",
+          "params": [
+            {
+              "name": "name",
+              "type": "text",
+              "optional": true
+            }
+          ],
+          "returns": "variable[]",
+          "order": "set and parameters in document order, then overrides in overrides order"
+        },
+        {
+          "name": "diagnostics",
+          "member": "property",
+          "type": "located diagnostic[]",
+          "note": "each document's syntax diagnostics, then every problem the low level finds, render codes included (one list, spec 6.3); a property"
+        },
+        {
+          "name": "expand",
+          "member": "method",
+          "params": [],
+          "returns": "expansion",
+          "note": "the graph's current texts and overrides after expansion (spec 6.10): what render (graph) builds the rendered tree from. Pure: reads no file"
+        }
+      ],
+      "note": "has no render member and names no rendered type (owner, 2026-10-29); keeps the document source and extensions it was loaded with"
+    },
+    {
+      "name": "document",
+      "layer": "written",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "resolved path",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "saved text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "syntax",
+          "member": "property",
+          "type": "syntax"
+        },
+        {
+          "name": "block",
+          "member": "property",
+          "type": "written block"
+        },
+        {
+          "name": "included by",
+          "member": "method",
+          "params": [],
+          "returns": "document edge[]"
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "config text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "argument type error"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "document edge",
+      "layer": "written",
+      "nature": "snapshot",
+      "members": [
+        {
+          "name": "copy",
+          "member": "property",
+          "type": "copy"
+        },
+        {
+          "name": "specs",
+          "member": "property",
+          "type": "text[]"
+        },
+        {
+          "name": "targets",
+          "member": "property",
+          "type": "text[]"
+        }
+      ]
+    },
+    {
+      "name": "copy",
+      "layer": "written",
+      "nature": "snapshot",
+      "members": [
+        {
+          "name": "statement",
+          "member": "property",
+          "type": "statement"
+        },
+        {
+          "name": "via",
+          "member": "property",
+          "type": "step[]"
+        }
+      ]
+    },
+    {
+      "name": "statement",
+      "layer": "written",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "statement kind"
+        },
+        {
+          "name": "document",
+          "member": "property",
+          "type": "document"
+        },
+        {
+          "name": "parent",
+          "member": "property",
+          "type": "written directive or extension line or snippet line or absent"
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "copies",
+          "member": "method",
+          "params": [],
+          "returns": "copy[]",
+          "order": "walk order"
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "config text"
+            }
+          ],
+          "returns": "statement[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "remove",
+          "member": "method",
+          "params": [],
+          "returns": "nothing",
+          "errors": [
+            "detached error"
+          ]
+        },
+        {
+          "name": "insert before",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "config text"
+            }
+          ],
+          "returns": "statement[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ],
+          "note": "insert statements before this one in its block: the block's insert statements (index of this one, text)"
+        },
+        {
+          "name": "insert after",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "config text"
+            }
+          ],
+          "returns": "statement[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ],
+          "note": "insert statements after this one in its block: the block's insert statements (index of this one + 1, text)"
+        }
+      ],
+      "variants": [
+        "written directive",
+        "extension line",
+        "set line",
+        "snippet line",
+        "use line",
+        "unreadable line"
+      ],
+      "kind list": "statement kind",
+      "note": "a union; TypeScript narrows it on kind, Python matches it by class"
+    },
+    {
+      "name": "written directive",
+      "layer": "written",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "values",
+          "member": "property",
+          "type": "written value[]"
+        },
+        {
+          "name": "block",
+          "member": "property",
+          "type": "written block or absent"
+        },
+        {
+          "name": "rename",
+          "member": "method",
+          "params": [
+            {
+              "name": "name",
+              "type": "text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "misuse error",
+            "argument type error",
+            "detached error"
+          ],
+          "note": "a name the nameText entry rule refuses (not one WORD: a word starting with a digit, '-' or '@') is a misuse error; no name is reserved (milestone 5), so use and include are allowed"
+        },
+        {
+          "name": "set",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "config text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ],
+          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword"
+        }
+      ],
+      "variant of": "statement",
+      "kind": "directive",
+      "match args": [
+        "name",
+        "values",
+        "block"
+      ]
+    },
+    {
+      "name": "extension line",
+      "layer": "written",
+      "nature": "handle",
+      "variant of": "statement",
+      "kind": "extension",
+      "note": "a line whose name an extension owns (include). No rename: a name change would change its kind",
+      "members": [
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text",
+          "note": "the extension's name without @ (include for @include, milestone 5)"
+        },
+        {
+          "name": "values",
+          "member": "property",
+          "type": "written value[]",
+          "note": "an include line's path"
+        },
+        {
+          "name": "block",
+          "member": "property",
+          "type": "written block or absent",
+          "note": "its set lines"
+        },
+        {
+          "name": "set",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "config text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ],
+          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword"
+        }
+      ],
+      "match args": [
+        "name",
+        "values",
+        "block"
+      ]
+    },
+    {
+      "name": "set line",
+      "layer": "written",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "variable",
+          "member": "property",
+          "type": "set variable"
+        },
+        {
+          "name": "values",
+          "member": "property",
+          "type": "written value[]"
+        },
+        {
+          "name": "set",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "config text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ],
+          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword"
+        }
+      ],
+      "variant of": "statement",
+      "kind": "set",
+      "match args": [
+        "variable",
+        "values"
+      ]
+    },
+    {
+      "name": "snippet line",
+      "layer": "written",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "parameters",
+          "member": "property",
+          "type": "parameter[]"
+        },
+        {
+          "name": "block",
+          "member": "property",
+          "type": "written block"
+        }
+      ],
+      "variant of": "statement",
+      "kind": "snippet",
+      "match args": [
+        "name",
+        "parameters",
+        "block"
+      ]
+    },
+    {
+      "name": "use line",
+      "layer": "written",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "snippet name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "snippet",
+          "member": "property",
+          "type": "snippet line or absent"
+        },
+        {
+          "name": "snippets",
+          "member": "method",
+          "params": [],
+          "returns": "(resolution of snippet line)[]"
+        },
+        {
+          "name": "values",
+          "member": "property",
+          "type": "written value[]"
+        },
+        {
+          "name": "set",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "config text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ],
+          "note": "replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword"
+        }
+      ],
+      "variant of": "statement",
+      "kind": "use",
+      "match args": [
+        "snippet name",
+        "values"
+      ]
+    },
+    {
+      "name": "unreadable line",
+      "layer": "written",
+      "nature": "handle",
+      "members": [],
+      "variant of": "statement",
+      "kind": "unreadable",
+      "match args": [
+        "text"
+      ]
+    },
+    {
+      "name": "written block",
+      "layer": "written",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "insert statements",
+          "member": "method",
+          "params": [
+            {
+              "name": "index",
+              "type": "integer"
+            },
+            {
+              "name": "text",
+              "type": "config text"
+            }
+          ],
+          "returns": "statement[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "index out of range"
+          ]
+        },
+        {
+          "name": "add statements",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "config text"
+            }
+          ],
+          "returns": "statement[]",
+          "errors": [
+            "bad text error",
+            "argument type error"
+          ]
+        }
+      ],
+      "extends": "block of statement and written directive"
+    },
+    {
+      "name": "written value",
+      "layer": "written",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "value kind"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place"
+        },
+        {
+          "name": "statement",
+          "member": "property",
+          "type": "statement"
+        },
+        {
+          "name": "list",
+          "member": "property",
+          "type": "list or absent"
+        },
+        {
+          "name": "set",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "config text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ],
+          "note": "milestone 5 (vil-umh.12): replace this value with exactly one value (the valueText entry rule; boundText for a bound, sliceNameText for a slice's name) and keep the handle: the same object, now of the new value's kind (spec 6.1). Python: the object's class becomes the new kind's class"
+        },
+        {
+          "name": "replace with text",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "config text"
+            }
+          ],
+          "returns": "written value[]",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        },
+        {
+          "name": "remove",
+          "member": "method",
+          "params": [],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "detached error"
+          ]
+        }
+      ],
+      "variants": [
+        "word",
+        "string",
+        "list",
+        "slice",
+        "index",
+        "reference"
+      ],
+      "kind list": "value kind"
+    },
+    {
+      "name": "word",
+      "layer": "written",
+      "nature": "handle",
+      "members": [],
+      "variant of": "written value",
+      "kind": "word",
+      "match args": [
+        "text"
+      ]
+    },
+    {
+      "name": "string",
+      "layer": "written",
+      "nature": "handle",
+      "members": [],
+      "variant of": "written value",
+      "kind": "string",
+      "match args": [
+        "text"
+      ]
+    },
+    {
+      "name": "list",
+      "layer": "written",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "items",
+          "member": "property",
+          "type": "written value[]",
+          "note": "a tuple in Python, in both layers (vil-gxu: list items have one shape)"
+        }
+      ],
+      "variant of": "written value",
+      "kind": "list",
+      "match args": [
+        "items"
+      ]
+    },
+    {
+      "name": "slice",
+      "layer": "written",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "name",
+          "member": "property",
+          "type": "word or reference",
+          "note": "the slice name before '[': a word or a reference value (milestone 5: a variable may be subscripted, $src[0~3]); was text"
+        },
+        {
+          "name": "start",
+          "member": "property",
+          "type": "word or reference or absent"
+        },
+        {
+          "name": "end",
+          "member": "property",
+          "type": "word or reference or absent"
+        }
+      ],
+      "variant of": "written value",
+      "kind": "slice",
+      "match args": [
+        "name",
+        "start",
+        "end"
+      ]
+    },
+    {
+      "name": "index",
+      "layer": "written",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "name",
+          "member": "property",
+          "type": "word or reference",
+          "note": "the slice name before '[': a word or a reference value (milestone 5: a variable may be subscripted, $src[0~3]); was text"
+        },
+        {
+          "name": "index",
+          "member": "property",
+          "type": "word or reference"
+        }
+      ],
+      "variant of": "written value",
+      "kind": "index",
+      "match args": [
+        "name",
+        "index"
+      ]
+    },
+    {
+      "name": "reference",
+      "layer": "written",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "declaration",
+          "member": "property",
+          "type": "set variable or parameter or absent"
+        },
+        {
+          "name": "resolutions",
+          "member": "method",
+          "params": [],
+          "returns": "reference resolution[]",
+          "order": "walk order"
+        }
+      ],
+      "variant of": "written value",
+      "kind": "reference",
+      "match args": [
+        "name"
+      ]
+    },
+    {
+      "name": "variable",
+      "layer": "written",
+      "nature": "handle",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "variable kind"
+        },
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "references",
+          "member": "method",
+          "params": [],
+          "returns": "reference[]",
+          "order": "document order"
+        },
+        {
+          "name": "wins",
+          "member": "method",
+          "params": [],
+          "returns": "reference resolution[]",
+          "order": "walk order"
+        },
+        {
+          "name": "shadowed at",
+          "member": "method",
+          "params": [],
+          "returns": "reference resolution[]",
+          "order": "walk order"
+        }
+      ],
+      "kind list": "variable kind",
+      "variants": [
+        "set variable",
+        "parameter",
+        "override variable"
+      ],
+      "note": "a union: each kind is its own type, so set and rename exist only where they can succeed (NoSetLineError is gone)"
+    },
+    {
+      "name": "set variable",
+      "layer": "written",
+      "nature": "handle",
+      "variant of": "variable",
+      "kind": "set",
+      "members": [
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place",
+          "note": "its $name"
+        },
+        {
+          "name": "line",
+          "member": "property",
+          "type": "set line"
+        },
+        {
+          "name": "rename",
+          "member": "method",
+          "params": [
+            {
+              "name": "name",
+              "type": "text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ],
+          "note": "its $name only; E5002 when it would make a second set of a name in its block"
+        },
+        {
+          "name": "set",
+          "member": "method",
+          "params": [
+            {
+              "name": "text",
+              "type": "config text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ],
+          "note": "its set line's values; replaces the values (owner, 2026-10-29: \"Can \\\"set_values\\\" become simply \\\"set\\\"?\"); not the language's set keyword"
+        }
+      ],
+      "match args": [
+        "name"
+      ]
+    },
+    {
+      "name": "parameter",
+      "layer": "written",
+      "nature": "handle",
+      "variant of": "variable",
+      "kind": "parameter",
+      "note": "a snippet's parameter: no set (edit the use line's values)",
+      "members": [
+        {
+          "name": "place",
+          "member": "property",
+          "type": "place",
+          "note": "its $name in the snippet line"
+        },
+        {
+          "name": "line",
+          "member": "property",
+          "type": "snippet line"
+        },
+        {
+          "name": "rename",
+          "member": "method",
+          "params": [
+            {
+              "name": "name",
+              "type": "text"
+            }
+          ],
+          "returns": "nothing",
+          "errors": [
+            "bad text error",
+            "argument type error",
+            "detached error"
+          ]
+        }
+      ],
+      "match args": [
+        "name"
+      ]
+    },
+    {
+      "name": "override variable",
+      "layer": "written",
+      "nature": "handle",
+      "variant of": "variable",
+      "kind": "override",
+      "note": "an override as a variable: no place, no line, no rename, no set (the graph's set override changes it); never detached",
+      "members": [],
+      "match args": [
+        "name"
+      ]
+    },
+    {
+      "name": "resolution",
+      "layer": "written",
+      "nature": "snapshot",
+      "members": [
+        {
+          "name": "copy",
+          "member": "property",
+          "type": "copy"
+        },
+        {
+          "name": "winner",
+          "member": "property",
+          "type": "definition or absent"
+        },
+        {
+          "name": "shadowed",
+          "member": "property",
+          "type": "definition[]",
+          "note": "next first"
+        }
+      ],
+      "type parameters": [
+        "definition"
+      ]
+    },
+    {
+      "name": "reference resolution",
+      "layer": "written",
+      "nature": "snapshot",
+      "members": [
+        {
+          "name": "reference",
+          "member": "property",
+          "type": "reference"
+        },
+        {
+          "name": "values",
+          "member": "property",
+          "type": "written value[]"
+        }
+      ],
+      "extends": "resolution of variable"
+    },
+    {
+      "name": "expansion",
+      "layer": "written",
+      "nature": "snapshot",
+      "note": "what document graph expand () returns: the low level's public account of every copy as read, so the rendered layer builds on public members only (owner, 2026-10-29)",
+      "members": [
+        {
+          "name": "block",
+          "member": "property",
+          "type": "expansion block",
+          "note": "the top-level readable directive copies, in walk order"
+        },
+        {
+          "name": "unreadable",
+          "member": "property",
+          "type": "unreadable expansion[]",
+          "note": "the top-level copies that could not be read"
+        },
+        {
+          "name": "diagnostics",
+          "member": "property",
+          "type": "located diagnostic[]",
+          "note": "the graph's diagnostics: one list for the graph, its expansion and its render (milestone 4 deleted the render-only codes)"
+        }
+      ]
+    },
+    {
+      "name": "expansion block",
+      "layer": "written",
+      "nature": "snapshot",
+      "extends": "block of directive expansion and directive expansion",
+      "note": "the directive expansions of one block of one copy, in written order (spec 6.10)",
+      "members": []
+    },
+    {
+      "name": "directive expansion",
+      "layer": "written",
+      "nature": "snapshot",
+      "members": [
+        {
+          "name": "written",
+          "member": "property",
+          "type": "written directive",
+          "note": "the written directive this is a copy of (was statement; one name for the link, milestone 4)"
+        },
+        {
+          "name": "origin",
+          "member": "property",
+          "type": "directive origin",
+          "note": "its name's place and the copy's via"
+        },
+        {
+          "name": "values",
+          "member": "property",
+          "type": "expanded value[]",
+          "note": "in order; a reference gives every value it reaches"
+        },
+        {
+          "name": "block",
+          "member": "property",
+          "type": "expansion block or absent",
+          "note": "absent when written without a block"
+        },
+        {
+          "name": "unreadable",
+          "member": "property",
+          "type": "unreadable expansion[]"
+        }
+      ],
+      "match args": [
+        "written",
+        "values",
+        "block"
+      ]
+    },
+    {
+      "name": "unreadable expansion",
+      "layer": "written",
+      "nature": "snapshot",
+      "members": [
+        {
+          "name": "written",
+          "member": "property",
+          "type": "statement",
+          "note": "the statement that could not be read: an unreadable line, or a directive, use or extension line this copy could not expand (was statement)"
+        },
+        {
+          "name": "reason",
+          "member": "property",
+          "type": "unreadable reason",
+          "note": "unread for an extension copy not read yet (E3007, spec 6.10)"
+        },
+        {
+          "name": "origin",
+          "member": "property",
+          "type": "directive origin",
+          "note": "the statement's own tokens (owned comments left out) and the copy's via"
+        }
+      ],
+      "note": "one statement a copy could not read; the rendered tree lists these same objects (milestone 4: the rendered unreadable type is gone)",
+      "match args": [
+        "reason",
+        "written"
+      ]
+    },
+    {
+      "name": "rendered",
+      "layer": "rendered",
+      "nature": "snapshot",
+      "members": [
+        {
+          "name": "block",
+          "member": "property",
+          "type": "rendered block"
+        },
+        {
+          "name": "unreadable",
+          "member": "property",
+          "type": "unreadable expansion[]"
+        },
+        {
+          "name": "origin",
+          "member": "property",
+          "type": "directive origin"
+        },
+        {
+          "name": "diagnostics",
+          "member": "property",
+          "type": "located diagnostic[]",
+          "note": "the graph's diagnostics (spec 7.1)"
+        },
+        {
+          "name": "graph",
+          "member": "property",
+          "type": "document graph"
+        },
+        {
+          "name": "error",
+          "member": "method",
+          "params": [
+            {
+              "name": "message",
+              "type": "text"
+            },
+            {
+              "name": "code",
+              "type": "program code",
+              "passed": "keyword"
+            }
+          ],
+          "returns": "diagnostic error",
+          "errors": [
+            "misuse error"
+          ]
+        },
+        {
+          "name": "addresses",
+          "member": "method",
+          "params": [
+            {
+              "name": "key",
+              "type": "key rule",
+              "optional": true,
+              "passed": "option"
+            }
+          ],
+          "returns": "map of directive to address",
+          "order": "walk order",
+          "errors": [
+            "argument type error"
+          ],
+          "options": "key options"
+        },
+        {
+          "name": "diff",
+          "member": "method",
+          "params": [
+            {
+              "name": "after",
+              "type": "rendered"
+            },
+            {
+              "name": "key",
+              "type": "key rule",
+              "optional": true,
+              "passed": "option"
+            }
+          ],
+          "returns": "change[]",
+          "order": "removed and unknown in before's walk order, then added and changed in after's",
+          "note": "lives on the render because it compares two renders; any two renders may be compared",
+          "errors": [
+            "argument type error"
+          ],
+          "options": "key options"
+        }
+      ],
+      "note": "made only by render (graph)"
+    },
+    {
+      "name": "directive",
+      "layer": "rendered",
+      "nature": "snapshot",
+      "members": [
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "values",
+          "member": "property",
+          "type": "expanded value[]",
+          "note": "its directive expansion's values, the same objects"
+        },
+        {
+          "name": "block",
+          "member": "property",
+          "type": "rendered block or absent"
+        },
+        {
+          "name": "unreadable",
+          "member": "property",
+          "type": "unreadable expansion[]"
+        },
+        {
+          "name": "parent",
+          "member": "property",
+          "type": "directive or absent"
+        },
+        {
+          "name": "origin",
+          "member": "property",
+          "type": "directive origin"
+        },
+        {
+          "name": "written",
+          "member": "property",
+          "type": "written directive",
+          "note": "its directive expansion's written: the same object for every copy of one line"
+        },
+        {
+          "name": "closest",
+          "member": "method",
+          "params": [
+            {
+              "name": "predicate",
+              "type": "function of directive to boolean"
+            }
+          ],
+          "returns": "directive or absent"
+        },
+        {
+          "name": "error",
+          "member": "method",
+          "params": [
+            {
+              "name": "message",
+              "type": "text"
+            },
+            {
+              "name": "code",
+              "type": "program code",
+              "passed": "keyword"
+            }
+          ],
+          "returns": "diagnostic error",
+          "errors": [
+            "misuse error"
+          ]
+        }
+      ],
+      "match args": [
+        "name",
+        "values",
+        "block"
+      ]
+    },
+    {
+      "name": "rendered block",
+      "layer": "rendered",
+      "nature": "snapshot",
+      "extends": "block of directive and directive",
+      "note": "the directives of one block after expansion, in written order (spec 7.1)",
+      "members": []
+    },
+    {
+      "name": "slice value",
+      "layer": "written",
+      "nature": "record",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "value kind"
+        },
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "start",
+          "member": "property",
+          "type": "integer or absent"
+        },
+        {
+          "name": "end",
+          "member": "property",
+          "type": "integer or absent"
+        }
+      ],
+      "kind": "slice"
+    },
+    {
+      "name": "index value",
+      "layer": "written",
+      "nature": "record",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "value kind"
+        },
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "index",
+          "member": "property",
+          "type": "integer"
+        }
+      ],
+      "kind": "index"
+    },
+    {
+      "name": "expanded value",
+      "layer": "written",
+      "nature": "snapshot",
+      "note": "a union: one value after expansion ($name replaced) with its links to the lines it came through. The low level owns it (spec 2.9, 6.10): an extension use holds it, a directive expansion's values are it, and a rendered directive's values are the same objects (milestone 4 collapsed value expansion and the rendered argument family into it). The readers stay on every variant: a value of the wrong kind is a problem in the config text, reported as E4002. Two expanded values are equal exactly when their texts are equal (spec 2.9; Python ==)",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "value kind"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "origin",
+          "member": "property",
+          "type": "origin"
+        },
+        {
+          "name": "written",
+          "member": "property",
+          "type": "written value",
+          "note": "the written value on the same line: chain[0].reference when the value came through a variable (a list item that came through one shares its list's), else the value itself; never absent. Was value expansion's and the rendered argument's written"
+        },
+        {
+          "name": "definition",
+          "member": "property",
+          "type": "written value or absent",
+          "note": "the written value at the end of the chain; absent for an override"
+        },
+        {
+          "name": "chain",
+          "member": "property",
+          "type": "reference resolution[]",
+          "note": "one per variable step of origin.via, own line first; empty when read where written"
+        },
+        {
+          "name": "word",
+          "member": "method",
+          "params": [],
+          "returns": "text",
+          "errors": [
+            "diagnostic error"
+          ]
+        },
+        {
+          "name": "string",
+          "member": "method",
+          "params": [],
+          "returns": "text",
+          "errors": [
+            "diagnostic error"
+          ]
+        },
+        {
+          "name": "number",
+          "member": "method",
+          "params": [],
+          "returns": "number",
+          "errors": [
+            "diagnostic error"
+          ]
+        },
+        {
+          "name": "integer",
+          "member": "method",
+          "params": [],
+          "returns": "integer",
+          "errors": [
+            "diagnostic error"
+          ]
+        },
+        {
+          "name": "boolean",
+          "member": "method",
+          "params": [],
+          "returns": "boolean",
+          "errors": [
+            "diagnostic error"
+          ]
+        },
+        {
+          "name": "list",
+          "member": "method",
+          "params": [],
+          "returns": "expanded value[]",
+          "errors": [
+            "diagnostic error"
+          ],
+          "note": "a list's items; E4002 for any other kind. Was items () (vil-gxu: items is now the list variant's property). Python: inside a class body that defines list, annotate the builtin as builtins.list"
+        },
+        {
+          "name": "slice",
+          "member": "method",
+          "params": [],
+          "returns": "slice value or index value",
+          "errors": [
+            "diagnostic error"
+          ]
+        },
+        {
+          "name": "error",
+          "member": "method",
+          "params": [
+            {
+              "name": "message",
+              "type": "text"
+            },
+            {
+              "name": "code",
+              "type": "program code",
+              "passed": "keyword"
+            }
+          ],
+          "returns": "diagnostic error",
+          "errors": [
+            "misuse error"
+          ]
+        }
+      ],
+      "kind list": "value kind",
+      "except": [
+        "reference"
+      ],
+      "variants": [
+        "expanded word",
+        "expanded string",
+        "expanded list",
+        "expanded slice",
+        "expanded index"
+      ]
+    },
+    {
+      "name": "expanded word",
+      "layer": "written",
+      "nature": "snapshot",
+      "variant of": "expanded value",
+      "kind": "word",
+      "members": [],
+      "match args": [
+        "text"
+      ]
+    },
+    {
+      "name": "expanded string",
+      "layer": "written",
+      "nature": "snapshot",
+      "variant of": "expanded value",
+      "kind": "string",
+      "members": [],
+      "match args": [
+        "text"
+      ]
+    },
+    {
+      "name": "expanded list",
+      "layer": "written",
+      "nature": "snapshot",
+      "variant of": "expanded value",
+      "kind": "list",
+      "members": [
+        {
+          "name": "items",
+          "member": "property",
+          "type": "expanded value[]",
+          "note": "a tuple in Python; each item an expanded value with its own links"
+        }
+      ],
+      "match args": [
+        "items"
+      ]
+    },
+    {
+      "name": "expanded slice",
+      "layer": "written",
+      "nature": "snapshot",
+      "variant of": "expanded value",
+      "kind": "slice",
+      "members": [
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "start",
+          "member": "property",
+          "type": "integer or absent"
+        },
+        {
+          "name": "end",
+          "member": "property",
+          "type": "integer or absent"
+        }
+      ],
+      "match args": [
+        "name",
+        "start",
+        "end"
+      ]
+    },
+    {
+      "name": "expanded index",
+      "layer": "written",
+      "nature": "snapshot",
+      "variant of": "expanded value",
+      "kind": "index",
+      "members": [
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "index",
+          "member": "property",
+          "type": "integer"
+        }
+      ],
+      "match args": [
+        "name",
+        "index"
+      ]
+    },
+    {
+      "name": "key rule",
+      "layer": "rendered",
+      "nature": "callback",
+      "type": "function of directive to text or absent",
+      "note": "the program's rule naming a directive among its siblings (spec 7.4); absent: no key",
+      "members": []
+    },
+    {
+      "name": "key options",
+      "layer": "rendered",
+      "nature": "options",
+      "members": [
+        {
+          "name": "key",
+          "member": "property",
+          "type": "key rule",
+          "optional": true
+        }
+      ],
+      "languages": [
+        "ts"
+      ]
+    },
+    {
+      "name": "address step",
+      "layer": "rendered",
+      "nature": "record",
+      "members": [
+        {
+          "name": "name",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "key",
+          "member": "property",
+          "type": "text or absent"
+        },
+        {
+          "name": "occurrence",
+          "member": "property",
+          "type": "integer"
+        }
+      ]
+    },
+    {
+      "name": "address",
+      "layer": "rendered",
+      "nature": "record",
+      "members": [
+        {
+          "name": "steps",
+          "member": "property",
+          "type": "address step[]"
+        },
+        {
+          "name": "text",
+          "member": "property",
+          "type": "text"
+        },
+        {
+          "name": "parent",
+          "member": "property",
+          "type": "address or absent"
+        },
+        {
+          "name": "people form",
+          "member": "method",
+          "params": [],
+          "returns": "text",
+          "trait": "people form"
+        }
+      ]
+    },
+    {
+      "name": "change",
+      "layer": "rendered",
+      "nature": "record",
+      "members": [
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "change kind"
+        },
+        {
+          "name": "address",
+          "member": "property",
+          "type": "address"
+        }
+      ],
+      "variants": [
+        "added",
+        "removed",
+        "changed",
+        "unknown"
+      ],
+      "kind list": "change kind"
+    },
+    {
+      "name": "added",
+      "layer": "rendered",
+      "nature": "record",
+      "variant of": "change",
+      "kind": "added",
+      "members": [
+        {
+          "name": "after",
+          "member": "property",
+          "type": "directive"
+        }
+      ],
+      "match args": [
+        "address",
+        "after"
+      ]
+    },
+    {
+      "name": "removed",
+      "layer": "rendered",
+      "nature": "record",
+      "variant of": "change",
+      "kind": "removed",
+      "members": [
+        {
+          "name": "before",
+          "member": "property",
+          "type": "directive"
+        }
+      ],
+      "match args": [
+        "address",
+        "before"
+      ]
+    },
+    {
+      "name": "changed",
+      "layer": "rendered",
+      "nature": "record",
+      "variant of": "change",
+      "kind": "changed",
+      "members": [
+        {
+          "name": "before",
+          "member": "property",
+          "type": "directive"
+        },
+        {
+          "name": "after",
+          "member": "property",
+          "type": "directive"
+        }
+      ],
+      "match args": [
+        "address",
+        "before",
+        "after"
+      ]
+    },
+    {
+      "name": "unknown",
+      "layer": "rendered",
+      "nature": "record",
+      "variant of": "change",
+      "kind": "unknown",
+      "members": [
+        {
+          "name": "before",
+          "member": "property",
+          "type": "directive"
+        }
+      ],
+      "match args": [
+        "address",
+        "before"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,550 @@
+{
+  "$schema": "./api.schema.json",
+  "$comment": "The adapter protocol's messages (spec/conformance.md 4): every request with its parameters and result, every dump shape, reader results, key rules as data. spec/conformance.md 4.1 and 4.2 are generated from this file (tools/gen-api.py docs); each binding's adapter types are generated from it (ts/conformance/shapes.ts, py/conformance/shapes.py). Keys are the wire's own spellings: they are data, not a binding's names, so the casing rule does not apply to them. Types use the protocol grammar of spec/codegen.md section 5: text, integer, number, boolean, json (any JSON), id (an adapter's object id, text), position, the name of a shape, 'X[]', 'X or null', 'map of X' (text keys), 'tuple of A and B ...', and a quoted literal ('\"utf-16\"').",
+  "version": 1,
+  "protocol": 1,
+  "shapes": [
+    {
+      "name": "position",
+      "tuple": [
+        "integer",
+        "integer",
+        "integer"
+      ],
+      "note": "[line, column, offset], in the binding's own unit"
+    },
+    {
+      "name": "place",
+      "fields": {
+        "id": "id",
+        "path": "text",
+        "start": "position",
+        "end": "position"
+      },
+      "note": "a place (spec 2.2)"
+    },
+    {
+      "name": "override",
+      "fields": {
+        "id": "id",
+        "override": "text"
+      },
+      "note": "an origin's place for a value from an override"
+    },
+    {
+      "name": "step",
+      "fields": {
+        "id": "id",
+        "kind": "text",
+        "name": "text",
+        "place": "place"
+      }
+    },
+    {
+      "name": "origin",
+      "fields": {
+        "place": "place or override",
+        "via": "step[]"
+      }
+    },
+    {
+      "name": "syntax diagnostic",
+      "fields": {
+        "id": "id",
+        "code": "text",
+        "message": "text",
+        "start": "position",
+        "end": "position"
+      }
+    },
+    {
+      "name": "located diagnostic",
+      "fields": {
+        "id": "id",
+        "code": "text",
+        "message": "text",
+        "place": "place or override",
+        "via": "step[]"
+      }
+    },
+    {
+      "name": "token",
+      "tuple": [
+        "text",
+        "text",
+        "position",
+        "position"
+      ],
+      "note": "[kind, text, start, end]"
+    },
+    {
+      "name": "node",
+      "tuple": [
+        "text",
+        "integer",
+        "integer",
+        "node[]"
+      ],
+      "note": "[kind, start, end, children]: token indices, half-open"
+    },
+    {
+      "name": "syntax",
+      "fields": {
+        "tokens": "token[]",
+        "root": "node",
+        "diagnostics": "syntax diagnostic[]"
+      }
+    },
+    {
+      "name": "variable reference",
+      "fields": {
+        "id": "id",
+        "name": "text",
+        "kind": "text",
+        "place": "place or null"
+      },
+      "note": "place null for an override variable"
+    },
+    {
+      "name": "reference place",
+      "fields": {
+        "id": "id",
+        "place": "place"
+      }
+    },
+    {
+      "name": "resolution",
+      "fields": {
+        "reference": "reference place",
+        "via": "step[]",
+        "winner": "variable reference or null",
+        "shadowed": "variable reference[]"
+      },
+      "note": "a reference resolution; via is its copy's"
+    },
+    {
+      "name": "written value",
+      "fields": {
+        "id": "id",
+        "kind": "text",
+        "place": "place",
+        "text": "text"
+      },
+      "other kinds": ["word", "string"],
+      "by kind": {
+        "list": {
+          "items": "written value[]"
+        },
+        "slice": {
+          "name": "written value",
+          "start": "written value or null",
+          "end": "written value or null"
+        },
+        "index": {
+          "name": "written value",
+          "index": "written value"
+        },
+        "reference": {
+          "declaration": "variable reference or null",
+          "resolutions": "resolution[]"
+        }
+      },
+      "note": "a slice's or index's name is a word or a reference (milestone 5)"
+    },
+    {
+      "name": "statement",
+      "fields": {
+        "id": "id",
+        "kind": "text",
+        "place": "place",
+        "text": "text"
+      },
+      "other kinds": ["unreadable"],
+      "by kind": {
+        "directive": {
+          "values": "written value[]",
+          "block": "block or null"
+        },
+        "extension": {
+          "values": "written value[]",
+          "block": "block or null"
+        },
+        "set": {
+          "values": "written value[]"
+        },
+        "use": {
+          "values": "written value[]"
+        },
+        "snippet": {
+          "block": "block or null"
+        }
+      }
+    },
+    {
+      "name": "block",
+      "fields": {
+        "id": "id",
+        "statements": "statement[]"
+      }
+    },
+    {
+      "name": "copy",
+      "fields": {
+        "place": "place",
+        "via": "step[]"
+      },
+      "note": "place is the copy's statement's place"
+    },
+    {
+      "name": "document",
+      "fields": {
+        "id": "id",
+        "path": "text",
+        "text": "text",
+        "savedText": "text",
+        "syntax": "syntax",
+        "block": "block",
+        "includedBy": "copy[]"
+      },
+      "note": "includedBy: the copies of included by ()"
+    },
+    {
+      "name": "edge",
+      "fields": {
+        "copy": "copy",
+        "specs": "text[]",
+        "targets": "text[]"
+      }
+    },
+    {
+      "name": "graph variable",
+      "fields": {
+        "id": "id",
+        "name": "text",
+        "kind": "text",
+        "place": "place or null",
+        "wins": "resolution[]",
+        "shadowedAt": "resolution[]"
+      },
+      "note": "a variable reference with its wins and shadowed at"
+    },
+    {
+      "name": "graph",
+      "fields": {
+        "id": "id",
+        "documents": "document[]",
+        "edges": "edge[]",
+        "variables": "graph variable[]",
+        "diagnostics": "located diagnostic[]"
+      },
+      "note": "each list in the graph's own order"
+    },
+    {
+      "name": "address",
+      "fields": {
+        "text": "text",
+        "people": "text"
+      },
+      "note": "an address's text and its people form (spec 7.4)"
+    },
+    {
+      "name": "unreadable",
+      "fields": {
+        "reason": "text",
+        "origin": "origin"
+      },
+      "note": "an unreadable expansion"
+    },
+    {
+      "name": "expanded value",
+      "fields": {
+        "id": "id",
+        "kind": "text",
+        "text": "text",
+        "origin": "origin",
+        "definition": "place or null",
+        "chain": "resolution[]"
+      },
+      "note": "definition: the place of the value's definition"
+    },
+    {
+      "name": "directive",
+      "fields": {
+        "id": "id",
+        "name": "text",
+        "address": "address",
+        "origin": "origin",
+        "values": "expanded value[]",
+        "block": "directive[] or null",
+        "unreadable": "unreadable[]"
+      }
+    },
+    {
+      "name": "render",
+      "fields": {
+        "id": "id",
+        "block": "directive[]",
+        "unreadable": "unreadable[]",
+        "diagnostics": "located diagnostic[]"
+      }
+    },
+    {
+      "name": "change",
+      "fields": {
+        "kind": "text",
+        "address": "address"
+      }
+    },
+    {
+      "name": "handle",
+      "fields": {
+        "id": "id",
+        "text": "text"
+      }
+    },
+    {
+      "name": "key rule",
+      "fields": {
+        "directive": "text",
+        "parent": "text or null",
+        "key": "tuple of \"value\" and integer or tuple of \"join\" and text"
+      },
+      "optional": [
+        "parent"
+      ],
+      "note": "one rule of a key rule as data (spec/conformance.md 4.3)"
+    },
+    {
+      "name": "reader result",
+      "one of": {
+        "text": "text",
+        "boolean": "boolean",
+        "number": "number or \"-0\"",
+        "slice": "tuple of text and (integer or null) and (integer or null)",
+        "index": "tuple of text and integer",
+        "value": "text",
+        "list": "reader result[]"
+      },
+      "note": "exactly one member: a reader's value (spec/conformance.md 4.4); negative zero is the string \"-0\""
+    }
+  ],
+  "requests": [
+    {
+      "op": "hello",
+      "params": {
+        "protocol": "integer"
+      },
+      "result": "hello result",
+      "level": "all",
+      "note": "`{\"protocol\": 1, \"binding\": name, \"unit\": \"utf-16\" \\| \"code point\" \\| \"byte\", \"level\": 0 to 4}`",
+      "params note": "`protocol`: 1"
+    },
+    {
+      "op": "parse",
+      "params": {
+        "text": "text"
+      },
+      "result": "syntax",
+      "level": "L0",
+      "note": "a **syntax** dump of `parse (text)`",
+      "params note": "`text`"
+    },
+    {
+      "op": "load",
+      "params": {
+        "files": "map of text",
+        "root": "text",
+        "extensions": "text[]",
+        "overrides": "map of text"
+      },
+      "optional": [
+        "overrides"
+      ],
+      "result": "loaded",
+      "level": "L1",
+      "note": "`{\"graph\": id}`: a processor with a `memory source` over `files` and the extensions named, then `load (root, overrides)`",
+      "params note": "`files` (path to text), `root`, `extensions` (`[]` or `[\"include\"]`), `overrides`? (name to text)"
+    },
+    {
+      "op": "graph",
+      "params": {
+        "graph": "id"
+      },
+      "result": "graph",
+      "level": "L1",
+      "note": "a **graph** dump",
+      "params note": "`graph`"
+    },
+    {
+      "op": "edit",
+      "params": {
+        "target": "id",
+        "member": "text",
+        "args": "json[]"
+      },
+      "result": "edited",
+      "level": "L1",
+      "note": "`{\"handles\": [{\"id\", \"text\"}, ...]}` when the member returns handles, else `{}`",
+      "params note": "`target` (an id), `member` (a spec member name: `set` (on a statement, a variable or, milestone 5, a written value), `replace with text`, `remove`, `rename`, `insert statements`, `add statements`, `insert before`, `insert after`, `set override`), `args` (in the member's parameter order; `null` means the argument is absent)"
+    },
+    {
+      "op": "save",
+      "params": {
+        "graph": "id",
+        "disk": "map of text"
+      },
+      "optional": [
+        "disk"
+      ],
+      "result": "saved",
+      "level": "L1",
+      "note": "without `disk`: `{\"batches\": [[[path, text], ...], ...]}`, what a recording writer got, each `write` call one batch, during this one `save (writer)`. With `disk`: `save (writer)` with a `memory writer` over a new map holding `disk` (so a file whose text there differs from its saved text is a lost update), then `{\"files\": [[path, text], ...]}`, the map after, sorted by path",
+      "params note": "`graph`, `disk`? (path to text)"
+    },
+    {
+      "op": "quote",
+      "params": {
+        "text": "text"
+      },
+      "result": "text",
+      "level": "L1",
+      "note": "`quote (text)`",
+      "params note": "`text`"
+    },
+    {
+      "op": "render",
+      "params": {
+        "graph": "id",
+        "key": "key rule[]"
+      },
+      "optional": [
+        "key"
+      ],
+      "result": "render",
+      "level": "L2",
+      "note": "a **render** dump of `render (graph)`, its addresses under the key rule; for an id that is not a graph, the binding's `render` is called with that object and raises the `argument type error` (milestone 5, spec 7.0)",
+      "params note": "`graph` (any dumped object's id), `key`? (key rules, section 4.3)"
+    },
+    {
+      "op": "diff",
+      "params": {
+        "before": "id",
+        "after": "id",
+        "key": "key rule[]"
+      },
+      "optional": [
+        "key"
+      ],
+      "result": "change[]",
+      "level": "L2",
+      "note": "`[{\"kind\", \"address\": address}, ...]`: `before`'s `diff (after, key?)`, in its order",
+      "params note": "`before`, `after` (render ids), `key`?"
+    },
+    {
+      "op": "read",
+      "params": {
+        "value": "id",
+        "reader": "text"
+      },
+      "result": "reader result",
+      "level": "L2",
+      "note": "the reader's **result** (section 4.4)",
+      "params note": "`value` (an expanded value's id), `reader` (`word`, `string`, `number`, `integer`, `boolean`, `list`, `slice`; milestone 5 deleted `plain`)"
+    },
+    {
+      "op": "print",
+      "params": {
+        "target": "id"
+      },
+      "result": "text",
+      "level": "L2",
+      "note": "the object's `people form` (contract 2): the language's own to-text conversion",
+      "params note": "`target` (an id)"
+    },
+    {
+      "op": "format",
+      "params": {
+        "diagnostic": "id",
+        "graph": "id"
+      },
+      "optional": [
+        "graph"
+      ],
+      "result": "text",
+      "level": "L2",
+      "note": "`format diagnostic (diagnostic, graph?)`",
+      "params note": "`diagnostic` (a located diagnostic's id), `graph`?"
+    },
+    {
+      "op": "cut",
+      "params": {
+        "text": "text",
+        "start": "integer",
+        "end": "integer"
+      },
+      "result": "text",
+      "level": "L2",
+      "note": "`text` cut at `start` and `end` with the language's own string slicing (the check that the binding's unit is its language's, contract 1)",
+      "params note": "`text`, `start`, `end` (native offsets)"
+    }
+  ],
+  "results": [
+    {
+      "name": "hello result",
+      "fields": {
+        "protocol": "integer",
+        "binding": "text",
+        "unit": "\"utf-16\" or \"code point\" or \"byte\"",
+        "level": "integer"
+      }
+    },
+    {
+      "name": "loaded",
+      "fields": {
+        "graph": "id"
+      }
+    },
+    {
+      "name": "edited",
+      "fields": {
+        "handles": "handle[]"
+      },
+      "optional": [
+        "handles"
+      ],
+      "note": "handles only when the member returns handles"
+    },
+    {
+      "name": "saved",
+      "fields": {
+        "batches": "(tuple of text and text)[][]",
+        "files": "(tuple of text and text)[]"
+      },
+      "optional": [
+        "batches",
+        "files"
+      ],
+      "note": "batches without disk; files with disk"
+    }
+  ],
+  "edit members": [
+    "set",
+    "replace with text",
+    "remove",
+    "rename",
+    "insert statements",
+    "add statements",
+    "insert before",
+    "insert after",
+    "set override"
+  ],
+  "readers": [
+    "word",
+    "string",
+    "number",
+    "integer",
+    "boolean",
+    "list",
+    "slice"
+  ]
+}

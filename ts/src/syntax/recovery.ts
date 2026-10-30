@@ -12,19 +12,18 @@
 
 import * as antlr4 from "antlr4";
 
-import { DiagnosticCode } from "../diagnostics.js";
+import { MAX_NESTING } from "../gen/api/limits.js";
 import VillanelleParser from "../gen/VillanelleParser.js";
-import type { ITokenRange } from "./cst.js";
-import { TokenKind } from "./tokens.js";
-
-/** Blocks and lists may nest this deep; one more level is E2010 (owner, vil-bzv.3). */
-export const MAX_NESTING = 100;
+import { isWordKind } from "./tokens.js";
+import type { TokenRange } from "../gen/api/syntax.js";
+import { DiagnosticCode, describe } from "../gen/api/codes.js";
+import { TokenKind } from "../gen/api/kinds.js";
 
 /** A diagnostic located by token range; parse.ts turns the range into a source span. */
-export interface IRawDiagnostic {
+export interface RawDiagnostic {
   readonly code: DiagnosticCode;
   /** The offending token's range, or the empty range at tokens.length for the end of input. */
-  readonly range: ITokenRange;
+  readonly range: TokenRange;
   readonly message: string;
 }
 
@@ -36,101 +35,60 @@ export function nestingOverflow(kinds: readonly TokenKind[]): number | undefined
   let depth = 0;
   for (let i = 0; i < kinds.length; i++) {
     const kind = kinds[i];
-    if (kind === TokenKind.LBrace || kind === TokenKind.LBrack) {
+    if (kind === TokenKind.LBRACE || kind === TokenKind.LBRACK) {
       depth++;
       if (depth > MAX_NESTING) return i;
-    } else if ((kind === TokenKind.RBrace || kind === TokenKind.RBrack) && depth > 0) {
+    } else if ((kind === TokenKind.RBRACE || kind === TokenKind.RBRACK) && depth > 0) {
       depth--;
     }
   }
   return undefined;
 }
 
+/** The tokens a slice's `[` follows (the grammar's `sliceName`). */
+const SLICE_NAMES: ReadonlySet<TokenKind> = new Set(["WORD", "AT_WORD", "VARIABLE"]);
+
 /**
  * The code for a syntax error at token `at` (`at === kinds.length` is the end of input), given the start of the
  * statement it belongs to (`from`) and whether that statement is inside a block. First match wins.
  */
+
 export function classifyError(kinds: readonly TokenKind[], at: number, from: number, inBlock: boolean): DiagnosticCode {
-  // Brackets open in this statement before `at` (true = a slice bracket, one that follows a WORD) and braces.
+  // Brackets open in this statement before `at` (true = a slice bracket, one that follows a slice name: a WORD, an
+  // AT_WORD or a VARIABLE) and braces.
   const brackets: boolean[] = [];
   let braces = 0;
   let closesValue = false; // the token right before `at` is a `]` that closed a bracket
   for (let i = from; i < at; i++) {
     const kind = kinds[i];
     closesValue = false;
-    if (kind === TokenKind.LBrack) brackets.push(i > 0 && kinds[i - 1] === TokenKind.Word);
-    else if (kind === TokenKind.RBrack) closesValue = brackets.pop() !== undefined;
-    else if (kind === TokenKind.LBrace) braces++;
-    else if (kind === TokenKind.RBrace && braces > 0) braces--;
+    if (kind === TokenKind.LBRACK) {
+      const name = kinds[i - 1];
+      brackets.push(name !== undefined && SLICE_NAMES.has(name));
+    }
+    else if (kind === TokenKind.RBRACK) closesValue = brackets.pop() !== undefined;
+    else if (kind === TokenKind.LBRACE) braces++;
+    else if (kind === TokenKind.RBRACE && braces > 0) braces--;
   }
   const t = kinds[at]; // undefined at the end of input
   const inBracket = brackets.length > 0;
   const inSlice = brackets.at(-1) === true;
-
-  // The token before `at` on its line, skipping spaces and comments.
-  let prev = at - 1;
-  while (prev >= 0 && (kinds[prev] === TokenKind.Space || kinds[prev] === TokenKind.Comment)) prev--;
   const before = kinds[at - 1];
 
-  if (t === TokenKind.BadChar || (t === TokenKind.Bom && at > 0)) return DiagnosticCode.UnexpectedCharacter;
-  if (t === TokenKind.LoneDollar) return DiagnosticCode.LoneDollar;
-  if (t === TokenKind.UnterminatedString) return DiagnosticCode.UnterminatedString;
+  if (t === TokenKind.BAD_CHAR || (t === TokenKind.BOM && at > 0)) return DiagnosticCode.UnexpectedCharacter;
+  if (t === TokenKind.LONE_DOLLAR) return DiagnosticCode.LoneDollar;
+  if (t === TokenKind.UNTERMINATED_STRING) return DiagnosticCode.UnterminatedString;
+  if (t === TokenKind.BAD_ESCAPE) return DiagnosticCode.BadEscape;
   if (inSlice) return DiagnosticCode.BadSlice;
-  if (t === TokenKind.RBrack || (inBracket && (t === TokenKind.RBrace || t === undefined))) {
+  if (t === TokenKind.RBRACK || (inBracket && (t === TokenKind.RBRACE || t === undefined))) {
     return DiagnosticCode.ExpectedClosingBracket;
   }
-  if (t === TokenKind.LBrace && (prev < 0 || kinds[prev] === TokenKind.Newline)) return DiagnosticCode.BraceOnOwnLine;
   if (t === undefined && (inBlock || braces > 0)) return DiagnosticCode.ExpectedClosingBrace;
-  if (
-    (t === TokenKind.Word || t === TokenKind.String || t === TokenKind.Variable || t === TokenKind.LBrack) &&
-    (before === TokenKind.Word ||
-      before === TokenKind.String ||
-      before === TokenKind.Variable ||
-      (before === TokenKind.RBrack && closesValue))
-  ) {
+  const value = (kind: TokenKind | undefined): boolean => kind !== undefined && (isWordKind(kind) || kind === TokenKind.STRING || kind === TokenKind.VARIABLE);
+  if ((value(t) || t === TokenKind.LBRACK) && (value(before) || (before === TokenKind.RBRACK && closesValue))) {
     return DiagnosticCode.ValuesTouch;
   }
   return DiagnosticCode.UnexpectedToken;
-}
-
-const MESSAGES: Readonly<Record<DiagnosticCode, string>> = {
-  E1001: "unterminated string",
-  E1003: "unexpected character",
-  E1004: "'$' must be followed by a variable name",
-  E2001: "unexpected token",
-  E2003: "expected '}' to close the block",
-  E2004: "unmatched bracket",
-  E2007: "malformed slice",
-  E2008: "'{' must open on its directive's line",
-  E2009: "values must be separated by a space or comment",
-  E2010: `blocks and lists nest deeper than ${MAX_NESTING} levels`,
-  E3001: "include not found",
-  E3004: "include resolver failed",
-  E3005: "include takes one quoted path",
-  E3006: "extension failed",
-  E4001: "bound is not an integer",
-  E4002: "wrong kind of value",
-  E4003: "unknown escape",
-  E4004: "not a number",
-  E4005: "not an integer",
-  E4006: "not true or false",
-  E5001: "unknown variable",
-  E5002: "variable set twice in one block",
-  E5003: "unknown snippet",
-  E5004: "wrong number of values for the snippet",
-  E5005: "snippet defined twice in one block",
-  E5006: "expansion reaches itself",
-  E5007: "expansion nests too deep",
-  E5008: "too many directives after expansion",
-  E5009: "write set $name value...;",
-  E5010: "write snippet name $param... { ... }",
-  E5011: "write use name value...;",
-  E5012: "an extension's block holds only set lines",
-};
-
-/** The message for a code; not part of the cross-language contract. */
-export function messageOf(code: DiagnosticCode): string {
-  return MESSAGES[code];
 }
 
 // --- the ANTLR strategy -----------------------------------------------------------------------------------------
@@ -139,62 +97,62 @@ const P = VillanelleParser;
 const EOF = -1;
 
 /** The parts of an ANTLR rule context the strategy reads (antlr4's typings are incomplete). */
-interface IContext {
+interface Context {
   readonly ruleIndex: number;
-  readonly parentCtx: IContext | null;
-  readonly children: readonly IContext[] | null;
+  readonly parentCtx: Context | null;
+  readonly children: readonly Context[] | null;
   readonly start: { readonly tokenIndex: number };
 }
 
-interface IStreamToken {
+interface StreamToken {
   readonly type: number;
   readonly tokenIndex: number;
   readonly text: string;
 }
 
 /** The parts of the generated parser and its runtime the strategy reads or calls. */
-interface IParser {
-  readonly _ctx: IContext;
+interface Parser {
+  readonly _ctx: Context;
   readonly _input: {
     readonly index: number;
-    readonly tokens: readonly IStreamToken[];
+    readonly tokens: readonly StreamToken[];
     LA(i: number): number;
   };
   _errHandler: unknown;
   readonly _interp: { getSynValidOrSemInvalidAltThatFinishedDecisionEntryRule: () => number };
-  getCurrentToken(): IStreamToken;
+  getCurrentToken(): StreamToken;
   consume(): void;
   match(type: number): void;
   statements(): { readonly exception: unknown };
 }
 
 /** The parts of ANTLR's DefaultErrorStrategy the strategy overrides or calls. */
-interface IErrorStrategy {
-  inErrorRecoveryMode(recognizer: IParser): boolean;
-  beginErrorCondition(recognizer: IParser): void;
-  endErrorCondition(recognizer: IParser): void;
-  sync(recognizer: IParser): void;
-  recoverInline(recognizer: IParser): unknown;
-  reportError(recognizer: IParser, e: IRecognitionException): void;
-  recover(recognizer: IParser, e: IRecognitionException): void;
+interface ErrorStrategy {
+  inErrorRecoveryMode(recognizer: Parser): boolean;
+  beginErrorCondition(recognizer: Parser): void;
+  endErrorCondition(recognizer: Parser): void;
+  sync(recognizer: Parser): void;
+  recoverInline(recognizer: Parser): unknown;
+  reportError(recognizer: Parser, e: RecognitionException): void;
+  recover(recognizer: Parser, e: RecognitionException): void;
 }
 
 /** ANTLR's RecognitionException (an Error). */
-interface IRecognitionException extends Error {
-  readonly offendingToken: IStreamToken | null;
+interface RecognitionException extends Error {
+  readonly offendingToken: StreamToken | null;
 }
 
 /** antlr4 4.13.2 exports these at runtime, but its typings do not re-export the error classes. */
 const { DefaultErrorStrategy, InputMismatchException } = antlr4 as unknown as {
-  readonly DefaultErrorStrategy: new () => IErrorStrategy;
-  readonly InputMismatchException: new (recognizer: IParser) => IRecognitionException;
+  readonly DefaultErrorStrategy: new () => ErrorStrategy;
+  readonly InputMismatchException: new (recognizer: Parser) => RecognitionException;
 };
 
-const isStatements = (c: IContext | null | undefined): boolean => c?.ruleIndex === P.RULE_statements;
+const isStatements = (c: Context | null | undefined): boolean => c?.ruleIndex === P.RULE_statements;
 
 /** The statements context the parser is in, and whether it sits inside a block. */
-function scope(p: IParser): { statements: IContext | undefined; inBlock: boolean } {
-  let c: IContext | null = p._ctx;
+function scope(p: Parser): { statements: Context | undefined; inBlock: boolean } {
+  let c: Context | null = p._ctx;
   if (c.ruleIndex === P.RULE_block || c.ruleIndex === P.RULE_document) {
     return { statements: [...(c.children ?? [])].reverse().find(isStatements), inBlock: c.ruleIndex === P.RULE_block };
   }
@@ -204,18 +162,20 @@ function scope(p: IParser): { statements: IContext | undefined; inBlock: boolean
   return { statements: c ?? undefined, inBlock: q?.parentCtx?.ruleIndex === P.RULE_block };
 }
 
-/** The first token index of the statement being parsed in `statements` (or `current` before any). */
-function statementStart(statements: IContext | undefined, current: number): number {
-  const kids = (statements?.children ?? []).filter(
-    (k) => k.ruleIndex === P.RULE_directive || k.ruleIndex === P.RULE_lastDirective,
-  );
+/**
+ * The first token index of the statement being parsed in `statements` (or `current` before any); 0 outside any
+ * statements, in an entry rule, whose statement is the whole text (spec 2.8).
+ */
+function statementStart(statements: Context | undefined, current: number): number {
+  if (statements === undefined) return 0;
+  const kids = (statements.children ?? []).filter((k) => k.ruleIndex === P.RULE_directive);
   return kids.at(-1)?.start.tokenIndex ?? current;
 }
 
 class Recovery extends DefaultErrorStrategy {
   private kinds: TokenKind[] | undefined;
 
-  constructor(private readonly report: (diagnostic: IRawDiagnostic) => void) {
+  constructor(private readonly report: (diagnostic: RawDiagnostic) => void) {
     super();
   }
 
@@ -223,11 +183,11 @@ class Recovery extends DefaultErrorStrategy {
   override sync(): void {}
 
   /** Never conjure or delete a token: unwind to the statement-level recovery instead. */
-  override recoverInline(recognizer: IParser): never {
+  override recoverInline(recognizer: Parser): never {
     throw new InputMismatchException(recognizer);
   }
 
-  override reportError(p: IParser, e: IRecognitionException): void {
+  override reportError(p: Parser, e: RecognitionException): void {
     if (this.inErrorRecoveryMode(p)) return;
     this.beginErrorCondition(p);
     const kinds = this.kindsOf(p);
@@ -237,14 +197,15 @@ class Recovery extends DefaultErrorStrategy {
     const code = classifyError(kinds, at, statementStart(statements, p._input.index), inBlock);
     const range = { start: at, end: Math.min(at + 1, kinds.length) };
     const what = offending.type === EOF ? "end of input" : JSON.stringify(offending.text);
-    this.report({ code, range, message: `${messageOf(code)}: ${what}` });
+    this.report({ code, range, message: describe(code, what).message });
   }
 
   /**
-   * Consume to the end of the bad statement: a `;` or newline outside brackets and braces, or a whole nested
-   * block; stop before the `}` that closes the enclosing block, or at the end of input.
+   * Consume to the end of the bad statement (spec 3.2): a `;` outside brackets and braces, or the `}` that closes a
+   * block it opened; never a line break. Stop before the `}` that closes the enclosing block, or at the end of
+   * input; at the top level a stray `}` is consumed and ends the statement.
    */
-  private skip(p: IParser): void {
+  private skip(p: Parser): void {
     const { statements, inBlock } = scope(p);
     const current = p._input.index;
     const kinds = this.kindsOf(p);
@@ -252,10 +213,10 @@ class Recovery extends DefaultErrorStrategy {
     let braces = 0;
     for (let i = statementStart(statements, current); i < current; i++) {
       const kind = kinds[i];
-      if (kind === TokenKind.LBrack) brackets++;
-      else if (kind === TokenKind.RBrack) brackets = Math.max(0, brackets - 1);
-      else if (kind === TokenKind.LBrace) braces++;
-      else if (kind === TokenKind.RBrace && braces > 0) braces--;
+      if (kind === TokenKind.LBRACK) brackets++;
+      else if (kind === TokenKind.RBRACK) brackets = Math.max(0, brackets - 1);
+      else if (kind === TokenKind.LBRACE) braces++;
+      else if (kind === TokenKind.RBRACE && braces > 0) braces--;
     }
     for (;;) {
       const t = p._input.LA(1);
@@ -263,7 +224,8 @@ class Recovery extends DefaultErrorStrategy {
       if (t === P.RBRACE && braces === 0) {
         if (inBlock) return;
         p.consume();
-        continue;
+        this.endErrorCondition(p);
+        return;
       }
       p.consume();
       if (t === P.LBRACK) brackets++;
@@ -271,7 +233,7 @@ class Recovery extends DefaultErrorStrategy {
       else if (t === P.LBRACE) braces++;
       else if (
         (t === P.RBRACE && --braces === 0 && brackets === 0) ||
-        ((t === P.NEWLINE || t === P.SEMI) && brackets === 0 && braces === 0)
+        (t === P.SEMI && brackets === 0 && braces === 0)
       ) {
         // The statement ended: the next error gets reported.
         this.endErrorCondition(p);
@@ -281,11 +243,11 @@ class Recovery extends DefaultErrorStrategy {
   }
 
   /** statements() can return early at a bad token without throwing: report it (a no-op while recovering). */
-  private junk(p: IParser): void {
+  private junk(p: Parser): void {
     this.reportError(p, new InputMismatchException(p));
   }
 
-  override recover(p: IParser, e: IRecognitionException): void {
+  override recover(p: Parser, e: RecognitionException): void {
     const la = (): number => p._input.LA(1);
     const rule = p._ctx.ruleIndex;
     if (isStatements(p._ctx)) {
@@ -314,7 +276,7 @@ class Recovery extends DefaultErrorStrategy {
   }
 
   /** Our token kinds for the parser's (filled) token stream, without EOF; computed once. */
-  private kindsOf(p: IParser): TokenKind[] {
+  private kindsOf(p: Parser): TokenKind[] {
     this.kinds ??= p._input.tokens.filter((t) => t.type !== EOF).map((t) => P.symbolicNames[t.type] as TokenKind);
     return this.kinds;
   }
@@ -324,8 +286,8 @@ class Recovery extends DefaultErrorStrategy {
  * Install per-statement recovery on a parser whose token stream is already filled. Each error is passed to
  * `report` once, in the order found.
  */
-export function installRecovery(parser: VillanelleParser, report: (diagnostic: IRawDiagnostic) => void): void {
-  const p = parser as unknown as IParser;
+export function installRecovery(parser: VillanelleParser, report: (diagnostic: RawDiagnostic) => void): void {
+  const p = parser as unknown as Parser;
   p._errHandler = new Recovery(report);
   // Report a failed prediction where it fails, not after ANTLR's guess at an alternative that ends the rule.
   p._interp.getSynValidOrSemInvalidAltThatFinishedDecisionEntryRule = () => 0;

@@ -11,35 +11,118 @@ It is not on PyPI. Releases attach the wheel and sdist to the GitHub Release (se
 ## What it has
 
 It has the same parts as the TypeScript package ([`ts/README.md`](../ts/README.md)), in Python's
-own style: `Processor` for `villanelle()`, `as_int()` for `integer()`, `walk()` as a generator,
-`snake_case` names. The core does no input or output.
+own style: `Processor` for `villanelle()`, `walk()` as a generator, `match` on one class per kind,
+`snake_case` names. The core does no input or output. The concepts and their names come from
+[`spec/`](../spec/README.md); each binding only changes the casing.
+
+Every public signature is generated from [`spec/schema/api.json`](../spec/schema/api.json) into
+`src/villanelle/_api/` (spec/codegen.md): the records (`SourceSpan`, `Token`, `Copy`, `Expansion`,
+`SliceValue`, `Added` ... as frozen dataclasses), the kind lists (`StrEnum`s), the diagnostic codes, the error
+tree, the rules module (`MAX_NESTING`, `RESERVED`, `VARIABLE_NAME` ...) and a `Protocol` for every handle, which
+each hand-written class here subclasses, so mypy checks each member against the schema. Each module's `__all__`
+equals the generated `PUBLIC_NAMES` (tests/test_api_names.py). Inside the package a `kind`, `reason` or `code` is
+compared with an enum member, never a string (tests/test_kind_lint.py runs `tools/lint/kind_lint.py`).
+
+One namespace per layer (binding guide rule 9):
 
 | Import | What it has |
 |---|---|
-| `villanelle` | The core: `parse`, `Processor`, `memory_source`, `walk`, `Diagnostics`, `format_diagnostic`, and the types they use |
+| `villanelle` | The shared and io layers: `ConfigText`, `quote`, `text`, positions, places, origins and steps, `Diagnostic`, `LocatedDiagnostic`, `Diagnostics`, `DiagnosticCode`, the error classes, `PROGRAM_CODE`, the document source and writer ports, `memory_source`, `memory_writer`, `check_lost_updates` |
+| `villanelle.syntax` | The syntax tree: `parse`, `Syntax`, `Token`, `Node`, `TokenRange`, `span_of`, `text_of`, `TokenKind`, `NodeKind`, `MAX_NESTING` |
+| `villanelle.written` | The low level: `Processor`, `DocumentGraph`, the written types, the expansion and its expanded values (`ExpandedWord` ... `ExpandedIndex`), the extension port (`Extension`, `ExtensionUse`), its kind lists and limits, `format_diagnostic`, and the written values `Word`, `String`, `List`, `Slice`, `Index` and `Reference` (import the module, `from villanelle import written`, so `written.List` never replaces `typing.List`). It never imports the rendered layer |
+| `villanelle.rendered` | The rendered layer: `render`, `Rendered`, `RenderedBlock`, `Directive`, addresses, `KeyRule` and the change classes. It reaches the low level only through `villanelle.written`'s public names |
 | `villanelle.include` | `include()`: the include extension |
-| `villanelle.files` | `file_source()`: files on disk |
+| `villanelle.files` | `file_source()` and `file_writer()`: files on disk |
 
-- **Syntax.** `parse(text)` returns a `Syntax` with `tokens`, `root` and `diagnostics`. It never
+Every block has one shape (spec 2.11): a written block (statements), an expansion block (directive expansions) and
+a rendered block (directives) are each a `Sequence` (iterate, `len`, `block[i]`, `IndexError` out of range) with
+`directives(name)` and `walk(descend=...)`, a generator over every item at any depth.
+
+- **The syntax tree.** `parse(text)` returns a `Syntax` with `tokens`, `root` and `diagnostics`. It never
   raises. The tree is lossless: `text_of(syntax, syntax.root)` gives the text back.
-- **Directives (the load layer).** `Processor(source=..., extensions=[...], key=...)` is made once;
-  `processor.load(path, variables=...)` reads the root file and every file it includes, and
-  expands variables and snippets. The result has the directives (`body`, `walk(loaded)`), each
-  value's readers (`as_word()`, `as_str()`, `as_number()`, `as_int()`, `as_bool()`, `as_list()`,
-  `as_slice()`, `plain()`), the origin of every directive and value, an address per directive,
-  every problem as a located diagnostic, and the file graph. `processor.diff(before, after)` lists
-  what changed between two loads, as `Added`, `Removed`, `Changed` and `Unknown`.
+- **The low level: the files as written.** `Processor(source=..., extensions=[...])` is made once, and loading
+  is all it does: `processor.load(path, overrides=...)` reads the root file and every file it includes and
+  returns a `DocumentGraph`: the documents, their statements and values (one class per kind, each with a `kind`
+  from its generated `StrEnum` and `__match_args__`, for `match`: `case SetLine(variable, values):`,
+  `case Slice(Word("leds"), start, end):`), the include copies, the variables (`SetVariable`, `Parameter`,
+  `OverrideVariable`) and what each `$name` reads at each place.
+  A statement headed by a word is a directive whatever the word (`use epoll;` is a directive); the language
+  statements are `@set`, `@snippet` and `@use`, and `@include` is the include extension's line.
+  An operation exists only where it can succeed: `rename` on a written directive and on set variables and
+  parameters, `set` on statements with values, on set variables and on every written value; an include line is an
+  `ExtensionLine`, with no `rename`. An override is a value the program passes in, as config text
+  (`overrides={"host": quote(host)}`; change it later with `graph.set_override(name, text)`); which `@set` lines it
+  wins over, and what an included file sees, is [spec/expansion.md](../spec/expansion.md). Named edits change the
+  text and keep comments and layout. They take config text, `ConfigText` (a `NewType` of `str`), made only by
+  `quote()` from a program string or `text()` from a text already written as villanelle text: mypy refuses a plain
+  `str` there, and at run time anything but a `str` raises `TypeError`. Write a number with `text(str(n))`.
 
-There is no fetch source and no writer in Python.
+  ```python
+  from villanelle import memory_source, quote, text
+  from villanelle.written import Processor
 
-The reference, with examples from the tests, is [docs/low-level-api.md](../docs/low-level-api.md);
-the language is [docs/language.md](../docs/language.md).
+  graph = Processor(source=memory_source({"main.conf": "host a;\nport 80;\n"})).load("main.conf")
+  host, port = graph.root.block
+  host.set(quote("10.0.60.31"))  # set replaces a statement's values (not the language's `@set` line)
+  port.set(text(str(8080)))
+  assert graph.root.text == 'host "10.0.60.31";\nport 8080;\n'
+  ```
 
-Diagnostic codes are the same as in TypeScript. Offsets and columns count UTF-16 code units, as in
-TypeScript, so an offset is not a Python `str` index once a character outside the Basic
-Multilingual Plane comes before it. For every case in `conformance/`, the two packages produce
-byte-identical tokens, trees and diagnostics, and for every case in `conformance/load/` the same
-directives, addresses, origins, diagnostics and change lists.
+  `set(text)`, `replace_with_text(text)`, `insert_before(text)`, `insert_after(text)`,
+  `insert_statements(index, text)`, `add_statements(text)` and `rename(name)` are the edits. Every statement ends
+  with `;` or a block, and a line break is whitespace, so a values text may hold line breaks
+  (`port.set(text("1\n2"))` writes `port 1\n2;`). A given text is checked with the grammar's entry rule for it
+  (spec 2.8): a values text that holds a `;` or a block, or ends in a comment (which would swallow the `;`), raises
+  `BadTextError` (E2001, its message built from its diagnostics); a statement's `set` takes the empty text to clear
+  its values and refuses any other text that holds no value. A written value's `set(text)` takes exactly one value
+  and keeps the handle: the same object, now of the new value's kind (its class becomes `Word`, `List`, ...). A bad name in `rename`, `set_override` or an override is a program bug,
+  `ValueError`. `graph.read()` reads files an edit added, through the graph's own source; until then an include
+  copy not read renders as an unreadable with reason `unread` (E3007). `graph.save(writer)` hands the changed
+  files to a writer in one batch (`memory_writer(files)` writes into the same map a `memory_source(files)` reads;
+  `file_writer()` to disk); every writer refuses a file changed since it was read with `LostUpdateError` (a
+  `SaveError`, `paths` the conflicting files) through the one check `check_lost_updates`, which a program's own
+  writer calls too. `graph.expand()` gives every copy as read, which the rendered layer builds on, and
+  `graph.diagnostics` is the one list a render shows. A variable's `references()` are
+  lexical: the `$name`s in its own file that it declares. A use in an included file is resolved per copy, so it is
+  only in `wins()` and `shadowed_at()`. Reference: [docs/low-level-api.md](../docs/low-level-api.md).
+- **The rendered tree.** `render(graph)` builds on the low level: it expands variables, snippets and included
+  files into directives (`block`, `tree.block.walk()`). A directive's values are the low level's expanded values,
+  the same objects its directive expansion holds, one class per kind (`ExpandedWord`, `ExpandedString`,
+  `ExpandedList` with its `items`, `ExpandedSlice`, `ExpandedIndex`; the union `ExpandedValue`), equal when their
+  canonical texts are (`==`, `hash`), with its readers (`word()`, `string()`, `number()`, `integer()`, `boolean()`,
+  `list()`, `slice()`: a word stays untyped until the program reads it as one of these), its
+  origin, and `written` (the value on the same line), `definition` (where it is written) and `chain` (each `$name`
+  it went through) leading back to the low level. `tree.addresses(key=...)` names each directive under a key rule,
+  and `before.diff(after, key=...)` lists what changed, as `Added`, `Removed`, `Changed` and `Unknown`. Matching a
+  `ExpandedString` by position gives its canonical `text`, quotes included; read `string()` for the decoded text.
+  A file included twice renders as two copies that share one written line, so an edit loop over the render meets
+  the same `written` handle twice; a value's `set` keeps its handle, so setting it through each copy just writes
+  the line again.
+
+  ```python
+  from villanelle import rendered, text
+
+  for d in rendered.render(graph).block.walk():
+      match d:
+          case rendered.Directive("max_count", [value]):
+              value.written.set(text("2400"))
+  ```
+
+  Reference: [docs/rendered-tree.md](../docs/rendered-tree.md).
+
+There is no fetch source and no fetch writer in Python. Every example in the reference pages is copied from a test
+that runs; the language is [docs/language.md](../docs/language.md).
+
+Diagnostic codes are the same as in TypeScript. Offsets and columns count code points, Python's own string unit
+([spec/contract.md](../spec/contract.md) 1), so `text[span.start.offset:span.end.offset]` is a span's text
+(TypeScript counts UTF-16 code units; the two differ after a character outside the Basic Multilingual Plane). A
+place prints as `main.conf:4:5` (`str(place)`, counting from 1), as do diagnostics and steps. Every expected
+outcome (a diagnostic, read, bad text, save or lost update error) is under `VillanelleError`, and no program bug
+is: a detached handle raises `DetachedError` (a `ReferenceError`), misuse `ValueError`, a wrong argument type
+`TypeError`, an index out of range `IndexError` (spec 2.8). The shared cases in `conformance/` stay in UTF-16 units; one shared
+driver ([spec/conformance.md](../spec/conformance.md)) runs every corpus against this package through its adapter,
+`conformance/adapter.py`, converts positions, and compares. The Python package claims level L3 (syntax, low level,
+rendered tree, extensions) and passes every case, as the TypeScript package does.
 
 ## Build and test
 
@@ -51,9 +134,16 @@ uv run ruff check
 uv run ruff format --check
 uv run mypy
 uv run --python 3.11 pytest   # the oldest supported Python
+python3 ../conformance/driver/run.py -- uv run --locked python conformance/adapter.py   # the shared cases
 ```
 
+`pytest` runs this package's own unit tests; the shared cases run only through the driver (after `pytest` or
+`bash ../tools/gen.sh py` has generated the parser). The driver prints TAP and ends with the count per level and
+whether the claimed level holds.
+
 `tests/conftest.py` first runs `bash ../tools/gen.sh py`, which regenerates the parser into
-`src/villanelle/_gen/` (ignored by git, never committed). That needs Java 11+; the ANTLR jar is
+`src/villanelle/_gen/` and the API declarations (records, Protocols, kind lists, codes, errors, rules, names,
+from `spec/schema/`) into `src/villanelle/_api/`, and the adapter's message shapes into `conformance/shapes.py`
+(all ignored by git, never committed). That needs Java 11+; the ANTLR jar is
 cached in `$ANTLR_JAR_DIR` (default `~/.cache/antlr`). Run `gen.sh` before `uv build` too:
-`pyproject.toml` forces the ignored `_gen/` files into the wheel and sdist, so they must exist.
+`pyproject.toml` forces the ignored `_gen/` and `_api/` files into the wheel and sdist, so they must exist.

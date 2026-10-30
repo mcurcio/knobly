@@ -1,0 +1,1 @@
+[["ok",["x;"]],[["main.conf","a {\n    x;\n}\nb {\n    # c\n}\nc { # c\n}\n"]],["ok",["# c\n    y;"]],[["main.conf","a {\n    x;\n}\nb {\n    # c\n    y;\n}\nc { # c\n}\n"]],["ok",["z;"]],[["main.conf","a {\n    x;\n}\nb {\n    # c\n    y;\n}\nc { # c\n    z;\n}\n"]]]

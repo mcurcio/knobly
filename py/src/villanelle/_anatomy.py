@@ -5,20 +5,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from villanelle.syntax.cst import Node, NodeKind, ValueRef
-from villanelle.syntax.tokens import Token, TokenKind
+from villanelle._api.kinds import NodeKind, TokenKind
+from villanelle._api.syntax import Node, Token
+from villanelle.syntax._cst import ValueRef
 
-_VALUE_TOKENS = frozenset({TokenKind.WORD, TokenKind.STRING, TokenKind.VARIABLE})
+_VALUE_TOKENS = frozenset(
+    {TokenKind.WORD, TokenKind.AT_WORD, TokenKind.INTEGER, TokenKind.DIGIT_WORD, TokenKind.STRING, TokenKind.VARIABLE}
+)
 _VALUE_NODES = frozenset({NodeKind.SLICE, NodeKind.LIST})
 
 
 @dataclass(frozen=True, slots=True)
 class Anatomy:
     name: int
-    """Index of the name token (``node.start``, a WORD)."""
+    """Index of the head token (``node.start``): a WORD names a directive, an AT_WORD a language or extension
+    statement."""
     args: tuple[ValueRef, ...]
-    """In source order: each WORD, STRING or VARIABLE token directly in the node's range, and each slice or list
-    child."""
+    """In source order: each WORD, AT_WORD, INTEGER, DIGIT_WORD, STRING or VARIABLE token directly in the node's
+    range, and each slice or list child."""
     block: Node | None
 
 
@@ -33,12 +37,18 @@ def items_of(tokens: tuple[Token, ...], node: Node) -> tuple[ValueRef, ...]:
     return _split(tokens, node)[0]
 
 
-def _split(tokens: tuple[Token, ...], node: Node) -> tuple[tuple[ValueRef, ...], Node | None]:
+def values_of(tokens: tuple[Token, ...], node: Node) -> tuple[ValueRef, ...]:
+    """The values of an entry rule's text (``parse_entry``'s root), by the same rule, from its first token."""
+    return _split(tokens, node, node.start)[0]
+
+
+def _split(tokens: tuple[Token, ...], node: Node, first: int | None = None) -> tuple[tuple[ValueRef, ...], Node | None]:
+    """The values and the block of ``node``, from token ``first`` (default: after its name or opening bracket)."""
     values: list[ValueRef] = []
     block: Node | None = None
     children = node.children
     following = 0
-    i = node.start + 1
+    i = node.start + 1 if first is None else first
     while i < node.end:
         child = children[following] if following < len(children) else None
         if child is not None and child.start == i:

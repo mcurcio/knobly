@@ -1,13 +1,14 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { save } from "./graph/save.js";
 import { include } from "./include.js";
-import { villanelle } from "./load/processor.js";
-import { createFileSource, createFsWriter } from "./node.js";
+import { rendered } from "./rendered/testing.js";
+import { fileSource, fileWriter } from "./node.js";
+import { LostUpdateError, SaveError, text } from "./index.js";
+import { villanelle } from "./written/index.js";
 
 describe("villanelle/node", () => {
   let dir = "";
@@ -16,7 +17,7 @@ describe("villanelle/node", () => {
     dir = await mkdtemp(join(tmpdir(), "villanelle-node-"));
     await mkdir(join(dir, "conf.d"));
     await mkdir(join(dir, "conf.d", "sub.conf"));
-    await writeFile(join(dir, "root.conf"), 'include "conf.d/*.conf";\ninclude "plain.conf";\n');
+    await writeFile(join(dir, "root.conf"), '@include "conf.d/*.conf";\n@include "plain.conf";\n');
     await writeFile(join(dir, "plain.conf"), "plain 1;\n");
     for (const name of ["b.conf", "C.conf", "é.conf", "a.conf", "a.txt", "x[1].conf"]) {
       await writeFile(join(dir, "conf.d", name), `f "${name}";\n`);
@@ -29,49 +30,120 @@ describe("villanelle/node", () => {
 
   it("resolves specs against the including file's directory and splices glob matches in code-point order", async () => {
     const root = join(dir, "root.conf");
-    const loaded = await villanelle({ source: createFileSource(), extensions: [include()] }).load(root);
+    const loaded = await rendered(villanelle({ source: fileSource(), extensions: [include()] }), root);
     expect(loaded.diagnostics).toEqual([]);
     // Files only (the sub.conf directory is skipped); the [ ] in a file name match themselves.
-    const [glob, plain] = loaded.graph.edges;
+    const [glob, plain] = loaded.graph.edges();
     expect(glob?.targets).toEqual(["C.conf", "a.conf", "b.conf", "x[1].conf", "é.conf"].map((name) => join(dir, "conf.d", name)));
     expect(plain?.targets).toEqual([join(dir, "plain.conf")]);
-    expect(loaded.body.map((d) => d.args[0]?.text)).toEqual(['"C.conf"', '"a.conf"', '"b.conf"', '"x[1].conf"', '"é.conf"', "1"]);
+    expect([...loaded.block].map((d) => d.values[0]?.text)).toEqual(['"C.conf"', '"a.conf"', '"b.conf"', '"x[1].conf"', '"é.conf"', "1"]);
   });
 
   it("resolves a relative root through the source, so the root has one path and is read once", async () => {
-    await writeFile(join(dir, "self.conf"), 'x "1;\ninclude "self.conf";\ny 1;\n');
-    const loaded = await villanelle({ source: createFileSource(), extensions: [include()] }).load(relative(process.cwd(), join(dir, "self.conf")));
-    expect([...loaded.graph.nodes.keys()]).toEqual([join(dir, "self.conf")]);
+    await writeFile(join(dir, "self.conf"), 'x "1\n;\n@include "self.conf";\ny 1;\n');
+    const loaded = await rendered(villanelle({ source: fileSource(), extensions: [include()] }), relative(process.cwd(), join(dir, "self.conf")));
+    expect([...loaded.graph.documents.keys()]).toEqual([join(dir, "self.conf")]);
     expect(loaded.diagnostics.map((d) => d.code)).toEqual(["E1001", "E5006"]);
-    expect(loaded.body.map((d) => d.name)).toEqual(["y"]);
+    expect([...loaded.block].map((d) => d.name)).toEqual(["y"]);
   });
 
   it("matches ? to one character", async () => {
-    const found = await createFileSource().resolve("conf.d/?.conf", { parentPath: join(dir, "root.conf") });
+    const found = await fileSource().resolve("conf.d/?.conf", { parentPath: join(dir, "root.conf") });
     expect([...found].sort()).toEqual(["C.conf", "a.conf", "b.conf", "é.conf"].map((name) => join(dir, "conf.d", name)).sort());
   });
 
   it("resolves a missing file or directory to no paths (E3001) and rejects reading a missing file", async () => {
-    const source = createFileSource();
+    const source = fileSource();
     const context = { parentPath: join(dir, "root.conf") };
     expect(await source.resolve("missing.conf", context)).toEqual([]);
     expect(await source.resolve("conf.d/*.none", context)).toEqual([]);
     expect(await source.resolve("nodir/*.conf", context)).toEqual([]);
     expect(await source.resolve("conf.d/sub.conf", context)).toEqual([]);
     await expect(source.read(join(dir, "missing.conf"))).rejects.toThrow(/ENOENT/);
-    const loaded = await villanelle({ source, extensions: [include()] }).load(join(dir, "plain.conf"));
+    const loaded = await rendered(villanelle({ source, extensions: [include()] }), join(dir, "plain.conf"));
     expect(loaded.diagnostics).toEqual([]);
-    await writeFile(join(dir, "missing-include.conf"), 'include "missing.conf";\n');
-    const missing = await villanelle({ source, extensions: [include()] }).load(join(dir, "missing-include.conf"));
+    await writeFile(join(dir, "missing-include.conf"), '@include "missing.conf";\n');
+    const missing = await rendered(villanelle({ source, extensions: [include()] }), join(dir, "missing-include.conf"));
     expect(missing.diagnostics.map((d) => d.code)).toEqual(["E3001"]);
   });
 
   it("writes text back with the fs writer, and save writes nothing for an unchanged load", async () => {
     const path = join(dir, "written.conf");
-    await createFsWriter().write(path, "w 1;\n");
+    await fileWriter().write([{ resolvedPath: path, text: "w 1;\n", savedText: "" }]);
     expect(await readFile(path, "utf8")).toBe("w 1;\n");
-    const loaded = await villanelle({ source: createFileSource() }).load(path);
-    await save(loaded.graph, createFsWriter());
+    const graph = await villanelle({ source: fileSource() }).load(path);
+    expect(await graph.save(fileWriter())).toEqual([]);
     expect(await readFile(path, "utf8")).toBe("w 1;\n");
+  });
+
+  /** The temporary files the fs writer left in a directory. */
+  async function temporaries(directory: string): Promise<string[]> {
+    return (await readdir(directory)).filter((name) => name.endsWith(".tmp"));
+  }
+
+  it("stages a batch beside its targets and renames it over them, updating each source (D18)", async () => {
+    const directory = join(dir, "batch");
+    await mkdir(directory);
+    await writeFile(join(directory, "main.conf"), '@include "part.conf";\nm 1;\n');
+    await writeFile(join(directory, "part.conf"), "p 1;\n");
+    const graph = await villanelle({ source: fileSource(), extensions: [include()] }).load(join(directory, "main.conf"));
+    const [main, part] = [...graph.documents.values()];
+    const m = main?.block.at(1);
+    const p = part?.block.at(0);
+    if (m?.kind !== "directive" || p?.kind !== "directive") throw new Error("fixture");
+    m.set(text("2"));
+    p.set(text("2"));
+    expect(await graph.save(fileWriter())).toEqual([join(directory, "main.conf"), join(directory, "part.conf")]);
+    expect(await readFile(join(directory, "main.conf"), "utf8")).toBe('@include "part.conf";\nm 2;\n');
+    expect(await readFile(join(directory, "part.conf"), "utf8")).toBe("p 2;\n");
+    expect(main?.savedText).toBe(main?.text);
+    expect(await temporaries(directory)).toEqual([]);
+  });
+
+  it("refuses a lost update, writing nothing, and names the file", async () => {
+    const directory = join(dir, "lost");
+    await mkdir(directory);
+    const [a, b] = [join(directory, "a.conf"), join(directory, "b.conf")];
+    await writeFile(a, "a 1;\n");
+    await writeFile(b, "b 1;\n");
+    const graph = await villanelle({ source: fileSource() }).load(a);
+    const statement = graph.root.block.at(0);
+    if (statement?.kind !== "directive") throw new Error("fixture");
+    statement.set(text("2"));
+    // Someone else changes b after it was read.
+    await writeFile(b, "b changed;\n");
+    const batch = [
+      { resolvedPath: a, text: "a 2;\n", savedText: "a 1;\n" },
+      { resolvedPath: b, text: "b 2;\n", savedText: "b 1;\n" },
+    ];
+    const lost: unknown = await fileWriter().write(batch).catch((e: unknown) => e);
+    expect(lost).toBeInstanceOf(LostUpdateError);
+    expect((lost as LostUpdateError).paths).toEqual([b]);
+    expect(await readFile(a, "utf8")).toBe("a 1;\n");
+    expect(await readFile(b, "utf8")).toBe("b changed;\n");
+    // Through save: a changed on disk too, so SaveError, and the document keeps its unsaved text.
+    await writeFile(a, "a changed;\n");
+    const saved: unknown = await graph.save(fileWriter()).catch((e: unknown) => e);
+    expect(saved).toBeInstanceOf(LostUpdateError);
+    expect(saved).toBeInstanceOf(SaveError);
+    expect((saved as LostUpdateError).paths).toEqual([a]);
+    expect(await readFile(a, "utf8")).toBe("a changed;\n");
+    expect(graph.root.text).not.toBe(graph.root.savedText);
+    expect(await temporaries(directory)).toEqual([]);
+  });
+
+  it("replaces nothing and leaves no temporary file when staging fails part way", async () => {
+    const directory = join(dir, "staging");
+    await mkdir(directory);
+    const a = join(directory, "a.conf");
+    await writeFile(a, "a 1;\n");
+    const batch = [
+      { resolvedPath: a, text: "a 2;\n", savedText: "a 1;\n" },
+      // A new file in a directory that is not there: nothing on disk, so no lost update, but it cannot be staged.
+      { resolvedPath: join(directory, "missing", "b.conf"), text: "b 1;\n", savedText: "" },
+    ];
+    await expect(fileWriter().write(batch)).rejects.toThrow(/ENOENT/);
+    expect(await readFile(a, "utf8")).toBe("a 1;\n");
+    expect(await temporaries(directory)).toEqual([]);
   });
 });
