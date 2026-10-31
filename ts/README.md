@@ -81,7 +81,8 @@ the package's classes implement the generated interfaces. The core has three lay
   text is checked by the grammar's own entry rule (`statementsText`, `valuesText`, `valueText`, `itemsText`,
   `boundText`, `sliceNameText`, `nameText` in `Knobly.g4`; spec 2.8): a values text may span lines, but one that
   ends in a comment is refused, since the comment would swallow the `;` after it. An edit that would make its file
-  nest blocks and lists deeper than 100 is refused too (E2010 at the bracket of the given text). Each edit keeps comments and layout, and given anything but a string it throws a `TypeError` naming the
+  nest blocks and lists past the nesting [limit](https://mcurcio.github.io/knobly/language/#limits) is refused too: E2010 at the bracket of the given text, or at 0:0 when
+  the file was already too deep (a document's `replaceWithText` is never refused). Each edit keeps comments and layout, and given anything but a string it throws a `TypeError` naming the
   member and the parameter; a bad name (`rename`, `setOverride`, an override of `load`) throws a `MisuseError`. `graph.setOverride(name, text)` changes an override without a
   reload, checked as `load` checks its overrides. `await graph.read()` reads files an edit added, through the
   source the graph was loaded with; `await graph.save(writer)` hands the changed files to a writer in one batch.

@@ -84,7 +84,7 @@ same codes, placed in the text the edit was given ([Editing and saving](editing.
 | E2009 | `ValuesTouch` | `VALUES_TOUCH` | `values_touch` | two values with no space or comment between | per `conformance/` |
 | E2010 | `NestingTooDeep` | `NESTING_TOO_DEEP` | `nesting_too_deep` | blocks and lists nested deeper than 100 | the `{` or `[` that opens the level past the limit; at an edit, 0:0 when that bracket is not in the given text |
 | E3001 | `IncludeNotFound` | `INCLUDE_NOT_FOUND` | `include_not_found` | a spec matched no file | the extension line's name |
-| E3004 | `IncludeResolverFailed` | `INCLUDE_RESOLVER_FAILED` | `include_resolver_failed` | the source threw (for the root file `load` fails) | the extension line's name; the root file at 0:0 |
+| E3004 | `IncludeResolverFailed` | `INCLUDE_RESOLVER_FAILED` | `include_resolver_failed` | the source threw (for the root file `load` fails) | the extension line's name |
 | E3005 | `IncludeBadPath` | `INCLUDE_BAD_PATH` | `include_bad_path` | include needs exactly one quoted path | the bad value, or the name when there is none |
 | E3006 | `ExtensionFailed` | `EXTENSION_FAILED` | `extension_failed` | an extension threw something other than a located error, or returned something other than a list of texts | the extension line's name |
 | E3007 | `UnreadCopy` | `UNREAD_COPY` | `unread_copy` | an include copy whose files are not read yet (`graph.read()` reads them) | the extension line's name |

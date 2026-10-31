@@ -1,6 +1,6 @@
 {
   "$schema": "./api.schema.json",
-  "$comment": "The one home of knobly's diagnostic codes. spec/spec.md 2.4's table is generated from this file (tools/gen-api.py docs). 'layer' owns the code: syntax (parse), written (the low level: the graph's diagnostics, spec 6.3; the expanded value's readers, spec 2.9), include (the include extension). 'found by' is from a closed list: parse, edit (a bad text error's diagnostics), load and read, low level (worked out from the current texts), readers, include extension. 'message' is the base message (a binding may append ': <detail>'; messages are for people, spec 2.3); '{nesting depth}' names the limit of that name in api.json. 'unreadable reason' is the reason of the statement the code makes unreadable, null when it never does (readers raise it). 'meaning' (the spec's), 'summary' and 'placed at' (the user guide's, docs/site/pages/diagnostics.md) are Markdown; both tables are generated from this file. In 'meaning' and 'summary' a '{name}' of a limit is written as its value (100,000): the code a limit reports names it so, never by hand (tools/gen-api.py refuses its value written out), so api.json stays the value's one home.",
+  "$comment": "The one home of knobly's diagnostic codes. spec/spec.md 2.4's table is generated from this file (tools/gen-api.py docs). 'layer' owns the code: syntax (parse), written (the low level: the graph's diagnostics, spec 6.3; the expanded value's readers, spec 2.9), include (the include extension). 'found by' is from a closed list: parse, edit (a bad text error's diagnostics), load and read, low level (worked out from the current texts), readers, include extension. 'message' is the base message (a binding may append ': <detail>'; messages are for people, spec 2.3); '{nesting depth}' names the limit of that name in api.json. 'unreadable reason' is the reason of the statement the code makes unreadable, null when it never does (readers raise it). 'meaning' (the spec's), 'summary' and 'placed at' (the user guide's, docs/site/pages/diagnostics.md) are Markdown; both tables are generated from this file. In 'meaning' and 'summary' write a limit as '{limit name}', which the generated tables fill with its value (100,000); writing the value by hand is refused (tools/gen-api.py), so api.json stays the value's one home.",
   "version": 2,
   "ranges": {
     "1xxx": "lexical",
@@ -165,11 +165,12 @@
       "name": "nesting too deep",
       "layer": "syntax",
       "found by": [
-        "parse"
+        "parse",
+        "edit"
       ],
       "unreadable reason": "syntax",
       "message": "blocks and lists nest deeper than {nesting depth} levels",
-      "meaning": "Blocks and lists nested deeper than {nesting depth} levels.",
+      "meaning": "Blocks and lists nested deeper than {nesting depth} levels. Also an edit's bad text error when the document after the edit would nest past it (2.8).",
       "summary": "blocks and lists nested deeper than {nesting depth}",
       "placed at": "the `{` or `[` that opens the level past the limit; at an edit, 0:0 when that bracket is not in the given text"
     },
@@ -197,7 +198,7 @@
       "message": "include resolver failed",
       "meaning": "The document source rejected while resolving or reading a file. For the root file, `load` fails instead (6.2).",
       "summary": "the source threw (for the root file `load` fails)",
-      "placed at": "the extension line's name; the root file at 0:0"
+      "placed at": "the extension line's name"
     },
     {
       "code": "E3005",

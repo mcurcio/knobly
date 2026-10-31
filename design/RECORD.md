@@ -33,6 +33,7 @@ durable record. Every choice below is current and can be revised.
 | Skipped brackets and the 100-level limit (2026-10-30) | Answer, to the proposal that brackets error recovery skips not count: "that sounds right" | spec 2.5; errata N1, N6; kno-qa3, kno-bzv.6 |
 | A limit after expansion (2026-10-30) | Answer: "100 seems too low. can we increase it?"; asked which limit: "after expansion"; real configs "likely a few dozen, but i want the headroom". 256 (`MAX_EXPANDED_NESTING`, E5013) is a revisable choice, not his number | `kno-bzv.6` |
 | What one nesting level is (2026-10-30) | Proposal, not objected to (the current rule, revisable): each block and each list a value sits inside is one level; a slice's brackets are none | spec 2.5; errata N3 |
+| An edit past `MAX_NESTING` (2026-10-30) | Answer, to the recommendation that such an edit be refused as a bad text error with the document unchanged: "Yes". E2010, its place and the already-past rule are revisable choices (errata D2, D3) | spec 2.8; `kno-bzv.8` |
 
 ## Owner answers the low-level API rests on (since 2026-10-24)
 

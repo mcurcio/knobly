@@ -82,7 +82,8 @@ a rendered block (directives) are each a `Sequence` (iterate, `len`, `block[i]`,
   (spec 2.8): a values text that holds a `;` or a block, or ends in a comment (which would swallow the `;`), raises
   `BadTextError` (E2001, its message built from its diagnostics); a statement's `set` takes the empty text to clear
   its values and refuses any other text that holds no value. An edit that would make its file nest blocks and lists
-  deeper than 100 raises `BadTextError` too (E2010 at the bracket of the given text). A written value's `set(text)` takes exactly one value
+  past the nesting [limit](https://mcurcio.github.io/knobly/language/#limits) raises `BadTextError` too: E2010 at the bracket of the given text, or at 0:0 when the file
+  was already too deep (a document's `replace_with_text` is never refused). A written value's `set(text)` takes exactly one value
   and keeps the handle: the same object, now of the new value's kind (its class becomes `Word`, `List`, ...). A bad name in `rename`, `set_override` or an override is a program bug,
   `ValueError`. `graph.read()` reads files an edit added, through the graph's own source; until then an include
   copy not read renders as an unreadable with reason `unread` (E3007). `graph.save(writer)` hands the changed

@@ -1025,3 +1025,19 @@
   and `diag-expanded-nesting-include-block` (`@include [$deep] { @set $v [$deep]; }`: one E5013, at the `@include`,
   and the block's `@set` never checked) pins the extension line's E5013 before its block's `@set` lines. Probed in
   Python: with the two checks swapped in `_bind.py`, that case is the only one in the written corpus that fails.
+
+## 2026-10-30, kno-bzv review fixes, applied
+
+- **C2 applied.** E3004's `placed at` is now "the extension line's name" (spec/schema/diagnostics.json and the
+  generated docs/site/pages/diagnostics.md): the root file's failed read is a `read error` with no code and no
+  place (spec 4.1, 6.2), as `diag-root-read-fails` pins. A doc correction; no behaviour changed.
+- **D2, D3 marked in place.** Spec 2.8 now says the code, its place and the already-past rule are revisable
+  choices, not the owner's; design/RECORD.md's owner-answers table has the 2026-10-30 "Yes" row.
+- **An edit past MAX_EXPANDED_NESTING is accepted** (stated in 2.8, not a new rule: E5013 is found by the low level,
+  not a text-alone rule). Case `nest-edit-expanded` pins it: the edit succeeds and the graph then holds one E5013.
+- **E2010 is also an edit's code** ('found by' adds `edit`; its meaning names 2.8), and the `bad text error`'s
+  'raised when' and contract 4.1 cover the refusal of a document that would nest past MAX_NESTING.
+- **Spec 2.5's address bound** is `MAX_EXPANDED_NESTING` + 1 steps (the blocks around a directive and its own);
+  probed: 257 steps on `load-expanded-nesting-256`.
+- **Not changed here (append-only):** the missing blank line before the kno-bzv.8 heading and the kno-bzv.11
+  heading's missing ", applied"; this entry records that N7's correction there is applied.

@@ -167,7 +167,7 @@ is stale), which also holds each code's message and owning layer.
 | E2004 | `expected closing bracket` | parse | syntax | A stray `]`, or a `[` list with no matching `]`. |
 | E2007 | `bad slice` | parse | syntax | A malformed slice after a slice name (a word or a `$name`): `a[~]`, `a[1~b c]`, an unclosed slice, or a literal bound that is not an integer (`a[i]`, `a[1.5]`, `a[1:3]`, whose `1:3` is one word). |
 | E2009 | `values touch` | parse | syntax | Two values with nothing between them, such as `a"b"`. |
-| E2010 | `nesting too deep` | parse | syntax | Blocks and lists nested deeper than 100 levels. |
+| E2010 | `nesting too deep` | parse, edit | syntax | Blocks and lists nested deeper than 100 levels. Also an edit's bad text error when the document after the edit would nest past it (2.8). |
 | E3001 | `include not found` | load and read | extension | An extension's spec matched no file. |
 | E3004 | `include resolver failed` | load and read | extension | The document source rejected while resolving or reading a file. For the root file, `load` fails instead (6.2). |
 | E3005 | `include bad path` | include extension | extension | An `include` whose values are not exactly one quoted path. |
@@ -261,9 +261,10 @@ statement classification reads; no binding compares a keyword's text by hand.
   "after expansion"; real configs are "likely a few dozen, but i want the headroom". 256 is a revisable choice, not
   his number; `MAX_NESTING` stays 100. Cases `diag-expanded-nesting-*` (written corpus: 257 and 1568 levels of
   blocks, and the place and order cases), `load-expanded-nesting-256`, `load-expanded-nesting-lists`.
-- **What depth costs an address.** Each address (7.4) holds its whole path, one step per level, and its text spells
-  that path out. So `addresses` and `diff` (7.6) take time and memory in proportion to the directives times their
-  depth: at most `MAX_DIRECTIVES` directives, each at most `MAX_EXPANDED_NESTING` steps. No binding shares a parent's
+- **What nesting costs an address.** Each address (7.4) holds its whole path, one step per level, and its text spells
+  that path out. So `addresses` and `diff` (7.6) take time and memory in proportion to the directives times how
+  deeply they nest: at most `MAX_DIRECTIVES` directives, each at most `MAX_EXPANDED_NESTING` + 1 steps (the blocks
+  around it and its own). No binding shares a parent's
   steps between addresses; the bound is the cost (kno-bzv.11, a revisable choice).
 - **No directive name is reserved** (milestone 5; owner, 2026-10-29, bead kno-umh.14: "yes" to language
   statements behind one sigil). A statement written `@name` is a language statement (`@set`, `@snippet`, `@use`) or
@@ -315,7 +316,7 @@ generated from the schema:
 | `knobly error` | base | never by itself: the base class of every expected-outcome class, so one except or catch clause catches every outcome the input or the outside world decides, and no program bug | `KnoblyError`, extends `Error` | `KnoblyError`, subclass of `Exception` | `knobly_error`, derives from `std::runtime_error` |
 | `diagnostic error` | expected outcome, under `knobly error` | a reader is given a value of the wrong kind or spelling, or a program's error(...); carries one located diagnostic as 'diagnostic' | `DiagnosticError` | `DiagnosticError` | `diagnostic_error` |
 | `read error` | expected outcome, under `knobly error` | load cannot resolve the root path to exactly one file, or cannot read it. No diagnostic and no code | `ReadError` | `ReadError` | `read_error` |
-| `bad text error` | expected outcome, under `knobly error` | the text given to an edit, or an override's text, is not what that place takes; 'diagnostics' are located in that text, in the binding's string unit, and its message is built from them | `BadTextError` | `BadTextError` | `bad_text_error` |
+| `bad text error` | expected outcome, under `knobly error` | the text given to an edit, or an override's text, is not what that place takes, or the document after the edit would nest deeper than MAX_NESTING; 'diagnostics' are located in that text, in the binding's string unit, and its message is built from them | `BadTextError` | `BadTextError` | `bad_text_error` |
 | `save error` | expected outcome, under `knobly error` | the writer failed | `SaveError` | `SaveError` | `save_error` |
 | `lost update error` | expected outcome, under `save error` | a file the save would write changed since it was read or last saved: its current text differs from its saved text. Check lost updates raises it inside every writer, and save passes it on unchanged | `LostUpdateError` | `LostUpdateError` | `lost_update_error` |
 | `detached error` | program bug | any member but kind of a detached handle is used | `DetachedError`, extends `ReferenceError` | `DetachedError`, subclass of `ReferenceError` | `detached_error`, derives from `std::logic_error` |
@@ -389,7 +390,11 @@ statement's, variable's or value's `set`, and a value's `replace with text`, lis
 `replace with text` is not refused: it takes any text (6.4), and a text past the limit then parses as 2.5 says. So
 no edit but that one leaves a document whose tree the limit took away; one already past it accepts only an edit that
 brings it back within the limit (a `remove`, a `replace with text`). Cases `nest-edit-*` (written corpus: one per
-edit that can deepen, each limit's last level accepted, and a document already past the limit).
+edit that can deepen, each limit's last level accepted, and a document already past the limit). The code, its place
+and the rule for a document already past the limit are revisable choices, not his (errata D2, D3). An edit whose
+result nests past `MAX_EXPANDED_NESTING` (2.5) is not refused: that limit is not a rule of the text alone, so the
+edit succeeds and the graph's diagnostics then hold its E5013, at one unreadable statement (case
+`nest-edit-expanded`).
 
 **A values text and line breaks** (milestone 4). A line break is whitespace (owner, 2026-10-29, round 15 question
 1: "';' is required and a line break is plain whitespace (nginx); directive names cannot start with a digit or

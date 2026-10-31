@@ -324,7 +324,7 @@
       "name": "bad text error",
       "sort": "expected outcome",
       "parent": "knobly error",
-      "raised when": "the text given to an edit, or an override's text, is not what that place takes; 'diagnostics' are located in that text, in the binding's string unit, and its message is built from them",
+      "raised when": "the text given to an edit, or an override's text, is not what that place takes, or the document after the edit would nest deeper than MAX_NESTING; 'diagnostics' are located in that text, in the binding's string unit, and its message is built from them",
       "fields": [
         {
           "name": "diagnostics",

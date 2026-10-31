@@ -275,8 +275,10 @@ One adapter, in its own language, through its public API only (`spec/binding-gui
 6. Report every error of a spec 2.8 group as `thrown` with the group's spec name (the most specific: a `lost update
    error`, not a `save error`), looked up by the error's class name in the generated `ERROR_GROUP_OF_CLASS` table
    (never a regular expression over the name); everything else as `fault`.
+7. Build the two fault objects of section 4.5 on the binding's public ports: the source that fails `read` for the
+   paths in `failReads` (L1), and the `throws` test extension (L3).
 
-TypeScript's adapter is under 200 lines and Python's under 300 (about 220 lines of code). A binding keeps its unit tests; it has no conformance
+A binding keeps its unit tests; it has no conformance
 runner of its own, and CI runs the driver with its adapter after its tests.
 
 ## 7. Not covered, and costs

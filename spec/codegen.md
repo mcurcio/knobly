@@ -192,11 +192,12 @@ The loader refuses, in every text an emitter writes as a doc (each `doc`, `param
 (`test_public_docs_carry_no_history`; TypeScript's "public docs carry no maintainer history"), which reads every doc
 a program sees on hover or in `help()` and refuses those words, a private module path and a test path: maintainer
 notes go in comments.
+Prior art: the split between API reference text and design notes in an architecture decision record, and Smithy's
+`@documentation` trait beside comments that never reach generated code.
+
 A code's `meaning` and `summary` write a limit as `{limit name}` (`{expanded nesting depth}`), filled with its value
 from api.json; the loader refuses the value written by hand in the code that limit reports (planted too), so api.json
 stays each limit's one home.
-Prior art: the split between API reference text and design notes in an architecture decision record, and Smithy's
-`@documentation` trait beside comments that never reach generated code.
 
 **The schema's doc is the one home of each public doc**: no hand-written class, member or function carries a doc
 the schema has. What a program reads is the generated doc, in each binding:

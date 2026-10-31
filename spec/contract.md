@@ -116,7 +116,8 @@ Each binding maps these groups onto its own classes (the list is `error groups` 
 
 - **Problems in the config text** are diagnostics and are never thrown.
 - **Text the caller passes in that breaks the language** raises `bad text error`, with located diagnostics, from
-  every entry point (edits, `set override`, each override `load` takes).
+  every entry point (edits, `set override`, each override `load` takes); so does an edit after which the document
+  would nest past `MAX_NESTING` (spec 2.8).
 - **A problem a reader finds in the config's values** (a list where a word was asked for, `20hz` read as a number)
   raises `diagnostic error`: the config text decides it, not the program, so it stays a run-time error.
 - **Program bugs** raise classes outside the package base (spec 2.8, the two sorts): `argument type error` (a

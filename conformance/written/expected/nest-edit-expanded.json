@@ -1,0 +1,1 @@
+[{"files":[["main.conf",[]]],"edges":[],"variables":[],"diagnostics":[]},["ok",["leaf { x; }"]],{"files":[["main.conf",[]]],"edges":[],"variables":[],"diagnostics":[["E5013","main.conf:0:270 < use s0 main.conf:1:270 < use s1 main.conf:2:270 < use s2 main.conf:3:256"]]}]
