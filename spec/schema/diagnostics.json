@@ -1,6 +1,6 @@
 {
   "$schema": "./api.schema.json",
-  "$comment": "The one home of knobly's diagnostic codes. spec/spec.md 2.4's table is generated from this file (tools/gen-api.py docs). 'layer' owns the code: syntax (parse), written (the low level: the graph's diagnostics, spec 6.3; the expanded value's readers, spec 2.9), include (the include extension). 'found by' is from a closed list: parse, edit (a bad text error's diagnostics), load and read, low level (worked out from the current texts), readers, include extension. 'message' is the base message (a binding may append ': <detail>'; messages are for people, spec 2.3); '{nesting depth}' names the limit of that name in api.json. 'unreadable reason' is the reason of the statement the code makes unreadable, null when it never does (readers raise it). 'meaning' (the spec's), 'summary' and 'placed at' (the user guide's, docs/site/pages/diagnostics.md) are Markdown; both tables are generated from this file.",
+  "$comment": "The one home of knobly's diagnostic codes. spec/spec.md 2.4's table is generated from this file (tools/gen-api.py docs). 'layer' owns the code: syntax (parse), written (the low level: the graph's diagnostics, spec 6.3; the expanded value's readers, spec 2.9), include (the include extension). 'found by' is from a closed list: parse, edit (a bad text error's diagnostics), load and read, low level (worked out from the current texts), readers, include extension. 'message' is the base message (a binding may append ': <detail>'; messages are for people, spec 2.3); '{nesting depth}' names the limit of that name in api.json. 'unreadable reason' is the reason of the statement the code makes unreadable, null when it never does (readers raise it). 'meaning' (the spec's), 'summary' and 'placed at' (the user guide's, docs/site/pages/diagnostics.md) are Markdown; both tables are generated from this file. In 'meaning' and 'summary' a '{name}' of a limit is written as its value (100,000): the code a limit reports names it so, never by hand (tools/gen-api.py refuses its value written out), so api.json stays the value's one home.",
   "version": 2,
   "ranges": {
     "1xxx": "lexical",
@@ -169,8 +169,8 @@
       ],
       "unreadable reason": "syntax",
       "message": "blocks and lists nest deeper than {nesting depth} levels",
-      "meaning": "Blocks and lists nested deeper than 100 levels.",
-      "summary": "blocks and lists nested deeper than 100",
+      "meaning": "Blocks and lists nested deeper than {nesting depth} levels.",
+      "summary": "blocks and lists nested deeper than {nesting depth}",
       "placed at": "per `conformance/`"
     },
     {
@@ -418,8 +418,8 @@
       ],
       "unreadable reason": "expansion",
       "message": "expansion nests too deep",
-      "meaning": "`use` and extension lines nested deeper than 16.",
-      "summary": "more than 16 snippets or files open inside each other",
+      "meaning": "`use` and extension lines nested deeper than {expansion depth}.",
+      "summary": "more than {expansion depth} snippets or files open inside each other",
       "placed at": "the `use` or extension line"
     },
     {
@@ -431,8 +431,8 @@
       ],
       "unreadable reason": "expansion",
       "message": "too many directives after expansion",
-      "meaning": "More than 100,000 directives after expansion.",
-      "summary": "more than 100,000 directives after expansion; expansion stops",
+      "meaning": "More than {directives} directives after expansion.",
+      "summary": "more than {directives} directives after expansion; expansion stops",
       "placed at": "the statement that is one too many"
     },
     {
@@ -499,8 +499,8 @@
       ],
       "unreadable reason": "expansion",
       "message": "expanded blocks and lists nest deeper than {expanded nesting depth}",
-      "meaning": "Blocks and lists nested deeper than 256 levels after expansion (2.5): a directive whose block or values, or a `set`, `use` or extension line whose values, would sit deeper. The statement is unreadable there and its block is not walked.",
-      "summary": "blocks and lists nested deeper than 256 after expansion",
+      "meaning": "Blocks and lists nested deeper than {expanded nesting depth} levels after expansion (2.5): a directive whose block or values, or a `set`, `use` or extension line whose values, would sit deeper. The statement is unreadable there and its block is not walked.",
+      "summary": "blocks and lists nested deeper than {expanded nesting depth} after expansion",
       "placed at": "the name of the statement whose block or values sit too deep"
     }
   ]

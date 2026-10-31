@@ -887,7 +887,20 @@ class Model:
         for ph in PLACEHOLDER.findall(c["message"]):
             if ph not in self.limit:
                 raise SchemaError(f"{c['code']}: message names {{{ph}}}, which is no limit in api.json")
-        return Code(c["code"], c["name"], c["layer"], list(c["found by"]), reason, c["message"], c["meaning"], c["summary"], c["placed at"])
+        return Code(c["code"], c["name"], c["layer"], list(c["found by"]), reason, c["message"],
+                    self._limit_text(c, "meaning"), self._limit_text(c, "summary"), c["placed at"])
+
+    def _limit_text(self, c: dict, field: str) -> str:
+        """A code's meaning or summary with each {limit name} written as that limit's value (100,000), so api.json's
+        limits stay the values' one home: the code a limit reports may not write that limit's value by hand."""
+        text = c[field]
+        for ph in PLACEHOLDER.findall(text):
+            if ph not in self.limit:
+                raise SchemaError(f"{c['code']}: {field} names {{{ph}}}, which is no limit in api.json")
+        for limit in self.limit.values():
+            if limit.code == c["code"] and re.search(rf"(?<![\d,.]){re.escape(f'{limit.value:,}')}(?![\d,])", text):
+                raise SchemaError(f"{c['code']}: {field} writes the {limit.about} by hand; write {{{limit.about}}}")
+        return PLACEHOLDER.sub(lambda m: f"{self.limit[m.group(1)].value:,}", text)
 
     # --- checking ---
 
@@ -1411,6 +1424,9 @@ def planted(api: dict, diagnostics: dict, protocol: dict, languages: Sequence[La
         "bead id in a doc": lambda a, d, p: member(a, "document", "block").__setitem__("doc", "the top block (kno-umh.6)"),
         "history in a doc": lambda a, d, p: concept(a, "document").__setitem__("doc", "a file (milestone 5)"),
         "language in a doc": lambda a, d, p: d["codes"][0].__setitem__("meaning", f"a bad token, as {languages[0].name} reads it"),
+        "a limit by hand": lambda a, d, p: next(c for c in d["codes"] if c["code"] == "E5013").__setitem__(
+            "summary", "blocks and lists nested deeper than 256 after expansion"),
+        "an unknown limit in a meaning": lambda a, d, p: d["codes"][0].__setitem__("meaning", "deeper than {no such limit}"),
         "undocumented member": lambda a, d, p: member(a, "document", "block").pop("doc"),
         "undocumented concept": lambda a, d, p: concept(a, "document").pop("doc"),
         "undocumented free function": lambda a, d, p: next(f for f in a["free functions"] if f["name"] == "parse").pop("doc"),
@@ -1437,6 +1453,8 @@ def planted(api: dict, diagnostics: dict, protocol: dict, languages: Sequence[La
         "bead id in a doc": "names 'kno-umh.6'",
         "history in a doc": "names 'milestone 5'",
         "language in a doc": f"names {languages[0].name!r}",
+        "a limit by hand": "E5013: summary writes the expanded nesting depth by hand",
+        "an unknown limit in a meaning": "meaning names {no such limit}, which is no limit",
         "spelling collision": "both spell",
         "undocumented member": "member 'block': has no doc",
         "undocumented concept": "concept 'document': has no doc",
