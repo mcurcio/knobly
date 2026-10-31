@@ -377,7 +377,7 @@ interface PlaceContext {
    * The expanded blocks around this place (spec 2.5): a directive's block is one more; a snippet's body and a spliced
    * file's top level stand where their line does.
    */
-  readonly depth: number;
+  readonly nesting: number;
 }
 
 /** A block or a document's top level to walk, into a place. */
@@ -427,7 +427,7 @@ class Walk implements BindingWithNeeds {
     const input = this.input;
     if (input === undefined) throw new Error("no input");
     const root = asDocument(input.root);
-    const top = { text: documentText(root), scope: new Scope(undefined), via: [], open: [root.resolvedPath], into: this.items, depth: 0 };
+    const top = { text: documentText(root), scope: new Scope(undefined), via: [], open: [root.resolvedPath], into: this.items, nesting: 0 };
     this.walk([root.syntax.root, top]);
     return this;
   }
@@ -535,7 +535,7 @@ class Walk implements BindingWithNeeds {
     if (name.kind === TokenKind.AT_WORD) {
       switch (statementOfKeyword(name.text.slice(1))) {
         case StatementKind.Set:
-          this.set(anatomy, copy, context.text, context.scope, context.via, context.depth);
+          this.set(anatomy, copy, context.text, context.scope, context.via, context.nesting);
           return [];
         case StatementKind.Snippet:
           this.snippet(anatomy, copy, context);
@@ -561,7 +561,7 @@ class Walk implements BindingWithNeeds {
         throw error;
       }
     }
-    this.checkNesting(context.depth, anatomy.block !== undefined, [...values.values()].flat(), text, name, via);
+    this.checkNesting(context.nesting, anatomy.block !== undefined, [...values.values()].flat(), text, name, via);
     this.expanded.set(copy, values);
     if (++this.count > MAX_DIRECTIVES) {
       this.stopped = true;
@@ -570,7 +570,7 @@ class Walk implements BindingWithNeeds {
     const children: BoundItem[] | undefined = anatomy.block === undefined ? undefined : [];
     context.into.push({ tag: "directive", copy, children });
     if (anatomy.block === undefined || children === undefined) return [];
-    return [[anatomy.block, { text, scope: new Scope(scope), via, open: context.open, into: children, depth: context.depth + 1 }]];
+    return [[anatomy.block, { text, scope: new Scope(scope), via, open: context.open, into: children, nesting: context.nesting + 1 }]];
   }
 
   /** A `set`, `snippet` or `use` line's text-alone shape (shape.ts, the one home of those rules), or its problem. */
@@ -580,10 +580,10 @@ class Walk implements BindingWithNeeds {
   }
 
   /**
-   * `@set $name value...;` (rule 2): binds from this line to the end of the enclosing block. `depth`: the expanded
+   * `@set $name value...;` (rule 2): binds from this line to the end of the enclosing block. `nesting`: the expanded
    * blocks around the line, for E5013.
    */
-  private set(anatomy: DirectiveAnatomy, copy: Copy, text: Text, scope: BlockScope, via: readonly Step[], depth: number): void {
+  private set(anatomy: DirectiveAnatomy, copy: Copy, text: Text, scope: BlockScope, via: readonly Step[], nesting: number): void {
     const { tokens } = text.syntax;
     this.wellFormed(anatomy, text, via);
     const [first, ...values] = anatomy.values;
@@ -595,7 +595,7 @@ class Walk implements BindingWithNeeds {
     const line = copy.statement as unknown as StatementHandle;
     if (!(line instanceof SetLine)) throw new Error("a set line that claims its name is kind set");
     const bound = values.flatMap((ref) => this.value(text, ref, scope, via, copy));
-    this.checkNesting(depth, false, bound, text, tokens[anatomy.name] as Token, via);
+    this.checkNesting(nesting, false, bound, text, tokens[anatomy.name] as Token, via);
     // Stored without this line's own steps; a reader adds the variable step and its own (ExpandedRecord.rebase).
     scope.bind(variableName, {
       variable: line.variableHandle,
@@ -649,7 +649,7 @@ class Walk implements BindingWithNeeds {
       for (let i = 0; i < expanded.length; i++) written.push(handle);
       return expanded;
     });
-    this.checkNesting(context.depth, false, values, text, keyword, via);
+    this.checkNesting(context.nesting, false, values, text, keyword, via);
     if (values.length !== snippet.params.length) {
       const detail = `${name.text} takes ${String(snippet.params.length)}, given ${String(values.length)}`;
       throw this.problem(DiagnosticCode.SnippetArity, text, keyword.span, via, detail);
@@ -681,8 +681,8 @@ class Walk implements BindingWithNeeds {
     const edge: DocumentEdge = { copy, specs, targets };
     this.edges.push(edge);
     const values = anatomy.values.flatMap((ref) => this.value(text, ref, scope, via, copy));
-    this.checkNesting(context.depth, false, values, text, name, via);
-    const forced = this.extensionBlock(anatomy.block, text, scope, via, context.depth);
+    this.checkNesting(context.nesting, false, values, text, name, via);
+    const forced = this.extensionBlock(anatomy.block, text, scope, via, context.nesting);
     const origin = { place: text.place(name.span), via };
     const fail = (code: DiagnosticCode, detail: string): Problem =>
       this.problem(code, text, name.span, via, detail);
@@ -736,9 +736,9 @@ class Walk implements BindingWithNeeds {
 
   /**
    * An extension directive's block: only `set` lines (E5012), bound for the spliced files. Its lines stand at the
-   * extension line's `depth`: the block is gone after expansion.
+   * extension line's `nesting`: the block is gone after expansion.
    */
-  private extensionBlock(block: Node | undefined, text: Text, scope: BlockScope, via: readonly Step[], depth: number): ReadonlyMap<string, Definition> {
+  private extensionBlock(block: Node | undefined, text: Text, scope: BlockScope, via: readonly Step[], nesting: number): ReadonlyMap<string, Definition> {
     if (block === undefined) return new Map();
     const own = new Scope(scope);
     const { tokens } = text.syntax;
@@ -754,7 +754,7 @@ class Walk implements BindingWithNeeds {
       if (name.kind !== TokenKind.AT_WORD || statementOfKeyword(name.text.slice(1)) !== StatementKind.Set) {
         throw this.problem(DiagnosticCode.ExtensionBlockNotSet, text, name.span, via);
       }
-      this.set(anatomy, this.copyOf(doc.statementOf(node), via), text, own, via, depth);
+      this.set(anatomy, this.copyOf(doc.statementOf(node), via), text, own, via, nesting);
     }
     return own.own();
   }
@@ -768,12 +768,12 @@ class Walk implements BindingWithNeeds {
   }
 
   /**
-   * E5013 at the statement's name (spec 2.5): the line stands inside `depth` expanded blocks, and its block (when
+   * E5013 at the statement's name (spec 2.5): the line stands inside `nesting` expanded blocks, and its block (when
    * `block`) or a list among its values would sit deeper than MAX_EXPANDED_NESTING. Checked before the values are
    * kept or the block walked, so no walk over the expanded tree goes deeper.
    */
-  private checkNesting(depth: number, block: boolean, values: Iterable<ExpandedRecord>, text: Text, name: Token, via: readonly Step[]): void {
-    if (Math.max(depth + (block ? 1 : 0), depth + nestingOf(values)) > MAX_EXPANDED_NESTING) {
+  private checkNesting(nesting: number, block: boolean, values: Iterable<ExpandedRecord>, text: Text, name: Token, via: readonly Step[]): void {
+    if (Math.max(nesting + (block ? 1 : 0), nesting + nestingOf(values)) > MAX_EXPANDED_NESTING) {
       throw this.problem(DiagnosticCode.ExpandedNestingTooDeep, text, name.span, via);
     }
   }
