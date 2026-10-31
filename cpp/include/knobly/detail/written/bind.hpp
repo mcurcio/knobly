@@ -656,7 +656,8 @@ private:
     /// kept or the block walked, so no walk over the expanded tree goes deeper.
     failure check_nesting(std::int64_t nesting, bool block, const std::vector<const expanded_node*>& values,
                           const text_ref& text, const token_info& name, const std::vector<::knobly::step>& via) const {
-        if (std::max(nesting + (block ? 1 : 0), nesting + nesting_of(values)) > ::knobly::written::max_expanded_nesting) {
+        if (std::max(nesting + (block ? 1 : 0), nesting + nesting_of(values)) >
+            ::knobly::written::max_expanded_nesting) {
             return at(::knobly::diagnostic_code::expanded_nesting_too_deep, text, name.span, via);
         }
         return std::nullopt;
@@ -773,7 +774,8 @@ private:
                 statement_of_keyword(p.text_at(a.name).substr(1)) != ::knobly::statement_kind::set) {
                 return at(::knobly::diagnostic_code::extension_block_not_set, text, name.span, via);
             }
-            if (failure f = set(a, copy_of(text.doc->statements_by_token.at(n.start()), via), text, *own, via, nesting)) {
+            if (failure f =
+                    set(a, copy_of(text.doc->statements_by_token.at(n.start()), via), text, *own, via, nesting)) {
                 return f;
             }
         }
@@ -793,7 +795,8 @@ private:
                 return f;
             }
         }
-        if (failure f = check_nesting(context.nesting, false, {values.begin(), values.end()}, text, name, context.via)) {
+        if (failure f =
+                check_nesting(context.nesting, false, {values.begin(), values.end()}, text, name, context.via)) {
             return f;
         }
         std::map<std::string, const definition*> forced;
