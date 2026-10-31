@@ -34,7 +34,6 @@ from knobly._api.limits import MAX_DEPTH, MAX_DIRECTIVES, MAX_EXPANDED_NESTING
 from knobly._api.shared import DirectiveOrigin, Origin, SourceSpan
 from knobly._api.syntax import Node, Syntax, Token, TokenRange
 from knobly._api.written import Copy, DocumentEdge, ExtensionUse, ReferenceResolution, Resolution
-from knobly._diagnostics import severity_of
 from knobly._glob import has_glob
 from knobly._origin import Override, Place, Step
 from knobly._report import LocatedDiagnostic
@@ -705,11 +704,18 @@ class Binding:
             draft.specs.extend(port_texts(extension.specs(ExtensionUse(args, origin)), port="specs()"))
         except DiagnosticError as error:
             draft.specs.clear()
-            code = error.diagnostic.code
-            if severity_of(code) is Severity.WARNING:
-                # A warning is never raised (spec 2.3, 5): one raised is the extension's mistake, judged by its code.
-                raise fail(DiagnosticCode.EXTENSION_FAILED, f"{name.text[1:]}: raised the warning {code}") from None
-            raise _Problem(UnreadableReason.EXTENSION, error.diagnostic) from None
+            # A warning is never raised (spec 2.3, 5): one raised is the extension's mistake, judged by its code. The
+            # record is rebuilt so its severity is its code's, never the one the raised object claims.
+            raised = error.diagnostic
+            try:
+                recorded = LocatedDiagnostic(raised.code, raised.message, raised.place, tuple(raised.via))
+            except ValueError:
+                detail = f"{name.text[1:]}: raised {raised.code!r}, neither knobly's code nor a program's"
+                raise fail(DiagnosticCode.EXTENSION_FAILED, detail) from None
+            if recorded.severity is Severity.WARNING:
+                detail = f"{name.text[1:]}: raised the warning {recorded.code}"
+                raise fail(DiagnosticCode.EXTENSION_FAILED, detail) from None
+            raise _Problem(UnreadableReason.EXTENSION, recorded) from None
         except Exception as error:
             draft.specs.clear()
             raise fail(DiagnosticCode.EXTENSION_FAILED, f"{name.text[1:]}: {error}") from None

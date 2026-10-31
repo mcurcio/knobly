@@ -409,5 +409,37 @@
         "list"
       ]
     ]
+  },
+  {
+    "name": "diag-extension-throws-error",
+    "needs": [],
+    "files": {
+      "main.conf": "@throws E3005;\nok;\n"
+    },
+    "root": "main.conf",
+    "extensions": [
+      "throws"
+    ],
+    "steps": [
+      [
+        "list"
+      ]
+    ]
+  },
+  {
+    "name": "diag-extension-throws-no-code",
+    "needs": [],
+    "files": {
+      "main.conf": "@throws nocode;\nok;\n"
+    },
+    "root": "main.conf",
+    "extensions": [
+      "throws"
+    ],
+    "steps": [
+      [
+        "list"
+      ]
+    ]
   }
 ]

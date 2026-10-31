@@ -239,7 +239,7 @@
       ],
       "unreadable reason": "extension",
       "message": "extension failed",
-      "meaning": "An extension threw something other than a diagnostic error, threw a diagnostic error whose code is a warning (a warning is never thrown, 2.3; 5), or returned something other than a list of texts.",
+      "meaning": "An extension threw something other than a diagnostic error, threw a diagnostic error whose code is a warning (a warning is never thrown, 2.3; 5) or is neither knobly's nor a program code, or returned something other than a list of texts.",
       "summary": "an extension threw something other than a located error, threw a warning, or returned something other than a list of texts",
       "placed at": "the extension line's name"
     },

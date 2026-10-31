@@ -230,18 +230,21 @@ const failingReads = (source: Knobly.DocumentSource, failing: readonly string[] 
 
 /**
  * The extensions a load names: include, or the test extension `throws` (spec/conformance.md 4.5), which throws a
- * diagnostic error of the code its first value names when that value is a word, else a plain error.
+ * diagnostic error of the code its first value names when that value is a word naming a knobly code, else a plain
+ * error.
  */
+const codes: readonly Knobly.DiagnosticCode[] = Object.values(vl.DiagnosticCode);
 const EXTENSIONS: Readonly<Record<string, () => Written.Extension>> = {
   include,
   throws: () => ({
     directive: "throws",
     specs: ({ values: [first], origin: { place, via } }) => {
-      if (first?.kind !== ValueKind.Word) throw new Error("the throws extension");
-      const code = first.text as Knobly.DiagnosticCode;
-      const severity = code.startsWith("W") ? vl.Severity.Warning : vl.Severity.Error;
+      const code = codes.find((known) => first?.kind === ValueKind.Word && known === first.text);
+      if (code === undefined) throw new Error("the throws extension");
+      // TypeScript has no public builder for a knobly code's record; the core judges it by its code (spec 5), never
+      // by the severity it claims, so the claim here is only a placeholder.
       const message = `the throws extension: ${code}`;
-      throw new vl.DiagnosticError({ code, severity, message, place, via, toString: () => message });
+      throw new vl.DiagnosticError({ code, severity: vl.Severity.Error, message, place, via, toString: () => message });
     },
   }),
 };

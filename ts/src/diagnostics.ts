@@ -9,6 +9,13 @@ import type * as api from "./gen/api/shared.js";
 import { diagnosticForm } from "./people.js";
 import { CODE_FACTS, type DiagnosticCode } from "./gen/api/codes.js";
 import { Severity } from "./gen/api/kinds.js";
+import { PROGRAM_CODE } from "./gen/api/limits.js";
+
+/** `code` as knobly's or a program's code (spec 2.3), or undefined when it is neither (a made-up `W9999`, say). */
+export function codeOf(code: string): DiagnosticCode | api.ProgramCode | undefined {
+  if (Object.hasOwn(CODE_FACTS, code)) return code as DiagnosticCode;
+  return PROGRAM_CODE.test(code) ? (code as api.ProgramCode) : undefined;
+}
 
 /** A code's severity (spec 2.3): a knobly code's is the registry's, from its letter; a program's code is an error. */
 export function severityOf(code: DiagnosticCode | api.ProgramCode): Severity {

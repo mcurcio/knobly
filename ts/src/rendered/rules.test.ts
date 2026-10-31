@@ -8,7 +8,7 @@ import { include } from "../include.js";
 import type { Extension } from "../written/index.js";
 import { knobly } from "../written/index.js";
 import { addresses, countingSource, loadFiles, loadText, only, originText, problems, rendered, texts } from "./testing.js";
-import { BadTextError, DiagnosticError, memorySource, MisuseError, ReadError, Severity } from "../index.js";
+import { BadTextError, type DiagnosticCode, DiagnosticError, memorySource, MisuseError, ReadError, Severity } from "../index.js";
 
 const INCLUDE = { extensions: [include()] };
 
@@ -418,6 +418,29 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
       expect(loaded.diagnostics[0]?.message, severity).toContain("W3005");
       expect(loaded.unreadable.map((u) => u.reason), severity).toEqual(["extension"]);
       expect(addresses(loaded), severity).toEqual(["ok"]);
+    }
+  });
+
+  it("records a thrown error code with its code's severity, and gives E3006 for a code neither knobly's nor a program's", async () => {
+    // Spec 2.3 and 5: the severity comes from the code, never the thrown object, so nothing thrown is kept as a warning.
+    const cases = [
+      ["E3005", [["E3005", "main.conf:0:0", Severity.Error]]],
+      ["test/bad", [["test/bad", "main.conf:0:0", Severity.Error]]],
+      ["W9999", [["E3006", "main.conf:0:0", Severity.Error]]],
+      ["nocode", [["E3006", "main.conf:0:0", Severity.Error]]],
+    ] as const;
+    for (const [code, expected] of cases) {
+      const claims: Extension = {
+        directive: "claim",
+        specs: ({ origin: { place, via } }) => {
+          const severity = Severity.Warning;
+          throw new DiagnosticError({ code: code as DiagnosticCode, severity, message: "m", place, via, toString: () => "m" });
+        },
+      };
+      const loaded = await loadText("@claim x;\nok;\n", { extensions: [claims] });
+      const found = [...loaded.diagnostics].map((d) => [d.code, originText(d), d.severity]);
+      expect(found, code).toEqual(expected);
+      expect(loaded.unreadable.map((u) => u.reason), code).toEqual(["extension"]);
     }
   });
 

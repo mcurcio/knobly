@@ -13,7 +13,7 @@
 import { anatomyOf, type DirectiveAnatomy, itemsOf, valuesOf } from "../anatomy.js";
 import { MAX_DEPTH, MAX_DIRECTIVES, MAX_EXPANDED_NESTING } from "../gen/api/limits.js";
 import { hasGlob } from "../graph/glob.js";
-import { severityOf } from "../diagnostics.js";
+import { codeOf, severityOf } from "../diagnostics.js";
 import { compareCodePoints } from "../graph/order.js";
 import { makeOverride, makePlace, makeStep } from "../origin.js";
 import { makeLocated } from "../report.js";
@@ -693,10 +693,13 @@ class Walk implements BindingWithNeeds {
       given = extension.specs({ values: values.map((record) => ExpandedRecord.asValue(record)), origin });
     } catch (error) {
       if (error instanceof DiagnosticError) {
-        // A warning is never thrown (spec 2.3, 5): one thrown is the extension's mistake, E3006, judged by its code.
-        const { code } = error.diagnostic;
+        // A warning is never thrown (spec 2.3, 5): one thrown is the extension's mistake, E3006, judged by its code. The
+        // record is rebuilt so its severity is its code's, never the one the thrown object claims.
+        const { code: thrown, message, place, via } = error.diagnostic;
+        const code = codeOf(thrown);
+        if (code === undefined) throw fail(DiagnosticCode.ExtensionFailed, `${extension.directive}: threw ${JSON.stringify(thrown)}, neither knobly's code nor a program's`);
         if (severityOf(code) === Severity.Warning) throw fail(DiagnosticCode.ExtensionFailed, `${extension.directive}: threw the warning ${code}`);
-        throw new Problem(UnreadableReason.Extension, error.diagnostic);
+        throw new Problem(UnreadableReason.Extension, makeLocated(code, message, place, via));
       }
       throw fail(DiagnosticCode.ExtensionFailed, `${extension.directive}: ${reasonOf(error)}`);
     }

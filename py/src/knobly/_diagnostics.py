@@ -20,8 +20,12 @@ from knobly._api.shared import SourceSpan
 
 
 def severity_of(code: DiagnosticCode | str) -> Severity:
-    """A code's severity (spec 2.3): a knobly code's is the registry's (its letter's); a program's code is an error."""
-    return CODE_FACTS[code].severity if isinstance(code, DiagnosticCode) else Severity.ERROR
+    """A code's severity (spec 2.3), read from its text: a knobly code's is the registry's (its letter's), whether
+    given as a ``DiagnosticCode`` or a ``str``; a program's code is an error."""
+    try:
+        return CODE_FACTS[DiagnosticCode(code)].severity
+    except ValueError:
+        return Severity.ERROR
 
 
 @dataclass(frozen=True, slots=True)
