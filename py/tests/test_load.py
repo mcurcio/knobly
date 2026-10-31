@@ -461,6 +461,31 @@ def test_an_include_glob_splices_matches_in_code_point_order() -> None:
     assert list(loaded.graph.documents) == ["main.conf", "d/B.conf", "d/a.conf", "d/b.conf"]
 
 
+def test_an_include_glob_that_matches_nothing_is_only_the_warning_w3005() -> None:
+    files = {"main.conf": '@include "d/*.conf";\nz 1;\n', "d/a.txt": "x;\n"}
+    loaded = load_and_render(processor(files, include=True), "main.conf")
+    assert codes(loaded) == ["W3005"]
+    assert [d.severity for d in loaded.diagnostics] == [vl.Severity.WARNING]
+    assert at(loaded.diagnostics[0]) == (0, 0)
+    assert loaded.unreadable == ()
+    assert [d.name for d in loaded.block] == ["z"]
+    assert [(e.specs, e.targets) for e in loaded.graph.edges()] == [(("d/*.conf",), ())]
+
+
+def test_an_empty_glob_stops_nothing_the_next_spec_is_still_spliced() -> None:
+    class Pair:
+        directive = "pair"
+
+        def specs(self, use: written.ExtensionUse, /) -> tuple[str, ...]:
+            return ("none/*.conf", "p.conf")
+
+    files = {"main.conf": "@pair 1;\n", "p.conf": "p;\n"}
+    loaded = load_and_render(written.Processor(source=vl.memory_source(files), extensions=[Pair()]))
+    assert codes(loaded) == ["W3005"]
+    assert [d.name for d in loaded.block] == ["p"]
+    assert [(e.specs, e.targets) for e in loaded.graph.edges()] == [(("none/*.conf", "p.conf"), ("p.conf",))]
+
+
 class _Counting:
     def __init__(self, files: Mapping[str, str], *, resolve_fails: str = "", read_fails: str = "") -> None:
         self.inner = vl.memory_source(files)
