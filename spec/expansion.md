@@ -111,7 +111,7 @@ never a declaration (spec 6.7), and it has no line to edit (spec 6.3 `set overri
 - A `set` line's values are looked up before its own definition exists, so `@set $a $a;` reads an outer `$a`
   (`@set $a 1; b { @set $a $a; x $a; }` gives `x 1`, `load-var-set-reads-outer`) and, with none, is E5001
   (`load-var-set-reads-itself-top`).
-- A `set` line whose values fail (E5001) defines nothing: a later `$name` of that name finds the next
+- A `set` line whose values fail (E5001, or E5013 when they nest deeper than spec 2.5 allows) defines nothing: a later `$name` of that name finds the next
   candidate outward. `@set $a 1; b { @set $a $nope; x $a; }` gives `x 1`, with one E5001 at `$nope`
   (`load-var-failed-set-shows-outer`); at the top level with nothing outward, `@set $a $nope; x $a;` is E5001 twice,
   at `$nope` and at `x`'s `$a` (`load-var-failed-set-top`).

@@ -162,8 +162,8 @@ is stale), which also holds each code's message and owning layer.
 | E1003 | `unexpected character` | parse | syntax | A character no token may start with, or a byte-order mark after the first character. |
 | E1004 | `lone dollar` | parse | syntax | A `$` not followed by a variable name. |
 | E1005 | `bad escape` | parse | syntax | A closed double-quoted string holding a backslash escape other than the six (the `BAD_ESCAPE` error token), placed on the string. A single-quoted string is raw: it has no escapes. |
-| E2001 | `unexpected token` | parse | syntax | A token the grammar does not allow here, when no more specific code applies: among them the end of the text or a `}` where a directive's `;` or block is due. Also an edit's bad text error, from its entry rule (2.8): at the first token the entry rule does not allow, or at the end of the text. |
-| E2003 | `expected closing brace` | parse | syntax | The text ends inside a block. |
+| E2001 | `unexpected token` | parse | syntax | A token the grammar does not allow here, when no more specific code applies: among them the end of the text at the top level, or a `}`, where a directive's `;` or block is due (3.2). Also an edit's bad text error, from its entry rule (2.8): at the first token the entry rule does not allow, or at the end of the text. |
+| E2003 | `expected closing brace` | parse | syntax | The text ends inside a block: reported once, at the end of the text, however many blocks are open; not after a statement whose error runs to the end of the text, and not inside an open `[` (E2004) (3.2). |
 | E2004 | `expected closing bracket` | parse | syntax | A stray `]`, or a `[` list with no matching `]`. |
 | E2007 | `bad slice` | parse | syntax | A malformed slice after a slice name (a word or a `$name`): `a[~]`, `a[1~b c]`, an unclosed slice, or a literal bound that is not an integer (`a[i]`, `a[1.5]`, `a[1:3]`, whose `1:3` is one word). |
 | E2009 | `values touch` | parse | syntax | Two values with nothing between them, such as `a"b"`. |
@@ -192,6 +192,7 @@ is stale), which also holds each code's message and owning layer.
 | E5010 | `bad snippet` | low level, edit | expansion | A malformed `snippet` line (`@snippet name $p... { ... }`), or one naming a parameter twice. |
 | E5011 | `bad use` | low level, edit | expansion | A `use` line that is not `@use name value...;`. |
 | E5012 | `extension block not set` | low level | extension | An extension line whose block holds a line other than `@set`. |
+| E5013 | `expanded nesting too deep` | low level | expansion | Blocks and lists nested deeper than 256 levels after expansion (2.5): a directive whose block or values, or a `set`, `use` or extension line whose values, would sit deeper. The statement is unreadable there and its block is not walked. |
 <!-- end generated -->
 
 Every code but the readers' is in the one diagnostics list: the `document graph`'s `diagnostics` (6.3), which the
@@ -224,6 +225,7 @@ statement classification reads; no binding compares a keyword's text by hand.
 
 <!-- generated: limits (tools/gen-api.py docs) -->
 - `MAX_NESTING` (nesting depth; the syntax layer): 100, blocks and lists nested at most this deep (E2010).
+- `MAX_EXPANDED_NESTING` (expanded nesting depth; the written layer): 256, blocks and lists nested at most this deep after expansion (E5013).
 - `MAX_DEPTH` (expansion depth; the written layer): 16, use and extension lines nested at most this deep (E5007).
 - `MAX_DIRECTIVES` (directives; the written layer): 100,000, directives after expansion, at most (E5008).
 - `MAX_SAFE_INTEGER` (integer range; the written layer): 9,007,199,254,740,991, integer words and slice or index bounds lie within plus or minus this (2^53-1) (E4005).
@@ -232,6 +234,32 @@ statement classification reads; no binding compares a keyword's text by hand.
 - `PROGRAM_CODE` (program code pattern; the shared layer): `^[^/\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/[^\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$`, <namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out); knobly's codes start with E.
 <!-- end generated -->
 
+- **Nesting levels** (`MAX_NESTING`, `MAX_EXPANDED_NESTING`; proposed to the owner 2026-10-30 and not objected to: the
+  current rule). Each block `{...}` and each list `[...]` a value sits inside is one level, blocks and lists counted
+  together: `[[1,2],[3,4]]` is 2 levels, and in `a { b [1]; }` the `1` sits 2 deep. A slice's brackets (`foo[0~3]`) are
+  no level: a slice holds only bounds.
+- **In one text (E2010).** Only the blocks and lists the parser opens count, the ones error recovery opens included;
+  brackets that recovery skips open nothing and do not count (owner, 2026-10-30, of the proposal that they not count:
+  "that sounds right"). So `"]"` 500 times then `"["` 101 times is E2004, and `a {` then `x [` 100 times is E2001 at 0:8,
+  each the statement's first error (3.2). The block or list that would be level 101 ends the parse: `parse` returns a
+  `document` node over every token whose one child is an `error` node over every token, and one diagnostic, E2010,
+  on the `{` or `[` that opens that level. An entry rule (2.8) returns a `document` node with no children and that one
+  E2010. Cases `nest-*`, `nestlist-*`, `nest-recovered-*` (`depth.json`).
+- **After expansion (E5013).** The same count over the expanded tree: a directive's block is one level deeper than
+  the directive; a snippet's body at a `use` and an included file's top level stand where their line stands (their
+  own braces are gone); a `$name` brings its values' lists with it. A statement whose block, or a list among its
+  values, would sit deeper than `MAX_EXPANDED_NESTING` is unreadable (reason `expansion`), with E5013 at its name (a
+  directive's name, the `@set`, the `@use`, an extension's `@name`), and its block is not walked; a `set` that fails
+  so defines nothing ([expansion.md](expansion.md) 8). It is checked once the statement's values are expanded: after
+  the checks that need no expanded value (the line's shape, E5009 to E5011; a `set` of a name already set, E5002; a
+  `use` of no visible snippet, E5003) and the codes its values give while they expand (E5001 among them), and before
+  the statement's other checks (E5004, E5006, E5007, E5008's count, an extension's `specs`, and for an extension line
+  the `@set` lines of its block, each checked as a `set` line standing where the extension line stands). So no value
+  or block deeper than the limit is ever kept and no walk over the expanded tree goes deeper. The owner, 2026-10-30
+  (bead kno-bzv.6), of a limit of 100 after expansion: "100 seems too low. can we increase it?"; asked which limit:
+  "after expansion"; real configs are "likely a few dozen, but i want the headroom". 256 is a revisable choice, not
+  his number; `MAX_NESTING` stays 100. Cases `diag-expanded-nesting-*` (written corpus: 257 and 1568 levels of
+  blocks, and the place and order cases), `load-expanded-nesting-256`, `load-expanded-nesting-lists`.
 - **No directive name is reserved** (milestone 5; owner, 2026-10-29, bead kno-umh.14: "yes" to language
   statements behind one sigil). A statement written `@name` is a language statement (`@set`, `@snippet`, `@use`) or
   an extension statement (`@include`); a directive's name is a `WORD` token, which never starts with `@` (3.1). So
@@ -326,7 +354,8 @@ milestone 4 leftover: these were called checks of the grammar, though the overri
 are not shapes. An `overrideText` entry rule would need a second, variable-free copy of the value rules in the
 grammar, a second home for them, so the rule here is reworded instead.) The entry rule's
 diagnostics are its parse's first error, coded as in a document (2.4: E1xxx for an error token, E2004, E2007,
-E2009, else E2001) and placed at the offending token, or at the end of the text when the text ends too soon. Which
+E2009, E2010 for nesting past `MAX_NESTING` (2.5), else E2001) and placed at the offending token, or at the end of the
+text when the text ends too soon. Which
 codes each edit checks, and where it places them:
 
 | Edit | Codes | Placed at |
@@ -603,9 +632,16 @@ Read-only, one text at a time, no I/O. Covered by the syntax conformance cases (
   and the diagnostic is its first error. Recovery skips to the end of the bad statement: its `;` outside brackets,
   or a whole block it opens, and it stops before the `}` that closes the enclosing block (or consumes a stray `}` at
   the top level, which ends the statement). A directive whose block was opened keeps its node, and its block's
-  statements are read (an unclosed block at the end of the text is E2003). So a broken statement never hides a
+  statements are read (an unclosed block at the end of the text is E2003, below). So a broken statement never hides a
   later statement after its `;` (`rec-*` syntax cases), but an unterminated string or a missing `;` runs on to the
   next `;` (`unterminated`, `load-missing-semicolon`).
+- **The end of the text.** A statement still open when the text ends has its first error there: E2004 when a list's
+  `[` is open, else E2003 when a block is open around it, else E2001 (a top-level statement's `;` or block is due).
+  When the text ends between statements inside open blocks, E2003 is reported once, at the end of the text, however
+  many blocks are open. A statement whose error node runs to the end of the text (recovery found no `;` or block that
+  ends it) carries only its first error, so no E2003 follows for the blocks still open around it. So `a { b [1;` is
+  E2001 at 0:8 alone, `a { b [1` is E2004 at 0:8, `a {\n b 1\n` is E2003 at 2:0, and `a { b { c 1;` is one E2003
+  (cases `nest-skipped-list`, `nest-recovered-100`).
 
 ### 3.3 Operations
 
@@ -1378,8 +1414,8 @@ finding against this page.
 | Corpus | Format | Level | Covers |
 |---|---|---|---|
 | `syntax`: `conformance/cases.json`, `extra.json`, `depth.json`, `edge.json`, `tracer.json`, `variables.json`, with `conformance/expected/` | [conformance/format.md](../conformance/format.md) | L0 | 2.1 (positions in UTF-16), 2.4 (1xxx and 2xxx codes), 2.5 (nesting), 3 |
-| `written`: `conformance/written/cases.json`, `conformance/written/expected/` | [conformance/written/format.md](../conformance/written/format.md) | L1 (L2 for a case that renders, L3 with include) | 6.3 to 6.9, by its `needs` tokens: `values`, `directive-values`, `statements`, `blocks`, `rename`, `document`, `override`, `save`, `quote`, `include`, `snippet`; 2.8's entry rules (line breaks, comments, bounds, list items, a values text with no value) and bad names (misuse error); 4.2's lost update (`saveTo`); 6.10's unread copy (and its `diff`); 2.9's `definition` and `chain`; 6.1's value `set` that keeps its handle; 6.5's `@` statements; 7.0's `argument type error` (`["render", target]`) |
-| `load`: `conformance/load/cases.json`, `conformance/load/expected/` | [conformance/load/format.md](../conformance/load/format.md) | L2 (L3 with include) | 2.2, 2.4 (3xxx to 5xxx), 4.3 (`memory source`), 5, 6.2 (`load` with `overrides`), 7.0 (`render (graph)`), 7.1, 7.2, 7.3 (canonical text and origins), 7.4 (people form, with the `rasl` key rule), 7.6; [expansion.md](expansion.md) 6 (each row of the precedence table) |
+| `written`: `conformance/written/{cases,diagnostics}.json`, `conformance/written/expected/` | [conformance/written/format.md](../conformance/written/format.md) | L1 (L2 for a case that renders, L3 with include) | 6.3 to 6.9, by its `needs` tokens: `values`, `directive-values`, `statements`, `blocks`, `rename`, `document`, `override`, `save`, `quote`, `include`, `snippet`; 2.8's entry rules (line breaks, comments, bounds, list items, a values text with no value) and bad names (misuse error); 4.2's lost update (`saveTo`); 6.10's unread copy (and its `diff`); 2.9's `definition` and `chain`; 6.1's value `set` that keeps its handle; 6.5's `@` statements; 7.0's `argument type error` (`["render", target]`); 2.5's E5013 (after expansion: its place and order) |
+| `load`: `conformance/load/cases.json`, `conformance/load/expected/` | [conformance/load/format.md](../conformance/load/format.md) | L2 (L3 with include) | 2.2, 2.4 (3xxx to 5xxx), 2.5 (after expansion), 4.3 (`memory source`), 5, 6.2 (`load` with `overrides`), 7.0 (`render (graph)`), 7.1, 7.2, 7.3 (canonical text and origins), 7.4 (people form, with the `rasl` key rule), 7.6; [expansion.md](expansion.md) 6 (each row of the precedence table) |
 | `rendered`: `conformance/rendered/cases.json`, `conformance/rendered/expected/` | [conformance/rendered/format.md](../conformance/rendered/format.md) | L2 | 7.4 (`address text` with escapes, keys from data, occurrences, an empty and an absent key, a rule on the parent), 7.6 (the order of a diff, unknown, a directive listed alone, a block's presence) |
 | `contract`: `conformance/contract/cases.json` (expected results inline) | [conformance/contract/format.md](../conformance/contract/format.md) | L2 | 2.9 (every reader, its results and codes), [contract.md](contract.md) 1 (positions in the binding's unit), 2 (people forms, `format diagnostic` with tabs, a character outside the Basic Multilingual Plane, `"\r\n"` and no graph), 3 (numbers) |
 

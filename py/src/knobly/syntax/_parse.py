@@ -16,7 +16,7 @@ from knobly._diagnostics import Diagnostic
 from knobly._gen.KnoblyLexer import KnoblyLexer
 from knobly._gen.KnoblyParser import KnoblyParser
 from knobly.syntax._cst import span_of
-from knobly.syntax._recovery import RawDiagnostic, install_recovery, nesting_overflow
+from knobly.syntax._recovery import NestingTooDeep, RawDiagnostic, install_nesting_guard, install_recovery
 from knobly.syntax._walk import to_cst, to_entry_cst
 
 _EOF = -1
@@ -75,25 +75,33 @@ def _lex(text: str) -> tuple[CommonTokenStream, tuple[Token, ...]]:
     return stream, _to_tokens(stream.tokens)
 
 
-def parse(text: str) -> Syntax:
-    stream, tokens = _lex(text)
-    n = len(tokens)
-
-    # The depth guard runs first: deep enough nesting would overflow the stack of the recursive parser.
-    too_deep = nesting_overflow([t.kind for t in tokens])
-    if too_deep is not None:
-        root = Node(
-            kind=NodeKind.DOCUMENT, start=0, end=n, children=(Node(kind=NodeKind.ERROR, start=0, end=n, children=()),)
-        )
-        code = DiagnosticCode.NESTING_TOO_DEEP
-        return _located(tokens, root, [RawDiagnostic(code, too_deep, too_deep + 1, describe(code).message)])
-
+def _parser(stream: CommonTokenStream, raw: list[RawDiagnostic]) -> KnoblyParser:
+    """A parser over ``stream`` with per-statement recovery reporting into ``raw`` and the nesting guard."""
     parser = KnoblyParser(stream)
-    raw: list[RawDiagnostic] = []
     # With recovery installed the parser reports nothing to listeners; drop the default console listener anyway.
     parser.removeErrorListeners()
     install_recovery(parser, raw.append)
-    root = to_cst(parser.document())
+    install_nesting_guard(parser)
+    return parser
+
+
+def _too_deep(at: int) -> RawDiagnostic:
+    code = DiagnosticCode.NESTING_TOO_DEEP
+    return RawDiagnostic(code, at, at + 1, describe(code).message)
+
+
+def parse(text: str) -> Syntax:
+    stream, tokens = _lex(text)
+    n = len(tokens)
+    raw: list[RawDiagnostic] = []
+    try:
+        root = to_cst(_parser(stream, raw).document())
+    except NestingTooDeep as e:
+        # Nesting past the limit makes the whole text one error node with one diagnostic, E2010 (spec 2.5).
+        root = Node(
+            kind=NodeKind.DOCUMENT, start=0, end=n, children=(Node(kind=NodeKind.ERROR, start=0, end=n, children=()),)
+        )
+        return _located(tokens, root, [_too_deep(e.at)])
     return _located(tokens, root, raw)
 
 
@@ -111,21 +119,11 @@ def parse_entry(text: str, rule: EntryRule) -> Syntax:
     it, never a probe document."""
     stream, tokens = _lex(text)
     n = len(tokens)
-    too_deep = nesting_overflow([t.kind for t in tokens])
-    if too_deep is not None:
-        code = DiagnosticCode.NESTING_TOO_DEEP
-        at = too_deep
-        return _located(
-            tokens,
-            Node(kind=NodeKind.DOCUMENT, start=0, end=n, children=()),
-            [RawDiagnostic(code, at, at + 1, describe(code).message)],
-        )
-    parser = KnoblyParser(stream)
     raw: list[RawDiagnostic] = []
-    parser.removeErrorListeners()
-    install_recovery(parser, raw.append)
     try:
-        tree = getattr(parser, rule)()
+        tree = getattr(_parser(stream, raw), rule)()
+    except NestingTooDeep as e:
+        return _located(tokens, Node(kind=NodeKind.DOCUMENT, start=0, end=n, children=()), [_too_deep(e.at)])
     except RecognitionException:
         tree = None  # the error is in ``raw``: an entry rule has no statement to resume at
     root = Node(kind=NodeKind.DOCUMENT, start=0, end=n, children=()) if raw or tree is None else to_entry_cst(tree, n)

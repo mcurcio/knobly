@@ -30,27 +30,42 @@ function expansionBlock(items: readonly DirectiveExpansion[]): ExpansionBlock {
   return new SnapshotBlock(items, (item) => item.written.name);
 }
 
-function fill(binding: Binding, items: readonly BoundItem[], into: Container): void {
-  for (const item of items) {
+/**
+ * The directive and unreadable expansions of `items`, into `top`. A loop over a stack of open blocks, not a
+ * recursion: the expanded tree may be MAX_EXPANDED_NESTING deep (spec 2.5). A directive expansion with a block is
+ * pushed once its block is made.
+ */
+function fill(binding: Binding, items: readonly BoundItem[], top: Container): void {
+  interface Open extends Container {
+    readonly items: Iterator<BoundItem>;
+    /** The directive this block belongs to, made once the block is; undefined at the top level. */
+    readonly owner?: Omit<DirectiveExpansion, "block" | "unreadable">;
+  }
+  const stack: Open[] = [{ ...top, items: items[Symbol.iterator]() }];
+  for (let open = stack.at(-1); open !== undefined; open = stack.at(-1)) {
+    const next = open.items.next();
+    if (next.done === true) {
+      stack.pop();
+      const parent = stack.at(-1);
+      if (open.owner !== undefined && parent !== undefined) {
+        parent.block.push({ ...open.owner, block: expansionBlock(open.block), unreadable: open.unreadable });
+      }
+      continue;
+    }
+    const item = next.value;
     const statement = item.copy.statement as unknown as StatementHandle;
     const { doc } = statement;
     if (item.tag === "unreadable") {
       const place = makePlace(doc.resolvedPath, doc.spanOf(statement.node));
-      into.unreadable.push({ reason: item.reason, written: item.copy.statement, origin: { place, via: item.copy.via } });
+      open.unreadable.push({ reason: item.reason, written: item.copy.statement, origin: { place, via: item.copy.via } });
       continue;
     }
     const nameToken = doc.syntax.tokens[statement.node.start];
     if (nameToken === undefined) throw new Error("a directive node has no name token");
     const written = item.copy.statement as WrittenDirective;
     const values = written.values.flatMap((value) => binding.valuesAt(value, item.copy).map((record) => ExpandedRecord.asValue(record)));
-    const inner: Container | undefined = item.children === undefined ? undefined : { block: [], unreadable: [] };
-    if (item.children !== undefined && inner !== undefined) fill(binding, item.children, inner);
-    into.block.push({
-      written,
-      origin: { place: makePlace(doc.resolvedPath, nameToken.span), via: item.copy.via },
-      values,
-      block: inner === undefined ? undefined : expansionBlock(inner.block),
-      unreadable: inner?.unreadable ?? [],
-    });
+    const owner = { written, origin: { place: makePlace(doc.resolvedPath, nameToken.span), via: item.copy.via }, values };
+    if (item.children === undefined) open.block.push({ ...owner, block: undefined, unreadable: [] });
+    else stack.push({ block: [], unreadable: [], items: item.children[Symbol.iterator](), owner });
   }
 }

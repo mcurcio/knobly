@@ -229,7 +229,7 @@ typechecked and linted with the adapter):
 |---|---|
 | `kinds.ts` | every kind list as an `as const` object plus the union derived from it (spec 2.10); `Keyword`, `STATEMENT_OF_KEYWORD`, `statementOfKeyword(word)` |
 | `codes.ts` | `DiagnosticCode` (`as const` object and union), `MESSAGES`, `CODE_FACTS` (name, layer, found by, reason, typed per code), `ReasonOf<C>`, `describe(code, detail?)` |
-| `limits.ts` | the rules module: `MAX_NESTING`, `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`, `PROGRAM_CODE` |
+| `limits.ts` | the rules module: `MAX_NESTING`, `MAX_EXPANDED_NESTING`, `MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`, `PROGRAM_CODE` |
 | `errors.ts` | the error class tree (spec 2.8): each class's base, fields, constructor, message and `name`; `argumentTypeMessage(member, parameter, got)` |
 | `shared.ts`, `syntax.ts`, `io.ts`, `written.ts`, `rendered.ts` (one per layer `api.json` lists) | per layer: one interface per handle, port, record and snapshot; each union's shared members once on `<Union>Common`, which each variant extends with `kind` a literal; union types; callback types; options objects; the generic `Block<TItem, TDirective>` (a block that adds nothing is a type alias of it); a `<Module>Functions` interface per import path listing its free functions, which types each public function; a `<Class>Constructor` interface (`new (...)`) per constructor factory, which types each public constructor |
 | `ts/conformance/shapes.ts` | every request, result and dump of the adapter protocol as a type; `PROTOCOL`; `SPELLING` (each spec name the driver sends, in camelCase); `ERROR_GROUP_OF_CLASS` |

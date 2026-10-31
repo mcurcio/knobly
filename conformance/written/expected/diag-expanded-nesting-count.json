@@ -1,0 +1,1 @@
+[{"files":[["main.conf",[]]],"edges":[],"variables":[["a","set","main.conf:0:5",["main.conf:1:107"],[]],["b","set","main.conf:1:5",["main.conf:2:69"],[]],["deep","set","main.conf:2:5",["main.conf:64:3"],[]]],"diagnostics":[["E5013","main.conf:64:0"],["E5008","main.conf:65:0"]]}]

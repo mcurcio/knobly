@@ -1,0 +1,1 @@
+[{"files":[["main.conf",[]]],"edges":[],"variables":[],"diagnostics":[["E5013","main.conf:0:254 < use s0 main.conf:1:406 < use s1 main.conf:2:406 < use s2 main.conf:3:0"]]}]

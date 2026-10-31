@@ -73,22 +73,30 @@ export class Rendered implements api.Rendered {
   addresses(options?: KeyOptions): ReadonlyMap<api.Directive, api.Address> {
     const key = options?.key;
     const out = new Map<api.Directive, api.Address>();
-    const name = (block: Iterable<api.Directive>, parent: Address | undefined): void => {
-      const occurrences = new Map<string, number>();
-      for (const directive of block) {
-        const keyText: unknown = key?.(directive);
-        if (keyText !== undefined && typeof keyText !== "string") {
-          throw new TypeError(`a key rule returns a string or undefined, not ${typeof keyText}: ${directive.name}`);
-        }
-        const slot = JSON.stringify([directive.name, keyText ?? null]);
-        const occurrence = occurrences.get(slot) ?? 0;
-        occurrences.set(slot, occurrence + 1);
-        const address = new Address(parent, { name: directive.name, key: keyText, occurrence });
-        out.set(directive, address);
-        name(directive.block ?? [], address);
+    // In walk order. A loop over a stack of open blocks, not a recursion: the tree may be MAX_EXPANDED_NESTING deep
+    // (spec 2.5). Per open block: its directives left, its address, and how often each name and key occurred in it.
+    const stack: [Iterator<api.Directive>, Address | undefined, Map<string, number>][] = [
+      [this.block[Symbol.iterator](), undefined, new Map<string, number>()],
+    ];
+    for (let open = stack.at(-1); open !== undefined; open = stack.at(-1)) {
+      const [block, parent, occurrences] = open;
+      const next = block.next();
+      if (next.done === true) {
+        stack.pop();
+        continue;
       }
-    };
-    name(this.block, undefined);
+      const directive = next.value;
+      const keyText: unknown = key?.(directive);
+      if (keyText !== undefined && typeof keyText !== "string") {
+        throw new TypeError(`a key rule returns a string or undefined, not ${typeof keyText}: ${directive.name}`);
+      }
+      const slot = JSON.stringify([directive.name, keyText ?? null]);
+      const occurrence = occurrences.get(slot) ?? 0;
+      occurrences.set(slot, occurrence + 1);
+      const address = new Address(parent, { name: directive.name, key: keyText, occurrence });
+      out.set(directive, address);
+      if (directive.block !== undefined) stack.push([directive.block[Symbol.iterator](), address, new Map<string, number>()]);
+    }
     return out;
   }
 

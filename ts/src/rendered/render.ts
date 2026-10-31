@@ -27,12 +27,22 @@ export function render(graph: DocumentGraph): api.Rendered {
   return new Rendered(block, expansion.unreadable, origin, expansion.diagnostics, graph);
 }
 
-/** Each directive expansion as a directive on the expansion's own objects: its written, origin, values, unreadable. */
+/**
+ * Each directive expansion as a directive on the expansion's own objects: its written, origin, values, unreadable.
+ * Each directive is made with its parent and an empty list, its block's directives, which the loop fills later. A
+ * loop, not a recursion: the tree may be MAX_EXPANDED_NESTING deep (spec 2.5).
+ */
 function build(directives: Iterable<DirectiveExpansion>, parent: Directive | undefined): api.Directive[] {
-  return [...directives].map((item) => {
-    const children: api.Directive[] | undefined = item.block === undefined ? undefined : [];
-    const directive = new Directive(item.written.name, item.values, children, item.unreadable, parent, item.origin, item.written);
-    if (item.block !== undefined) children?.push(...build(item.block, directive));
-    return directive;
-  });
+  const top: api.Directive[] = [];
+  const stack: [Iterable<DirectiveExpansion>, Directive | undefined, api.Directive[]][] = [[directives, parent, top]];
+  for (let open = stack.pop(); open !== undefined; open = stack.pop()) {
+    const [items, owner, into] = open;
+    for (const item of items) {
+      const children: api.Directive[] | undefined = item.block === undefined ? undefined : [];
+      const directive = new Directive(item.written.name, item.values, children, item.unreadable, owner, item.origin, item.written);
+      into.push(directive);
+      if (item.block !== undefined && children !== undefined) stack.push([item.block, directive, children]);
+    }
+  }
+  return top;
 }

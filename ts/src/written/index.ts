@@ -5,7 +5,7 @@
  */
 
 export { StatementKind, UnreadableReason, ValueKind, VariableKind } from "../gen/api/kinds.js";
-export { MAX_DEPTH, MAX_DIRECTIVES, MAX_SAFE_INTEGER, RESERVED, VARIABLE_NAME } from "../gen/api/limits.js";
+export { MAX_DEPTH, MAX_DIRECTIVES, MAX_EXPANDED_NESTING, MAX_SAFE_INTEGER, RESERVED, VARIABLE_NAME } from "../gen/api/limits.js";
 export type {
   Copy,
   DirectiveExpansion,

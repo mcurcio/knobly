@@ -107,6 +107,7 @@ same codes, placed in the text the edit was given ([Editing and saving](editing.
 | E5010 | `BadSnippet` | `BAD_SNIPPET` | `bad_snippet` | any other form of `@snippet` | `@snippet` |
 | E5011 | `BadUse` | `BAD_USE` | `bad_use` | any other form of `@use` | `@use` |
 | E5012 | `ExtensionBlockNotSet` | `EXTENSION_BLOCK_NOT_SET` | `extension_block_not_set` | an extension line's block holds a line other than `@set` | that line's name |
+| E5013 | `ExpandedNestingTooDeep` | `EXPANDED_NESTING_TOO_DEEP` | `expanded_nesting_too_deep` | blocks and lists nested deeper than 256 after expansion | the name of the statement whose block or values sit too deep |
 <!-- end generated -->
 
 Codes that are no longer used, and never will be again: **E2006** (the old include path error, replaced by E3005),

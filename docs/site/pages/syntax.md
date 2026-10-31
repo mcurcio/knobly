@@ -40,4 +40,6 @@ It prints:
 
 The grammar file [`grammar/Knobly.g4`](https://github.com/mcurcio/knobly/blob/main/grammar/Knobly.g4) is
 the specification of the syntax, and every binding's parser is generated from it, so every parser accepts exactly the
-grammar's language. Blocks and lists may nest 100 deep in one text; deeper is E2010.
+grammar's language. Blocks and lists may nest 100 deep in one text; deeper is E2010, and the whole text is then one
+error node with that one diagnostic. Only the blocks and lists the parser opens count, not brackets it skips while
+recovering from an error.

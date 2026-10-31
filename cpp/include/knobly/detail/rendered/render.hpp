@@ -6,6 +6,8 @@
 #define KNOBLY_DETAIL_RENDERED_RENDER_HPP
 
 #include <optional>
+#include <tuple>
+#include <vector>
 
 #include <knobly/detail/raise.hpp>
 #include <knobly/detail/rendered/nodes.hpp>
@@ -17,19 +19,27 @@ namespace rendered {
 
 namespace detail {
 
-/// Each directive expansion of `block` as a directive under `parent`, its own block built the same way.
+/// Each directive expansion of `block` as a directive under `parent`, its own block built the same way. A loop over
+/// the blocks still to build, not a recursion: the tree may be max_expanded_nesting deep (spec 2.5).
 inline block_node* build(render_core* render, const ::knobly::written::expansion_block& block, directive_node* parent) {
-    auto* out = render->nodes.make<block_node>();
-    for (const ::knobly::written::directive_expansion& item : block) {
-        const ::knobly::written::written_directive written = item.written();
-        auto* directive = render->nodes.make<directive_node>(written.name(), item.values(), item.unreadable(), parent,
-                                                             item.origin(), written);
-        if (const std::optional<::knobly::written::expansion_block> inner = item.block()) {
-            directive->block = build(render, *inner, directive);
+    auto* top = render->nodes.make<block_node>();
+    std::vector<std::tuple<::knobly::written::expansion_block, directive_node*, block_node*>> tasks{
+        {block, parent, top}};
+    while (!tasks.empty()) {
+        const auto [items, owner, out] = tasks.back();
+        tasks.pop_back();
+        for (const ::knobly::written::directive_expansion& item : items) {
+            const ::knobly::written::written_directive written = item.written();
+            auto* directive = render->nodes.make<directive_node>(written.name(), item.values(), item.unreadable(),
+                                                                 owner, item.origin(), written);
+            if (const std::optional<::knobly::written::expansion_block> inner = item.block()) {
+                directive->block = render->nodes.make<block_node>();
+                tasks.emplace_back(*inner, directive, directive->block);
+            }
+            out->items.push_back(directive);
         }
-        out->items.push_back(directive);
     }
-    return out;
+    return top;
 }
 
 }  // namespace detail

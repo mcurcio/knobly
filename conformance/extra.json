@@ -138,5 +138,13 @@
 {
 "name": "rec-many",
 "src": "a ];\nb ];\nc {\n d ];\n e [\n}\nf 1;\n"
+},
+{
+"name": "rec-resume-after-list-in-block",
+"src": "a { b [; }\n\"x\" 1;\nc 2;\nd ];\n"
+},
+{
+"name": "rec-stray-bracket-twice",
+"src": "]; ];"
 }
 ]

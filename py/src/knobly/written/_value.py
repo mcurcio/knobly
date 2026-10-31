@@ -94,20 +94,30 @@ class _Expanded:
     def _moved(self, drop: int, append: tuple[Step, ...], resolution: ReferenceResolution | None) -> ExpandedValue:
         """The same value having travelled further (private to the low level's expansion): the last ``drop`` steps of
         its origin (and of each list item's) are replaced by ``append``, and ``resolution`` (a ``$name`` read) goes
-        first in the chain."""
-        via = self._origin.via
-        origin = Origin(self._origin.place, via[: len(via) - drop] + append)
-        chain = self._chain if resolution is None else (resolution, *self._chain)
-        return self._remade(origin, chain, drop, append, resolution)
+        first in the chain. A loop, not a recursion: a list may be MAX_EXPANDED_NESTING deep (spec 2.5). Each list is
+        remade after its items, which wait on ``made`` in order."""
+        made: list[ExpandedValue] = []
+        stack: list[tuple[_Expanded, bool]] = [(self, False)]
+        while stack:
+            value, items_made = stack.pop()
+            if isinstance(value, ExpandedList) and not items_made:
+                stack.append((value, True))
+                stack.extend((item, False) for item in reversed(value._items))
+                continue
+            via = value._origin.via
+            origin = Origin(value._origin.place, via[: len(via) - drop] + append)
+            chain = value._chain if resolution is None else (resolution, *value._chain)
+            if isinstance(value, ExpandedList):
+                first = len(made) - len(value._items)
+                items = tuple(made[first:])
+                del made[first:]
+                made.append(ExpandedList(items, origin, value._definition, chain))
+            else:
+                made.append(value._remade(origin, chain))
+        return made[0]
 
-    def _remade(
-        self,
-        origin: Origin,
-        chain: tuple[ReferenceResolution, ...],
-        drop: int,
-        append: tuple[Step, ...],
-        resolution: ReferenceResolution | None,
-    ) -> ExpandedValue:
+    def _remade(self, origin: Origin, chain: tuple[ReferenceResolution, ...]) -> ExpandedValue:
+        """This value, not a list, with a new origin and chain."""
         raise NotImplementedError
 
     def word(self) -> str:
@@ -171,14 +181,7 @@ class ExpandedWord(_Expanded, api.ExpandedWord):
     def kind(self) -> Literal[ValueKind.WORD]:
         return ValueKind.WORD
 
-    def _remade(
-        self,
-        origin: Origin,
-        chain: tuple[ReferenceResolution, ...],
-        drop: int,
-        append: tuple[Step, ...],
-        resolution: ReferenceResolution | None,
-    ) -> ExpandedValue:
+    def _remade(self, origin: Origin, chain: tuple[ReferenceResolution, ...]) -> ExpandedValue:
         return ExpandedWord(self._text, origin, self._definition, chain)
 
 
@@ -202,14 +205,7 @@ class ExpandedString(_Expanded, api.ExpandedString):
     def kind(self) -> Literal[ValueKind.STRING]:
         return ValueKind.STRING
 
-    def _remade(
-        self,
-        origin: Origin,
-        chain: tuple[ReferenceResolution, ...],
-        drop: int,
-        append: tuple[Step, ...],
-        resolution: ReferenceResolution | None,
-    ) -> ExpandedValue:
+    def _remade(self, origin: Origin, chain: tuple[ReferenceResolution, ...]) -> ExpandedValue:
         return ExpandedString(self._value, origin, self._definition, chain)
 
 
@@ -235,17 +231,6 @@ class ExpandedList(_Expanded, api.ExpandedList):
     @property
     def items(self) -> tuple[ExpandedValue, ...]:
         return self._items
-
-    def _remade(
-        self,
-        origin: Origin,
-        chain: tuple[ReferenceResolution, ...],
-        drop: int,
-        append: tuple[Step, ...],
-        resolution: ReferenceResolution | None,
-    ) -> ExpandedValue:
-        items = tuple(item._moved(drop, append, resolution) for item in self._items)
-        return ExpandedList(items, origin, self._definition, chain)
 
 
 class ExpandedSlice(_Expanded, api.ExpandedSlice):
@@ -273,14 +258,7 @@ class ExpandedSlice(_Expanded, api.ExpandedSlice):
     def kind(self) -> Literal[ValueKind.SLICE]:
         return ValueKind.SLICE
 
-    def _remade(
-        self,
-        origin: Origin,
-        chain: tuple[ReferenceResolution, ...],
-        drop: int,
-        append: tuple[Step, ...],
-        resolution: ReferenceResolution | None,
-    ) -> ExpandedValue:
+    def _remade(self, origin: Origin, chain: tuple[ReferenceResolution, ...]) -> ExpandedValue:
         return ExpandedSlice(self._name, self._start, self._end, origin, self._definition, chain)
 
     @property
@@ -318,14 +296,7 @@ class ExpandedIndex(_Expanded, api.ExpandedIndex):
     def kind(self) -> Literal[ValueKind.INDEX]:
         return ValueKind.INDEX
 
-    def _remade(
-        self,
-        origin: Origin,
-        chain: tuple[ReferenceResolution, ...],
-        drop: int,
-        append: tuple[Step, ...],
-        resolution: ReferenceResolution | None,
-    ) -> ExpandedValue:
+    def _remade(self, origin: Origin, chain: tuple[ReferenceResolution, ...]) -> ExpandedValue:
         return ExpandedIndex(self._name, self._index, origin, self._definition, chain)
 
     @property

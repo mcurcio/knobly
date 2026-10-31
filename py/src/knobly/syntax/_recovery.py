@@ -7,8 +7,9 @@ statement is skipped to its ``;`` or the end of a block it opened (it becomes on
 the next statement, so later siblings are kept. No token is ever conjured. An entry rule (``parse_entry``) has no
 statement to resume at: its first error ends the parse.
 
-``classify_error`` and ``nesting_overflow`` are pure functions over token kinds, copied line for line from the
-TypeScript ``classifyError`` and ``nestingOverflow``.
+``classify_error`` is a pure function over token kinds, copied line for line from the TypeScript ``classifyError``.
+The nesting guard (``install_nesting_guard``) sits on the parser's own rule entry, so it counts exactly the blocks and
+lists the parser opens, recovery's included, as TypeScript's ``installNestingGuard`` does.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from typing import Any
 from antlr4 import Token as AntlrToken
 from antlr4.error.Errors import InputMismatchException
 from antlr4.error.ErrorStrategy import DefaultErrorStrategy
+from antlr4.tree.Tree import ParseTreeListener
 
 from knobly._api.codes import DiagnosticCode, describe
 from knobly._api.kinds import TokenKind
@@ -37,20 +39,6 @@ class RawDiagnostic:
     start: int
     end: int
     message: str
-
-
-def nesting_overflow(kinds: Sequence[TokenKind]) -> int | None:
-    """The index of the ``{`` or ``[`` that opens nesting level MAX_NESTING + 1, or None when the tokens never nest
-    that deep. One pass: ``{`` and ``[`` open a level, ``}`` and ``]`` close one (never below 0)."""
-    depth = 0
-    for i, kind in enumerate(kinds):
-        if kind is TokenKind.LBRACE or kind is TokenKind.LBRACK:
-            depth += 1
-            if depth > MAX_NESTING:
-                return i
-        elif (kind is TokenKind.RBRACE or kind is TokenKind.RBRACK) and depth > 0:
-            depth -= 1
-    return None
 
 
 _VALUE_TOKENS = frozenset(
@@ -139,14 +127,16 @@ def _scope(p: Any) -> tuple[Any, bool]:
 
 
 def _statement_start(statements: Any, current: int) -> int:
-    """The first token index of the statement being parsed in ``statements`` (or ``current`` before any); 0 outside
-    any statements, in an entry rule (``parse_entry``), whose text is one statement's worth from its start."""
+    """The first token index of the statement being parsed in ``statements``: its last directive while that one is
+    open or has just failed (its exception is set), else ``current``, since a directive that finished is a statement
+    before this one (spec 3.2: its brackets are not this statement's). 0 outside any statements, in an entry rule
+    (``parse_entry``), whose text is one statement's worth from its start."""
     if statements is None:
         return 0
-    kids = [
-        k for k in ((statements.children or []) if statements is not None else []) if _rule_of(k) == P.RULE_directive
-    ]
-    return int(kids[-1].start.tokenIndex) if kids else current
+    kids = [k for k in (statements.children or []) if _rule_of(k) == P.RULE_directive]
+    if not kids or (kids[-1].stop is not None and kids[-1].exception is None):
+        return current
+    return int(kids[-1].start.tokenIndex)
 
 
 class _Recovery(DefaultErrorStrategy):  # type: ignore[misc]
@@ -267,3 +257,38 @@ def install_recovery(parser: KnoblyParser, report: Callable[[RawDiagnostic], Non
     parser._errHandler = _Recovery(report)
     # Report a failed prediction where it fails, not after ANTLR's guess at an alternative that ends the rule.
     parser._interp.getSynValidOrSemInvalidAltThatFinishedDecisionEntryRule = lambda configs, outer_context: 0
+
+
+class NestingTooDeep(Exception):
+    """The parser opened a block or list at nesting level MAX_NESTING + 1 (E2010). Not a RecognitionException, so no
+    recovery catches it: it ends the parse. ``at`` is the index of that level's ``{`` or ``[``."""
+
+    def __init__(self, at: int) -> None:
+        super().__init__(at)
+        self.at = at
+
+
+_NESTING_RULES = frozenset({P.RULE_block, P.RULE_list})
+"""The rules that nest (spec 2.5: blocks and lists): the only recursion in the grammar."""
+
+
+class _NestingGuard(ParseTreeListener):  # type: ignore[misc]
+    """Counts, at every entry to a block or list rule, the blocks and lists open around it (the context chain, so no
+    count can drift), and raises NestingTooDeep past MAX_NESTING, before the parser recurses any deeper."""
+
+    def enterEveryRule(self, ctx: Any) -> None:
+        if ctx.getRuleIndex() not in _NESTING_RULES:
+            return
+        depth = 0
+        c = ctx
+        while c is not None:
+            if c.getRuleIndex() in _NESTING_RULES:
+                depth += 1
+            c = c.parentCtx
+        if depth > MAX_NESTING:
+            raise NestingTooDeep(int(ctx.start.tokenIndex))
+
+
+def install_nesting_guard(parser: KnoblyParser) -> None:
+    """Make ``parser`` raise NestingTooDeep when it opens a block or list past MAX_NESTING (spec 2.5, E2010)."""
+    parser.addParseListener(_NestingGuard())

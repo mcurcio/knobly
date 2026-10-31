@@ -30,6 +30,9 @@ durable record. Every choice below is current and can be revised.
 | Real rasl configs in the corpus (2026-10-23) | "Neutral here, real ones to rasl (Recommended)" | `kno-m8w.5` |
 | Generated parser code (2026-10-23) | "Don't commit the generated code, just the source": every build and test regenerates it | `kno-g7n.2` |
 | Releases (2026-10-23) | "Key from semantic-release and conventional commit on every PR merge"; "GitHub Release assets only"; "Dry-run until I enable it" (the repository variable `RELEASE_ENABLED`) | `kno-g7n.3` |
+| Skipped brackets and the 100-level limit (2026-10-30) | Answer, to the proposal that brackets error recovery skips not count: "that sounds right" | spec 2.5; errata N1, N6; kno-qa3, kno-bzv.6 |
+| A limit after expansion (2026-10-30) | Answer: "100 seems too low. can we increase it?"; asked which limit: "after expansion"; real configs "likely a few dozen, but i want the headroom". 256 (`MAX_EXPANDED_NESTING`, E5013) is a revisable choice, not his number | `kno-bzv.6` |
+| What one nesting level is (2026-10-30) | Proposal, not objected to (the current rule, revisable): each block and each list a value sits inside is one level; a slice's brackets are none | spec 2.5; errata N3 |
 
 ## Owner answers the low-level API rests on (since 2026-10-24)
 
@@ -125,8 +128,9 @@ The current choices of round 12, by id in `.claude/design/consumer-api/round12/d
   - The first error is reported at the real position.
   - A bad statement becomes one error node, and later siblings are kept.
 - **The layers** (round 11 built the middle one; round 12 the low level under it): the language page is
-  [docs/language.md](../docs/language.md); the low level is [docs/low-level-api.md](../docs/low-level-api.md); the
-  rendered tree is [docs/rendered-tree.md](../docs/rendered-tree.md).
+  [the guide's language page](../docs/site/pages/language.md); the low level is
+  [Editing and saving](../docs/site/pages/editing.md); the rendered tree is
+  [Walking, addresses and reloads](../docs/site/pages/walking.md).
   - A processor is made once with a document source and extensions. `load` reads a root file and every file it
     includes, each once, and returns the document graph: the files as written, their variables, and what each
     `$name` reads at each place where it is read. Named edits change the text and keep comments and layout; `save`
@@ -165,7 +169,7 @@ since answered them (see Owner answers).
 ## Diagnostic codes
 
 The full table, with what each code means and where it is placed, is in
-[docs/rendered-tree.md](../docs/rendered-tree.md#error-codes). The bands:
+[the guide's error codes](../docs/site/pages/diagnostics.md#error-codes). The bands:
 
 | Band | What | Codes in use |
 |---|---|---|
@@ -173,7 +177,7 @@ The full table, with what each code means and where it is placed, is in
 | 2xxx | syntax | E2001, E2003, E2004, E2007, E2008, E2009, E2010 |
 | 3xxx | files and extensions | E3001, E3004, E3005 (include path; was E2006), E3006 (an extension failed; new) |
 | 4xxx | values | E4001 (bound), E4002-E4006 (readers; E4003 checked at load) |
-| 5xxx | expansion (new in round 11) | E5001-E5012 |
+| 5xxx | expansion (new in round 11) | E5001-E5013 (E5013: nesting after expansion, 2026-10-30) |
 | 6xxx | reserved for the high-level API | none defined |
 | `namespace/name` | a program's own codes, such as `rasl/unknown-node` | checked when made |
 

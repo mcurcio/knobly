@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -52,44 +53,41 @@ inline parsed_text parse_entry(std::string_view text, entry_rule rule) {
     }
     sd::raw_node root{::knobly::node_kind::document, 0, count, {}};
     std::vector<sd::raw_diagnostic> diagnostics;
-    if (const std::size_t too_deep = sd::nesting_overflow(raw_tokens); too_deep != sd::npos) {
-        const auto code = ::knobly::diagnostic_code::nesting_too_deep;
-        diagnostics.push_back({code, too_deep, ::knobly::describe(code).message});
-    } else {
-        sd::parser parser(text, raw_tokens);
-        parser.open_node(::knobly::node_kind::document);
-        bool done = false;
-        switch (rule) {
-            case entry_rule::statements_text:
-                done = parser.r_statementsText();
-                break;
-            case entry_rule::values_text:
-                done = parser.r_valuesText();
-                break;
-            case entry_rule::value_text:
-                done = parser.r_valueText();
-                break;
-            case entry_rule::items_text:
-                done = parser.r_itemsText();
-                break;
-            case entry_rule::bound_text:
-                done = parser.r_boundText();
-                break;
-            case entry_rule::slice_name_text:
-                done = parser.r_sliceNameText();
-                break;
-            case entry_rule::name_text:
-                done = parser.r_nameText();
-                break;
-        }
-        diagnostics = parser.take_diagnostics();
-        if (done && diagnostics.empty()) {
-            parser.close_node();
-            root = parser.take_root();
-        }
-        root.start = 0;
-        root.end = count;
+    sd::parser parser(text, raw_tokens);
+    parser.open_node(::knobly::node_kind::document);
+    bool done = false;
+    switch (rule) {
+        case entry_rule::statements_text:
+            done = parser.r_statementsText();
+            break;
+        case entry_rule::values_text:
+            done = parser.r_valuesText();
+            break;
+        case entry_rule::value_text:
+            done = parser.r_valueText();
+            break;
+        case entry_rule::items_text:
+            done = parser.r_itemsText();
+            break;
+        case entry_rule::bound_text:
+            done = parser.r_boundText();
+            break;
+        case entry_rule::slice_name_text:
+            done = parser.r_sliceNameText();
+            break;
+        case entry_rule::name_text:
+            done = parser.r_nameText();
+            break;
     }
+    diagnostics = parser.take_diagnostics();  // E2010 alone when nesting passed the limit (spec 2.5)
+    if (done && diagnostics.empty()) {
+        parser.close_node();
+        if (std::optional<sd::raw_node> made = parser.take_root()) {
+            root = std::move(*made);
+        }
+    }
+    root.start = 0;
+    root.end = count;
     std::vector<::knobly::diagnostic> located;
     if (!diagnostics.empty()) {
         sd::raw_diagnostic& first = diagnostics.front();

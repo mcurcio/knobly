@@ -9,7 +9,7 @@ and ``error``, and its block (``RenderedBlock``) the walk. It names low-level ha
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import final
 
@@ -52,19 +52,15 @@ class Directive(api.Directive):
     __match_args__ = ("name", "values", "block")
     __slots__ = ("_block", "_name", "_origin", "_parent", "_unreadable", "_values", "_written")
 
-    def __init__(self, expansion: DirectiveExpansion, parent: Directive | None) -> None:
-        """Made by ``render`` only, from one directive copy of the graph's expansion: its block's directives are made
-        with it, each with this one as its parent."""
+    def __init__(self, expansion: DirectiveExpansion, parent: Directive | None, inner: list[Directive]) -> None:
+        """Made by ``render`` only (``rendered_block``), from one directive copy of the graph's expansion. ``inner``
+        becomes its block's directives: ``rendered_block`` fills it with them, each with this one as its parent."""
         self._name = expansion.written.name
         self._values = expansion.values
         self._parent = parent
         self._origin = expansion.origin
         self._written = expansion.written
-        self._block = (
-            None
-            if expansion.block is None
-            else RenderedBlock(tuple(Directive(child, self) for child in expansion.block))
-        )
+        self._block = None if expansion.block is None else RenderedBlock(inner)
         self._unreadable = expansion.unreadable
 
     def __repr__(self) -> str:
@@ -114,11 +110,12 @@ class Directive(api.Directive):
 class RenderedBlock(BlockBase[Directive, Directive], api.RenderedBlock):
     __slots__ = ("_items",)
 
-    def __init__(self, items: tuple[Directive, ...]) -> None:
-        """Made by ``render`` only."""
+    def __init__(self, items: Sequence[Directive]) -> None:
+        """Made by ``render`` only; ``rendered_block`` fills ``items`` before ``render`` returns, and nothing changes
+        them after."""
         self._items = items
 
-    def _members(self) -> tuple[Directive, ...]:
+    def _members(self) -> Sequence[Directive]:
         return self._items
 
     def _directive(self, item: Directive, /) -> Directive:
@@ -129,3 +126,20 @@ class RenderedBlock(BlockBase[Directive, Directive], api.RenderedBlock):
 
     def _inner(self, item: Directive, /) -> RenderedBlock | None:
         return item.block
+
+
+def rendered_block(expansions: Iterable[DirectiveExpansion]) -> RenderedBlock:
+    """The rendered top level of an expansion's top-level directives. Each directive is made with its parent and an
+    empty list, its block's directives, which the loop fills later. A loop, not a recursion: the tree may be
+    MAX_EXPANDED_NESTING deep (spec 2.5)."""
+    top: list[Directive] = []
+    stack: list[tuple[Iterable[DirectiveExpansion], Directive | None, list[Directive]]] = [(expansions, None, top)]
+    while stack:
+        items, parent, into = stack.pop()
+        for expansion in items:
+            inner: list[Directive] = []
+            directive = Directive(expansion, parent, inner)
+            into.append(directive)
+            if expansion.block is not None:
+                stack.append((expansion.block, directive, inner))
+    return RenderedBlock(top)

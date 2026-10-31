@@ -139,6 +139,31 @@ TEST_CASE("nesting past the limit is one error node and E2010 at the first brack
     CHECK(deep.diagnostics().at(0).span().start().offset() == static_cast<std::int64_t>(2 + limit));
 }
 
+TEST_CASE("the nesting guard counts the blocks recovery opens, and nothing it skips", "[parse]") {
+    const std::size_t limit = static_cast<std::size_t>(syntax::max_nesting);
+    const auto recovered = [](std::size_t n) {  // n blocks nested through recovery, each holding a stray ']'
+        std::string text;
+        for (std::size_t i = 0; i < n; ++i) {
+            text += "a { ] ; ";
+        }
+        return text;
+    };
+    const syntax::syntax at_limit = syntax::parse(recovered(limit));
+    CHECK(codes(at_limit).size() == limit + 1);  // each ']' is E2004, then the unclosed blocks' one E2003
+    CHECK(codes(at_limit).back() == diagnostic_code::expected_closing_brace);
+    for (const std::size_t n : {limit + 1, std::size_t{100'000}}) {
+        const syntax::syntax deep = syntax::parse(recovered(n));
+        const std::int64_t count = static_cast<std::int64_t>(deep.tokens().size());
+        CHECK(shape_of(deep.root()) == shape{node_kind::document, 0, count, {{node_kind::error, 0, count, {}}}});
+        CHECK(codes(deep) == std::vector{diagnostic_code::nesting_too_deep});
+        CHECK(deep.diagnostics().at(0).span().start().offset() == static_cast<std::int64_t>(8 * limit + 2));
+    }
+    // Brackets and braces a bad statement's recovery skips open nothing: the statement's first error is its diagnostic.
+    CHECK(codes(syntax::parse(std::string(500, ']') + std::string(limit + 1, '['))) ==
+          std::vector{diagnostic_code::expected_closing_bracket});
+    CHECK(codes(syntax::parse(std::string(100'000, '{'))) == std::vector{diagnostic_code::unexpected_token});
+}
+
 TEST_CASE("span_of and text_of take a range within the tokens, or raise index_out_of_range", "[span]") {
     const syntax::syntax s = syntax::parse("a b;");  // a, SPACE, b, ;
     CHECK(syntax::text_of(s, syntax::token_range(1, 3)) == " b");

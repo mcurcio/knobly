@@ -95,6 +95,35 @@ describe("recovery", () => {
     });
   });
 
+  it("starts a bad statement at its own first token after a finished directive (kno-g8g)", () => {
+    // spec 3.2: `a`'s block holds an unclosed `[`, but `a` has finished, so its brackets are not the next bad
+    // statement's: `"x" 1;` ends at its own `;` and `c 2;` is read.
+    const { tree, codes } = shape('a { b [; }\n"x" 1;\nc 2;\nd ];\n');
+    expect(tree[2].map(([kind, text]) => [kind, text])).toEqual([
+      ["directive", "a { b [; }"],
+      ["error", '"x" 1;'],
+      ["directive", "c 2;"],
+      ["error", "d ];"],
+    ]);
+    expect(codes).toEqual([
+      ["E2001", 0, 7],
+      ["E2001", 1, 0],
+      ["E2004", 3, 2],
+    ]);
+  });
+
+  it("starts a bad statement at the directive that just failed, so its open bracket counts", () => {
+    // `c` failed inside its list: the bad statement starts at `c`, its `[` is open, so recovery skips the `;` inside the
+    // list and resumes after `];`, keeping `f;` with no second diagnostic.
+    const { tree, codes } = shape("a { b; }\nc [d; e];\nf;\n");
+    expect(tree[2].map(([kind, text]) => [kind, text])).toEqual([
+      ["directive", "a { b; }"],
+      ["error", "c [d; e];"],
+      ["directive", "f;"],
+    ]);
+    expect(codes).toEqual([["E2001", 1, 4]]);
+  });
+
   it("resumes after the bad statement's ';' or block, never at a line break", () => {
     expect(shape("a ]\nb 1;\nc 2;\n").tree[2].map((n) => [n[0], n[1]])).toEqual([
       ["error", "a ]\nb 1;"],
@@ -207,10 +236,12 @@ describe("entry rules (spec 2.8)", () => {
 describe("nesting depth guard", () => {
   const blocks = (n: number): string => "a {".repeat(n) + "}".repeat(n);
   const lists = (n: number): string => `x ${"[".repeat(n)}${"]".repeat(n)}`;
+  /** `n` blocks nested through recovery: each holds a stray `]` and then the next block. */
+  const recovered = (n: number): string => "a { ] ; ".repeat(n);
 
   it(`parses ${MAX_NESTING} levels of blocks and lists clean`, () => {
     expect(MAX_NESTING).toBe(100);
-    for (const text of [blocks(MAX_NESTING), `${lists(MAX_NESTING)};`, `a {${"x [".repeat(MAX_NESTING - 1)}`]) {
+    for (const text of [blocks(MAX_NESTING), `${lists(MAX_NESTING)};`, `a {x ${"[".repeat(MAX_NESTING - 1)}`, recovered(MAX_NESTING)]) {
       const syntax = parse(text);
       expect(syntax.diagnostics.filter((d) => d.code === DiagnosticCode.NestingTooDeep)).toEqual([]);
     }
@@ -222,7 +253,9 @@ describe("nesting depth guard", () => {
     for (const [text, column] of [
       [blocks(MAX_NESTING + 1), 3 * MAX_NESTING + 2],
       [lists(MAX_NESTING + 1), 2 + MAX_NESTING],
-      [`a {${"x [".repeat(MAX_NESTING)}`, 3 + 3 * (MAX_NESTING - 1) + 2],
+      [`a {x ${"[".repeat(MAX_NESTING)}`, 5 + MAX_NESTING - 1],
+      [recovered(MAX_NESTING + 1), 8 * MAX_NESTING + 2],
+      [recovered(100_000), 8 * MAX_NESTING + 2],
     ] as const) {
       const syntax = parse(text);
       expect(syntax.diagnostics.map((d) => [d.code, d.span.start.column])).toEqual([["E2010", column]]);
@@ -236,10 +269,19 @@ describe("nesting depth guard", () => {
     }
   });
 
-  it("counts closers so sequential nesting never adds up, and never throws", () => {
+  it("rejects nesting past the limit in an entry rule with its one diagnostic", () => {
+    expect(parseEntry(`${"[".repeat(MAX_NESTING)}${"]".repeat(MAX_NESTING)}`, "valuesText").diagnostics).toEqual([]);
+    const deep = parseEntry("[".repeat(MAX_NESTING + 1), "valuesText");
+    expect(deep.diagnostics.map((d) => [d.code, d.span.start.column])).toEqual([["E2010", MAX_NESTING]]);
+    expect(deep.root).toEqual({ kind: "document", start: 0, end: deep.tokens.length, children: [] });
+  });
+
+  it("counts only the blocks and lists the parser opens, and never throws", () => {
     expect(parse(`${blocks(MAX_NESTING)}\n${blocks(MAX_NESTING)}`).diagnostics).toEqual([]);
     expect(() => parse("}".repeat(500) + blocks(MAX_NESTING))).not.toThrow();
-    expect(parse("]".repeat(500) + "[".repeat(MAX_NESTING + 1)).diagnostics.map((d) => d.code)).toEqual(["E2010"]);
-    expect(() => parse("{".repeat(100_000))).not.toThrow();
+    // Brackets and braces a bad statement's recovery skips open nothing: the statement's first error is its diagnostic.
+    expect(parse("]".repeat(500) + "[".repeat(MAX_NESTING + 1)).diagnostics.map((d) => d.code)).toEqual(["E2004"]);
+    expect(parse(`a {${"x [".repeat(MAX_NESTING)}`).diagnostics.map((d) => d.code)).toEqual(["E2001"]);
+    expect(parse("{".repeat(100_000)).diagnostics.map((d) => d.code)).toEqual(["E2001"]);
   });
 });

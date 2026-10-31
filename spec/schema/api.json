@@ -228,6 +228,14 @@
       "code": "E2010"
     },
     {
+      "name": "expanded nesting depth",
+      "constant": "max expanded nesting",
+      "layer": "written",
+      "value": 256,
+      "means": "blocks and lists nested at most this deep after expansion",
+      "code": "E5013"
+    },
+    {
       "name": "expansion depth",
       "constant": "max depth",
       "layer": "written",

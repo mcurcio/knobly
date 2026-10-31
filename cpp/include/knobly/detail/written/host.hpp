@@ -70,36 +70,49 @@ inline const std::vector<::knobly::located_diagnostic>& diagnostics_of(graph_cor
 
 // ---- the expansion (expansion.ts)
 
-inline void fill(binding_core* binding, const std::vector<bound_item>& items,
-                 std::vector<directive_expansion_node*>& block, std::vector<unreadable_node*>& unreadable) {
-    for (const bound_item& item : items) {
-        statement_node* const statement = item.copy->statement;
-        const document_node* doc = statement->doc;
-        const parsed_text& p = doc->parsed;
-        if (!item.directive) {
-            const ::knobly::place place(doc->path, p.span_of(statement->tree.start(), statement->tree.end()));
-            unreadable.push_back(binding->nodes.make<unreadable_node>(
-                statement, item.reason, ::knobly::directive_origin(place, item.copy->via)));
-            continue;
-        }
-        directive_expansion_node* const made = binding->nodes.make<directive_expansion_node>(
-            statement,
-            ::knobly::directive_origin(::knobly::place(doc->path, p.at(statement->tree.start()).span), item.copy->via));
-        const auto found = binding->expanded.find(item.copy);
-        for (value_node* v : statement->values) {
-            if (found == binding->expanded.end()) {
-                break;
+/// The directive and unreadable expansions of `top` into `top_block` and `top_unreadable`. A loop over the blocks
+/// still to fill, not a recursion: the expanded tree may be max_expanded_nesting deep (spec 2.5). Each block is filled
+/// by one task, so each list keeps its written order.
+inline void fill(binding_core* binding, const std::vector<bound_item>& top,
+                 std::vector<directive_expansion_node*>& top_block, std::vector<unreadable_node*>& top_unreadable) {
+    struct task {
+        const std::vector<bound_item>* items;
+        std::vector<directive_expansion_node*>* block;
+        std::vector<unreadable_node*>* unreadable;
+    };
+    std::vector<task> tasks{{&top, &top_block, &top_unreadable}};
+    while (!tasks.empty()) {
+        const task next = tasks.back();
+        tasks.pop_back();
+        for (const bound_item& item : *next.items) {
+            statement_node* const statement = item.copy->statement;
+            const document_node* doc = statement->doc;
+            const parsed_text& p = doc->parsed;
+            if (!item.directive) {
+                const ::knobly::place place(doc->path, p.span_of(statement->tree.start(), statement->tree.end()));
+                next.unreadable->push_back(binding->nodes.make<unreadable_node>(
+                    statement, item.reason, ::knobly::directive_origin(place, item.copy->via)));
+                continue;
             }
-            const auto values = found->second.find(v);
-            if (values != found->second.end()) {
-                made->values.insert(made->values.end(), values->second.begin(), values->second.end());
+            directive_expansion_node* const made = binding->nodes.make<directive_expansion_node>(
+                statement, ::knobly::directive_origin(::knobly::place(doc->path, p.at(statement->tree.start()).span),
+                                                      item.copy->via));
+            const auto found = binding->expanded.find(item.copy);
+            for (value_node* v : statement->values) {
+                if (found == binding->expanded.end()) {
+                    break;
+                }
+                const auto values = found->second.find(v);
+                if (values != found->second.end()) {
+                    made->values.insert(made->values.end(), values->second.begin(), values->second.end());
+                }
             }
+            if (item.has_children) {
+                made->block = binding->nodes.make<expansion_block_node>();
+                tasks.push_back({&item.children, &made->block->items, &made->unreadable});
+            }
+            next.block->push_back(made);
         }
-        if (item.has_children) {
-            made->block = binding->nodes.make<expansion_block_node>();
-            fill(binding, item.children, made->block->items, made->unreadable);
-        }
-        block.push_back(made);
     }
 }
 

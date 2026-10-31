@@ -927,3 +927,60 @@
   corpus cannot pin the message: `conformance/format.md` says the message is not part of the contract, so the three
   bindings agree on it by their own tests and the guide's sample, not by a conformance case. W2 (RECORD.md's links)
   stays a follow-up.
+
+## 2026-10-30, corpus cases for codes no shared case gave (kno-bzv.4)
+
+- **C1. E3004 and E3006 cannot be reached through the shared corpus; the bead's acceptance asks for both.** The
+  protocol's `load` (spec/schema/protocol.json, spec/conformance.md 4.1) offers only a `memory source` over `files`
+  and `extensions` of `[]` or `["include"]`. A memory source never fails a `resolve` (it returns the keys it holds,
+  spec 4.3) and `read` is only called on a path `resolve` returned, so E3004 has no input; the include extension
+  throws only a `diagnostic error` (E3005), so E3006 has none either. Both need new protocol surface: for example a
+  `load` option naming paths whose `resolve` or `read` the adapter's source fails (or returns a non-list), and a test
+  extension (`["include", "throwing"]`) whose `specs` throws a plain error or returns a bare text. That changes the
+  protocol schema, the generated message types and all three adapters, so it is a design choice, not made here.
+  The other codes (E5003 E5005 E5007 E5008 E5010 E5011) and the empty glob's E3001 are in
+  `conformance/written/diagnostics.json`, and all three bindings pass them.
+
+## 2026-10-30, nesting limits (kno-bzv.6), applied
+
+- **N1. Applied: skipped brackets do not count toward the 100-level limit.** Owner, 2026-10-30, asked whether
+  brackets that error recovery skips should count: "that sounds right". Recorded in spec 2.5 ("In one text (E2010)").
+  The bindings already counted this way since 3d759bc (the guard on the parser's own block and list rules).
+- **N2. Applied: a limit after expansion, MAX_EXPANDED_NESTING = 256, code E5013.** Owner, 2026-10-30, of a limit of
+  100 after expansion: "100 seems too low. can we increase it?"; asked which limit: "after expansion"; real configs
+  "likely a few dozen, but i want the headroom". 256 is a revisable choice, not his number; MAX_NESTING stays 100.
+  Spec 2.4 (E5013), 2.5 ("After expansion (E5013)"), spec/schema/api.json and diagnostics.json. Placed at the name
+  of the statement whose block or values would sit deeper, the statement unreadable with reason expansion, checked
+  once its values are expanded and before its other checks.
+- **N3. Applied: the nesting level definition** (proposed to the owner 2026-10-30, not objected to; the current rule,
+  revisable): each block and each list a value sits inside is one level, blocks and lists counted together,
+  `[[1,2],[3,4]]` is 2 levels, a slice's brackets are no level. Spec 2.5 ("Nesting levels").
+- **N4. Spec 2.5 did not say what parse returns at E2010**, though `py/src/knobly/syntax/_parse.py` and
+  `cpp/include/knobly/detail/syntax/definitions.hpp` cited "spec 2.5" for it. Spec 2.5 now says it (a document over
+  every token holding one error node over every token, one E2010 on the bracket that opens level 101; an entry rule:
+  a document with no children and that E2010), and 2.8's list of an entry rule's codes now names E2010.
+- **N5. `.claude/design/cpp/design.md` said the nesting guard "runs before parsing"**; since 3d759bc it counts in the
+  parser's `open_node` hook. Corrected there.
+
+## 2026-10-30, nesting review round (kno-bzv.6), applied
+
+- **N6. N1's wording read the wrong way round.** He answered the proposal that skipped brackets not count ("that
+  sounds right"), not a question whether they should count. Spec 2.5 now says so. That answer is recorded in the notes of
+  kno-qa3 and kno-bzv.6 (kno-bzv.6 also holds the after-expansion quotes, cited in 2.5).
+- **N7. Spec 2.5 named only the checks after E5013.** It now also names those before it: the line's shape (E5009 to
+  E5011), E5002, E5003 and the codes its values give while they expand; an extension block's `@set` lines come after
+  the extension line's own E5013. The bindings already agreed; `diag-expanded-nesting-*` pin the order against the checks before and after,
+  but no case yet pins an extension line's E5013 before its block's `@set` E5013 (a swapped-order mutant survived).
+- **N8. Spec 3.2 did not say which code the end of the text gives inside a block, or how many E2003.** It now
+  states what all three bindings and the corpus (`nest-skipped-list`, `nest-recovered-100`) already do: an open `[`
+  gives E2004, else an open block E2003, else E2001; E2003 once, however many blocks are open; none after a
+  statement whose error node runs to the end. E2001's and E2003's meanings in diagnostics.json say the same.
+- **W2 applied.** `design/RECORD.md`'s three links to the deleted pages (and its error-codes link) now point at the
+  guide: `docs/site/pages/language.md`, `editing.md`, `walking.md` and `diagnostics.md#error-codes`. Its history
+  lines (82-83) still name the old pages as history.
+- **C1 is tracked in `kno-bzv.5`** (protocol surface to reach E3004 and E3006): the design choice stays open there.
+- **F5 (spec 4.2, how a file writer replaces a file) is tracked in `kno-epi`:** which binding's behaviour
+  becomes the rule is a choice for the owner, not made here.
+- **N9. Stale lists.** `spec/codegen.md`'s `limits.ts` row now names `MAX_EXPANDED_NESTING`; RECORD's 5xxx band is
+  E5001-E5013 and its owner-answers table holds the three 2026-10-30 nesting rows (two answers, one proposal); spec
+  9's load and written rows name 2.5 after expansion.

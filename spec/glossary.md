@@ -239,6 +239,7 @@ Python `X: TypeAlias = A | B | ...` over classes (so `isinstance(x, X)` works). 
 | `format diagnostic` (free function) | `formatDiagnostic` | `format_diagnostic` | `format_diagnostic` |
 | `make processor` (free function) | `knobly(...)` | `Processor(...)` | `processor(...)` |
 | `include` (free function) | `include` (`knobly/include`) | `include` (`knobly.include`) | `include` (`knobly::extensions`) |
+| `max expanded nesting` (constant) | `MAX_EXPANDED_NESTING` | `MAX_EXPANDED_NESTING` | `max_expanded_nesting` |
 | `max depth` (constant) | `MAX_DEPTH` | `MAX_DEPTH` | `max_depth` |
 | `max directives` (constant) | `MAX_DIRECTIVES` | `MAX_DIRECTIVES` | `max_directives` |
 | `max safe integer` (constant) | `MAX_SAFE_INTEGER` | `MAX_SAFE_INTEGER` | `max_safe_integer` |
