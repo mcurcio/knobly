@@ -897,6 +897,11 @@ function insertOf(given: string, pieces: readonly Piece[]): Insert {
   return { text, given, origin };
 }
 
+/** Where a document offset the splice starts at `from` lies in the caller's text, or -1 when it lies outside it. */
+function givenOffset(insert: Insert, from: number, offset: number): number {
+  return offset >= from && offset < from + insert.text.length ? (insert.origin[offset - from] ?? -1) : -1;
+}
+
 /**
  * E2010 when the spliced text nests past MAX_NESTING (spec 2.5, 2.8): the edit is refused, so no edit wipes a
  * document's tree. Placed at the bracket of the caller's text that opens the level past the limit, or at 0:0 when
@@ -905,8 +910,7 @@ function insertOf(given: string, pieces: readonly Piece[]): Insert {
 function nestingProblem(syntax: Syntax, from: number, insert: Insert): Diagnostic | undefined {
   const deep = syntax.diagnostics.find((d) => d.code === DiagnosticCode.NestingTooDeep);
   if (deep === undefined) return undefined;
-  const offset = deep.span.start.offset;
-  const origin = offset >= from && offset < from + insert.text.length ? (insert.origin[offset - from] ?? -1) : -1;
+  const origin = givenOffset(insert, from, deep.span.start.offset);
   if (origin < 0) return at(insert.given, 0, deep.code);
   return makeDiagnostic(deep.code, deep.message, { start: positionIn(insert.given, origin), end: positionIn(insert.given, origin + 1) });
 }
@@ -926,9 +930,7 @@ function ruleProblems(syntax: Syntax, extensions: ReadonlySet<string>, from: num
     return overlaps(span.start.offset, span.end.offset);
   };
   const report = (fault: { code: DiagnosticCode; span: SourceSpan }): void => {
-    const offset = fault.span.start.offset;
-    const origin = offset >= from && offset < to ? (insert.origin[offset - from] ?? -1) : -1;
-    out.push(at(insert.given, Math.max(origin, 0), fault.code));
+    out.push(at(insert.given, Math.max(givenOffset(insert, from, fault.span.start.offset), 0), fault.code));
   };
   const visit = (container: Node, claimed: readonly string[], touchedClaims: ReadonlySet<string>): void => {
     const nodes = statementNodes(container);

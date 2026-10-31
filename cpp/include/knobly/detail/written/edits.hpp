@@ -142,6 +142,12 @@ struct insert {
     std::string text;
     std::string given;
     std::vector<std::int64_t> origin;
+
+    /// Where a document offset the splice starts at `from` lies in the caller's text, or -1 when it lies outside it.
+    [[nodiscard]] std::int64_t given_offset(std::int64_t from, std::int64_t offset) const {
+        const std::int64_t to = from + static_cast<std::int64_t>(text.size());
+        return offset >= from && offset < to ? origin[static_cast<std::size_t>(offset - from)] : -1;
+    }
 };
 
 inline insert insert_of(std::string_view given, const std::vector<piece>& pieces) {
@@ -667,10 +673,7 @@ inline std::optional<::knobly::diagnostic> nesting_problem(const parsed_text& p,
         if (deep.code() != ::knobly::diagnostic_code::nesting_too_deep) {
             continue;
         }
-        const std::int64_t offset = deep.span().start().offset();
-        const std::int64_t to = from + static_cast<std::int64_t>(ins.text.size());
-        const std::int64_t origin =
-            offset >= from && offset < to ? ins.origin[static_cast<std::size_t>(offset - from)] : -1;
+        const std::int64_t origin = ins.given_offset(from, deep.span().start().offset());
         if (origin < 0) {
             return diagnostic_at(ins.given, 0, deep.code());
         }
@@ -696,9 +699,7 @@ inline std::vector<::knobly::diagnostic> rule_problems(const parsed_text& p, con
         return overlaps(span.start().offset(), span.end().offset());
     };
     const auto report = [&](const shape_fault& fault) {
-        const std::int64_t offset = fault.span.start().offset();
-        const std::int64_t origin =
-            offset >= from && offset < to ? ins.origin[static_cast<std::size_t>(offset - from)] : -1;
+        const std::int64_t origin = ins.given_offset(from, fault.span.start().offset());
         out.push_back(diagnostic_at(ins.given, std::max<std::int64_t>(origin, 0), fault.code));
     };
     std::function<void(const ::knobly::syntax::node&, const std::vector<std::string>&, const std::set<std::string>&)>
