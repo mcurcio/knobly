@@ -33,6 +33,7 @@ from knobly._api.limits import MAX_DEPTH, MAX_DIRECTIVES, MAX_EXPANDED_NESTING
 from knobly._api.shared import DirectiveOrigin, Origin, SourceSpan
 from knobly._api.syntax import Node, Syntax, Token, TokenRange
 from knobly._api.written import Copy, DocumentEdge, ExtensionUse, ReferenceResolution, Resolution
+from knobly._glob import has_glob
 from knobly._origin import Override, Place, Step
 from knobly._report import LocatedDiagnostic
 from knobly._text import port_texts
@@ -716,6 +717,12 @@ class Binding:
                 raise self._unread(text, name, via)
             if isinstance(paths, Exception):
                 raise fail(DiagnosticCode.INCLUDE_RESOLVER_FAILED, f"{spec}: {paths}")
+            if not paths and has_glob(spec):
+                # A warning stops nothing (spec 2.3, 4.1): kept in walk order, and the line goes on.
+                self.diagnostics.append(
+                    self._located(DiagnosticCode.INCLUDE_MATCHED_NOTHING, text, name.span, via, spec)
+                )
+                continue
             if not paths:
                 raise fail(DiagnosticCode.INCLUDE_NOT_FOUND, spec)
             found.extend(sorted(paths))
@@ -956,4 +963,11 @@ class Binding:
         from the registry (``describe``), so they cannot disagree with it."""
         described = describe(code, detail)
         assert described.reason is not None, f"{code} makes a statement unreadable"
-        return _Problem(described.reason, LocatedDiagnostic(code, described.message, text.place(span), via))
+        return _Problem(described.reason, self._located(code, text, span, via, detail))
+
+    @staticmethod
+    def _located(
+        code: DiagnosticCode, text: _Text, span: SourceSpan, via: tuple[Step, ...], detail: str | None = None
+    ) -> LocatedDiagnostic:
+        """The diagnostic for ``code`` at ``span``, its message from the registry (``describe``)."""
+        return LocatedDiagnostic(code, describe(code, detail).message, text.place(span), via)
