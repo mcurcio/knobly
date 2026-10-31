@@ -1,6 +1,7 @@
 // A tree 256 levels deep after expansion (spec 2.5, MAX_EXPANDED_NESTING, E5013; kno-bzv.6): load, render, addresses,
 // walk and diff run on a thread with a small stack, so a walk that recursed once per level would overflow it; one
-// block more is E5013 at the statement's name.
+// block more is E5013 at the statement's name. A list 256 levels deep, read through 128 variables, is loaded and read
+// on the same stack (kno-bzv.9).
 #include <knobly/rendered.hpp>
 #include <knobly/written.hpp>
 
@@ -11,6 +12,7 @@
 #include <cstdlib>
 #include <exception>
 #include <functional>
+#include <optional>
 #include <string>
 #include <utility>
 #include <variant>
@@ -41,6 +43,17 @@ std::string deep_snippets(const std::string& leaf) {
         out += "@snippet s" + std::to_string(i) + " { " + blocks + inner + " " + closes + "}\n";
     }
     return out + "@use s1;\n";
+}
+
+/// 128 variables of two lists each, each holding the one before: `leaf $v128;` reads a value 256 lists deep, while no
+/// text nests deeper than 2.
+std::string deep_list() {
+    std::string out;
+    for (int i = 1; i <= 128; ++i) {
+        const std::string inner = i == 1 ? "x" : "$v" + std::to_string(i - 1);
+        out += "@set $v" + std::to_string(i) + " [[" + inner + "]];\n";
+    }
+    return out + "leaf $v128;\n";
 }
 
 /// `work` on a thread whose stack is `bytes`, with any exception it throws carried back.
@@ -113,6 +126,29 @@ TEST_CASE("the walks over a tree 256 levels deep after expansion fit a small sta
     CHECK(diagnostics == 0);
     CHECK(walked == 257);
     CHECK(changes == std::vector<std::pair<vl::change_kind, std::size_t>>{{vl::change_kind::changed, 257}});
+}
+
+TEST_CASE("a list 256 levels deep read through variables fits a small stack", "[written][limits]") {
+    std::size_t diagnostics = 1;
+    std::size_t depth = 0;
+    std::size_t via = 0;
+    std::string text;
+    on_small_stack(stack_bytes(), [&] {
+        const vr::rendered loaded = vr::render(fixture::load(deep_list()));
+        diagnostics = loaded.diagnostics().size();
+        vw::expanded_value value = loaded.block().at(0).values().at(0);
+        text = value.text();
+        for (std::optional<vw::expanded_list> list = value.as<vw::expanded_list>(); list.has_value();
+             list = value.as<vw::expanded_list>()) {
+            ++depth;
+            value = list->items().at(0);
+        }
+        via = value.origin().via().size();
+    });
+    CHECK(diagnostics == 0);
+    CHECK(depth == 256);
+    CHECK(text == std::string(256, '[') + "x" + std::string(256, ']'));
+    CHECK(via == 128);
 }
 
 TEST_CASE("a block past 256 levels after expansion is E5013 at its statement's name", "[written][limits]") {

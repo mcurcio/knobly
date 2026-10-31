@@ -141,13 +141,29 @@ export class ExpandedRecord {
    * The same value having travelled further: the last `drop` steps of its origin (and of each list item's) are
    * replaced by `append`. A variable's value is stored with `drop` = the set line's own steps, and read with
    * `append` = the variable step and the reading place's steps, and that `$name`'s `resolution` first.
+   *
+   * A loop, not a recursion: a list may be MAX_EXPANDED_NESTING deep (spec 2.5). Each list is remade after its items,
+   * which wait on `made` in order.
    */
   static rebase(value: ExpandedRecord, drop: number, append: readonly Step[], resolution?: ReferenceResolution): ExpandedRecord {
-    const via = [...value.origin.via.slice(0, value.origin.via.length - drop), ...append];
-    const data = value.#data;
-    const moved = data.kind === ValueKind.List ? { kind: ValueKind.List, items: data.items.map((item) => ExpandedRecord.rebase(item, drop, append, resolution)) } : data;
-    const chain = resolution === undefined ? value.chain : [resolution, ...value.chain];
-    return new ExpandedRecord(moved, { place: value.origin.place, via }, value.definition, chain);
+    const made: ExpandedRecord[] = [];
+    const stack: [ExpandedRecord, boolean][] = [[value, false]];
+    for (let top = stack.pop(); top !== undefined; top = stack.pop()) {
+      const [record, itemsMade] = top;
+      const data = record.#data;
+      if (data.kind === ValueKind.List && !itemsMade) {
+        stack.push([record, true]);
+        for (let i = data.items.length - 1; i >= 0; i--) stack.push([data.items[i] as ExpandedRecord, false]);
+        continue;
+      }
+      const moved = data.kind === ValueKind.List ? { kind: ValueKind.List, items: made.splice(made.length - data.items.length) } : data;
+      const via = [...record.origin.via.slice(0, record.origin.via.length - drop), ...append];
+      const chain = resolution === undefined ? record.chain : [resolution, ...record.chain];
+      made.push(new ExpandedRecord(moved, { place: record.origin.place, via }, record.definition, chain));
+    }
+    const [rebased] = made;
+    if (rebased === undefined) throw new Error("a rebase that made no value");
+    return rebased;
   }
 
   /** A record as the public union (a static, so a program sees no member it does not need). */

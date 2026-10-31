@@ -53,7 +53,12 @@ export class Directive implements api.Directive {
   }
 
   closest(predicate: (directive: api.Directive) => boolean): api.Directive | undefined {
-    return predicate(this) ? this : this.parent?.closest(predicate);
+    // A loop up the parents, not a recursion: a directive may be MAX_EXPANDED_NESTING deep (spec 2.5).
+    if (predicate(this)) return this;
+    for (let directive = this.parent; directive !== undefined; directive = directive.parent) {
+      if (predicate(directive)) return directive;
+    }
+    return undefined;
   }
 
   error(message: string, code: ProgramCode): DiagnosticError {
