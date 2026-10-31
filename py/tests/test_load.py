@@ -540,6 +540,24 @@ def test_an_extension_that_raises_something_else_is_e3006() -> None:
     assert codes(loaded) == ["E3006"]
 
 
+def test_an_extension_that_raises_a_warning_code_is_e3006_at_the_directive_and_never_the_warning() -> None:
+    # Owner, 2026-10-31 (kno-bzv.2): a warning is never raised, so raising one is the extension's mistake.
+    class Warns:
+        directive = "warn"
+
+        def specs(self, use: written.ExtensionUse, /) -> tuple[str, ...]:
+            code = vl.DiagnosticCode.INCLUDE_MATCHED_NOTHING
+            raise vl.DiagnosticError(vl.LocatedDiagnostic(code, "empty", use.origin.place, use.origin.via))
+
+    files = {"main.conf": "@warn x;\nok;\n"}
+    loaded = load_and_render(written.Processor(source=vl.memory_source(files), extensions=[Warns()]))
+    assert codes(loaded) == ["E3006"]
+    assert at(loaded.diagnostics[0]) == (0, 0)
+    assert "W3005" in loaded.diagnostics[0].message
+    assert [u.reason for u in loaded.unreadable] == [written.UnreadableReason.EXTENSION]
+    assert [d.name for d in loaded.block] == ["ok"]
+
+
 @pytest.mark.parametrize("result", ["dark.conf", None, ["a", 1], 3])
 def test_an_extension_whose_specs_are_not_a_tuple_of_str_is_e3006_at_the_directive(result: object) -> None:
     class Bare:

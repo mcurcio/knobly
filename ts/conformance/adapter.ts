@@ -228,13 +228,20 @@ const failingReads = (source: Knobly.DocumentSource, failing: readonly string[] 
         read: (path) => (failing.includes(path) ? Promise.reject(new Error(`failReads: ${path}`)) : source.read(path)),
       };
 
-/** The extensions a load names: include, or the test extension `throws` (spec/conformance.md 4.5). */
+/**
+ * The extensions a load names: include, or the test extension `throws` (spec/conformance.md 4.5), which throws a
+ * diagnostic error of the code its first value names when that value is a word, else a plain error.
+ */
 const EXTENSIONS: Readonly<Record<string, () => Written.Extension>> = {
   include,
   throws: () => ({
     directive: "throws",
-    specs: () => {
-      throw new Error("the throws extension");
+    specs: ({ values: [first], origin: { place, via } }) => {
+      if (first?.kind !== ValueKind.Word) throw new Error("the throws extension");
+      const code = first.text as Knobly.DiagnosticCode;
+      const severity = code.startsWith("W") ? vl.Severity.Warning : vl.Severity.Error;
+      const message = `the throws extension: ${code}`;
+      throw new vl.DiagnosticError({ code, severity, message, place, via, toString: () => message });
     },
   }),
 };

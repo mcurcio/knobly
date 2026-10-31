@@ -393,5 +393,21 @@
         "list"
       ]
     ]
+  },
+  {
+    "name": "diag-extension-throws-warning",
+    "needs": [],
+    "files": {
+      "main.conf": "@throws W3005;\nok;\n"
+    },
+    "root": "main.conf",
+    "extensions": [
+      "throws"
+    ],
+    "steps": [
+      [
+        "list"
+      ]
+    ]
   }
 ]

@@ -101,7 +101,7 @@ generated from the same file.
 |---|---|---|---|
 | `hello` | `protocol`: 1 | `{"protocol": 1, "binding": name, "unit": "utf-16" \| "code point" \| "byte", "level": 0 to 4}` | all |
 | `parse` | `text` | a **syntax** dump of `parse (text)` | L0 |
-| `load` | `files` (path to text), `root`, `extensions` (any of `"include"` and the test extension `"throws"`, section 4.5), `overrides`? (name to text), `failReads`? (paths whose `read` fails, section 4.5) | `{"graph": id}`: a processor with a `memory source` over `files` and the extensions named, then `load (root, overrides)`. With `failReads`, the source is the adapter's own over that memory source, whose `read` of each path named throws a plain error (section 4.5) | L1 |
+| `load` | `files` (path to text), `root`, `extensions` (any of `"include"` and the test extension `"throws"`, whose `@throws CODE;` throws a diagnostic error of that code, section 4.5), `overrides`? (name to text), `failReads`? (paths whose `read` fails, section 4.5) | `{"graph": id}`: a processor with a `memory source` over `files` and the extensions named, then `load (root, overrides)`. With `failReads`, the source is the adapter's own over that memory source, whose `read` of each path named throws a plain error (section 4.5) | L1 |
 | `graph` | `graph` | a **graph** dump | L1 |
 | `edit` | `target` (an id), `member` (a spec member name: `set` (on a statement, a variable or a written value), `replace with text`, `remove`, `rename`, `insert statements`, `add statements`, `insert before`, `insert after`, `set override`), `args` (in the member's parameter order; `null` means the argument is absent) | `{"handles": [{"id", "text"}, ...]}` when the member returns handles, else `{}` | L1 |
 | `save` | `graph`, `disk`? (path to text) | without `disk`: `{"batches": [[[path, text], ...], ...]}`, what a recording writer got, each `write` call one batch, during this one `save (writer)`. With `disk`: `save (writer)` with a `memory writer` over a new map holding `disk` (so a file whose text there differs from its saved text is a lost update), then `{"files": [[path, text], ...]}`, the map after, sorted by path | L1 |
@@ -213,7 +213,10 @@ program builds its own source or extension; nothing in any binding's public API 
   extension line, or for the root file into a `read error` from `load` (spec 4.1). Without `failReads` the source is
   the memory source itself.
 - **The `throws` extension** (`extensions` holds `"throws"`): it owns `@throws`, and its `specs` throws an error of
-  no spec 2.8 group, as above, whatever the use; the binding turns that into E3006 at the directive's name (spec 5).
+  no spec 2.8 group, as above; the binding turns that into E3006 at the directive's name (spec 5). When the use's
+  first value is a word naming a knobly code (`@throws W3005;`), it throws a `diagnostic error` of that code
+  instead, placed on the directive's name with the use's via, so a case names the code thrown (kno-bzv.2): a warning
+  code gives E3006 too (spec 5).
 
 Prior art: test262's host-defined `$262` object, which the harness's host adapter supplies so a test can reach
 behaviour the language alone cannot (`$262.detachArrayBuffer`), and Go's `testing/iotest.ErrReader`, a reader that

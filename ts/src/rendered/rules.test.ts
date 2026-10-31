@@ -403,6 +403,24 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
     expect(loaded.unreadable.map((u) => u.reason)).toEqual(["extension", "extension"]);
   });
 
+  it("gives E3006 at the name, never the warning, when an extension throws a DiagnosticError whose code is a W code", async () => {
+    // Owner, 2026-10-31 (kno-bzv.2): a warning is never thrown, so throwing one is the extension's mistake. The code
+    // decides, not the severity the thrown object claims.
+    for (const severity of [Severity.Warning, Severity.Error]) {
+      const warning: Extension = {
+        directive: "warn",
+        specs: ({ origin: { place, via } }) => {
+          throw new DiagnosticError({ code: "W3005", severity, message: "empty", place, via, toString: () => "empty" });
+        },
+      };
+      const loaded = await loadText("@warn x;\nok;\n", { extensions: [warning] });
+      expect(problems(loaded.diagnostics), severity).toEqual([["E3006", "main.conf:0:0"]]);
+      expect(loaded.diagnostics[0]?.message, severity).toContain("W3005");
+      expect(loaded.unreadable.map((u) => u.reason), severity).toEqual(["extension"]);
+      expect(addresses(loaded), severity).toEqual(["ok"]);
+    }
+  });
+
   it("reports an included file's syntax error once and keeps an unreadable entry at each place", async () => {
     const files = { "main.conf": 'a "open\n;\na { @include "p.conf"; }\nb { @include "p.conf"; }\n', "p.conf": "x 1;\ny x\"z\";\n" };
     const loaded = await loadFiles(files, INCLUDE);

@@ -13,6 +13,7 @@
 import { anatomyOf, type DirectiveAnatomy, itemsOf, valuesOf } from "../anatomy.js";
 import { MAX_DEPTH, MAX_DIRECTIVES, MAX_EXPANDED_NESTING } from "../gen/api/limits.js";
 import { hasGlob } from "../graph/glob.js";
+import { severityOf } from "../diagnostics.js";
 import { compareCodePoints } from "../graph/order.js";
 import { makeOverride, makePlace, makeStep } from "../origin.js";
 import { makeLocated } from "../report.js";
@@ -27,7 +28,7 @@ import { SetLine, SnippetLine, type StatementHandle } from "./statements.js";
 import { ExpandedRecord } from "./value.js";
 import { DiagnosticCode, describe } from "../gen/api/codes.js";
 import { DiagnosticError } from "../gen/api/errors.js";
-import { NodeKind, PlaceKind, StatementKind, statementOfKeyword, StepKind, TokenKind, UnreadableReason, ValueKind } from "../gen/api/kinds.js";
+import { NodeKind, PlaceKind, Severity, StatementKind, statementOfKeyword, StepKind, TokenKind, UnreadableReason, ValueKind } from "../gen/api/kinds.js";
 import type { LocatedDiagnostic, Override, Place, SourceSpan, Step } from "../gen/api/shared.js";
 import type { Node, Syntax, Token } from "../gen/api/syntax.js";
 import type { Copy, DocumentEdge, Extension, Reference, ReferenceResolution, Resolution, Statement, UseLine, Variable, WrittenValue } from "../gen/api/written.js";
@@ -691,7 +692,12 @@ class Walk implements BindingWithNeeds {
     try {
       given = extension.specs({ values: values.map((record) => ExpandedRecord.asValue(record)), origin });
     } catch (error) {
-      if (error instanceof DiagnosticError) throw new Problem(UnreadableReason.Extension, error.diagnostic);
+      if (error instanceof DiagnosticError) {
+        // A warning is never thrown (spec 2.3, 5): one thrown is the extension's mistake, E3006, judged by its code.
+        const { code } = error.diagnostic;
+        if (severityOf(code) === Severity.Warning) throw fail(DiagnosticCode.ExtensionFailed, `${extension.directive}: threw the warning ${code}`);
+        throw new Problem(UnreadableReason.Extension, error.diagnostic);
+      }
       throw fail(DiagnosticCode.ExtensionFailed, `${extension.directive}: ${reasonOf(error)}`);
     }
     // The port's result is checked at run time (spec 5, kno-umh.12): a list of texts, nothing else.

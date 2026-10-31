@@ -20,7 +20,7 @@ gives: expansion codes, the limits, an empty glob (W3005, a warning: `diag-inclu
 check's E5007 in `diag-include-glob-empty-too-deep`; an edit, a save and a render that go on with only a warning in
 `diag-include-glob-empty-edit-save`, spec 2.3), E5013's place and order (`diag-expanded-nesting-*`), and
 E3004, the root's `read error` and E3006 through the faults of spec/conformance.md 4.5 (`diag-*-read-fails`,
-`diag-extension-throws`), each but the root's read from the graph's `diagnostics` by a `["list"]` step):
+`diag-extension-throws`; a thrown warning code, `diag-extension-throws-warning`), each but the root's read from the graph's `diagnostics` by a `["list"]` step):
 JSON arrays of cases, each
 
 ```
@@ -43,7 +43,8 @@ JSON arrays of cases, each
   under `fixtures/` whose `*.conf` files are served the same way, by path relative to it.
 - `root`: the path loaded. `overrides`: the load's `overrides` option, by name without `$`.
 - `extensions`: absent (none), or the extensions to turn on: `"include"`, and `"throws"`, the test extension whose
-  `specs` throws an error of no spec 2.8 group (E3006; [spec/conformance.md 4.5](../../spec/conformance.md#45-faults-a-case-injects)).
+  `specs` throws an error of no spec 2.8 group (E3006), or for `@throws CODE;` a diagnostic error of that code
+  ([spec/conformance.md 4.5](../../spec/conformance.md#45-faults-a-case-injects)).
   There is no key rule: rendered addresses are positional.
 - `failReads` (kno-bzv.5): paths whose `read` fails (spec/conformance.md 4.5): E3004 at the extension line that
   splices one in, or a `read error` from `load` for the root file.

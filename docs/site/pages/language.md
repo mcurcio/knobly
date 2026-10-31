@@ -245,7 +245,7 @@ The rules ([`spec/expansion.md`](https://github.com/mcurcio/knobly/blob/main/spe
   value, or on `@include` when there is none; case `load-include-extra-path`). A path that matches no file is E3001,
   and a source that fails to read is E3004, both at `@include`. A glob that matches no file is the warning W3005
   at `@include`: the include splices nothing and the rest loads as usual (case `load-include-glob-empty`).
-- A program can write its own extensions. One that fails with anything but a located error gives E3006.
+- A program can write its own extensions. One that fails with anything but a located error, or throws a warning, gives E3006.
 
 Tests: "rules 7 and 8: extension directives and their blocks" in `ts/src/rendered/rules.test.ts`; the include tests in
 `py/tests/test_load.py`.

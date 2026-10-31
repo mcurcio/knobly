@@ -368,8 +368,8 @@
       "result": "loaded",
       "level": "L1",
       "doc": "`{\"graph\": id}`: a processor with a `memory source` over `files` and the extensions named, then `load (root, overrides)`. With `failReads`, the source is the adapter's own over that memory source, whose `read` of each path named throws a plain error (section 4.5)",
-      "params doc": "`files` (path to text), `root`, `extensions` (any of `\"include\"` and the test extension `\"throws\"`, section 4.5), `overrides`? (name to text), `failReads`? (paths whose `read` fails, section 4.5)",
-      "rationale": "kno-bzv.5 (errata C1) added `failReads` and the `throws` test extension, which reach E3004 and E3006"
+      "params doc": "`files` (path to text), `root`, `extensions` (any of `\"include\"` and the test extension `\"throws\"`, whose `@throws CODE;` throws a diagnostic error of that code, section 4.5), `overrides`? (name to text), `failReads`? (paths whose `read` fails, section 4.5)",
+      "rationale": "kno-bzv.5 (errata C1) added `failReads` and the `throws` test extension, which reach E3004 and E3006; kno-bzv.2 let a `@throws` word name the code it throws"
     },
     {
       "op": "graph",

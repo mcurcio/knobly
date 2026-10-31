@@ -82,7 +82,8 @@ method, and a bare `str` returned is refused as E3006 (Python would read it as a
 `knobly::written::extension`.
 
 To refuse a use at a place, throw a diagnostic error from a value's or the use's `error(message, code)`; it is
-recorded as thrown. Anything else thrown becomes E3006 at the line. An extension's statement is written with `@`, so
+recorded as thrown. Anything else thrown becomes E3006 at the line, and so does a diagnostic error whose code is a
+warning (`W3005`): a warning is never thrown, so throwing one is the extension's mistake. An extension's statement is written with `@`, so
 its name is never reserved for directives: `include "f.conf";` is a directive named `include`, and an `@name` no
 registered extension owns is E3008. Every binding refuses an extension named `set`, `snippet` or `use`, or two
 extensions with one name, when the processor is made (a misuse error).

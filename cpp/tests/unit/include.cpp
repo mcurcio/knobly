@@ -1,6 +1,7 @@
 // extensions::include() (spec 5.1): its name, and E3005 on the @include when the line has no value. The paths that
 // read values (not a string, a second value, the spec) are proven by the L3 conformance cases (frozen-m2.md 5). Also
-// an extension's empty glob among several specs (spec 4.1: W3005, and resolution goes on), which no shared case has.
+// an extension's empty glob among several specs (spec 4.1: W3005, and resolution goes on), which no shared case has,
+// and an extension that throws a warning code (spec 5: E3006).
 #include <knobly/extensions.hpp>
 #include <knobly/written.hpp>
 
@@ -86,4 +87,37 @@ TEST_CASE("a path that matches no file after an empty glob is still E3001, after
           std::variant<vl::diagnostic_code, vl::program_code>(vl::diagnostic_code::include_not_found));
     CHECK(found.at(1).severity() == vl::severity::error);
     CHECK(graph.edges().at(0).targets().empty());
+}
+
+namespace {
+
+/// An extension that throws a diagnostic error whose code is the warning W3005.
+class throws_warning final : public vw::extension {
+public:
+    std::string directive() const override { return "warn"; }
+    vl::sequence<std::string> specs(const vw::extension_use& use) const override {
+        const vl::directive_origin origin = use.origin();
+        throw vl::diagnostic_error(vl::located_diagnostic(vl::diagnostic_code::include_matched_nothing, "empty",
+                                                          origin.place(), origin.via()));
+    }
+};
+
+}  // namespace
+
+TEST_CASE("an extension that throws a warning code gives E3006 at its name, never the warning", "[include][warning]") {
+    // Owner, 2026-10-31 (kno-bzv.2): a warning is never thrown, so throwing one is the extension's mistake.
+    const auto files = fixture::files({{"main.conf", "@warn x;\nz 1;\n"}});
+    const vw::document_graph graph =
+        vw::processor({vl::memory_source(files), {std::make_shared<throws_warning>()}}).load("main.conf");
+    const vl::sequence<vl::located_diagnostic> found = graph.diagnostics();
+    REQUIRE(found.size() == 1);
+    CHECK(found.at(0).code() ==
+          std::variant<vl::diagnostic_code, vl::program_code>(vl::diagnostic_code::extension_failed));
+    CHECK(found.at(0).place().span().start() == vl::source_position(0, 0, 0));
+    CHECK(found.at(0).message().find("W3005") != std::string::npos);
+    const vw::expansion expanded = graph.expand();
+    REQUIRE(expanded.unreadable().size() == 1);
+    CHECK(expanded.unreadable().at(0).reason() == vl::unreadable_reason::extension);
+    REQUIRE(expanded.block().size() == 1);
+    CHECK(expanded.block().at(0).written().name() == "z");
 }
