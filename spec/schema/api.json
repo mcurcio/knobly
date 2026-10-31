@@ -160,6 +160,19 @@
       },
       "doc": "where an origin's text is: in a file, or an override the program passed in"
     },
+    "severity": {
+      "layer": "shared",
+      "values": [
+        "error",
+        "warning"
+      ],
+      "sort": "tag",
+      "tag of": [
+        "diagnostic",
+        "located diagnostic"
+      ],
+      "doc": "how much a diagnostic counts (spec 2.3): an error, or a warning, over which no operation throws, raises, fails or refuses; a program sees a warning only by reading a diagnostics list. A knobly code's letter gives it (E an error, W a warning); a program's own code is an error"
+    },
     "unreadable reason": {
       "layer": "written",
       "values": [
@@ -277,7 +290,7 @@
       "constant": "program code",
       "layer": "shared",
       "regex": "^[^/\\t\\n\u000b\f\\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/[^\\t\\n\u000b\f\\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$",
-      "means": "<namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out); knobly's codes start with E"
+      "means": "<namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out); knobly's codes start with E or W"
     }
   },
   "error groups": [
@@ -324,7 +337,7 @@
       "name": "bad text error",
       "sort": "expected outcome",
       "parent": "knobly error",
-      "raised when": "the text given to an edit, or an override's text, is not what that place takes; 'diagnostics' are located in that text, in the binding's string unit, and its message is built from them",
+      "raised when": "the text given to an edit, or an override's text, is not what that place takes, or the document after the edit would nest deeper than MAX_NESTING; 'diagnostics' are located in that text, in the binding's string unit, and its message is built from them",
       "fields": [
         {
           "name": "diagnostics",
@@ -612,7 +625,7 @@
       "returns": "document source",
       "params": [],
       "module": "files",
-      "doc": "a document source over the local filesystem: read reads a path as given, as UTF-8; resolve joins a path spec to the directory of the parent path; a glob (* and ? in the last segment only) lists that directory and returns every matching file. A missing file or directory, or a path that is a directory, resolves to no paths (E3001); any other filesystem failure, such as permissions, fails (E3004)"
+      "doc": "a document source over the local filesystem: read reads a path as given, as UTF-8; resolve joins a path spec to the directory of the parent path; a glob (* and ? in the last segment only) lists that directory and returns every matching file. A missing file or directory, or a path that is a directory, resolves to no paths (E3001 for a spec that is no glob, the warning W3005 for a glob, spec 4.1); any other filesystem failure, such as permissions, fails (E3004)"
     },
     {
       "name": "file writer",
@@ -904,6 +917,13 @@
           "doc": "which problem"
         },
         {
+          "name": "severity",
+          "member": "property",
+          "type": "severity",
+          "derived": true,
+          "doc": "the code's severity (spec 2.3): always error, since parse finds no warning"
+        },
+        {
           "name": "message",
           "member": "property",
           "type": "text",
@@ -947,6 +967,13 @@
           "member": "property",
           "type": "diagnostic code or program code",
           "doc": "a diagnostic code, or the program's own program code (rasl/unknown-node)"
+        },
+        {
+          "name": "severity",
+          "member": "property",
+          "type": "severity",
+          "derived": true,
+          "doc": "the code's severity (spec 2.3): error, or warning for a W code (W3005); a program's own code is always an error"
         },
         {
           "name": "message",
@@ -1057,7 +1084,7 @@
           "member": "property",
           "type": "integer",
           "trait": "count",
-          "doc": "how many diagnostics it holds"
+          "doc": "how many diagnostics it holds, warnings included"
         },
         {
           "name": "iterate",
@@ -1283,7 +1310,7 @@
           ],
           "returns": "text[]",
           "io": true,
-          "doc": "the resolved paths a path spec names (a path, or a glob with * and ? in its last segment), in any order: the core sorts them. Empty means not found (E3001); a failure becomes E3004 at the extension line"
+          "doc": "the resolved paths a path spec names (a path, or a glob with * and ? in its last segment), in any order: the core sorts them. Empty means nothing matched: E3001 for a spec that is no glob, the warning W3005 for a glob (spec 4.1); a failure becomes E3004 at the extension line"
         },
         {
           "name": "read",
@@ -1622,7 +1649,7 @@
           "name": "diagnostics",
           "member": "property",
           "type": "located diagnostic[]",
-          "doc": "the one list: each document's syntax diagnostics (documents in order), then every problem the low level finds, in walk order, render codes included. The expansion's and the render's diagnostics are this same list"
+          "doc": "the one list: each document's syntax diagnostics (documents in order), then every problem the low level finds, in walk order, render codes and warnings included (a program tells them apart by severity). The expansion's and the render's diagnostics are this same list"
         },
         {
           "name": "expand",

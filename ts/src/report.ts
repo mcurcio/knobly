@@ -8,14 +8,20 @@ import type * as api from "./gen/api/shared.js";
 import { locatedForm } from "./people.js";
 import type { DiagnosticCode } from "./gen/api/codes.js";
 import { DiagnosticError } from "./gen/api/errors.js";
+import type { Severity } from "./gen/api/kinds.js";
+import { severityOf } from "./diagnostics.js";
 
 class LocatedDiagnostic implements api.LocatedDiagnostic {
+  readonly severity: Severity;
+
   constructor(
     readonly code: DiagnosticCode | api.ProgramCode,
     readonly message: string,
     readonly place: api.Place,
     readonly via: readonly api.Step[],
-  ) {}
+  ) {
+    this.severity = severityOf(code);
+  }
 
   toString(): string {
     return locatedForm(this);

@@ -22,7 +22,7 @@ from knobly._api.errors import (
     SaveError,
 )
 from knobly._api.io import DocumentSource, DocumentWriter, FileWrite, LoadContext
-from knobly._api.kinds import PlaceKind, StepKind
+from knobly._api.kinds import PlaceKind, Severity, StepKind
 from knobly._api.limits import PROGRAM_CODE
 from knobly._api.shared import (
     Block,
@@ -67,6 +67,7 @@ __all__ = [
     "ProgramCode",
     "ReadError",
     "SaveError",
+    "Severity",
     "SourcePosition",
     "SourceSpan",
     "Step",

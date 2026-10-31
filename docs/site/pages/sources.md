@@ -17,7 +17,7 @@ A processor is made with a source and its extensions, and everything else follow
 ## Document sources
 
 A document source has two methods: `resolve(spec, context)` gives the paths a spec names (a path, or a glob with `*`
-and `?` in its last part; none means not found, E3001), and `read(path)` gives a file's text. If either throws, the
+and `?` in its last part; none means not found: E3001 for a path, the warning W3005 for a glob), and `read(path)` gives a file's text. If either throws, the
 render reports E3004 at the include line (for the root file, `load` throws a read error). In TypeScript both return
 promises; in Python and C++ both are plain calls.
 
@@ -33,7 +33,7 @@ A **memory source** reads the map it was given at every call, so a memory writer
 the next load reads: tests and editors use the pair to work without a disk. The file source resolves an include
 against its parent's directory; the paths it gives are the keys of `documents` and the paths in every message (how
 they are spelled differs per binding: [How the bindings differ](differences.md#paths)). The fetch source never fetches
-in `resolve`, so a missing remote file is E3004 (the read fails), not E3001, and a glob resolves to nothing.
+in `resolve`, so a missing remote file is E3004 (the read fails), not E3001, and a glob resolves to nothing (W3005).
 
 A program can write its own source, for example to record which files a load read. `main.conf` includes
 `sink.conf` twice; the source sees one read of each file:

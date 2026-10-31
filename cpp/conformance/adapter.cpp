@@ -165,17 +165,16 @@ std::string code_text(const std::variant<vl::diagnostic_code, vl::program_code>&
 value diagnostic(const vl::diagnostic& d) {
     return object{{"id", keep(d)},
                   {"code", vl::to_string(d.code())},
+                  {"severity", std::string(vl::to_string(d.severity()))},
                   {"message", d.message()},
                   {"start", position(d.span().start())},
                   {"end", position(d.span().end())}};
 }
 
 value located(const vl::located_diagnostic& d) {
-    return object{{"id", keep(d)},
-                  {"code", code_text(d.code())},
-                  {"message", d.message()},
-                  {"place", place(d.place())},
-                  {"via", steps(d.via())}};
+    return object{
+        {"id", keep(d)},          {"code", code_text(d.code())}, {"severity", std::string(vl::to_string(d.severity()))},
+        {"message", d.message()}, {"place", place(d.place())},   {"via", steps(d.via())}};
 }
 
 value node(const vl::syntax::node& n) {
@@ -751,17 +750,60 @@ value edit(const value& request) {
 
 // ---- load and save
 
+/// The test source of spec/conformance.md 4.5: the memory source, but read of a path named fails.
+class failing_reads final : public vl::document_source {
+public:
+    failing_reads(std::shared_ptr<vl::document_source> source, std::vector<std::string> failing)
+        : source_(std::move(source)), failing_(std::move(failing)) {}
+    vl::sequence<std::string> resolve(std::string_view spec, const vl::load_context& context) const override {
+        return source_->resolve(spec, context);
+    }
+    std::string read(std::string_view resolved_path) const override {
+        if (std::find(failing_.begin(), failing_.end(), resolved_path) != failing_.end()) {
+            throw std::runtime_error("failReads: " + std::string(resolved_path));
+        }
+        return source_->read(resolved_path);
+    }
+
+private:
+    std::shared_ptr<vl::document_source> source_;
+    std::vector<std::string> failing_;
+};
+
+/// The test extension throws of spec/conformance.md 4.5: its specs throws an error of no spec 2.8 group.
+class throws_extension final : public vw::extension {
+public:
+    std::string directive() const override { return "throws"; }
+    vl::sequence<std::string> specs(const vw::extension_use& /*use*/) const override {
+        throw std::runtime_error("the throws extension");
+    }
+};
+
 value load(const value& request) {
     auto files = std::make_shared<vl::ordered_map<std::string, std::string>>();
     for (const auto& [path, text] : object_of(member_of(request, "files"), "files")) {
         files->insert_or_assign(path, text_of(text, "a file's text"));
     }
     vw::processor_options options{vl::memory_source(files), {}};
+    if (const value* fail = request.find("failReads")) {
+        std::vector<std::string> failing;
+        for (const value& path : array_of(*fail, "failReads")) {
+            failing.push_back(text_of(path, "a path"));
+        }
+        options.source = std::make_shared<failing_reads>(std::move(options.source), std::move(failing));
+    }
+    std::vector<std::shared_ptr<vw::extension>> extensions;
     for (const value& extension : array_of(member_of(request, "extensions"), "extensions")) {
-        if (text_of(extension, "an extension") == "include") {
-            options.extensions = {vl::extensions::include()};
+        const std::string& name = text_of(extension, "an extension");
+        if (name == "include") {
+            extensions.push_back(vl::extensions::include());
+        } else if (name == "throws") {
+            extensions.push_back(std::make_shared<throws_extension>());
+        } else {
+            throw std::runtime_error("no extension " + name);
         }
     }
+    options.extensions = std::move(extensions);
     vw::load_options load_options;
     if (const value* overrides = request.find("overrides")) {
         for (const auto& [name, text] : object_of(*overrides, "overrides")) {

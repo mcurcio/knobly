@@ -19,6 +19,17 @@ class CaseError(Exception):
     """The case cannot go on: a target is missing, or a dump is not what the protocol says."""
 
 
+def diagnostic_entry(d: Mapping[str, Any], *where: Any) -> List[Any]:
+    """One diagnostic as every expected file prints it (conformance/format.md, "Severity"): its code, then where it
+    is, then its severity only when that is not ``error``, so an error's entry reads as it did before warnings."""
+    if "severity" not in d:
+        raise CaseError(f"diagnostic {d.get('code')!r} has no severity (spec/conformance.md 4.2)")
+    entry = [d["code"], *where]
+    if d["severity"] != "error":
+        entry.append(d["severity"])
+    return entry
+
+
 class Session:
     """One case's view of the adapter: requests, the binding's unit, and the key rules as data."""
 
@@ -37,8 +48,9 @@ class Session:
             "root": case["root"],
             "extensions": list(case.get("extensions", [])),
         }
-        if "overrides" in case:
-            params["overrides"] = case["overrides"]
+        for optional in ("overrides", "failReads"):
+            if optional in case:
+                params[optional] = case[optional]
         return str(self.request("load", **params)["graph"])
 
     def graph(self, graph: str) -> Dict[str, Any]:

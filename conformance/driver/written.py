@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 from adapter import Thrown
-from common import CaseError, Session, Texts
+from common import CaseError, Session, Texts, diagnostic_entry
 from encode import to_bytes
 from rendered import projection, walk
 from units import line_column
@@ -30,6 +30,7 @@ ERRORS = {
     "misuse error": "MisuseError",
     "lost update error": "LostUpdateError",
     "argument type error": "TypeError",
+    "read error": "ReadError",
 }
 SKIP = ("COMMENT", "SPACE", "NEWLINE")
 
@@ -160,7 +161,7 @@ class Case:
             # A bad text error is located in the text the edit was given (spec 2.8): convert with that text.
             text = given.get("text", given.get("name")) or ""
             conv = self.s.convert(text)
-            diagnostics = [[d["code"], *line_column(conv, d["start"])] for d in error.get("diagnostics", [])]
+            diagnostics = [diagnostic_entry(d, *line_column(conv, d["start"])) for d in error.get("diagnostics", [])]
             return ["error", ERRORS.get(group, group), diagnostics]
         if "handles" in result:
             handles = result["handles"]
@@ -188,7 +189,7 @@ class Case:
                 ]
                 for v in dump["variables"]
             ],
-            "diagnostics": [[d["code"], t.origin(d["place"], d["via"])] for d in dump["diagnostics"]],
+            "diagnostics": [diagnostic_entry(d, t.origin(d["place"], d["via"])) for d in dump["diagnostics"]],
         }
 
     def references(self) -> List[Any]:
@@ -255,5 +256,10 @@ class Case:
 
 
 def run(session: Session, case: Mapping[str, Any]) -> str:
-    runner = Case(session, case)
+    try:
+        runner = Case(session, case)
+    except Thrown as thrown:
+        # A load that raises (a read error for the root, spec 4.1) is the case's whole output: no step runs.
+        group = thrown.error.get("group", "")
+        return to_bytes([["error", ERRORS.get(group, group), list(thrown.error.get("paths", []))]])
     return to_bytes([runner.step(step) for step in case["steps"]])

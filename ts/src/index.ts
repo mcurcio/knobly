@@ -21,7 +21,7 @@ export {
   KnoblyError,
 } from "./gen/api/errors.js";
 export type { DocumentSource, DocumentWriter, FileWrite, LoadContext } from "./gen/api/io.js";
-export { PlaceKind, StepKind, WalkControl } from "./gen/api/kinds.js";
+export { PlaceKind, Severity, StepKind, WalkControl } from "./gen/api/kinds.js";
 export { PROGRAM_CODE } from "./gen/api/limits.js";
 export type {
   Block,

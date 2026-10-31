@@ -369,12 +369,15 @@ Work in this order. Each step ends with shared cases passing, so progress is mea
    `python3 conformance/driver/run.py -- <your adapter's command>`. Make every syntax case pass (L0). The driver
    checks the byte rules and converts your positions to UTF-16 (contract 1); your adapter does neither.
 6. **Write the ports** (spec 4): the source and writer interfaces in your language's form, and
-   `memory source`. The adapter needs nothing else.
+   `memory source`. The adapter needs one more object of its own, built on the source port: a source that fails
+   `read` for the paths a case's `failReads` names ([conformance.md 4.5](conformance.md#45-faults-a-case-injects)).
 7. **Build the low level** (spec 6): load, handles, statements, values, variables, resolutions,
-   edits, save, quote. Add `load`, `graph`, `edit`, `save` and `quote` to the adapter and claim L1.
+   edits, save, quote. Add `load` (with `failReads`), `graph`, `edit`, `save` and `quote` to the adapter and claim
+   L1.
 8. **Build the rendered tree** (spec 7) and the include extension (spec 5.1). Add `render`, `diff`, `read`, `print`,
-   `format` and `cut`, and the key rule built from data (conformance.md 4.3); claim L2, then L3. The load, rendered
-   and contract corpora cover render, addresses, diff order, every reader, people forms and `format diagnostic`.
+   `format` and `cut`, and the key rule built from data (conformance.md 4.3); claim L2, then, with the `throws` test
+   extension (conformance.md 4.5), L3. The load, rendered and contract corpora cover render, addresses, diff order,
+   every reader, people forms and `format diagnostic`.
 9. **Test what the shared cases miss** (spec 9 lists it): the sink, `error(...)`, the file and memory adapters (L4
    has no shared cases yet), the error class tree, and that each operation is absent where it cannot succeed.
    Compare with TypeScript and Python, and report any disagreement as a finding. Add the driver with your adapter to

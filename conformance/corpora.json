@@ -1,5 +1,5 @@
 {
-  "$comment": "Every corpus the shared driver runs (spec/conformance.md section 4). 'cases': the case files, each a JSON array of cases with a unique 'name' across the corpus. 'expected': the directory of <name>.json expected files, or null when each case holds its result inline ('expect'). 'level': the conformance level (spec/README.md) of a case in this corpus; a case that uses the include extension ('extensions' holds \"include\", or 'needs' holds \"include\") is L3, and a written case whose steps render ('render', or a 'rendered' target) is L2. 'format': the page that says what the expected output is.",
+  "$comment": "Every corpus the shared driver runs (spec/conformance.md section 4). 'cases': the case files, each a JSON array of cases with a unique 'name' across the corpus. 'expected': the directory of <name>.json expected files, or null when each case holds its result inline ('expect'). 'level': the conformance level (spec/README.md) of a case in this corpus; a case that uses an extension ('extensions' is not empty, or 'needs' holds \"include\") is L3, and a written case whose steps render ('render', or a 'rendered' target) is L2. 'format': the page that says what the expected output is.",
   "corpora": [
     {
       "name": "syntax",

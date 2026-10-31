@@ -1,7 +1,11 @@
 {
   "$schema": "./api.schema.json",
-  "$comment": "The one home of knobly's diagnostic codes. spec/spec.md 2.4's table is generated from this file (tools/gen-api.py docs). 'layer' owns the code: syntax (parse), written (the low level: the graph's diagnostics, spec 6.3; the expanded value's readers, spec 2.9), include (the include extension). 'found by' is from a closed list: parse, edit (a bad text error's diagnostics), load and read, low level (worked out from the current texts), readers, include extension. 'message' is the base message (a binding may append ': <detail>'; messages are for people, spec 2.3); '{nesting depth}' names the limit of that name in api.json. 'unreadable reason' is the reason of the statement the code makes unreadable, null when it never does (readers raise it). 'meaning' (the spec's), 'summary' and 'placed at' (the user guide's, docs/site/pages/diagnostics.md) are Markdown; both tables are generated from this file.",
+  "$comment": "The one home of knobly's diagnostic codes. spec/spec.md 2.4's table is generated from this file (tools/gen-api.py docs). 'layer' owns the code: syntax (parse), written (the low level: the graph's diagnostics, spec 6.3; the expanded value's readers, spec 2.9), include (the include extension). 'found by' is from a closed list: parse, edit (a bad text error's diagnostics), load and read, low level (worked out from the current texts), readers, include extension. 'message' is the base message (a binding may append ': <detail>'; messages are for people, spec 2.3); '{nesting depth}' names the limit of that name in api.json. 'severities' maps a code's letter to its severity, a value of api.json's severity kind list (spec 2.3). 'unreadable reason' is the reason of the statement the code makes unreadable, null when it never does (readers raise it; a warning stops nothing). 'meaning' (the spec's), 'summary' and 'placed at' (the user guide's, docs/site/pages/diagnostics.md) are Markdown; both tables are generated from this file. In 'meaning' and 'summary' write a limit as '{limit name}', which the generated tables fill with its value (100,000); writing the value by hand is refused (tools/gen-api.py), so api.json stays the value's one home.",
   "version": 2,
+  "severities": {
+    "E": "error",
+    "W": "warning"
+  },
   "ranges": {
     "1xxx": "lexical",
     "2xxx": "syntax",
@@ -39,7 +43,7 @@
   ],
   "rules": [
     "Codes are stable across bindings and releases and are never reused for another meaning.",
-    "Every code is an error; there are no warning codes.",
+    "A code's letter is its severity (spec 2.3), from 'severities': E an error, W a warning. A warning is never thrown or raised and no operation fails or refuses over one (owner, 2026-10-30: \"Nothing. Just a diagnostic, not thrown/raised like errors are. They have to be intentionally fetched\").",
     "A program's own codes are '<namespace>/<name>' (api.json patterns, program code) and never collide with these."
   ],
   "codes": [
@@ -165,13 +169,14 @@
       "name": "nesting too deep",
       "layer": "syntax",
       "found by": [
-        "parse"
+        "parse",
+        "edit"
       ],
       "unreadable reason": "syntax",
       "message": "blocks and lists nest deeper than {nesting depth} levels",
-      "meaning": "Blocks and lists nested deeper than 100 levels.",
-      "summary": "blocks and lists nested deeper than 100",
-      "placed at": "per `conformance/`"
+      "meaning": "Blocks and lists nested deeper than {nesting depth} levels. Also an edit's bad text error when the document after the edit would nest past it (2.8).",
+      "summary": "blocks and lists nested deeper than {nesting depth}",
+      "placed at": "the `{` or `[` that opens the level past the limit; at an edit, 0:0 when that bracket is not in the given text"
     },
     {
       "code": "E3001",
@@ -182,8 +187,8 @@
       ],
       "unreadable reason": "extension",
       "message": "include not found",
-      "meaning": "An extension's spec matched no file.",
-      "summary": "a spec matched no file",
+      "meaning": "An extension's spec that is no glob matched no file. A glob that matches none is the warning W3005.",
+      "summary": "a path (no glob) matched no file",
       "placed at": "the extension line's name"
     },
     {
@@ -197,7 +202,7 @@
       "message": "include resolver failed",
       "meaning": "The document source rejected while resolving or reading a file. For the root file, `load` fails instead (6.2).",
       "summary": "the source threw (for the root file `load` fails)",
-      "placed at": "the extension line's name; the root file at 0:0"
+      "placed at": "the extension line's name"
     },
     {
       "code": "E3005",
@@ -211,6 +216,19 @@
       "meaning": "An `include` whose values are not exactly one quoted path.",
       "summary": "include needs exactly one quoted path",
       "placed at": "the bad value, or the name when there is none"
+    },
+    {
+      "code": "W3005",
+      "name": "include matched nothing",
+      "layer": "written",
+      "found by": [
+        "load and read"
+      ],
+      "unreadable reason": null,
+      "message": "include matched nothing",
+      "meaning": "A warning: an extension's spec that is a glob (the glob rule of 4.1) matched no file. The line splices nothing for it and is not stopped. A spec that is no glob and matches no file is E3001.",
+      "summary": "a glob matched no file: a warning, so the include splices nothing and the load goes on",
+      "placed at": "the extension line's name, as E3001"
     },
     {
       "code": "E3006",
@@ -418,8 +436,8 @@
       ],
       "unreadable reason": "expansion",
       "message": "expansion nests too deep",
-      "meaning": "`use` and extension lines nested deeper than 16.",
-      "summary": "more than 16 snippets or files open inside each other",
+      "meaning": "`use` and extension lines nested deeper than {expansion depth}.",
+      "summary": "more than {expansion depth} snippets or files open inside each other",
       "placed at": "the `use` or extension line"
     },
     {
@@ -431,8 +449,8 @@
       ],
       "unreadable reason": "expansion",
       "message": "too many directives after expansion",
-      "meaning": "More than 100,000 directives after expansion.",
-      "summary": "more than 100,000 directives after expansion; expansion stops",
+      "meaning": "More than {directives} directives after expansion.",
+      "summary": "more than {directives} directives after expansion; expansion stops",
       "placed at": "the statement that is one too many"
     },
     {
@@ -499,8 +517,8 @@
       ],
       "unreadable reason": "expansion",
       "message": "expanded blocks and lists nest deeper than {expanded nesting depth}",
-      "meaning": "Blocks and lists nested deeper than 256 levels after expansion (2.5): a directive whose block or values, or a `set`, `use` or extension line whose values, would sit deeper. The statement is unreadable there and its block is not walked.",
-      "summary": "blocks and lists nested deeper than 256 after expansion",
+      "meaning": "Blocks and lists nested deeper than {expanded nesting depth} levels after expansion (2.5): a directive whose block or values, or a `set`, `use` or extension line whose values, would sit deeper. The statement is unreadable there and its block is not walked.",
+      "summary": "blocks and lists nested deeper than {expanded nesting depth} after expansion",
       "placed at": "the name of the statement whose block or values sit too deep"
     }
   ]

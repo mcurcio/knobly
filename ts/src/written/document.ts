@@ -459,6 +459,8 @@ export class Document implements api.Document {
     const spliced = typeof insert === "string" ? insertOf(insert, [[0, insert.length]]) : insert;
     const text = this.current.slice(0, start) + spliced.text + this.current.slice(end);
     const syntax = parse(text);
+    const deep = nestingProblem(syntax, start, spliced);
+    if (deep !== undefined) throw new BadTextError([deep]);
     const rules = ruleProblems(syntax, this.host.extensionNames, start, spliced);
     if (rules.length > 0) throw new BadTextError(rules);
     const reconcile = new Reconcile(this.entries(), { start, end, inserted: spliced.text.length }, keep);
@@ -895,6 +897,24 @@ function insertOf(given: string, pieces: readonly Piece[]): Insert {
   return { text, given, origin };
 }
 
+/** Where a document offset the splice starts at `from` lies in the caller's text, or -1 when it lies outside it. */
+function givenOffset(insert: Insert, from: number, offset: number): number {
+  return offset >= from && offset < from + insert.text.length ? (insert.origin[offset - from] ?? -1) : -1;
+}
+
+/**
+ * E2010 when the spliced text nests past MAX_NESTING (spec 2.5, 2.8): the edit is refused, so no edit wipes a
+ * document's tree. Placed at the bracket of the caller's text that opens the level past the limit, or at 0:0 when
+ * that bracket is not in what it gave.
+ */
+function nestingProblem(syntax: Syntax, from: number, insert: Insert): Diagnostic | undefined {
+  const deep = syntax.diagnostics.find((d) => d.code === DiagnosticCode.NestingTooDeep);
+  if (deep === undefined) return undefined;
+  const origin = givenOffset(insert, from, deep.span.start.offset);
+  if (origin < 0) return at(insert.given, 0, deep.code);
+  return makeDiagnostic(deep.code, deep.message, { start: positionIn(insert.given, origin), end: positionIn(insert.given, origin + 1) });
+}
+
 /**
  * The text-alone rules (E5002, E5005, E5009-E5011) a spliced text would break, on the statements the splice
  * touches (a `set` claiming a name of a snippet parameter the splice touches counts too): located in the caller's
@@ -910,9 +930,7 @@ function ruleProblems(syntax: Syntax, extensions: ReadonlySet<string>, from: num
     return overlaps(span.start.offset, span.end.offset);
   };
   const report = (fault: { code: DiagnosticCode; span: SourceSpan }): void => {
-    const offset = fault.span.start.offset;
-    const origin = offset >= from && offset < to ? (insert.origin[offset - from] ?? -1) : -1;
-    out.push(at(insert.given, Math.max(origin, 0), fault.code));
+    out.push(at(insert.given, Math.max(givenOffset(insert, from, fault.span.start.offset), 0), fault.code));
   };
   const visit = (container: Node, claimed: readonly string[], touchedClaims: ReadonlySet<string>): void => {
     const nodes = statementNodes(container);

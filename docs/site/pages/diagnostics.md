@@ -60,12 +60,24 @@ In C++, `<knobly/format.hpp>` is opt-in: it gives every type with a people form 
 `std::formatter`, both writing exactly its `to_string`, so `std::format("{}", place)` works with width, fill and
 alignment.
 
-A diagnostic's `code` and `place` are the contract between the bindings; its `message` is for people and may differ.
-A problem with an override's value is placed on the `$name` that used it.
+A diagnostic's `code`, `severity` and `place` are the contract between the bindings; its `message` is for people
+and may differ. A problem with an override's value is placed on the `$name` that used it.
+
+## Errors and warnings
+
+Every diagnostic has a `severity` (`severity()` in C++): `error` or `warning`, read from a knobly code's letter. Errors
+and warnings sit in the same list, in the order they were found. A warning does nothing: no load, render, read, edit
+or save throws one or acts differently because one is there, and `collect` never records one, since only a reader's
+error is thrown. The only way to see a warning is to read the list. Today there is one warning, W3005: an `@include`
+glob that matches no file, so the include splices nothing (a path that matches no file stays the error E3001).
+
+A program's own codes (`report`, `error`) are errors. A sink's count includes warnings, so a program that stops when
+a config has problems counts the diagnostics whose severity is `error`.
 
 ## Error codes
 
-Lines and columns are counted from 0 in the API. "At" says where the diagnostic is placed. The 1xxx and 2xxx codes
+Lines and columns are counted from 0 in the API. "At" says where the diagnostic is placed. A knobly code starting with `W`
+is a warning; every other code, a program's own included, is an error. The 1xxx and 2xxx codes
 come from the syntax layer, which places them as the cases in
 [`conformance/`](https://github.com/mcurcio/knobly/tree/main/conformance) show. An edit that is refused reports the
 same codes, placed in the text the edit was given ([Editing and saving](editing.md#named-edits-and-a-refused-edit)).
@@ -82,10 +94,11 @@ same codes, placed in the text the edit was given ([Editing and saving](editing.
 | E2004 | `ExpectedClosingBracket` | `EXPECTED_CLOSING_BRACKET` | `expected_closing_bracket` | an unmatched bracket | per `conformance/` |
 | E2007 | `BadSlice` | `BAD_SLICE` | `bad_slice` | a malformed slice (`[~]` among them, and `[1:3]`, whose `1:3` is one word), or a literal bound that is not a whole number | per `conformance/` |
 | E2009 | `ValuesTouch` | `VALUES_TOUCH` | `values_touch` | two values with no space or comment between | per `conformance/` |
-| E2010 | `NestingTooDeep` | `NESTING_TOO_DEEP` | `nesting_too_deep` | blocks and lists nested deeper than 100 | per `conformance/` |
-| E3001 | `IncludeNotFound` | `INCLUDE_NOT_FOUND` | `include_not_found` | a spec matched no file | the extension line's name |
-| E3004 | `IncludeResolverFailed` | `INCLUDE_RESOLVER_FAILED` | `include_resolver_failed` | the source threw (for the root file `load` fails) | the extension line's name; the root file at 0:0 |
+| E2010 | `NestingTooDeep` | `NESTING_TOO_DEEP` | `nesting_too_deep` | blocks and lists nested deeper than 100 | the `{` or `[` that opens the level past the limit; at an edit, 0:0 when that bracket is not in the given text |
+| E3001 | `IncludeNotFound` | `INCLUDE_NOT_FOUND` | `include_not_found` | a path (no glob) matched no file | the extension line's name |
+| E3004 | `IncludeResolverFailed` | `INCLUDE_RESOLVER_FAILED` | `include_resolver_failed` | the source threw (for the root file `load` fails) | the extension line's name |
 | E3005 | `IncludeBadPath` | `INCLUDE_BAD_PATH` | `include_bad_path` | include needs exactly one quoted path | the bad value, or the name when there is none |
+| W3005 | `IncludeMatchedNothing` | `INCLUDE_MATCHED_NOTHING` | `include_matched_nothing` | a glob matched no file: a warning, so the include splices nothing and the load goes on | the extension line's name, as E3001 |
 | E3006 | `ExtensionFailed` | `EXTENSION_FAILED` | `extension_failed` | an extension threw something other than a located error, or returned something other than a list of texts | the extension line's name |
 | E3007 | `UnreadCopy` | `UNREAD_COPY` | `unread_copy` | an include copy whose files are not read yet (`graph.read()` reads them) | the extension line's name |
 | E3008 | `UnknownExtension` | `UNKNOWN_EXTENSION` | `unknown_extension` | an `@name` that is no language statement and no registered extension | the `@name` |

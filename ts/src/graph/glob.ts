@@ -1,6 +1,6 @@
 /**
- * Include glob rules shared by memorySource and the document sources of ./node and ./browser. Private to the
- * package.
+ * Include glob rules (spec 4.1) shared by the core's bind (W3005 or E3001 for an empty result), memorySource and
+ * the document sources of ./node and ./browser. Private to the package.
  */
 
 /** Whether an include spec is a glob: it holds * or ?. */

@@ -7,7 +7,8 @@ import { describe, expect, it } from "vitest";
 import { include } from "../include.js";
 import { formatDiagnostic } from "../written/index.js";
 import { loadFiles, loadText, only, problems } from "./testing.js";
-import { DiagnosticCode, DiagnosticError, Diagnostics, type LocatedDiagnostic, MisuseError, type ProgramCode } from "../index.js";
+import { DiagnosticCode, DiagnosticError, Diagnostics, type LocatedDiagnostic, MisuseError, type ProgramCode, Severity } from "../index.js";
+import { makeLocated } from "../report.js";
 
 describe("Diagnostics", () => {
   it("starts with the load's problems and records add and report in order", async () => {
@@ -17,7 +18,7 @@ describe("Diagnostics", () => {
     sink.report(node, "no such node", "rasl/unknown-node");
     sink.report(only(node.values), "bad id", "rasl/bad-id");
     sink.report(loaded, "no graph", "rasl/no-graph");
-    const extra: LocatedDiagnostic = { code: "rasl/x", message: "x", place: loaded.origin.place, via: [] };
+    const extra: LocatedDiagnostic = { code: "rasl/x", severity: "error", message: "x", place: loaded.origin.place, via: [] };
     sink.add(extra);
     expect(sink.length).toBe(5);
     expect(problems(sink)).toEqual([
@@ -29,6 +30,17 @@ describe("Diagnostics", () => {
     ]);
     expect([...sink].map((d) => d.message)).toEqual([expect.stringContaining("$nope"), "no such node", "bad id", "no graph", "x"]);
     expect(new Diagnostics().length).toBe(0);
+  });
+
+  it("gives each diagnostic its code's severity: a W code a warning, an E code and a program's code an error", async () => {
+    const loaded = await loadText("x 1;\n");
+    const place = loaded.origin.place;
+    expect(makeLocated(DiagnosticCode.IncludeMatchedNothing, "m", place, []).severity).toBe(Severity.Warning);
+    expect(makeLocated(DiagnosticCode.IncludeNotFound, "m", place, []).severity).toBe(Severity.Error);
+    expect(makeLocated("rasl/x", "m", place, []).severity).toBe(Severity.Error);
+    const sink = new Diagnostics();
+    sink.report(loaded, "m", "rasl/y");
+    expect([...sink].map((d) => d.severity)).toEqual([Severity.Error]);
   });
 
   it("collect records a DiagnosticError and returns undefined; passes anything else through", async () => {

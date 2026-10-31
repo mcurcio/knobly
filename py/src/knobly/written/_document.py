@@ -65,6 +65,10 @@ class _Insert:
     given: str
     origin: tuple[int, ...]
 
+    def given_offset(self, frm: int, offset: int) -> int:
+        """Where a document offset the splice starts at ``frm`` lies in the caller's text, or -1 when outside it."""
+        return self.origin[offset - frm] if frm <= offset < frm + len(self.text) else -1
+
 
 def _insert_of(given: str, pieces: Sequence[Piece]) -> _Insert:
     text: list[str] = []
@@ -465,6 +469,9 @@ def _splice(
     spliced = _insert_of(insert, [(0, len(insert))]) if isinstance(insert, str) else insert
     text = doc._text[:start] + spliced.text + doc._text[end:]
     syntax = parse(text)
+    deep = _nesting_problem(syntax, start, spliced)
+    if deep is not None:
+        raise BadTextError([deep])
     rules = _rule_problems(syntax, starts_of(syntax), doc._graph._extension_names, start, spliced)
     if rules:
         raise BadTextError(rules)
@@ -912,6 +919,20 @@ def entry_problems(text: str, rule: EntryRule) -> tuple[Diagnostic, ...]:
     return parse_entry(text, rule).diagnostics
 
 
+def _nesting_problem(syntax: Syntax, frm: int, insert: _Insert) -> Diagnostic | None:
+    """E2010 when the spliced text nests past MAX_NESTING (spec 2.5, 2.8): the edit is refused, so no edit wipes a
+    document's tree. Placed at the bracket of the caller's text that opens the level past the limit, or at 0:0 when
+    that bracket is not in what it gave."""
+    deep = next((d for d in syntax.diagnostics if d.code is DiagnosticCode.NESTING_TOO_DEEP), None)
+    if deep is None:
+        return None
+    origin = insert.given_offset(frm, deep.span.start.offset)
+    if origin < 0:
+        return at(insert.given, 0, deep.code)
+    span = SourceSpan(position_in(insert.given, origin), position_in(insert.given, origin + 1))
+    return Diagnostic(deep.code, deep.message, span)
+
+
 def _rule_problems(
     syntax: Syntax, starts: Sequence[int], extensions: frozenset[str], frm: int, insert: _Insert
 ) -> list[Diagnostic]:
@@ -944,8 +965,7 @@ def _rule_problems(
                         touches(other) and shapes[j].claims == name for j, other in enumerate(nodes[:i])
                     )
                 if involved:
-                    offset = starts[fault.token]
-                    origin = insert.origin[offset - frm] if frm <= offset < to else -1
+                    origin = insert.given_offset(frm, starts[fault.token])
                     out.append(at(insert.given, max(origin, 0), fault.code))
             if node.kind is not NodeKind.DIRECTIVE:
                 continue

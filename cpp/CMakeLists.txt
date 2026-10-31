@@ -200,4 +200,18 @@ if(KNOBLY_BUILD_TESTS)
   add_test(NAME conformance COMMAND Python3::Interpreter "${KNOBLY_REPO}/conformance/driver/run.py"
                                     -- $<TARGET_FILE:knobly_adapter>)
   set_tests_properties(conformance PROPERTIES TIMEOUT 900)
+  # The adapter's JSON is freed and written without recursing (kno-bzv.10): the deepest load case runs again with the
+  # adapter's stack lowered to 512 KiB (four times that under the sanitizers), where a destructor or dump that recursed
+  # once per level overflows. It passes on 384 KiB. POSIX shells only (`ulimit -s`).
+  if(UNIX)
+    if(KNOBLY_SANITIZE)
+      set(_knobly_adapter_stack_kib 2048)
+    else()
+      set(_knobly_adapter_stack_kib 512)
+    endif()
+    add_test(NAME conformance_small_stack
+             COMMAND sh -c "ulimit -s ${_knobly_adapter_stack_kib} && exec \"$0\" \"$1\" --case load-expanded-nesting-256 -- \"$2\""
+                     "${Python3_EXECUTABLE}" "${KNOBLY_REPO}/conformance/driver/run.py" $<TARGET_FILE:knobly_adapter>)
+    set_tests_properties(conformance_small_stack PROPERTIES TIMEOUT 120)
+  endif()
 endif()

@@ -48,6 +48,16 @@ TEST_CASE("add, report and iteration keep the order of arrival", "[diagnostics]"
     CHECK(vl::diagnostics().empty());
 }
 
+TEST_CASE("a diagnostic's severity is its code's, and a program's code is an error", "[diagnostics]") {
+    const vl::place at("a", {{0, 0, 0}, {0, 0, 0}});
+    CHECK(vl::located_diagnostic(vl::diagnostic_code::include_matched_nothing, "m", at, {}).severity() ==
+          vl::severity::warning);
+    CHECK(vl::located_diagnostic(vl::diagnostic_code::include_not_found, "m", at, {}).severity() ==
+          vl::severity::error);
+    CHECK(vl::located_diagnostic(vl::program_code("app/x"), "m", at, {}).severity() == vl::severity::error);
+    CHECK(vl::diagnostic_code::include_matched_nothing != vl::diagnostic_code::include_bad_path);  // W3005, E3005
+}
+
 TEST_CASE("collect records a reader's diagnostic error and returns absent", "[diagnostics]") {
     const vw::document_graph graph = fixture::load("x 8080 nope;\n");
     const vl::sequence<vw::expanded_value> values = graph.expand().block().at(0).values();

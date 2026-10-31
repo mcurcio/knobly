@@ -15,12 +15,14 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include <knobly/detail/io/paths.hpp>
 #include <knobly/detail/raise.hpp>
 #include <knobly/detail/shared/rules.hpp>
 #include <knobly/detail/written/core.hpp>
@@ -132,12 +134,28 @@ struct problem {
 };
 using failure = std::optional<problem>;
 
-/// A statement's problem with knobly's code: its message and its unreadable reason, from the code.
+/// A located diagnostic with knobly's code and its message, and the reason the code makes a statement unreadable
+/// (none for a warning): the one builder behind both a statement's problem and a warning.
+struct described_at {
+    std::optional<::knobly::unreadable_reason> reason;
+    ::knobly::located_diagnostic diagnostic;
+};
+inline described_at describe_at(::knobly::diagnostic_code code, const ::knobly::place& place,
+                                const std::vector<::knobly::step>& via, const std::optional<std::string>& detail) {
+    ::knobly::described d = detail ? ::knobly::describe(code, *detail) : ::knobly::describe(code);
+    return {d.reason, ::knobly::located_diagnostic(code, std::move(d.message), place, via)};
+}
+
+/// A statement's problem with knobly's code: its message and its unreadable reason, from the code. A code that makes
+/// no statement unreadable (a warning, spec 2.3) is refused, so it can never fail a line.
 inline problem located(::knobly::diagnostic_code code, const ::knobly::place& place,
                        const std::vector<::knobly::step>& via, const std::optional<std::string>& detail) {
-    const ::knobly::described d = detail ? ::knobly::describe(code, *detail) : ::knobly::describe(code);
-    return {d.reason.value_or(::knobly::unreadable_reason::expansion),
-            ::knobly::located_diagnostic(code, d.message, place, via)};
+    described_at d = describe_at(code, place, via, detail);
+    if (!d.reason) {
+        ::knobly::detail::raise(
+            std::logic_error(std::string(::knobly::to_string(code)) + " makes no statement unreadable"));
+    }
+    return {*d.reason, std::move(d.diagnostic)};
 }
 
 // ---- scopes (spec/expansion.md)
@@ -325,7 +343,7 @@ struct place_context {
     std::vector<bound_item>* into;
     /// The expanded blocks around this place (spec 2.5): a directive's block is one more; a snippet's body and a
     /// spliced file's top level stand where their line does.
-    std::int64_t depth = 0;
+    std::int64_t nesting = 0;
 };
 
 /// A block or a document's top level to walk, into a place.
@@ -533,7 +551,7 @@ private:
             const std::string keyword(p.text_at(a.name).substr(1));
             const std::optional<::knobly::statement_kind> language = statement_of_keyword(keyword);
             if (language == ::knobly::statement_kind::set) {
-                return set(a, copy, context.text, *context.scope, context.via, context.depth);
+                return set(a, copy, context.text, *context.scope, context.via, context.nesting);
             }
             if (language == ::knobly::statement_kind::snippet) {
                 return snippet(a, copy, context);
@@ -561,7 +579,7 @@ private:
             all.insert(all.end(), out.begin(), out.end());
             values.emplace(v, std::move(out));
         }
-        if (failure f = check_nesting(context.depth, a.block.has_value(), all, context.text, name, context.via)) {
+        if (failure f = check_nesting(context.nesting, a.block.has_value(), all, context.text, name, context.via)) {
             return f;
         }
         binding_->expanded[copy] = std::move(values);
@@ -579,7 +597,7 @@ private:
             std::vector<bound_item>* children = &context.into->back().children;
             blocks.push_back(
                 {*a.block,
-                 {context.text, make_scope(context.scope), context.via, context.open, children, context.depth + 1}});
+                 {context.text, make_scope(context.scope), context.via, context.open, children, context.nesting + 1}});
         }
         return std::nullopt;
     }
@@ -594,10 +612,10 @@ private:
         return std::nullopt;
     }
 
-    /// @set $name value...; binds from this line to the end of the enclosing block. `depth`: the expanded blocks
+    /// @set $name value...; binds from this line to the end of the enclosing block. `nesting`: the expanded blocks
     /// around the line, for E5013.
     failure set(const anatomy& a, copy_node* copy, const text_ref& text, block_scope& sc,
-                const std::vector<::knobly::step>& via, std::int64_t depth) {
+                const std::vector<::knobly::step>& via, std::int64_t nesting) {
         if (failure f = well_formed(a, text, via)) {
             return f;
         }
@@ -615,7 +633,7 @@ private:
                 return f;
             }
         }
-        if (failure f = check_nesting(depth, false, {bound.begin(), bound.end()}, text, p.at(a.name), via)) {
+        if (failure f = check_nesting(nesting, false, {bound.begin(), bound.end()}, text, p.at(a.name), via)) {
             return f;
         }
         definition def{line->variable, {}, line->values, std::nullopt};
@@ -651,12 +669,13 @@ private:
         return std::nullopt;
     }
 
-    /// E5013 at the statement's name (spec 2.5): the line stands inside `depth` expanded blocks, and its block (when
+    /// E5013 at the statement's name (spec 2.5): the line stands inside `nesting` expanded blocks, and its block (when
     /// `block`) or a list among its values would sit deeper than max_expanded_nesting. Checked before the values are
     /// kept or the block walked, so no walk over the expanded tree goes deeper.
-    failure check_nesting(std::int64_t depth, bool block, const std::vector<const expanded_node*>& values,
+    failure check_nesting(std::int64_t nesting, bool block, const std::vector<const expanded_node*>& values,
                           const text_ref& text, const token_info& name, const std::vector<::knobly::step>& via) const {
-        if (std::max(depth + (block ? 1 : 0), depth + nesting_of(values)) > ::knobly::written::max_expanded_nesting) {
+        if (std::max(nesting + (block ? 1 : 0), nesting + nesting_of(values)) >
+            ::knobly::written::max_expanded_nesting) {
             return at(::knobly::diagnostic_code::expanded_nesting_too_deep, text, name.span, via);
         }
         return std::nullopt;
@@ -707,7 +726,7 @@ private:
             written.insert(written.end(), values.size() - before, handle);
         }
         if (failure f =
-                check_nesting(context.depth, false, {values.begin(), values.end()}, text, keyword, context.via)) {
+                check_nesting(context.nesting, false, {values.begin(), values.end()}, text, keyword, context.via)) {
             return f;
         }
         if (values.size() != snippet->params.size()) {
@@ -745,14 +764,14 @@ private:
             {snippet->block,
              {snippet->text, body,
               with_step(::knobly::step(::knobly::step_kind::use, name, text.place(keyword.span)), context.via),
-              std::move(open), context.into, context.depth}});
+              std::move(open), context.into, context.nesting}});
         return std::nullopt;
     }
 
     /// An extension directive's block: only set lines (E5012), bound for the spliced files. Its lines stand at the
-    /// extension line's `depth`: the block is gone after expansion.
+    /// extension line's `nesting`: the block is gone after expansion.
     failure extension_block(const std::optional<::knobly::syntax::node>& block, const text_ref& text, block_scope& sc,
-                            const std::vector<::knobly::step>& via, std::int64_t depth,
+                            const std::vector<::knobly::step>& via, std::int64_t nesting,
                             std::map<std::string, const definition*>& forced) {
         if (!block) {
             return std::nullopt;
@@ -773,7 +792,8 @@ private:
                 statement_of_keyword(p.text_at(a.name).substr(1)) != ::knobly::statement_kind::set) {
                 return at(::knobly::diagnostic_code::extension_block_not_set, text, name.span, via);
             }
-            if (failure f = set(a, copy_of(text.doc->statements_by_token.at(n.start()), via), text, *own, via, depth)) {
+            if (failure f =
+                    set(a, copy_of(text.doc->statements_by_token.at(n.start()), via), text, *own, via, nesting)) {
                 return f;
             }
         }
@@ -793,11 +813,12 @@ private:
                 return f;
             }
         }
-        if (failure f = check_nesting(context.depth, false, {values.begin(), values.end()}, text, name, context.via)) {
+        if (failure f =
+                check_nesting(context.nesting, false, {values.begin(), values.end()}, text, name, context.via)) {
             return f;
         }
         std::map<std::string, const definition*> forced;
-        if (failure f = extension_block(a.block, text, *context.scope, context.via, context.depth, forced)) {
+        if (failure f = extension_block(a.block, text, *context.scope, context.via, context.nesting, forced)) {
             return f;
         }
         const auto fail = [&](::knobly::diagnostic_code code, std::string detail) {
@@ -838,7 +859,14 @@ private:
                             spec + ": " + *resolved->second.failure);
             }
             if (resolved->second.paths.empty()) {
-                return fail(::knobly::diagnostic_code::include_not_found, spec);
+                if (!::knobly::detail::io::has_glob(spec)) {
+                    return fail(::knobly::diagnostic_code::include_not_found, spec);
+                }
+                // An empty glob stops nothing (spec 4.1, 2.3): W3005 is recorded in walk order and the line goes on.
+                binding_->diagnostics.push_back(describe_at(::knobly::diagnostic_code::include_matched_nothing,
+                                                            text.place(name.span), context.via, spec)
+                                                    .diagnostic);
+                continue;
             }
             std::vector<std::string> paths = resolved->second.paths;
             std::sort(paths.begin(), paths.end());  // byte order is code point order (design.md 2.4)
@@ -876,7 +904,7 @@ private:
             open.emplace_back(file->path);
             blocks.push_back({file->parsed.syntax.root(),
                               {document_text(file), spliced, with_step(step, context.via), std::move(open),
-                               context.into, context.depth}});
+                               context.into, context.nesting}});
         }
         return std::nullopt;
     }

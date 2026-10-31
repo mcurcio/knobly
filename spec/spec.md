@@ -128,23 +128,43 @@ language's to-text conversion ([contract.md 2](contract.md#2-people-forms-the-te
 
 ### 2.3 Diagnostics
 
-- A `diagnostic` (syntax layer) has `code`, `message` and `span`.
-- A `located diagnostic` (every other layer) has `code`, `message`, `place` (a file place) and
+- A `diagnostic` (syntax layer) has `code`, `severity`, `message` and `span`.
+- A `located diagnostic` (every other layer) has `code`, `severity`, `message`, `place` (a file place) and
   `via` (steps, innermost first). A problem caused by an override is placed at the `$name` that used
   it, and the message names the overridden variable.
-- Only `code` and the position are part of the contract. `message` is for people and MAY differ
+- Only `code`, `severity` and the position are part of the contract. `message` is for people and MAY differ
   between bindings.
 - A `program code` is a program's own code, `<namespace>/<name>` (for example `rasl/unknown-node`): both parts
   non-empty and without whitespace, the `program code` pattern of `spec/schema/api.json`.
-  It never collides with knobly's codes, which start with `E`. Every operation that takes a
+  It never collides with knobly's codes, which start with `E` or `W`. Every operation that takes a
   program code MUST refuse one without `/` with a misuse error.
-- Every code is an error. There are no warning codes.
+- **Severity.** Every diagnostic has a `severity`, one of the `severity` list: `error` or `warning`. Errors and
+  warnings sit in the same diagnostics lists, in the same order rules (owner, 2026-10-30, asked whether warnings sit
+  in the same diagnostics list as errors, each with a severity field: "Yes"). A knobly code's letter is its severity
+  ([schema/diagnostics.json](schema/diagnostics.json) `severities`): `E` an error, `W` a warning. Two revisable
+  choices, not the owner's: a program's own code is always an error (`error (...)` and `report (...)` take no
+  severity), and `severity` is derived from the code, so no constructor takes it. The one warning today is
+  W3005 (2.4, 4.1); parse and the edits find none, so a syntax `diagnostic` and a `bad text error`'s diagnostics are
+  always errors.
+- **A warning does nothing** (owner, 2026-10-30, asked what a warning does: "Nothing. Just a diagnostic, not
+  thrown/raised like errors are. They have to be intentionally fetched"; the reading stated to him: every API that
+  throws or raises because of diagnostics ignores warnings, and a program sees a warning only by reading the list).
+  No operation of any layer throws or raises a warning, or fails, refuses or stops a statement because one exists
+  (that a warning stops no statement, so an empty glob does not stop its line, is a revisable choice read from
+  "Nothing", not the owner's): a warning never becomes a `diagnostic error`
+  or a `bad text error`'s diagnostic, and never makes a statement unreadable; no outcome of `load`, `read`, `render`,
+  an edit, `save`, a reader or `collect` turns on whether one exists. A program sees a warning only by reading a
+  diagnostics list (the graph's, the render's, a `diagnostics` sink's) and its `severity`. This replaces the rule
+  "Every code is an error. There are no warning codes." (kno-bzv.2: the owner chose a warning code for an empty
+  glob over E3001 and over no diagnostic.)
 - A `diagnostic` and a `located diagnostic` each have a `people form`: `line:col: CODE: message` and
-  `path:line:col: CODE: message`, counting from 1 ([contract.md 2](contract.md#2-people-forms-the-text-a-located-thing-prints-as)).
+  `path:line:col: CODE: message`, counting from 1, the same for a warning (its code's `W` says so) ([contract.md 2](contract.md#2-people-forms-the-text-a-located-thing-prints-as)).
 
 ### 2.4 The diagnostic code registry
 
-Codes are stable across bindings and releases and are never reused for another meaning. Retired,
+Codes are stable across bindings and releases and are never reused for another meaning. A code is its letter
+(its severity, 2.3) and four digits; the ranges count the digits, so W3005 sits in 3xxx beside E3005, a different
+code. Retired,
 never to be reused: E2006, E3002, E3003, E2008 and E4003 (milestone 4: a line break is whitespace, so a `{` may
 start its line; a bad escape is found by parse, E1005). Ranges: 1xxx lexical, 2xxx syntax, 3xxx files and
 extensions, 4xxx values, 5xxx expansion, 6xxx reserved for the high level.
@@ -167,10 +187,11 @@ is stale), which also holds each code's message and owning layer.
 | E2004 | `expected closing bracket` | parse | syntax | A stray `]`, or a `[` list with no matching `]`. |
 | E2007 | `bad slice` | parse | syntax | A malformed slice after a slice name (a word or a `$name`): `a[~]`, `a[1~b c]`, an unclosed slice, or a literal bound that is not an integer (`a[i]`, `a[1.5]`, `a[1:3]`, whose `1:3` is one word). |
 | E2009 | `values touch` | parse | syntax | Two values with nothing between them, such as `a"b"`. |
-| E2010 | `nesting too deep` | parse | syntax | Blocks and lists nested deeper than 100 levels. |
-| E3001 | `include not found` | load and read | extension | An extension's spec matched no file. |
+| E2010 | `nesting too deep` | parse, edit | syntax | Blocks and lists nested deeper than 100 levels. Also an edit's bad text error when the document after the edit would nest past it (2.8). |
+| E3001 | `include not found` | load and read | extension | An extension's spec that is no glob matched no file. A glob that matches none is the warning W3005. |
 | E3004 | `include resolver failed` | load and read | extension | The document source rejected while resolving or reading a file. For the root file, `load` fails instead (6.2). |
 | E3005 | `include bad path` | include extension | extension | An `include` whose values are not exactly one quoted path. |
+| W3005 | `include matched nothing` | load and read | none | A warning: an extension's spec that is a glob (the glob rule of 4.1) matched no file. The line splices nothing for it and is not stopped. A spec that is no glob and matches no file is E3001. |
 | E3006 | `extension failed` | load and read | extension | An extension threw something other than a diagnostic error, or returned something other than a list of texts. |
 | E3007 | `unread copy` | low level | unread | An extension line's copy whose specs are not resolved or whose files are not read yet (it is in `unread ()`); `read ()` reads them. Placed on the extension line's name. |
 | E3008 | `unknown extension` | low level | extension | A statement written `@name` where `name` is no language statement (`set`, `snippet`, `use`) and no registered extension's name. Placed on the `@name`; the statement is an `unreadable line`. |
@@ -195,7 +216,7 @@ is stale), which also holds each code's message and owning layer.
 | E5013 | `expanded nesting too deep` | low level | expansion | Blocks and lists nested deeper than 256 levels after expansion (2.5): a directive whose block or values, or a `set`, `use` or extension line whose values, would sit deeper. The statement is unreadable there and its block is not walked. |
 <!-- end generated -->
 
-Every code but the readers' is in the one diagnostics list: the `document graph`'s `diagnostics` (6.3), which the
+Every code but the readers' (warnings included) is in the one diagnostics list: the `document graph`'s `diagnostics` (6.3), which the
 `expansion` and the `rendered` tree show unchanged (6.10, 7.1). "Low level" codes are found when the list is worked
 out from the current texts; "load, read" codes when the load or `read` runs, reported at the extension line.
 (Before milestone 4 the graph left out E4xxx, E5001, E5003, E5004 and E5008, which only a render showed: round 15,
@@ -206,7 +227,7 @@ part of the load conformance output. "syntax" means the statement is an `error` 
 extension line whose block holds one (the code is then the parser's, reported once). A diagnostic
 error an extension's `specs` throws keeps its own code (a program code included) and gives reason
 `extension`. "unread" (E3007) marks an extension copy not read yet. "none" means the code never makes a statement
-unreadable: readers raise it.
+unreadable: readers raise it, or it is a warning (2.3).
 
 Each binding's code registry and message table are generated from
 [schema/diagnostics.json](schema/diagnostics.json) ([codegen.md](codegen.md)); the schema marks which
@@ -231,7 +252,7 @@ statement classification reads; no binding compares a keyword's text by hand.
 - `MAX_SAFE_INTEGER` (integer range; the written layer): 9,007,199,254,740,991, integer words and slice or index bounds lie within plus or minus this (2^53-1) (E4005).
 - `RESERVED` (reserved names; the written layer): `set`, `snippet`, `use`: the language statements' names, written @set, @snippet and @use: no extension may take one. No directive name is reserved: a directive's name is a WORD, which never starts with @.
 - `VARIABLE_NAME` (variable name pattern; the written layer): `^[A-Za-z0-9_]+$`, a $name without its $, an override name, a variable rename.
-- `PROGRAM_CODE` (program code pattern; the shared layer): `^[^/\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/[^\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$`, <namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out); knobly's codes start with E.
+- `PROGRAM_CODE` (program code pattern; the shared layer): `^[^/\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/[^\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$`, <namespace>/<name>, a program's own diagnostic code: both parts non-empty, no whitespace (the Unicode White_Space set, written out); knobly's codes start with E or W.
 <!-- end generated -->
 
 - **Nesting levels** (`MAX_NESTING`, `MAX_EXPANDED_NESTING`; proposed to the owner 2026-10-30 and not objected to: the
@@ -244,7 +265,8 @@ statement classification reads; no binding compares a keyword's text by hand.
   each the statement's first error (3.2). The block or list that would be level 101 ends the parse: `parse` returns a
   `document` node over every token whose one child is an `error` node over every token, and one diagnostic, E2010,
   on the `{` or `[` that opens that level. An entry rule (2.8) returns a `document` node with no children and that one
-  E2010. Cases `nest-*`, `nestlist-*`, `nest-recovered-*` (`depth.json`).
+  E2010. Cases `nest-*`, `nestlist-*`, `nest-recovered-*` (`depth.json`). An edit that would make a document nest
+  past the limit is refused, the document unchanged (2.8, "An edit that would nest the document past").
 - **After expansion (E5013).** The same count over the expanded tree: a directive's block is one level deeper than
   the directive; a snippet's body at a `use` and an included file's top level stand where their line stands (their
   own braces are gone); a `$name` brings its values' lists with it. A statement whose block, or a list among its
@@ -260,6 +282,11 @@ statement classification reads; no binding compares a keyword's text by hand.
   "after expansion"; real configs are "likely a few dozen, but i want the headroom". 256 is a revisable choice, not
   his number; `MAX_NESTING` stays 100. Cases `diag-expanded-nesting-*` (written corpus: 257 and 1568 levels of
   blocks, and the place and order cases), `load-expanded-nesting-256`, `load-expanded-nesting-lists`.
+- **What nesting costs an address.** Each address (7.4) holds its whole path, one step per level, and its text spells
+  that path out. So `addresses` and `diff` (7.6) take time and memory in proportion to the directives times how
+  deeply they nest: at most `MAX_DIRECTIVES` directives, each at most `MAX_EXPANDED_NESTING` + 1 steps (the blocks
+  around it and its own). No binding shares a parent's
+  steps between addresses; the bound is the cost (kno-bzv.11, a revisable choice).
 - **No directive name is reserved** (milestone 5; owner, 2026-10-29, bead kno-umh.14: "yes" to language
   statements behind one sigil). A statement written `@name` is a language statement (`@set`, `@snippet`, `@use`) or
   an extension statement (`@include`); a directive's name is a `WORD` token, which never starts with `@` (3.1). So
@@ -270,7 +297,7 @@ statement classification reads; no binding compares a keyword's text by hand.
 
 A `diagnostic error` is the error thrown by an operation whose input breaks its contract in a way
 that has a place in the config: a reader given the wrong kind of value, or a program's `error(...)`. It carries one
-`located diagnostic` as `diagnostic`. (A root file that cannot be read is a `read error`, which has no place in any
+`located diagnostic` as `diagnostic`, always an error (2.3: a warning is never thrown). (A root file that cannot be read is a `read error`, which has no place in any
 file: [contract.md 4](contract.md#4-errors).)
 
 ### 2.7 Formatting a diagnostic
@@ -301,7 +328,8 @@ The groups fall into **two sorts**, decided here once (round 15, kno-umh.7):
 - **A program bug**: the program could have checked first. These raise the language's own classes, or a package
   class outside the base; never a `knobly error`.
 
-Problems in the config text are no group: they are never raised, only reported as diagnostics. The table is
+Problems in the config text are no group: they are never raised, only reported as diagnostics, errors and warnings
+alike (2.3). The table is
 generated from the schema:
 
 <!-- generated: error groups (tools/gen-api.py docs) -->
@@ -310,7 +338,7 @@ generated from the schema:
 | `knobly error` | base | never by itself: the base class of every expected-outcome class, so one except or catch clause catches every outcome the input or the outside world decides, and no program bug | `KnoblyError`, extends `Error` | `KnoblyError`, subclass of `Exception` | `knobly_error`, derives from `std::runtime_error` |
 | `diagnostic error` | expected outcome, under `knobly error` | a reader is given a value of the wrong kind or spelling, or a program's error(...); carries one located diagnostic as 'diagnostic' | `DiagnosticError` | `DiagnosticError` | `diagnostic_error` |
 | `read error` | expected outcome, under `knobly error` | load cannot resolve the root path to exactly one file, or cannot read it. No diagnostic and no code | `ReadError` | `ReadError` | `read_error` |
-| `bad text error` | expected outcome, under `knobly error` | the text given to an edit, or an override's text, is not what that place takes; 'diagnostics' are located in that text, in the binding's string unit, and its message is built from them | `BadTextError` | `BadTextError` | `bad_text_error` |
+| `bad text error` | expected outcome, under `knobly error` | the text given to an edit, or an override's text, is not what that place takes, or the document after the edit would nest deeper than MAX_NESTING; 'diagnostics' are located in that text, in the binding's string unit, and its message is built from them | `BadTextError` | `BadTextError` | `bad_text_error` |
 | `save error` | expected outcome, under `knobly error` | the writer failed | `SaveError` | `SaveError` | `save_error` |
 | `lost update error` | expected outcome, under `save error` | a file the save would write changed since it was read or last saved: its current text differs from its saved text. Check lost updates raises it inside every writer, and save passes it on unchanged | `LostUpdateError` | `LostUpdateError` | `lost_update_error` |
 | `detached error` | program bug | any member but kind of a detached handle is used | `DetachedError`, extends `ReferenceError` | `DetachedError`, subclass of `ReferenceError` | `detached_error`, derives from `std::logic_error` |
@@ -370,6 +398,25 @@ codes each edit checks, and where it places them:
 | `rename` (a directive) | none: a bad name is a misuse error (above); an extension line has no `rename` | |
 | `rename` (a variable) | E5002 when it would make a second `set` of a name in its block (a bad name is a misuse error) | 0:0 |
 | `set override`, and each override `load` takes (the check of an override, 6.3) | the `valuesText` entry rule (so `"1;"` is refused at its `;` and `"1 # c"` at the text's end; `"1\n2"` is two values), then E2001 at a `$name`, or at 0:0 for no value | as stated |
+
+**An edit that would nest the document past `MAX_NESTING`** (bead kno-bzv.8; owner, 2026-10-30, to the
+recommendation that such an edit be refused as a bad text error with the document left unchanged: "Yes"). The entry
+rule counts levels in the given text alone; where the text goes adds the levels around it. So every edit but a
+document's `replace with text` (`remove` and `rename` included) also parses the document as it would be after the
+edit, and when that nests past `MAX_NESTING` (2.5) it is refused: a `bad text error` with one diagnostic, E2010, at
+the `{` or `[` of the given text that would open the level past the limit, or at 0:0 when that bracket is not in the
+given text (the document was already past the limit). This check comes after the entry rule and before the
+text-alone rules, which need the tree the limit takes away. Every edit that writes a `{` or `[` can so deepen a document: a
+statement's `replace with text`, `insert statements`, `add statements`, `insert before`, `insert after`, a
+statement's, variable's or value's `set`, and a value's `replace with text`, list items included. A document's
+`replace with text` is not refused: it takes any text (6.4), and a text past the limit then parses as 2.5 says. So
+no edit but that one leaves a document whose tree the limit took away; one already past it accepts only an edit that
+brings it back within the limit (a `remove`, a `replace with text`). Cases `nest-edit-*` (written corpus: one per
+edit that can deepen, each limit's last level accepted, and a document already past the limit). The code, its place
+and the rule for a document already past the limit are revisable choices, not his (errata D2, D3). An edit whose
+result nests past `MAX_EXPANDED_NESTING` (2.5) is not refused: that limit is not a rule of the text alone, so the
+edit succeeds and the graph's diagnostics then hold its E5013, at one unreadable statement (case
+`nest-edit-expanded`).
 
 **A values text and line breaks** (milestone 4). A line break is whitespace (owner, 2026-10-29, round 15 question
 1: "';' is required and a line break is plain whitespace (nginx); directive names cannot start with a digit or
@@ -666,9 +713,19 @@ writer` that the program supplies.
 ### 4.1 Document source
 
 - `resolve (spec, load context)` returns the resolved paths a spec names (a path, or a glob with `*`
-  and `?` in its last segment), in any order: the core sorts them (below). Empty means "not found"
-  (E3001). A failure becomes E3004. Both codes are placed at the extension line's name (for
-  include, the word `include`).
+  and `?` in its last segment), in any order: the core sorts them (below). Empty means "not found": E3001 for a
+  spec that is no glob, and the warning W3005 for a glob (the glob rule, below, decides; owner, 2026-10-30, asked
+  to choose for an `@include` glob matching no file among E3001 as today, a new warning code, or no diagnostic:
+  "2", then for W3005 "include matched nothing": "Yes"). A failure becomes E3004. All three codes are placed at the
+  extension line's name (for include, the word `include`).
+- **An empty glob** is no failure of the line (2.3: a warning does nothing; a revisable choice read from
+  "Nothing", not the owner's): it gives W3005, adds no path, and
+  the core goes on to the next spec and the line's remaining checks (5), as for a spec whose files were found.
+  A line whose every spec is an empty glob splices nothing; its `document edge` has the specs and no `targets`.
+  Two more revisable choices, not the owner's, read from "Nothing": when a later check stops the line (E5007, say),
+  W3005 stays in the list before that error, since the list holds every problem found, in walk order; and the
+  core decides with the glob rule from the spec's text alone, whatever the source is, so a source that takes no
+  globs and returns nothing for `a*.conf` gives W3005 too (a stated cost: the fetch source, 4.3).
 - `read (resolved path)` returns the text of one resolved file. A failure becomes E3004 at the extension line, or
   for the root file makes `load` fail with a `read error` (no code: [contract.md 4](contract.md#4-errors)).
 - A `load context` has `parent path`: the resolved path of the file holding the extension line, or
@@ -676,11 +733,18 @@ writer` that the program supplies.
 - A load MUST call `read` at most once per resolved path, however many places splice the file in.
   A failure is kept: a later `read` does not retry it.
 - **Order:** for every extension, the core resolves the specs in the order `specs` returned them,
-  stops at the first spec that fails or matches nothing, and sorts each spec's paths by Unicode code
+  stops at the first spec that fails or that is no glob and matches nothing, and sorts each spec's paths by Unicode code
   point (scalar value) order, comparing whole paths; the spliced files are the specs' sorted paths in
   turn. Code-point order is not UTF-16 code-unit order (a character above U+FFFF sorts after U+FFFF
   here, before U+E000 in a plain JavaScript sort). No conformance case has such a path yet.
 - In a binding whose I/O is asynchronous, both operations MAY be asynchronous.
+- **The glob rule**, shared by the core (W3005 or E3001, above) and every source that takes globs: a spec is a
+  glob when it holds `*` or `?`. Only the last path segment is matched: `*` matches any run of characters (empty
+  included), `?` exactly one, every other character itself; nothing can be escaped. Neither can match `/`, since
+  the directory part is compared as written, so a `*` or `?` in an earlier segment matches only a directory
+  literally named so. A leading `.` gets no special treatment (`*.conf` matches `.hidden.conf`). The root path may
+  be a glob, but `load` fails with a `read error` unless it resolves to exactly one file (no W3005: the root is no
+  extension line).
 - **Results are checked at run time** (kno-umh.12): `resolve` MUST return a list of texts. Anything else, a bare
   text included (in Python a `str` is a sequence of one-letter strings), is the source's failure: E3004 at the
   extension line, or a `read error` for the root. `read` MUST return a text, the same way. Python types these
@@ -718,19 +782,12 @@ writer` that the program supplies.
 
 | Spec name | Port | Required | Notes |
 |---|---|---|---|
-| `memory source` | source | MUST | Texts keyed by path, read from the map it was given at every call (never a copy). `resolve` joins the spec to the directory of `parent path` by POSIX rules (`/` separators, `.` and `..` removed, a leading `/` taken as is) and returns the path when it is a key; a glob returns every key in that directory it matches (below). `read` of a missing key fails. Pure. |
+| `memory source` | source | MUST | Texts keyed by path, read from the map it was given at every call (never a copy). `resolve` joins the spec to the directory of `parent path` by POSIX rules (`/` separators, `.` and `..` removed, a leading `/` taken as is) and returns the path when it is a key; a glob returns every key in that directory it matches (the glob rule, 4.1). `read` of a missing key fails. Pure. |
 | `memory writer` | writer | MUST | Writes each batch into the map it was given (the one a memory source reads), all or nothing: `check lost updates` with each file's text in the map first. |
 
-The glob rule, shared by every source that takes globs: a spec is a glob when it holds `*` or `?`.
-Only the last path segment is matched: `*` matches any run of characters (empty included), `?`
-exactly one, every other character itself; nothing can be escaped. Neither can match `/`, since the
-directory part is compared as written, so a `*` or `?` in an earlier segment matches only a
-directory literally named so. A leading `.` gets no special treatment (`*.conf` matches
-`.hidden.conf`). The root path may be a glob, but `load` fails with a `read error` unless it
-resolves to exactly one file.
 | `file source` | source | MUST | The local filesystem. |
 | `file writer` | writer | MUST | The local filesystem: `check lost updates` with each file's text on disk first, then the staged write. |
-| `fetch source`, `fetch writer` | both | MAY | HTTP. TypeScript only today. The fetch writer, per file: `GET` its URL, `check lost updates` with the body (a 404 is absent), then `PUT` (or the configured method) with the precondition `If-Match: <the GET's ETag>` when the GET gave one; a `412 Precondition Failed` is a lost update of that file. Without an ETag the window between the GET and the PUT stays open (a stated cost: the server cannot enforce it). |
+| `fetch source`, `fetch writer` | both | MAY | HTTP. TypeScript only today. The fetch source's `resolve` fetches nothing: it returns a path as it is (a missing file is E3004, at `read`) and nothing for a glob (so W3005, 4.1). The fetch writer, per file: `GET` its URL, `check lost updates` with the body (a 404 is absent), then `PUT` (or the configured method) with the precondition `If-Match: <the GET's ETag>` when the GET gave one; a `412 Precondition Failed` is a lost update of that file. Without an ETag the window between the GET and the PUT stays open (a stated cost: the server cannot enforce it). |
 
 Each adapter is named after its medium and its port, and every binding ships the memory and file adapters for both
 ports; the names in each binding are [contract.md 5](contract.md#5-adapters).
@@ -759,7 +816,8 @@ ports that do I/O.)
 - **Order of checks** on one extension line, each stopping the line (it becomes `unreadable`,
   kind per 2.4) before the next: its values are expanded (E5001, E4001, ...); its block is
   checked (a line other than `set` is E5012; a syntax error inside makes it kind `syntax`); `specs`
-  is called; the specs are resolved and read (4.1); cycle (E5006) and depth (E5007) are checked.
+  is called; the specs are resolved and read (4.1: an empty glob's W3005 stops nothing); cycle (E5006) and depth
+  (E5007) are checked.
   A line that stops before `specs` is never handed to the extension and names no file, so nothing is
   resolved or read for it and its `document edge` has empty `specs` and `targets`.
 - Making a processor MUST refuse, with a misuse error, an extension whose name is reserved (2.5: `set`, `snippet`,
@@ -780,7 +838,9 @@ other in a cycle (Go, Rust) can keep each layer in its own package or crate.
 
 `@include "path";` or `@include "path" { @set $name value; }`. The one value MUST be a quoted path or
 glob. Otherwise E3005, placed on the first value when it is not quoted, else on the second value,
-else (no value at all) on the `@include`. Matching files are spliced in the order of 4.1. What an included
+else (no value at all) on the `@include`. Matching files are spliced in the order of 4.1. A path that matches no
+file is E3001 and the line is unreadable (reason `extension`); a glob that matches none is the warning W3005 at the
+`@include`, and the line splices nothing and is not unreadable (4.1). What an included
 file sees, and where its own `set` and `snippet` lines are visible, is [expansion.md](expansion.md) 3, 4 and 7.
 
 ## 6. Low level: the config as written
@@ -866,7 +926,7 @@ first picked "B graph.render()", then clarified: "The low level shouldn't "depen
 | Spec name | Inputs | Output | Errors |
 |---|---|---|---|
 | `make processor` | `source` (a document source), `extensions` (optional, in order) | a `processor` | argument type error for an extension name that is not text; misuse error for a malformed, reserved or repeated one (5) |
-| `load` | root `path`; option `overrides` (name without `$` to `config text`, in order, 6.9) | a `document graph` | `read error` (with `paths`, the root path given) when the source cannot resolve the root to exactly one file or cannot read it; misuse error for a bad override name (not letters, digits and `_`: the one name check, 2.8); `argument type error` for an override that is not text; `bad text error` for an override's text the check of an override refuses (6.3). Never fails for anything in the files' text. |
+| `load` | root `path`; option `overrides` (name without `$` to `config text`, in order, 6.9) | a `document graph` | `read error` (with `paths`, the root path given) when the source cannot resolve the root to exactly one file or cannot read it; misuse error for a bad override name (not letters, digits and `_`: the one name check, 2.8); `argument type error` for an override that is not text; `bad text error` for an override's text the check of an override refuses (6.3). Never fails for anything in the files' text, an error or a warning (2.3). |
 
 - `load` resolves the root path through the source as an included file's spec is, so the root has
   one path in the graph. It reads every file that extension lines name, once each, repeating until
@@ -1385,10 +1445,10 @@ it with a list of `located diagnostic`s (usually a render's `diagnostics`). Its 
 
 | Spec name | Contract |
 |---|---|
-| `add (diagnostic)` | append one `located diagnostic` |
-| `report (at, message, code)` | append the diagnostic `at.error(message, code)` would carry; `at` is anything with `error (...)` (a rendered tree, a directive, an expanded value). `code` is required, as there |
-| iterate | the diagnostics in the order added |
-| `count` | how many |
+| `add (diagnostic)` | append one `located diagnostic`, an error or a warning |
+| `report (at, message, code)` | append the diagnostic `at.error(message, code)` would carry; `at` is anything with `error (...)` (a rendered tree, a directive, an expanded value). `code` is required, as there; the diagnostic is an error (2.3) |
+| iterate | the diagnostics in the order added, warnings among them |
+| `count` | how many, warnings included: a program that stops on problems counts those whose `severity` is `error` |
 | `collect (read)` | run `read`; when it raises a `diagnostic error`, append its diagnostic and return absent instead; any other error passes through; otherwise return `read`'s result |
 
 Today TypeScript has `new Diagnostics(initial)`, `add`, `report`, `length`, iteration and
@@ -1414,8 +1474,8 @@ finding against this page.
 | Corpus | Format | Level | Covers |
 |---|---|---|---|
 | `syntax`: `conformance/cases.json`, `extra.json`, `depth.json`, `edge.json`, `tracer.json`, `variables.json`, with `conformance/expected/` | [conformance/format.md](../conformance/format.md) | L0 | 2.1 (positions in UTF-16), 2.4 (1xxx and 2xxx codes), 2.5 (nesting), 3 |
-| `written`: `conformance/written/{cases,diagnostics}.json`, `conformance/written/expected/` | [conformance/written/format.md](../conformance/written/format.md) | L1 (L2 for a case that renders, L3 with include) | 6.3 to 6.9, by its `needs` tokens: `values`, `directive-values`, `statements`, `blocks`, `rename`, `document`, `override`, `save`, `quote`, `include`, `snippet`; 2.8's entry rules (line breaks, comments, bounds, list items, a values text with no value) and bad names (misuse error); 4.2's lost update (`saveTo`); 6.10's unread copy (and its `diff`); 2.9's `definition` and `chain`; 6.1's value `set` that keeps its handle; 6.5's `@` statements; 7.0's `argument type error` (`["render", target]`); 2.5's E5013 (after expansion: its place and order) |
-| `load`: `conformance/load/cases.json`, `conformance/load/expected/` | [conformance/load/format.md](../conformance/load/format.md) | L2 (L3 with include) | 2.2, 2.4 (3xxx to 5xxx), 2.5 (after expansion), 4.3 (`memory source`), 5, 6.2 (`load` with `overrides`), 7.0 (`render (graph)`), 7.1, 7.2, 7.3 (canonical text and origins), 7.4 (people form, with the `rasl` key rule), 7.6; [expansion.md](expansion.md) 6 (each row of the precedence table) |
+| `written`: `conformance/written/{cases,diagnostics}.json`, `conformance/written/expected/` | [conformance/written/format.md](../conformance/written/format.md) | L1 (L2 for a case that renders, L3 with an extension) | 6.3 to 6.9, by its `needs` tokens: `values`, `directive-values`, `statements`, `blocks`, `rename`, `document`, `override`, `save`, `quote`, `include`, `snippet`; 2.8's entry rules (line breaks, comments, bounds, list items, a values text with no value) and bad names (misuse error); 4.2's lost update (`saveTo`); 6.10's unread copy (and its `diff`); 2.9's `definition` and `chain`; 6.1's value `set` that keeps its handle; 6.5's `@` statements; 7.0's `argument type error` (`["render", target]`); 2.5's E5013 (after expansion: its place and order); 4.1's empty glob (W3005, a warning: before a later check's error, `diag-include-glob-empty-too-deep`; 2.3's edit, save and render that go on over it, `diag-include-glob-empty-edit-save`); 4.1's failed `read` (E3004, and the root's `read error`) and 5's failing extension (E3006), through the faults of [conformance.md 4.5](conformance.md#45-faults-a-case-injects) |
+| `load`: `conformance/load/cases.json`, `conformance/load/expected/` | [conformance/load/format.md](../conformance/load/format.md) | L2 (L3 with include) | 2.2, 2.3 (a load and render with only a warning: `load-include-glob-empty`), 2.4 (3xxx to 5xxx), 2.5 (after expansion), 4.3 (`memory source`), 5, 6.2 (`load` with `overrides`), 7.0 (`render (graph)`), 7.1, 7.2, 7.3 (canonical text and origins), 7.4 (people form, with the `rasl` key rule), 7.6; [expansion.md](expansion.md) 6 (each row of the precedence table) |
 | `rendered`: `conformance/rendered/cases.json`, `conformance/rendered/expected/` | [conformance/rendered/format.md](../conformance/rendered/format.md) | L2 | 7.4 (`address text` with escapes, keys from data, occurrences, an empty and an absent key, a rule on the parent), 7.6 (the order of a diff, unknown, a directive listed alone, a block's presence) |
 | `contract`: `conformance/contract/cases.json` (expected results inline) | [conformance/contract/format.md](../conformance/contract/format.md) | L2 | 2.9 (every reader, its results and codes), [contract.md](contract.md) 1 (positions in the binding's unit), 2 (people forms, `format diagnostic` with tabs, a character outside the Basic Multilingual Plane, `"\r\n"` and no graph), 3 (numbers) |
 
@@ -1426,9 +1486,11 @@ Rules for every binding:
   load cases stay as a record of what each case uses; the driver reads `include` from them for the level.)
 - Every output follows the byte rules of `conformance/format.md`, applied by the driver.
 
-Not covered by any shared case today (each binding tests these on its own): the diagnostics sink; `error (...)`; the
+Not covered by any shared case today (each binding tests these on its own): the diagnostics sink; `error (...)`; an
+extension that returns several specs, an empty glob among them (4.1: resolution goes on past W3005; the include
+extension returns one spec); the
 file and fetch adapters (L4: the fetch writer's precondition); the error class tree beyond the groups the adapter
-reports (contract 4); a port result that is a bare text (4.1, 5); expanded value equality (2.9); a bad text error's
+reports (contract 4); a port result that is a bare text (4.1, 5); a `resolve` that fails (4.1); expanded value equality (2.9); a bad text error's
 message (2.8); that an operation is
 absent where it cannot succeed (2.10: a type test per binding); that `plain` is gone (milestone 5: each binding's
 public-name test against `removed in milestone 5`); the `config text` type (6.9: a type test per binding, since a

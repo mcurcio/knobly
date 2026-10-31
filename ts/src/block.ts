@@ -35,16 +35,20 @@ export abstract class BlockBase<TItem, TDirective extends TItem> implements Bloc
   }
 
   walk(visit: (item: TItem) => WalkControl | void): void {
-    const into = (block: Iterable<TItem>): boolean => {
-      for (const item of block) {
-        const control = visit(item);
-        if (control === WalkControl.Stop) return false;
-        const inner = control === WalkControl.Skip ? undefined : this.blockOf(item);
-        if (inner !== undefined && !into(inner)) return false;
+    // A loop over a stack of open blocks, not a recursion: the tree may be MAX_EXPANDED_NESTING deep (spec 2.5). Per
+    // open block, its items left; an item's own block opens right after it is visited, unless the visit said skip.
+    const stack: Iterator<TItem>[] = [this[Symbol.iterator]()];
+    for (let open = stack.at(-1); open !== undefined; open = stack.at(-1)) {
+      const next = open.next();
+      if (next.done === true) {
+        stack.pop();
+        continue;
       }
-      return true;
-    };
-    into(this);
+      const control = visit(next.value);
+      if (control === WalkControl.Stop) return;
+      const inner = control === WalkControl.Skip ? undefined : this.blockOf(next.value);
+      if (inner !== undefined) stack.push(inner[Symbol.iterator]());
+    }
   }
 }
 

@@ -34,7 +34,7 @@ One namespace per layer (binding guide rule 9):
 
 | Import | What it has |
 |---|---|
-| `knobly` | The shared and io layers: `ConfigText`, `quote`, `text`, positions, places, origins and steps, `Diagnostic`, `LocatedDiagnostic`, `Diagnostics`, `DiagnosticCode`, the error classes, `PROGRAM_CODE`, the document source and writer ports, `memory_source`, `memory_writer`, `check_lost_updates` |
+| `knobly` | The shared and io layers: `ConfigText`, `quote`, `text`, positions, places, origins and steps, `Diagnostic`, `LocatedDiagnostic`, `Diagnostics`, `DiagnosticCode`, `Severity`, the error classes, `PROGRAM_CODE`, the document source and writer ports, `memory_source`, `memory_writer`, `check_lost_updates` |
 | `knobly.syntax` | The syntax tree: `parse`, `Syntax`, `Token`, `Node`, `TokenRange`, `span_of`, `text_of`, `TokenKind`, `NodeKind`, `MAX_NESTING` |
 | `knobly.written` | The low level: `Processor`, `DocumentGraph`, the written types, the expansion and its expanded values (`ExpandedWord` ... `ExpandedIndex`), the extension port (`Extension`, `ExtensionUse`), its kind lists and limits, `format_diagnostic`, and the written values `Word`, `String`, `List`, `Slice`, `Index` and `Reference` (import the module, `from knobly import written`, so `written.List` never replaces `typing.List`). It never imports the rendered layer |
 | `knobly.rendered` | The rendered layer: `render`, `Rendered`, `RenderedBlock`, `Directive`, addresses, `KeyRule` and the change classes. It reaches the low level only through `knobly.written`'s public names |
@@ -81,7 +81,9 @@ a rendered block (directives) are each a `Sequence` (iterate, `len`, `block[i]`,
   (`port.set(text("1\n2"))` writes `port 1\n2;`). A given text is checked with the grammar's entry rule for it
   (spec 2.8): a values text that holds a `;` or a block, or ends in a comment (which would swallow the `;`), raises
   `BadTextError` (E2001, its message built from its diagnostics); a statement's `set` takes the empty text to clear
-  its values and refuses any other text that holds no value. A written value's `set(text)` takes exactly one value
+  its values and refuses any other text that holds no value. An edit that would make its file nest blocks and lists
+  past the nesting [limit](https://mcurcio.github.io/knobly/language/#limits) raises `BadTextError` too: E2010 at the bracket of the given text, or at 0:0 when the file
+  was already too deep (a document's `replace_with_text` is never refused). A written value's `set(text)` takes exactly one value
   and keeps the handle: the same object, now of the new value's kind (its class becomes `Word`, `List`, ...). A bad name in `rename`, `set_override` or an override is a program bug,
   `ValueError`. `graph.read()` reads files an edit added, through the graph's own source; until then an include
   copy not read renders as an unreadable with reason `unread` (E3007). `graph.save(writer)` hands the changed
@@ -121,7 +123,9 @@ There is no fetch source and no fetch writer in Python. The user guide, with eve
 C++, is [https://mcurcio.github.io/knobly/](https://mcurcio.github.io/knobly/) (source: [`docs/site/pages/`](../docs/site/pages/)); every sample is a file `pytest` runs
 (`examples/`). The language is [the language reference](https://mcurcio.github.io/knobly/language/).
 
-Diagnostic codes are the same as in TypeScript. Offsets and columns count code points, Python's own string unit
+Diagnostic codes are the same as in TypeScript. Each diagnostic has a `severity`, `Severity.ERROR` or
+`Severity.WARNING`: the one warning, W3005, is an `@include` glob that matches no file. Nothing raises a warning or
+acts on one; a program that stops on problems counts the errors. Offsets and columns count code points, Python's own string unit
 ([spec/contract.md](../spec/contract.md) 1), so `text[span.start.offset:span.end.offset]` is a span's text
 (TypeScript counts UTF-16 code units; the two differ after a character outside the Basic Multilingual Plane). A
 place prints as `main.conf:4:5` (`str(place)`, counting from 1), as do diagnostics and steps. Every expected
@@ -129,7 +133,8 @@ outcome (a diagnostic, read, bad text, save or lost update error) is under `Knob
 is: a detached handle raises `DetachedError` (a `ReferenceError`), misuse `ValueError`, a wrong argument type
 `TypeError`, an index out of range `IndexError` (spec 2.8). The shared cases in `conformance/` stay in UTF-16 units; one shared
 driver ([spec/conformance.md](../spec/conformance.md)) runs every corpus against this package through its adapter,
-`conformance/adapter.py`, converts positions, and compares. The Python package claims level L3 (syntax, low level,
+`conformance/adapter.py`, converts positions, and compares (the adapter's own failing source and `throws` extension
+give the faults of spec/conformance.md 4.5). The Python package claims level L3 (syntax, low level,
 rendered tree, extensions) and passes every case, as the TypeScript package does.
 
 ## Build and test

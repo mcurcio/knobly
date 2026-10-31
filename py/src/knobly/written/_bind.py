@@ -33,6 +33,7 @@ from knobly._api.limits import MAX_DEPTH, MAX_DIRECTIVES, MAX_EXPANDED_NESTING
 from knobly._api.shared import DirectiveOrigin, Origin, SourceSpan
 from knobly._api.syntax import Node, Syntax, Token, TokenRange
 from knobly._api.written import Copy, DocumentEdge, ExtensionUse, ReferenceResolution, Resolution
+from knobly._glob import has_glob
 from knobly._origin import Override, Place, Step
 from knobly._report import LocatedDiagnostic
 from knobly._text import port_texts
@@ -388,7 +389,7 @@ class _Context:
     open: tuple[_Snippet | str, ...]
     """The snippets and files being walked around this place, outermost first; the root file first."""
     into: list[BoundItem]
-    depth: int
+    nesting: int
     """The expanded blocks around this place (spec 2.5): a directive's block is one more; a snippet's body and a
     spliced file's top level stand where their line does."""
 
@@ -539,7 +540,7 @@ class Binding:
         if name.kind is TokenKind.AT_WORD:
             keyword = statement_of_keyword(name.text[1:])
             if keyword is StatementKind.SET:
-                self._set(anatomy, copy, text, scope, via, context.depth)
+                self._set(anatomy, copy, text, scope, via, context.nesting)
                 return ()
             if keyword is StatementKind.SNIPPET:
                 self._snippet(anatomy, copy, context)
@@ -560,7 +561,7 @@ class Binding:
             except _Problem as problem:
                 raise _ValueProblem(problem.reason, problem.diagnostic) from None
         expanded = (value for each in values.values() for value in each)
-        self._check_nesting(context.depth, anatomy.block is not None, expanded, text, name, via)
+        self._check_nesting(context.nesting, anatomy.block is not None, expanded, text, name, via)
         self._args[copy] = values
         self._count += 1
         if self._count > MAX_DIRECTIVES:
@@ -576,7 +577,7 @@ class Binding:
         context.into.append(BoundDirective(copy, children))
         if anatomy.block is None or children is None:
             return ()
-        return ((anatomy.block, _Context(text, _Scope(scope), via, context.open, children, context.depth + 1)),)
+        return ((anatomy.block, _Context(text, _Scope(scope), via, context.open, children, context.nesting + 1)),)
 
     def _well_formed(self, anatomy: Anatomy, text: _Text, via: tuple[Step, ...]) -> None:
         """A ``@set``, ``@snippet`` or ``@use`` line's text-alone shape (``_shape``, the one home of those rules), or
@@ -587,9 +588,9 @@ class Binding:
             raise self._problem(fault.code, text, span, via)
 
     def _set(
-        self, anatomy: Anatomy, copy: Copy, text: _Text, scope: _BlockScope, via: tuple[Step, ...], depth: int
+        self, anatomy: Anatomy, copy: Copy, text: _Text, scope: _BlockScope, via: tuple[Step, ...], nesting: int
     ) -> None:
-        """``@set $name value...;`` (rule 2): binds from this line to the end of the enclosing block. ``depth``: the
+        """``@set $name value...;`` (rule 2): binds from this line to the end of the enclosing block. ``nesting``: the
         expanded blocks around the line, for E5013."""
         self._well_formed(anatomy, text, via)
         tokens = text.syntax.tokens
@@ -602,7 +603,7 @@ class Binding:
         line = copy.statement
         assert isinstance(line, SetLine), "a set line that claims its name is kind set"
         bound = [argument for ref in args[1:] for argument in self.value(text, ref, scope, via, copy)]
-        self._check_nesting(depth, False, bound, text, tokens[anatomy.name], via)
+        self._check_nesting(nesting, False, bound, text, tokens[anatomy.name], via)
         # Stored without this line's own steps; a reader adds the variable step and its own (``_moved``).
         scope.bind(
             variable_name,
@@ -653,7 +654,7 @@ class Binding:
                 handle = doc._values[ref if isinstance(ref, int) else ref.start]
                 written.extend(handle for _ in expanded)
             values.extend(expanded)
-        self._check_nesting(context.depth, False, values, text, keyword, via)
+        self._check_nesting(context.nesting, False, values, text, keyword, via)
         if len(values) != len(snippet.params):
             detail = f"{name.text} takes {len(snippet.params)}, given {len(values)}"
             code = DiagnosticCode.SNIPPET_ARITY
@@ -676,7 +677,10 @@ class Binding:
                 )
         step = Step(StepKind.USE, name.text, text.place(keyword.span))
         return (
-            (snippet.body, _Context(snippet.text, body, (step, *via), (*open_, snippet), context.into, context.depth)),
+            (
+                snippet.body,
+                _Context(snippet.text, body, (step, *via), (*open_, snippet), context.into, context.nesting),
+            ),
         )
 
     def _extension(
@@ -688,8 +692,8 @@ class Binding:
         draft = _EdgeDraft(copy)
         self._drafts.append(draft)
         args = tuple(argument for ref in anatomy.args for argument in self.value(text, ref, scope, via, copy))
-        self._check_nesting(context.depth, False, args, text, name, via)
-        overrides = self._extension_block(anatomy.block, text, scope, via, context.depth)
+        self._check_nesting(context.nesting, False, args, text, name, via)
+        overrides = self._extension_block(anatomy.block, text, scope, via, context.nesting)
         origin = DirectiveOrigin(text.place(name.span), via)
 
         def fail(code: DiagnosticCode, detail: str) -> _Problem:
@@ -713,6 +717,12 @@ class Binding:
                 raise self._unread(text, name, via)
             if isinstance(paths, Exception):
                 raise fail(DiagnosticCode.INCLUDE_RESOLVER_FAILED, f"{spec}: {paths}")
+            if not paths and has_glob(spec):
+                # A warning stops nothing (spec 2.3, 4.1): kept in walk order, and the line goes on.
+                self.diagnostics.append(
+                    self._located(DiagnosticCode.INCLUDE_MATCHED_NOTHING, text, name.span, via, spec)
+                )
+                continue
             if not paths:
                 raise fail(DiagnosticCode.INCLUDE_NOT_FOUND, spec)
             found.extend(sorted(paths))
@@ -736,7 +746,7 @@ class Binding:
             (
                 file._syntax.root,
                 _Context(
-                    _document_text(file), spliced, (step, *via), (*open_, file._path), context.into, context.depth
+                    _document_text(file), spliced, (step, *via), (*open_, file._path), context.into, context.nesting
                 ),
             )
             for file in files
@@ -749,10 +759,10 @@ class Binding:
         return self._problem(DiagnosticCode.UNREAD_COPY, text, name.span, via, name.text[1:])
 
     def _extension_block(
-        self, block: Node | None, text: _Text, scope: _BlockScope, via: tuple[Step, ...], depth: int
+        self, block: Node | None, text: _Text, scope: _BlockScope, via: tuple[Step, ...], nesting: int
     ) -> Mapping[str, _Definition]:
         """An extension directive's block: only ``@set`` lines (E5012), bound for the spliced files. Its lines stand at
-        the extension line's ``depth``: the block is gone after expansion."""
+        the extension line's ``nesting``: the block is gone after expansion."""
         if block is None:
             return {}
         own = _Scope(scope)
@@ -768,7 +778,7 @@ class Binding:
             name = tokens[anatomy.name]
             if name.kind is not TokenKind.AT_WORD or statement_of_keyword(name.text[1:]) is not StatementKind.SET:
                 raise self._problem(DiagnosticCode.EXTENSION_BLOCK_NOT_SET, text, name.span, via)
-            self._set(anatomy, self._copy_of(doc._statements[node.start], via), text, own, via, depth)
+            self._set(anatomy, self._copy_of(doc._statements[node.start], via), text, own, via, nesting)
         return own.own()
 
     def _check_depth(self, open_: tuple[_Snippet | str, ...], text: _Text, name: Token, via: tuple[Step, ...]) -> None:
@@ -783,12 +793,18 @@ class Binding:
             )
 
     def _check_nesting(
-        self, depth: int, block: bool, values: Iterable[ExpandedValue], text: _Text, name: Token, via: tuple[Step, ...]
+        self,
+        nesting: int,
+        block: bool,
+        values: Iterable[ExpandedValue],
+        text: _Text,
+        name: Token,
+        via: tuple[Step, ...],
     ) -> None:
-        """E5013 at the statement's name (spec 2.5): the line stands inside ``depth`` expanded blocks, and its block
+        """E5013 at the statement's name (spec 2.5): the line stands inside ``nesting`` expanded blocks, and its block
         (when ``block``) or a list among its values would sit deeper than MAX_EXPANDED_NESTING. Checked before the
         values are kept or the block walked, so no walk over the expanded tree goes deeper."""
-        if max(depth + int(block), depth + _nesting(values)) > MAX_EXPANDED_NESTING:
+        if max(nesting + int(block), nesting + _nesting(values)) > MAX_EXPANDED_NESTING:
             raise self._problem(DiagnosticCode.EXPANDED_NESTING_TOO_DEEP, text, name.span, via)
 
     def value(
@@ -947,4 +963,11 @@ class Binding:
         from the registry (``describe``), so they cannot disagree with it."""
         described = describe(code, detail)
         assert described.reason is not None, f"{code} makes a statement unreadable"
-        return _Problem(described.reason, LocatedDiagnostic(code, described.message, text.place(span), via))
+        return _Problem(described.reason, self._located(code, text, span, via, detail))
+
+    @staticmethod
+    def _located(
+        code: DiagnosticCode, text: _Text, span: SourceSpan, via: tuple[Step, ...], detail: str | None = None
+    ) -> LocatedDiagnostic:
+        """The diagnostic for ``code`` at ``span``, its message from the registry (``describe``)."""
+        return LocatedDiagnostic(code, describe(code, detail).message, text.place(span), via)

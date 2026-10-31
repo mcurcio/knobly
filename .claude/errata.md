@@ -984,3 +984,94 @@
 - **N9. Stale lists.** `spec/codegen.md`'s `limits.ts` row now names `MAX_EXPANDED_NESTING`; RECORD's 5xxx band is
   E5001-E5013 and its owner-answers table holds the three 2026-10-30 nesting rows (two answers, one proposal); spec
   9's load and written rows name 2.5 after expansion.
+## 2026-10-30, an edit past MAX_NESTING (kno-bzv.8), applied
+- **D1. Applied: an edit that would nest a document past MAX_NESTING is refused.** Owner, 2026-10-30, to the
+  recommendation that it be refused as a bad text error with the document left unchanged: "Yes". Before, TS, Python
+  and C++ (probed: the same) all accepted such an insert, replace or set inside a deep block and wiped the whole
+  tree with no error. Spec 2.8 ("An edit that would nest the document past `MAX_NESTING`") and a pointer in 2.5; the
+  check is one function beside the text-alone rules in each binding's splice (`nestingProblem`, `_nesting_problem`,
+  `nesting_problem`). Cases `nest-edit-*` in the written corpus.
+- **D2. Revisable choice: the code and place.** 2.8 did not say which code; E2010 (the code an entry rule already
+  gives for nesting in the given text alone) is used, one diagnostic, at the `{` or `[` of the given text that would
+  open level 101 of the document, or at 0:0 when that bracket is not in the given text (as 2.8 places a text-alone
+  rule's fault that lies outside the given text). Checked after the entry rule and before the text-alone rules.
+- **D3. Revisable choice: a document already past the limit.** The rule is "refused when the document after the edit
+  nests past the limit", not "when the edit raises its nesting": so on a document loaded past the limit (one
+  unreadable line) an insert is refused (E2010 at 0:0) and only an edit that brings it back within the limit (the
+  line's `remove`, or the document's `replace with text`, which is never refused) succeeds. Case
+  `nest-edit-already-deep`. The other reading would accept edits whose result is still a wiped tree.
+
+## 2026-10-30, faults a case injects (kno-bzv.5), applied
+
+- **C1 applied.** The protocol's `load` takes `failReads` (paths whose `read` the adapter's source fails), and
+  `extensions` may name the test extension `throws` (its `specs` throws an error of no spec 2.8 group):
+  spec/schema/protocol.json, spec/conformance.md 4.1 and the new 4.5 (prior art: test262's host-defined `$262`, Go's
+  `testing/iotest.ErrReader`), the driver (`common.py` sends `failReads`; `written.py` prints a `load` that raises
+  as `["error", "ReadError", paths]`; `run.py` counts any extension as L3) and the three adapters. Nothing in a
+  binding's public API changed: the source and the extension are each adapter's own, built on the public ports.
+  New written cases `diag-include-read-fails` (E3004 at the `@include`), `diag-root-read-fails` (the root's
+  `read error`, paths `["main.conf"]`) and `diag-extension-throws` (E3006 at the `@throws`) pass in all three
+  bindings. Still not reached by a shared case: a `resolve` that fails, and a port or extension result that is not
+  a list of texts (C++ cannot write one); spec 9's not-covered list names both.
+- **C2 (finding, not changed).** spec/schema/diagnostics.json's E3004 `placed at` says "the extension line's name;
+  the root file at 0:0", and the guide's generated table (`docs/site/pages/diagnostics.md`) repeats it; but its own
+  `meaning`, spec 4.1 and spec 6.2's `load` row say the root file makes `load` fail with a `read error`, which has no
+  place and no code. The "root file at 0:0" clause looks stale. Left for the owner of the codes table.
+
+## 2026-10-30, nesting review leftovers (kno-bzv.11)
+
+- **N7, corrected.** N7's last clause ("no case yet pins an extension line's E5013 before its block's `@set` E5013")
+  no longer holds. Read N7 as: `diag-expanded-nesting-*` pin E5013's order against the checks before and after it,
+  and `diag-expanded-nesting-include-block` (`@include [$deep] { @set $v [$deep]; }`: one E5013, at the `@include`,
+  and the block's `@set` never checked) pins the extension line's E5013 before its block's `@set` lines. Probed in
+  Python: with the two checks swapped in `_bind.py`, that case is the only one in the written corpus that fails.
+
+## 2026-10-30, kno-bzv review fixes, applied
+
+- **C2 applied.** E3004's `placed at` is now "the extension line's name" (spec/schema/diagnostics.json and the
+  generated docs/site/pages/diagnostics.md): the root file's failed read is a `read error` with no code and no
+  place (spec 4.1, 6.2), as `diag-root-read-fails` pins. A doc correction; no behaviour changed.
+- **D2, D3 marked in place.** Spec 2.8 now says the code, its place and the already-past rule are revisable
+  choices, not the owner's; design/RECORD.md's owner-answers table has the 2026-10-30 "Yes" row.
+- **An edit past MAX_EXPANDED_NESTING is accepted** (stated in 2.8, not a new rule: E5013 is found by the low level,
+  not a text-alone rule). Case `nest-edit-expanded` pins it: the edit succeeds and the graph then holds one E5013.
+- **E2010 is also an edit's code** ('found by' adds `edit`; its meaning names 2.8), and the `bad text error`'s
+  'raised when' and contract 4.1 cover the refusal of a document that would nest past MAX_NESTING.
+- **Spec 2.5's address bound** is `MAX_EXPANDED_NESTING` + 1 steps (the blocks around a directive and its own);
+  probed: 257 steps on `load-expanded-nesting-256`.
+- **Not changed here (append-only):** the missing blank line before the kno-bzv.8 heading and the kno-bzv.11
+  heading's missing ", applied"; this entry records that N7's correction there is applied.
+
+## 2026-10-30, warnings and W3005 (kno-bzv.2), the shared contract
+
+- **W1, choices made, revisable (not the owner's).** Read from his "Nothing" and recorded as such in spec 2.3 and
+  4.1 and in design/RECORD.md: (a) an empty glob does not stop its line: resolution goes on to the next spec and the
+  line's later checks; (b) when a later check stops the line (E5007), W3005 stays in the list before that error
+  (case `diag-include-glob-empty-too-deep` pins it); (c) the core applies the glob rule to the spec's text whatever
+  the source, so the fetch source, which returns nothing for a glob, gives W3005; (d) a program's own code is always
+  an error (`report` and `error` take no severity: the brief's scope); (e) `severity` is derived from the code
+  (api.json `derived`, spec/codegen.md 3), so no constructor takes it and a record cannot disagree with its code.
+- **W2, a finding.** W3005 shares its number with E3005 (`include bad path`). The ranges count the digits, so the
+  two are different codes (spec 2.4 now says so), but C++'s `diagnostic_code` used the number as its value; a
+  warning's value is now the number plus 10000 (W3005 is 13005). Revisable; the owner approved the code "W3005".
+- **W3, not decided, not changed.** Bead kno-bzv.2's acceptance criteria also ask for the depth limit's severity
+  ("depth-limit severity recorded"). The owner's answers cover only the empty glob, so E5007 stays an error and no
+  other warning exists. Open for the owner.
+- **W4, fixed in passing.** spec 4.3's glob-rule paragraph sat between rows of the adapters table, splitting it in
+  two (the rows after it rendered as a table without a header). The rule moved to 4.1, where the core now uses it
+  too.
+
+## 2026-10-30, warnings review fixes (kno-bzv.2), fix agent
+
+- **W5, narrowed.** W1(e)'s "a record cannot disagree with its code" holds for every record only in C++ (a class).
+  A TypeScript interface or Python protocol is structural, so a hand-built record given to a sink's `add` is taken
+  as written (`{code: "W3005", severity: "error"}` type-checks). spec/codegen.md 3 and api.schema.json now claim it
+  only for records a binding builds, a stated cost. Revisable: `add` could rebuild the record, or TypeScript tie
+  `severity` to `code` with a conditional type.
+- **W6, changed.** C++'s value offset is taken from the code's letter (E 0, W 10000) in tools/api/emit_cpp.py, no
+  longer from the order of the `severity` kind list, so reordering that list cannot renumber the ABI. Values unchanged.
+- **W7, fixed.** W3005's meaning cited "the glob rule of 4.3" (W4 moved it to 4.1); api.json's `file source` and
+  `resolve` docs still said an empty result is always E3001. Both now follow spec 4.1. Spec 2.4's "none" now covers
+  a warning.
+- **W8, labelled.** W1 (a), (d) and (e) were presented in spec 2.3 and 4.1 next to the owner's quotes as if his;
+  they are now marked revisable choices there and in design/RECORD.md, which has one row per answer.

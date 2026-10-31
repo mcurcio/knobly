@@ -40,7 +40,7 @@ RUNNERS: Dict[str, Callable[[Session, Mapping[str, Any]], Any]] = {
 
 def case_level(corpus: Mapping[str, Any], case: Mapping[str, Any]) -> int:
     """A case's conformance level (corpora.json "$comment")."""
-    if "include" in case.get("extensions", []) or "include" in case.get("needs", []):
+    if case.get("extensions") or "include" in case.get("needs", []):
         return 3
     level = int(corpus["level"])
     if corpus["name"] == "written":

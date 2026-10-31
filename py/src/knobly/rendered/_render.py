@@ -6,9 +6,9 @@ home of that rule) and reads no file. A port of ts/src/rendered/."""
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterator, Mapping
 from types import MappingProxyType
-from typing import TypeAlias, final
+from typing import final
 
 from knobly._api import rendered as api
 from knobly._api.errors import DiagnosticError
@@ -93,11 +93,27 @@ class Rendered(api.Rendered):
             raise TypeError(f"diff() argument 'after' must be a Rendered, not {type(after).__name__}")
         old = self.addresses(key=key)
         new = after.addresses(key=key)
-        gone: list[Change] = []
-        came: list[Change] = []
-        _compare_before(self._block, after.block, bool(after.unreadable), old, new, gone)
-        _compare_after(after.block, self._block, new, old, came)
-        return (*gone, *came)
+        was = {address: directive for directive, address in old.items()}
+        now = {address: directive for directive, address in new.items()}
+        changes: list[Change] = []
+        # Removed and unknown in this walk's order, then added and changed in after's. Each side is the block's own
+        # walk (a loop, not a recursion: spec 2.5), descending only into a directive the other side also has.
+        for directive in self._block.walk(descend=lambda d: old[d] in now):
+            address = old[directive]
+            if address in now:
+                continue
+            # The container may hold the line that is broken now: whether the directive is gone is unknown.
+            parent = directive.parent
+            gaps = after.unreadable if parent is None else now[old[parent]].unreadable
+            changes.append(Unknown(address, directive) if gaps else Removed(address, directive))
+        for directive in after.block.walk(descend=lambda d: new[d] in was):
+            address = new[directive]
+            match = was.get(address)
+            if match is None:
+                changes.append(Added(address, directive))
+            elif _changed(match, directive):
+                changes.append(Changed(address, match, directive))
+        return tuple(changes)
 
     def error(self, message: str, *, code: str) -> DiagnosticError:
         check_program_code(code)
@@ -114,55 +130,6 @@ def render(graph: DocumentGraph, /) -> Rendered:
     block = rendered_block(expansion.block)
     origin = DirectiveOrigin(Place(graph.root.resolved_path, SourceSpan(_START, _START)), ())
     return Rendered(block, expansion.unreadable, origin, expansion.diagnostics, graph)
-
-
-_Addresses: TypeAlias = Mapping[Directive, Address]
-
-
-def _compare_before(
-    before: Sequence[Directive],
-    after: Sequence[Directive],
-    incomplete: bool,
-    old: _Addresses,
-    new: _Addresses,
-    into: list[Change],
-) -> None:
-    """Removed and unknown, in ``before``'s walk order. ``incomplete``: ``after``'s container holds an unreadable. A
-    loop over a stack of matched blocks, not a recursion (spec 2.5: up to MAX_EXPANDED_NESTING deep)."""
-    stack = [(iter(before), {new[d]: d for d in after}, incomplete)]
-    while stack:
-        container, by_address, gaps = stack[-1]
-        directive = next(container, None)
-        if directive is None:
-            stack.pop()
-            continue
-        address = old[directive]
-        match = by_address.get(address)
-        if match is None:
-            into.append(Unknown(address, directive) if gaps else Removed(address, directive))
-        else:
-            stack.append((iter(directive.block or ()), {new[d]: d for d in match.block or ()}, bool(match.unreadable)))
-
-
-def _compare_after(
-    after: Sequence[Directive], before: Sequence[Directive], new: _Addresses, old: _Addresses, into: list[Change]
-) -> None:
-    """Added and changed, in ``after``'s walk order; a loop, as ``_compare_before``."""
-    stack = [(iter(after), {old[d]: d for d in before})]
-    while stack:
-        container, by_address = stack[-1]
-        directive = next(container, None)
-        if directive is None:
-            stack.pop()
-            continue
-        address = new[directive]
-        match = by_address.get(address)
-        if match is None:
-            into.append(Added(address, directive))
-            continue
-        if _changed(match, directive):
-            into.append(Changed(address, match, directive))
-        stack.append((iter(directive.block or ()), {old[d]: d for d in match.block or ()}))
 
 
 def _changed(before: Directive, after: Directive) -> bool:

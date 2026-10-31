@@ -5,8 +5,9 @@ root file and for every file an extension names (round 11 review finding 3), and
 ``memory_writer`` serve and keep texts the program holds in one map (tests, editors). Each adapter is named after its
 medium and the port it fills (spec/contract.md 5). The ports and their records are generated
 (``knobly._api.io``): a source raises from ``resolve`` for a failure (E3004 at the extension line, ``ReadError``
-for the root) and returns no path for a missing file (E3001); ``load`` reads each resolved path at most once (R21);
-a writer calls ``check_lost_updates`` first, then stages and commits the batch together."""
+for the root) and returns no path for a missing file (E3001, or the warning W3005 for a glob); ``load`` reads each
+resolved path at most once (R21); a writer calls ``check_lost_updates`` first, then stages and commits the batch
+together."""
 
 from __future__ import annotations
 

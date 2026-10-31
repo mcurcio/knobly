@@ -15,7 +15,7 @@ The user guide, with every sample in TypeScript, Python and C++: [https://mcurci
 
 | Import | What it has |
 |---|---|
-| `knobly` | The shared layer and the I/O ports: places, origins, diagnostics (`Diagnostics`, `DiagnosticCode`), the error classes, config text (`quote`, `text`), `PlaceKind`, `StepKind`, `WalkControl`, `PROGRAM_CODE`. It does no input or output; `memorySource(files)` and `memoryWriter(files)` keep texts in one object; `checkLostUpdates(files, current)` is the one lost-update check every writer calls |
+| `knobly` | The shared layer and the I/O ports: places, origins, diagnostics (`Diagnostics`, `DiagnosticCode`, `Severity`), the error classes, config text (`quote`, `text`), `PlaceKind`, `StepKind`, `WalkControl`, `PROGRAM_CODE`. It does no input or output; `memorySource(files)` and `memoryWriter(files)` keep texts in one object; `checkLostUpdates(files, current)` is the one lost-update check every writer calls |
 | `knobly/syntax` | The syntax layer: `parse`, `spanOf`, `textOf`, `Token`, `Node`, `TokenKind`, `NodeKind`, `MAX_NESTING` |
 | `knobly/written` | The low level: `knobly(...)`, the document graph and its statements, values and variables, `formatDiagnostic`, `StatementKind`, `ValueKind`, `VariableKind`, `UnreadableReason`, the limits (`MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_EXPANDED_NESTING`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`) |
 | `knobly/rendered` | The rendered tree: `render(graph)`, `Rendered`, `Directive`, `Address`, `Change`, `ChangeKind` |
@@ -80,7 +80,9 @@ the package's classes implement the generated interfaces. The core has three lay
   `insertStatements`, `addStatements`, `insertBefore`, `insertAfter` and `rename` are the other named edits. Each
   text is checked by the grammar's own entry rule (`statementsText`, `valuesText`, `valueText`, `itemsText`,
   `boundText`, `sliceNameText`, `nameText` in `Knobly.g4`; spec 2.8): a values text may span lines, but one that
-  ends in a comment is refused, since the comment would swallow the `;` after it. Each edit keeps comments and layout, and given anything but a string it throws a `TypeError` naming the
+  ends in a comment is refused, since the comment would swallow the `;` after it. An edit that would make its file
+  nest blocks and lists past the nesting [limit](https://mcurcio.github.io/knobly/language/#limits) is refused too: E2010 at the bracket of the given text, or at 0:0 when
+  the file was already too deep (a document's `replaceWithText` is never refused). Each edit keeps comments and layout, and given anything but a string it throws a `TypeError` naming the
   member and the parameter; a bad name (`rename`, `setOverride`, an override of `load`) throws a `MisuseError`. `graph.setOverride(name, text)` changes an override without a
   reload, checked as `load` checks its overrides. `await graph.read()` reads files an edit added, through the
   source the graph was loaded with; `await graph.save(writer)` hands the changed files to a writer in one batch.
@@ -115,8 +117,10 @@ Every sample in the guide is a file that `pnpm test` runs (`examples/`). The lan
 
 Problems are diagnostics with stable codes (`DiagnosticCode`: 1xxx lexical, 2xxx syntax, 3xxx
 files and extensions, 4xxx values, 5xxx expansion); a program's own codes are
-`<namespace>/<name>`. Lines and columns are 0-based; offsets and columns count UTF-16 code units, JavaScript's
-string unit, so `text.slice(start.offset, end.offset)` is the spanned text. Only a diagnostic's code and place are a
+`<namespace>/<name>`. Each has a `severity`, `Severity.Error` or `Severity.Warning`: the one warning, W3005, is an
+`@include` glob that matches no file. Nothing throws a warning or acts on one; a program that stops on problems
+counts the errors. Lines and columns are 0-based; offsets and columns count UTF-16 code units, JavaScript's
+string unit, so `text.slice(start.offset, end.offset)` is the spanned text. Only a diagnostic's code, severity and place are a
 contract, not its message. A place, an override, a step and a diagnostic print as people read them (`String(place)`
 is `main.conf:4:5`, 1-based), the same text `formatDiagnostic` starts with. Numbers follow
 [spec/contract.md](../spec/contract.md) 3: no reader returns negative zero, and `1e400` is not a number (E4004).
@@ -165,7 +169,9 @@ The shared corpora under [`conformance/`](../conformance/) are run by one driver
 conformance adapter, [`conformance/adapter.ts`](conformance/adapter.ts): a process that answers the driver's
 requests (one JSON object per line on standard input and output) through the built package's public entry points,
 with positions in UTF-16 units. Its messages are typed by the generated `conformance/shapes.ts`, members are spelled
-by its `SPELLING` table and thrown errors named by `ERROR_GROUP_OF_CLASS`. It claims level L3 (spec/README.md). `corepack pnpm conformance` runs
+by its `SPELLING` table and thrown errors named by `ERROR_GROUP_OF_CLASS`. For the faults a case injects (spec/conformance.md
+4.5) it has a source of its own whose `read` fails for the paths named, and the test extension `throws`, both built
+on the public ports. It claims level L3 (spec/README.md). `corepack pnpm conformance` runs
 `python3 ../conformance/driver/run.py -- node conformance/adapter.ts` (Python 3.9 or later) after `build`; it prints
 TAP, one line per case, and exits 0 when every case at or below the claimed level passes. To run fewer cases, run
 that command yourself with `--corpus NAME` or `--case NAME` before the `--`. The adapter is typechecked and linted with the package but is not

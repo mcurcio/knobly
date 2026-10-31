@@ -89,11 +89,25 @@ def origin(o: vl.Origin | vl.DirectiveOrigin) -> OriginDump:
 
 
 def diagnostic(d: vl.Diagnostic) -> SyntaxDiagnosticDump:
-    return {"id": ref(d), "code": str(d.code), "message": d.message, "start": pos(d.span.start), "end": pos(d.span.end)}
+    return {
+        "id": ref(d),
+        "code": str(d.code),
+        "severity": str(d.severity),
+        "message": d.message,
+        "start": pos(d.span.start),
+        "end": pos(d.span.end),
+    }
 
 
 def located(d: vl.LocatedDiagnostic) -> LocatedDiagnosticDump:
-    return {"id": ref(d), "code": str(d.code), "message": d.message, "place": file_place(d.place), "via": steps(d.via)}
+    return {
+        "id": ref(d),
+        "code": str(d.code),
+        "severity": str(d.severity),
+        "message": d.message,
+        "place": file_place(d.place),
+        "via": steps(d.via),
+    }
 
 
 def syntax_dump(s: syntax.Syntax) -> SyntaxDump:
@@ -350,11 +364,46 @@ def save(graph: str, disk: dict[str, str] | None = None) -> SavedDump:
     return {"files": sorted(files.items())}
 
 
+class FailingReads:
+    """The test source of spec/conformance.md 4.5: the memory source, but ``read`` of a path named fails."""
+
+    def __init__(self, source: vl.DocumentSource, failing: Sequence[str]) -> None:
+        self.source, self.failing = source, frozenset(failing)
+
+    def resolve(self, spec: str, context: vl.LoadContext, /) -> tuple[str, ...]:
+        return self.source.resolve(spec, context)
+
+    def read(self, resolved_path: str, /) -> str:
+        if resolved_path in self.failing:
+            raise RuntimeError(f"failReads: {resolved_path}")
+        return self.source.read(resolved_path)
+
+
+class Throws:
+    """The test extension ``throws`` of spec/conformance.md 4.5: its ``specs`` raises an error of no spec 2.8 group."""
+
+    @property
+    def directive(self) -> str:
+        return "throws"
+
+    def specs(self, use: written.ExtensionUse, /) -> tuple[str, ...]:
+        raise RuntimeError("the throws extension")
+
+
+EXTENSIONS: dict[str, Callable[[], written.Extension]] = {"include": include, "throws": Throws}
+
+
 def load(
-    files: dict[str, str], root: str, extensions: list[str], overrides: dict[str, Any] | None = None
+    files: dict[str, str],
+    root: str,
+    extensions: list[str],
+    overrides: dict[str, Any] | None = None,
+    failReads: list[str] | None = None,  # the wire's own spelling
 ) -> LoadedDump:
     source = vl.memory_source(files)
-    processor = written.Processor(source=source, extensions=[include()] if "include" in extensions else [])
+    if failReads is not None:
+        source = FailingReads(source, failReads)
+    processor = written.Processor(source=source, extensions=[EXTENSIONS[name]() for name in extensions])
     given = None if overrides is None else {name: config_text(text) for name, text in overrides.items()}
     return {"graph": ref(processor.load(root, overrides=given))}
 

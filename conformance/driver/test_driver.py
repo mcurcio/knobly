@@ -13,7 +13,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import run  # noqa: E402
-from common import CaseError  # noqa: E402
+from common import CaseError, diagnostic_entry  # noqa: E402
 from contract import ecmascript, result  # noqa: E402
 from encode import to_bytes  # noqa: E402
 from syntax import shape  # noqa: E402
@@ -73,7 +73,7 @@ class SyntaxShape(unittest.TestCase):
     ]
 
     def dump(self, **change: object) -> "dict[str, object]":
-        d = {"id": "d1", "code": "E2001", "message": "m", "start": [1, 3, 5], "end": [1, 4, 6]}
+        d = {"id": "d1", "code": "E2001", "severity": "error", "message": "m", "start": [1, 3, 5], "end": [1, 4, 6]}
         d.update(change)
         return {"tokens": self.TOKENS, "root": ["document", 0, 5, []], "diagnostics": [d]}
 
@@ -83,6 +83,9 @@ class SyntaxShape(unittest.TestCase):
     def test_a_missing_or_extra_member_fails(self) -> None:
         d = self.dump()
         del d["diagnostics"][0]["message"]  # type: ignore[index]
+        self.assertTrue(shape(self.SRC, d, "byte"))
+        d = self.dump()
+        del d["diagnostics"][0]["severity"]  # type: ignore[index]
         self.assertTrue(shape(self.SRC, d, "byte"))
         self.assertTrue(shape(self.SRC, self.dump(extra=1), "byte"))
         self.assertTrue(shape(self.SRC, {**self.dump(), "more": []}, "byte"))
@@ -95,6 +98,22 @@ class SyntaxShape(unittest.TestCase):
     def test_a_lone_surrogate_is_three_bytes(self) -> None:
         tokens = [["BAD_CHAR", "\ud800", [0, 0, 0], [0, 3, 3]]]
         self.assertEqual(shape("\ud800", {"tokens": tokens, "root": ["document", 0, 1, []], "diagnostics": []}, "byte"), [])
+
+
+class Severity(unittest.TestCase):
+    """conformance/format.md "Severity": an entry ends with its severity only when it is not error."""
+
+    def test_an_error_prints_as_before(self) -> None:
+        self.assertEqual(diagnostic_entry({"code": "E3001", "severity": "error"}, "main.conf:0:0"), ["E3001", "main.conf:0:0"])
+
+    def test_a_warning_ends_with_its_severity(self) -> None:
+        self.assertEqual(
+            diagnostic_entry({"code": "W3005", "severity": "warning"}, "main.conf:0:0"), ["W3005", "main.conf:0:0", "warning"]
+        )
+
+    def test_a_missing_severity_stops_the_case(self) -> None:
+        with self.assertRaises(CaseError):
+            diagnostic_entry({"code": "E3001"}, "main.conf:0:0")
 
 
 def drive(mode: str) -> "tuple[int, str]":

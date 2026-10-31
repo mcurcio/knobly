@@ -74,11 +74,16 @@ included, so each edit grows the graph by what it re-parses (about 20 KB for a 5
 a process that keeps one graph for a long run of edits should load a fresh graph from time to time.
 
 **Errors.** Problems in the config text are never thrown: `load` returns a graph whose `diagnostics()` lists them,
-and `render` returns a tree with the same list. Exceptions mirror the error groups of the other bindings: expected
+and `render` returns a tree with the same list. Each has a `severity()`, `severity::error` or `severity::warning`:
+the one warning, W3005, is an `@include` glob that matches no file, and nothing throws one or acts on one (a
+program that stops on problems counts the errors). A warning's `diagnostic_code` value is its number plus 10000
+(W3005 is 13005), so it differs from E3005's. Exceptions mirror the error groups of the other bindings: expected
 outcomes derive `knobly::knobly_error` (`diagnostic_error`, `read_error`, `bad_text_error`, `save_error` and
 its `lost_update_error`; a `save_error` nests the writer's exception, so `std::rethrow_if_nested` gives the cause),
 and program bugs derive `std::logic_error` (`detached_error`, `argument_type_error`, `misuse_error`,
-`index_out_of_range`). An edit refused with an exception (`bad_text_error`, `detached_error`, `index_out_of_range`, ...) changes nothing;
+`index_out_of_range`). An edit that would make its file nest blocks and lists past the nesting
+[limit](https://mcurcio.github.io/knobly/language/#limits) is a `bad_text_error`: E2010 at the bracket of the given text, or at 0:0 when the file was already too deep
+(a document's `replace_with_text` is never refused). An edit refused with an exception (`bad_text_error`, `detached_error`, `index_out_of_range`, ...) changes nothing;
 one cut short by `std::bad_alloc` may leave its graph part edited and unfit for further use, so drop that graph. `parse` never throws (but `std::bad_alloc`).
 
 **Threads.** Copying a handle or destroying one on another thread is safe (the count is atomic); nothing else is,
@@ -188,7 +193,9 @@ ctest --test-dir build --output-on-failure
   `-DKNOBLY_CONTROL`, which swaps in the nearest valid line, and must succeed, so the failure is the refused line
   and not a typo. Both are left out of the default build; a new file is picked up at the next configure;
 - the shared conformance driver against the adapter (`conformance`: `conformance/adapter.cpp` claims level 3, every
-  case, with byte positions).
+  case, with byte positions; its own failing source and `throws` extension give the faults of spec/conformance.md
+  4.5), and on POSIX `conformance_small_stack`: the deepest load case again with the adapter's stack lowered to
+  512 KiB (`ulimit -s`), so the adapter's JSON must free and write a deep tree without recursing.
 
 One test at a time: `ctest --test-dir build -R programs_lint --output-on-failure`. Building also compiles every header
 together, each layer's header against the layers it may not import, the generated parser against its hooks, and

@@ -461,6 +461,31 @@ def test_an_include_glob_splices_matches_in_code_point_order() -> None:
     assert list(loaded.graph.documents) == ["main.conf", "d/B.conf", "d/a.conf", "d/b.conf"]
 
 
+def test_an_include_glob_that_matches_nothing_is_only_the_warning_w3005() -> None:
+    files = {"main.conf": '@include "d/*.conf";\nz 1;\n', "d/a.txt": "x;\n"}
+    loaded = load_and_render(processor(files, include=True), "main.conf")
+    assert codes(loaded) == ["W3005"]
+    assert [d.severity for d in loaded.diagnostics] == [vl.Severity.WARNING]
+    assert at(loaded.diagnostics[0]) == (0, 0)
+    assert loaded.unreadable == ()
+    assert [d.name for d in loaded.block] == ["z"]
+    assert [(e.specs, e.targets) for e in loaded.graph.edges()] == [(("d/*.conf",), ())]
+
+
+def test_an_empty_glob_stops_nothing_the_next_spec_is_still_spliced() -> None:
+    class Pair:
+        directive = "pair"
+
+        def specs(self, use: written.ExtensionUse, /) -> tuple[str, ...]:
+            return ("none/*.conf", "p.conf")
+
+    files = {"main.conf": "@pair 1;\n", "p.conf": "p;\n"}
+    loaded = load_and_render(written.Processor(source=vl.memory_source(files), extensions=[Pair()]))
+    assert codes(loaded) == ["W3005"]
+    assert [d.name for d in loaded.block] == ["p"]
+    assert [(e.specs, e.targets) for e in loaded.graph.edges()] == [(("none/*.conf", "p.conf"), ("p.conf",))]
+
+
 class _Counting:
     def __init__(self, files: Mapping[str, str], *, resolve_fails: str = "", read_fails: str = "") -> None:
         self.inner = vl.memory_source(files)
@@ -625,6 +650,34 @@ def test_the_walks_over_a_tree_256_levels_deep_do_not_recurse_per_level() -> Non
     assert codes(before) == []
     assert len(walked) == 257
     assert [(c.kind, str(c.address).count("b")) for c in changes] == [("changed", 256)]
+
+
+def deep_list() -> str:
+    """128 variables of two lists each, each holding the one before: ``leaf $v128;`` reads a value 256 lists deep,
+    while no text nests deeper than 2."""
+    sets = [f"@set $v{i + 1} [[{'x' if i == 0 else f'$v{i}'}]];" for i in range(128)]
+    return "\n".join([*sets, "leaf $v128;", ""])
+
+
+def test_a_list_256_levels_deep_read_through_variables_does_not_recurse_per_level() -> None:
+    # Each variable's read moves the whole list below it to the reading place (ExpandedValue._moved); as above, 200
+    # frames above the caller's depth.
+    limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(len(inspect.stack(0)) + 200)
+    try:
+        loaded = load(deep_list())
+        value: written.ExpandedValue = loaded.block[0].values[0]
+        depth = 0
+        while isinstance(value, written.ExpandedList):
+            depth += 1
+            value = value.items[0]
+        text = loaded.block[0].values[0].text
+    finally:
+        sys.setrecursionlimit(limit)
+    assert codes(loaded) == []
+    assert depth == 256
+    assert text == "[" * 256 + "x" + "]" * 256
+    assert len(value.origin.via) == 128
 
 
 def test_a_block_or_list_past_256_levels_after_expansion_is_e5013_at_its_statements_name() -> None:
