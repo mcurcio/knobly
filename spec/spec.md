@@ -261,6 +261,10 @@ statement classification reads; no binding compares a keyword's text by hand.
   "after expansion"; real configs are "likely a few dozen, but i want the headroom". 256 is a revisable choice, not
   his number; `MAX_NESTING` stays 100. Cases `diag-expanded-nesting-*` (written corpus: 257 and 1568 levels of
   blocks, and the place and order cases), `load-expanded-nesting-256`, `load-expanded-nesting-lists`.
+- **What depth costs an address.** Each address (7.4) holds its whole path, one step per level, and its text spells
+  that path out. So `addresses` and `diff` (7.6) take time and memory in proportion to the directives times their
+  depth: at most `MAX_DIRECTIVES` directives, each at most `MAX_EXPANDED_NESTING` steps. No binding shares a parent's
+  steps between addresses; the bound is the cost (kno-bzv.11, a revisable choice).
 - **No directive name is reserved** (milestone 5; owner, 2026-10-29, bead kno-umh.14: "yes" to language
   statements behind one sigil). A statement written `@name` is a language statement (`@set`, `@snippet`, `@use`) or
   an extension statement (`@include`); a directive's name is a `WORD` token, which never starts with `@` (3.1). So

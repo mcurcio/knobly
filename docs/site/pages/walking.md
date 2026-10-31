@@ -84,7 +84,8 @@ copy is given (its include block's `@set` line, at the include step of `chain`).
 An **address** is a directive's identity across renders: from the top level down, each step is the directive's
 name, its key (what the key rule returned, or none), and its occurrence among earlier siblings with the same name and
 key (counting from 0). It is unique within one render. A file included at two places, or a snippet used twice, lands
-at two addresses.
+at two addresses. Each address holds its whole path, so `addresses` and `diff` cost time and memory in proportion to
+the directives times how deep they sit.
 
 The **key rule** is the program's, given where addresses are asked for: to `addresses` and to `diff`. It is called
 once per readable directive, parents first, with the rendered directive, and returns a key or nothing. What it
