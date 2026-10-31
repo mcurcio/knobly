@@ -1017,3 +1017,11 @@
   the root file at 0:0", and the guide's generated table (`docs/site/pages/diagnostics.md`) repeats it; but its own
   `meaning`, spec 4.1 and spec 6.2's `load` row say the root file makes `load` fail with a `read error`, which has no
   place and no code. The "root file at 0:0" clause looks stale. Left for the owner of the codes table.
+
+## 2026-10-30, nesting review leftovers (kno-bzv.11)
+
+- **N7, corrected.** N7's last clause ("no case yet pins an extension line's E5013 before its block's `@set` E5013")
+  no longer holds. Read N7 as: `diag-expanded-nesting-*` pin E5013's order against the checks before and after it,
+  and `diag-expanded-nesting-include-block` (`@include [$deep] { @set $v [$deep]; }`: one E5013, at the `@include`,
+  and the block's `@set` never checked) pins the extension line's E5013 before its block's `@set` lines. Probed in
+  Python: with the two checks swapped in `_bind.py`, that case is the only one in the written corpus that fails.
