@@ -21,6 +21,7 @@
 #include <variant>
 #include <vector>
 
+#include <knobly/detail/io/paths.hpp>
 #include <knobly/detail/raise.hpp>
 #include <knobly/detail/shared/rules.hpp>
 #include <knobly/detail/written/core.hpp>
@@ -841,7 +842,13 @@ private:
                             spec + ": " + *resolved->second.failure);
             }
             if (resolved->second.paths.empty()) {
-                return fail(::knobly::diagnostic_code::include_not_found, spec);
+                if (!::knobly::detail::io::has_glob(spec)) {
+                    return fail(::knobly::diagnostic_code::include_not_found, spec);
+                }
+                // An empty glob stops nothing (spec 4.1, 2.3): W3005 is recorded in walk order and the line goes on.
+                binding_->diagnostics.push_back(
+                    *fail(::knobly::diagnostic_code::include_matched_nothing, spec).diagnostic);
+                continue;
             }
             std::vector<std::string> paths = resolved->second.paths;
             std::sort(paths.begin(), paths.end());  // byte order is code point order (design.md 2.4)
