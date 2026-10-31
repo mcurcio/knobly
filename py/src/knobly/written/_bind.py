@@ -22,6 +22,7 @@ from knobly._api.codes import DiagnosticCode, describe
 from knobly._api.errors import DiagnosticError
 from knobly._api.kinds import (
     NodeKind,
+    Severity,
     StatementKind,
     StepKind,
     TokenKind,
@@ -703,7 +704,18 @@ class Binding:
             draft.specs.extend(port_texts(extension.specs(ExtensionUse(args, origin)), port="specs()"))
         except DiagnosticError as error:
             draft.specs.clear()
-            raise _Problem(UnreadableReason.EXTENSION, error.diagnostic) from None
+            # A warning is never raised (spec 2.3, 5): one raised is the extension's mistake, judged by its code. The
+            # record is rebuilt so its severity is its code's, never the one the raised object claims.
+            raised = error.diagnostic
+            try:
+                recorded = LocatedDiagnostic(raised.code, raised.message, raised.place, tuple(raised.via))
+            except ValueError:
+                detail = f"{name.text[1:]}: raised {raised.code!r}, neither knobly's code nor a program's"
+                raise fail(DiagnosticCode.EXTENSION_FAILED, detail) from None
+            if recorded.severity is Severity.WARNING:
+                detail = f"{name.text[1:]}: raised the warning {recorded.code}"
+                raise fail(DiagnosticCode.EXTENSION_FAILED, detail) from None
+            raise _Problem(UnreadableReason.EXTENSION, recorded) from None
         except Exception as error:
             draft.specs.clear()
             raise fail(DiagnosticCode.EXTENSION_FAILED, f"{name.text[1:]}: {error}") from None

@@ -380,14 +380,20 @@ class FailingReads:
 
 
 class Throws:
-    """The test extension ``throws`` of spec/conformance.md 4.5: its ``specs`` raises an error of no spec 2.8 group."""
+    """The test extension ``throws`` of spec/conformance.md 4.5: its ``specs`` raises a diagnostic error of the code
+    its first value names when that value is a word, else an error of no spec 2.8 group."""
 
     @property
     def directive(self) -> str:
         return "throws"
 
     def specs(self, use: written.ExtensionUse, /) -> tuple[str, ...]:
-        raise RuntimeError("the throws extension")
+        first = use.values[0] if use.values else None
+        if not isinstance(first, written.ExpandedWord):
+            raise RuntimeError("the throws extension")
+        code = vl.DiagnosticCode(first.text)
+        message = f"the throws extension: {code}"
+        raise vl.DiagnosticError(vl.LocatedDiagnostic(code, message, use.origin.place, use.origin.via))
 
 
 EXTENSIONS: dict[str, Callable[[], written.Extension]] = {"include": include, "throws": Throws}

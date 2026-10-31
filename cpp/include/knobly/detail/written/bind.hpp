@@ -837,6 +837,12 @@ private:
             std::optional<::knobly::located_diagnostic> own;
             if (::knobly::detail::when_caught<::knobly::diagnostic_error>(
                     error, [&](const ::knobly::diagnostic_error& e) { own = e.diagnostic(); })) {
+                // A warning is never thrown (spec 2.3, 5): one thrown is the extension's mistake, judged by its code.
+                if (own->severity() == ::knobly::severity::warning) {
+                    return fail(::knobly::diagnostic_code::extension_failed,
+                                directive + ": threw the warning " +
+                                    ::knobly::to_string(std::get<::knobly::diagnostic_code>(own->code())));
+                }
                 return problem{::knobly::unreadable_reason::extension, own};
             }
             return fail(::knobly::diagnostic_code::extension_failed,

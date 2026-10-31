@@ -1075,3 +1075,15 @@
   a warning.
 - **W8, labelled.** W1 (a), (d) and (e) were presented in spec 2.3 and 4.1 next to the owner's quotes as if his;
   they are now marked revisable choices there and in design/RECORD.md, which has one row per answer.
+
+## 2026-10-30, a warning an extension throws (kno-bzv.2), review fixes
+
+- **W3, closed by the owner.** On 2026-10-31 he answered "3 a": E5007 (the depth limit) stays an error. This meets
+  the bead's "depth-limit severity recorded" criterion; design/RECORD.md has the row. His "1 a" (a glob on a source
+  that cannot list folders gives W3005, as now) makes W1 (c) his, no longer a revisable choice; spec 4.1 now credits
+  it to him.
+- **W9, changed (revisable, not the owner's).** A thrown diagnostic is rebuilt from its code before it is recorded
+  (TypeScript, Python; C++'s record already derives `severity` from its code), so its severity is its code's and a
+  hand-built object claiming `warning` for an E code is recorded as an error. A code that is neither knobly's nor a
+  program code (`W9999`) is E3006, so nothing thrown is ever kept as a warning (spec 2.4, 5). Python's
+  `severity_of` now reads a `str` code by its text, as TypeScript's `severityOf` does.

@@ -8,7 +8,7 @@ import { include } from "../include.js";
 import type { Extension } from "../written/index.js";
 import { knobly } from "../written/index.js";
 import { addresses, countingSource, loadFiles, loadText, only, originText, problems, rendered, texts } from "./testing.js";
-import { BadTextError, DiagnosticError, memorySource, MisuseError, ReadError, Severity } from "../index.js";
+import { BadTextError, type DiagnosticCode, DiagnosticError, memorySource, MisuseError, ReadError, Severity } from "../index.js";
 
 const INCLUDE = { extensions: [include()] };
 
@@ -401,6 +401,47 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
       ["test/bad-pull", "main.conf:1:6"],
     ]);
     expect(loaded.unreadable.map((u) => u.reason)).toEqual(["extension", "extension"]);
+  });
+
+  it("gives E3006 at the name, never the warning, when an extension throws a DiagnosticError whose code is a W code", async () => {
+    // Owner, 2026-10-31 (kno-bzv.2): a warning is never thrown, so throwing one is the extension's mistake. The code
+    // decides, not the severity the thrown object claims.
+    for (const severity of [Severity.Warning, Severity.Error]) {
+      const warning: Extension = {
+        directive: "warn",
+        specs: ({ origin: { place, via } }) => {
+          throw new DiagnosticError({ code: "W3005", severity, message: "empty", place, via, toString: () => "empty" });
+        },
+      };
+      const loaded = await loadText("@warn x;\nok;\n", { extensions: [warning] });
+      expect(problems(loaded.diagnostics), severity).toEqual([["E3006", "main.conf:0:0"]]);
+      expect(loaded.diagnostics[0]?.message, severity).toContain("W3005");
+      expect(loaded.unreadable.map((u) => u.reason), severity).toEqual(["extension"]);
+      expect(addresses(loaded), severity).toEqual(["ok"]);
+    }
+  });
+
+  it("records a thrown error code with its code's severity, and gives E3006 for a code neither knobly's nor a program's", async () => {
+    // Spec 2.3 and 5: the severity comes from the code, never the thrown object, so nothing thrown is kept as a warning.
+    const cases = [
+      ["E3005", [["E3005", "main.conf:0:0", Severity.Error]]],
+      ["test/bad", [["test/bad", "main.conf:0:0", Severity.Error]]],
+      ["W9999", [["E3006", "main.conf:0:0", Severity.Error]]],
+      ["nocode", [["E3006", "main.conf:0:0", Severity.Error]]],
+    ] as const;
+    for (const [code, expected] of cases) {
+      const claims: Extension = {
+        directive: "claim",
+        specs: ({ origin: { place, via } }) => {
+          const severity = Severity.Warning;
+          throw new DiagnosticError({ code: code as DiagnosticCode, severity, message: "m", place, via, toString: () => "m" });
+        },
+      };
+      const loaded = await loadText("@claim x;\nok;\n", { extensions: [claims] });
+      const found = [...loaded.diagnostics].map((d) => [d.code, originText(d), d.severity]);
+      expect(found, code).toEqual(expected);
+      expect(loaded.unreadable.map((u) => u.reason), code).toEqual(["extension"]);
+    }
   });
 
   it("reports an included file's syntax error once and keeps an unreadable entry at each place", async () => {

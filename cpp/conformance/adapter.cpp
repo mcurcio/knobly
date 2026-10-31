@@ -770,12 +770,33 @@ private:
     std::vector<std::string> failing_;
 };
 
-/// The test extension throws of spec/conformance.md 4.5: its specs throws an error of no spec 2.8 group.
+/// Knobly's code a text names (E3006, W3005): an error's value is its number, a warning's that number plus 10000.
+vl::diagnostic_code code_named(const std::string& text) {
+    if (text.size() == 5 && (text[0] == 'E' || text[0] == 'W') &&
+        std::all_of(text.begin() + 1, text.end(), [](char c) { return c >= '0' && c <= '9'; })) {
+        const int number = std::stoi(text.substr(1)) + (text[0] == 'W' ? 10000 : 0);
+        const auto code = static_cast<vl::diagnostic_code>(number);
+        if (vl::to_string(code) == text) {
+            return code;
+        }
+    }
+    throw std::runtime_error("no code " + text);
+}
+
+/// The test extension throws of spec/conformance.md 4.5: its specs throws a diagnostic error of the code its first
+/// value names when that value is a word, else an error of no spec 2.8 group.
 class throws_extension final : public vw::extension {
 public:
     std::string directive() const override { return "throws"; }
-    vl::sequence<std::string> specs(const vw::extension_use& /*use*/) const override {
-        throw std::runtime_error("the throws extension");
+    vl::sequence<std::string> specs(const vw::extension_use& use) const override {
+        const vl::sequence<vw::expanded_value> values = use.values();
+        if (values.empty() || values.at(0).kind() != vl::value_kind::word) {
+            throw std::runtime_error("the throws extension");
+        }
+        const std::string text = values.at(0).text();
+        const vl::directive_origin origin = use.origin();
+        throw vl::diagnostic_error(
+            vl::located_diagnostic(code_named(text), "the throws extension: " + text, origin.place(), origin.via()));
     }
 };
 

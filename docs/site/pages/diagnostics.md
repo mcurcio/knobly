@@ -99,7 +99,7 @@ same codes, placed in the text the edit was given ([Editing and saving](editing.
 | E3004 | `IncludeResolverFailed` | `INCLUDE_RESOLVER_FAILED` | `include_resolver_failed` | the source threw (for the root file `load` fails) | the extension line's name |
 | E3005 | `IncludeBadPath` | `INCLUDE_BAD_PATH` | `include_bad_path` | include needs exactly one quoted path | the bad value, or the name when there is none |
 | W3005 | `IncludeMatchedNothing` | `INCLUDE_MATCHED_NOTHING` | `include_matched_nothing` | a glob matched no file: a warning, so the include splices nothing and the load goes on | the extension line's name, as E3001 |
-| E3006 | `ExtensionFailed` | `EXTENSION_FAILED` | `extension_failed` | an extension threw something other than a located error, or returned something other than a list of texts | the extension line's name |
+| E3006 | `ExtensionFailed` | `EXTENSION_FAILED` | `extension_failed` | an extension threw something other than a located error, threw a warning, or returned something other than a list of texts | the extension line's name |
 | E3007 | `UnreadCopy` | `UNREAD_COPY` | `unread_copy` | an include copy whose files are not read yet (`graph.read()` reads them) | the extension line's name |
 | E3008 | `UnknownExtension` | `UNKNOWN_EXTENSION` | `unknown_extension` | an `@name` that is no language statement and no registered extension | the `@name` |
 | E4001 | `NonIntegerBound` | `NON_INTEGER_BOUND` | `non_integer_bound` | a bound from a variable that is not one whole number, or a literal whole number beyond the range | the bound (a bound from a variable: the value, via the variable) |

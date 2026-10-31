@@ -192,7 +192,7 @@ is stale), which also holds each code's message and owning layer.
 | E3004 | `include resolver failed` | load and read | extension | The document source rejected while resolving or reading a file. For the root file, `load` fails instead (6.2). |
 | E3005 | `include bad path` | include extension | extension | An `include` whose values are not exactly one quoted path. |
 | W3005 | `include matched nothing` | load and read | none | A warning: an extension's spec that is a glob (the glob rule of 4.1) matched no file. The line splices nothing for it and is not stopped. A spec that is no glob and matches no file is E3001. |
-| E3006 | `extension failed` | load and read | extension | An extension threw something other than a diagnostic error, or returned something other than a list of texts. |
+| E3006 | `extension failed` | load and read | extension | An extension threw something other than a diagnostic error, threw a diagnostic error whose code is a warning (a warning is never thrown, 2.3; 5) or is neither knobly's nor a program code, or returned something other than a list of texts. |
 | E3007 | `unread copy` | low level | unread | An extension line's copy whose specs are not resolved or whose files are not read yet (it is in `unread ()`); `read ()` reads them. Placed on the extension line's name. |
 | E3008 | `unknown extension` | low level | extension | A statement written `@name` where `name` is no language statement (`set`, `snippet`, `use`) and no registered extension's name. Placed on the `@name`; the statement is an `unreadable line`. |
 | E4001 | `non-integer bound` | low level | value | A slice or index bound reached through a variable that is not one integer word, or a literal integer beyond the integer range. A literal bound that is not an integer is E2007, found by parse. |
@@ -226,7 +226,8 @@ root cause C.)
 part of the load conformance output. "syntax" means the statement is an `error` node, or an
 extension line whose block holds one (the code is then the parser's, reported once). A diagnostic
 error an extension's `specs` throws keeps its own code (a program code included) and gives reason
-`extension`. "unread" (E3007) marks an extension copy not read yet. "none" means the code never makes a statement
+`extension`, with its code's severity, unless its code is a warning or neither knobly's nor a program code: that
+is E3006 (5). "unread" (E3007) marks an extension copy not read yet. "none" means the code never makes a statement
 unreadable: readers raise it, or it is a warning (2.3).
 
 Each binding's code registry and message table are generated from
@@ -297,7 +298,8 @@ statement classification reads; no binding compares a keyword's text by hand.
 
 A `diagnostic error` is the error thrown by an operation whose input breaks its contract in a way
 that has a place in the config: a reader given the wrong kind of value, or a program's `error(...)`. It carries one
-`located diagnostic` as `diagnostic`, always an error (2.3: a warning is never thrown). (A root file that cannot be read is a `read error`, which has no place in any
+`located diagnostic` as `diagnostic`, always an error (2.3: a warning is never thrown; an extension that throws one
+gets E3006, 5). (A root file that cannot be read is a `read error`, which has no place in any
 file: [contract.md 4](contract.md#4-errors).)
 
 ### 2.7 Formatting a diagnostic
@@ -722,10 +724,11 @@ writer` that the program supplies.
   "Nothing", not the owner's): it gives W3005, adds no path, and
   the core goes on to the next spec and the line's remaining checks (5), as for a spec whose files were found.
   A line whose every spec is an empty glob splices nothing; its `document edge` has the specs and no `targets`.
-  Two more revisable choices, not the owner's, read from "Nothing": when a later check stops the line (E5007, say),
-  W3005 stays in the list before that error, since the list holds every problem found, in walk order; and the
+  A revisable choice, not the owner's, read from "Nothing": when a later check stops the line (E5007, say),
+  W3005 stays in the list before that error, since the list holds every problem found, in walk order. The
   core decides with the glob rule from the spec's text alone, whatever the source is, so a source that takes no
-  globs and returns nothing for `a*.conf` gives W3005 too (a stated cost: the fetch source, 4.3).
+  globs and returns nothing for `a*.conf` gives W3005 too (a stated cost: the fetch source, 4.3; owner, 2026-10-31,
+  bead kno-bzv.2, asked about a glob on a source that cannot list folders, chose "a. Warning W3005, as now": "1 a").
 - `read (resolved path)` returns the text of one resolved file. A failure becomes E3004 at the extension line, or
   for the root file makes `load` fail with a `read error` (no code: [contract.md 4](contract.md#4-errors)).
 - A `load context` has `parent path`: the resolved path of the file holding the extension line, or
@@ -813,6 +816,14 @@ ports that do I/O.)
 - `specs` throws a `diagnostic error` for a located failure. Any other failure becomes E3006 at the
   directive's name. (In a language with error values, a returned error that is not a diagnostic
   error; whether a panic is also caught is the binding's stated choice, binding guide section 3.)
+- A `diagnostic error` whose code is a warning is a failure too: E3006 at the directive's name, the line unreadable
+  with reason `extension`, and the warning's code is never recorded (owner, 2026-10-31, bead kno-bzv.2, asked what
+  happens when an extension throws a diagnostic whose code is a warning, given that a warning is never thrown (2.3),
+  offered a. report it as E3006 "extension failed", the line unreadable, the error pointing at the extension's
+  mistake, or b. record the warning and keep the line readable: "A"). The code's letter decides, not the `severity`
+  a thrown object claims: the line's own problem is recorded with its code's severity, and a code that is neither
+  knobly's nor a program code (`W9999`, `oops`) is E3006 too (revisable choices, not the owner's, so that nothing
+  thrown is kept as a warning). It never escapes `load` or `read`.
 - **Order of checks** on one extension line, each stopping the line (it becomes `unreadable`,
   kind per 2.4) before the next: its values are expanded (E5001, E4001, ...); its block is
   checked (a line other than `set` is E5012; a syntax error inside makes it kind `syntax`); `specs`

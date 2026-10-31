@@ -1433,7 +1433,7 @@
           "errors": [
             "diagnostic error"
           ],
-          "doc": "the specs for one use, in splice order. Raise a diagnostic error for a located failure; any other failure, or a result that is not a list of texts, becomes E3006 at the directive's name"
+          "doc": "the specs for one use, in splice order. Raise a diagnostic error for a located failure, with an error code; any other failure, a diagnostic error whose code is a warning or neither knobly's nor a program's, or a result that is not a list of texts, becomes E3006 at the directive's name"
         }
       ],
       "doc": "a plug-in that owns one directive name and turns each line written with it (@include) into path specs of files to splice in its place. It is pure: the load resolves, reads and splices the files"

@@ -7,6 +7,7 @@ from __future__ import annotations
 import inspect
 import sys
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import cast
 
 import pytest
@@ -538,6 +539,71 @@ def test_an_extension_that_raises_something_else_is_e3006() -> None:
         written.Processor(source=vl.memory_source({"main.conf": "@broken 1;\n"}), extensions=[Broken()])
     )
     assert codes(loaded) == ["E3006"]
+
+
+def test_an_extension_that_raises_a_warning_code_is_e3006_at_the_directive_and_never_the_warning() -> None:
+    # Owner, 2026-10-31 (kno-bzv.2): a warning is never raised, so raising one is the extension's mistake.
+    class Warns:
+        directive = "warn"
+
+        def specs(self, use: written.ExtensionUse, /) -> tuple[str, ...]:
+            code = vl.DiagnosticCode.INCLUDE_MATCHED_NOTHING
+            raise vl.DiagnosticError(vl.LocatedDiagnostic(code, "empty", use.origin.place, use.origin.via))
+
+    files = {"main.conf": "@warn x;\nok;\n"}
+    loaded = load_and_render(written.Processor(source=vl.memory_source(files), extensions=[Warns()]))
+    assert codes(loaded) == ["E3006"]
+    assert at(loaded.diagnostics[0]) == (0, 0)
+    assert "W3005" in loaded.diagnostics[0].message
+    assert [u.reason for u in loaded.unreadable] == [written.UnreadableReason.EXTENSION]
+    assert [d.name for d in loaded.block] == ["ok"]
+
+
+@dataclass(frozen=True)
+class _Claimed:
+    """A hand-built record of the ``LocatedDiagnostic`` shape whose ``severity`` is whatever it claims."""
+
+    code: str
+    severity: vl.Severity
+    message: str
+    place: vl.Place
+    via: tuple[vl.Step, ...]
+
+
+@pytest.mark.parametrize(
+    ("code", "claimed", "expected"),
+    [
+        ("W3005", vl.Severity.ERROR, ("E3006", vl.Severity.ERROR)),
+        ("E3005", vl.Severity.WARNING, ("E3005", vl.Severity.ERROR)),
+        ("test/bad", vl.Severity.WARNING, ("test/bad", vl.Severity.ERROR)),
+        ("W9999", vl.Severity.WARNING, ("E3006", vl.Severity.ERROR)),
+    ],
+)
+def test_a_raised_record_is_judged_by_its_code_never_the_severity_it_claims(
+    code: str, claimed: vl.Severity, expected: tuple[str, vl.Severity]
+) -> None:
+    # Spec 2.3 and 5: a code's text decides its severity; a code neither knobly's nor a program's is E3006.
+    class Claims:
+        directive = "claim"
+
+        def specs(self, use: written.ExtensionUse, /) -> tuple[str, ...]:
+            record = _Claimed(code, claimed, "m", use.origin.place, use.origin.via)
+            raise vl.DiagnosticError(cast(vl.LocatedDiagnostic, record))
+
+    files = {"main.conf": "@claim x;\nok;\n"}
+    loaded = load_and_render(written.Processor(source=vl.memory_source(files), extensions=[Claims()]))
+    assert [(str(d.code), d.severity) for d in loaded.diagnostics] == [expected]
+    assert at(loaded.diagnostics[0]) == (0, 0)
+    assert [u.reason for u in loaded.unreadable] == [written.UnreadableReason.EXTENSION]
+
+
+def test_severity_of_reads_a_code_by_its_text() -> None:
+    from knobly._diagnostics import severity_of
+
+    assert severity_of("W3005") is vl.Severity.WARNING
+    assert severity_of(vl.DiagnosticCode.INCLUDE_MATCHED_NOTHING) is vl.Severity.WARNING
+    assert severity_of("E3005") is vl.Severity.ERROR
+    assert severity_of("rasl/x") is vl.Severity.ERROR
 
 
 @pytest.mark.parametrize("result", ["dark.conf", None, ["a", 1], 3])
