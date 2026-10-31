@@ -367,8 +367,10 @@ def extended(model: Model) -> Set[str]:
 
 def fields(model: Model, c: Concept) -> List[Member]:
     """A record's stored properties, in its constructor's order: the match args first when the schema gives them,
-    then the rest in schema order, inherited first; a fixed kind is no field (Python's dataclass field order)."""
-    props = [m for m in model.all_members(c) if m.member == "property" and not (m.name == "kind" and c.kind is not None)]
+    then the rest in schema order, inherited first; a fixed kind and a derived property are no field (Python's
+    dataclass field order)."""
+    props = [m for m in model.all_members(c)
+             if m.member == "property" and not m.derived and not (m.name == "kind" and c.kind is not None)]
     if c.match_args:
         by = {m.name: m for m in props}
         first = [by[a] for a in c.match_args if a in by]
@@ -640,6 +642,8 @@ def record_class(model: Model, c: Concept, out: Out) -> List[str]:
         mn = member_name(c, m)
         if m.name == "kind" and c.kind is not None:
             body.append(f"{result} {mn}() const noexcept {{ return {result}::{ident(snake(c.kind))}; }}")
+        elif m.derived:  # worked out from the other fields by the hand code (detail/<layer>/), so it cannot disagree
+            body.append(f"KNOBLY_API {result} {mn}() const noexcept;")
         elif indirect(m):
             body.append(f"{result} {mn}() const {{ return {snake(m.name)}_ ? {result}(*{snake(m.name)}_) : std::nullopt; }}")
         else:
@@ -1088,17 +1092,27 @@ def kinds_header(model: Model) -> str:
 
 def codes_header(model: Model) -> str:
     entries, strings, messages, facts, found = [], [], [], [], []
+    severities = model.kind["severity"].values
+    values: Dict[int, str] = {}
     for c in model.codes:
         name = ident(LANGUAGE.code_case(c.name))
-        entries += [*doc(c.meaning.replace("`", "")), f"{name} = {int(c.code[1:])},"]
+        # An error's value is its number; each later severity adds 10000 (W3005 is 13005), so E3005 and W3005 differ.
+        value = severities.index(c.severity) * 10000 + int(c.code[1:])
+        if value in values:
+            raise SchemaError(f"{c.code} and {values[value]} would share the C++ value {value}")
+        values[value] = c.code
+        entries += [*doc(c.meaning.replace("`", "")), f"{name} = {value},"]
         strings.append(f"case diagnostic_code::{name}: return {lit(c.code)};")
         message = PLACEHOLDER.sub(lambda m: str(model.limit[m.group(1)].value), c.message)
         messages.append(f"case diagnostic_code::{name}: return {lit(message)};")
         found.append(f"inline constexpr std::string_view found_by_{c.code}[] = {{{', '.join(lit(f) for f in c.found_by)}}};")
         reason = "std::nullopt" if c.reason is None else f"::knobly::unreadable_reason::{ident(snake(c.reason))}"
-        facts.append(f"case diagnostic_code::{name}: return {{{lit(c.name)}, {lit(c.layer)}, detail::found_by_{c.code}, {reason}}};")
+        severity = f"::knobly::severity::{ident(snake(c.severity))}"
+        facts.append(f"case diagnostic_code::{name}: return {{{lit(c.name)}, {lit(c.layer)}, detail::found_by_{c.code}, {reason}, "
+                     f"{severity}}};")
     body = ["KNOBLY_NAMESPACE_BEGIN", "",
-            *doc("knobly's diagnostic codes, by name; each value is its code's number (E1001 is 1001)."),
+            *doc("knobly's diagnostic codes, by name; an error's value is its code's number (E1001 is 1001), a warning's "
+                 "that number plus 10000 (W3005 is 13005)."),
             "enum class diagnostic_code : std::uint16_t {", *entries, "};", "",
             *doc("The code as the spec writes it: \"E1001\"."),
             "inline std::string to_string(diagnostic_code code) {", "switch (code) {", *strings, "}", "return {};", "}", "",
@@ -1106,10 +1120,11 @@ def codes_header(model: Model) -> str:
             "constexpr std::string_view message(diagnostic_code code) noexcept {", "switch (code) {", *messages, "}",
             "return {};", "}", "",
             *doc(f"What the registry says of one code: its spec name, its owning layer (one of {', '.join(CODE_LAYERS)}), "
-                 "who finds it, and the unreadable reason it gives (none: a reader's code, which makes nothing "
-                 "unreadable)."),
+                 "who finds it, the unreadable reason it gives (none: a reader's code or a warning, which makes "
+                 "nothing unreadable), and its severity (its letter's: spec 2.3)."),
             "struct code_facts {", "std::string_view name;", "std::string_view layer;",
-            "std::span<const std::string_view> found_by;", "std::optional<::knobly::unreadable_reason> reason;", "};",
+            "std::span<const std::string_view> found_by;", "std::optional<::knobly::unreadable_reason> reason;",
+            "::knobly::severity severity;", "};",
             "", "namespace detail {", *found, "}  // namespace detail", "",
             *doc("Each code's facts."),
             "constexpr code_facts facts_of(diagnostic_code code) noexcept {", "switch (code) {", *facts, "}",

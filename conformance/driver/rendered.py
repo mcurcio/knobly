@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple
 
-from common import Session, Texts, key_rules
+from common import Session, Texts, diagnostic_entry, key_rules
 from encode import to_bytes
 
 
@@ -33,7 +33,7 @@ def projection(texts: Texts, render: Mapping[str, Any], links: bool) -> Dict[str
             values.append(value)
         directives.append([address, d["block"] is not None, texts.origin(**d["origin"]), values])
         unreadable.extend([address, u["reason"], texts.origin(**u["origin"])] for u in d["unreadable"])
-    diagnostics = [[x["code"], texts.origin(x["place"], x["via"])] for x in render["diagnostics"]]
+    diagnostics = [diagnostic_entry(x, texts.origin(x["place"], x["via"])) for x in render["diagnostics"]]
     return {"directives": directives, "unreadable": unreadable, "diagnostics": diagnostics}
 
 

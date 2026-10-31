@@ -130,6 +130,7 @@ Python `X: TypeAlias = A | B | ...` over classes (so `isinstance(x, X)` works). 
 | `block` | `Block<Item, Directive>` | `Block[Item, Directive]` | `block<Item, Directive>` |
 | `step kind` (kind list) | `StepKind` (as-const object and type) | `StepKind` (`StrEnum`) | `step_kind` (`enum class`) |
 | `place kind` (kind list) | `PlaceKind` (as-const object and type) | `PlaceKind` (`StrEnum`) | `place_kind` (`enum class`) |
+| `severity` (kind list) | `Severity` (as-const object and type) | `Severity` (`StrEnum`) | `severity` (`enum class`) |
 | `walk control` (kind list) | `WalkControl` (as-const object and type) | none | the walk's descend predicate |
 | `diagnostic code` | `DiagnosticCode` (as-const object and type) | `DiagnosticCode` (`StrEnum`) | `diagnostic_code` (`enum class`) |
 | `knobly error` (error group) | `KnoblyError` | `KnoblyError` | `knobly_error` |
@@ -370,3 +371,10 @@ These are words of the schema and its generator ([codegen.md](codegen.md)), not 
 | adapter module (`files`, `fetch`, `include`) | a module a binding may have beside its layer namespaces, named for what it holds: `files` the filesystem source and writer, `fetch` the fetch source and writer, `include` the include extension. Each emitter maps it to its own import path or leaves it out (its `LANGUAGE.modules`); the generated contract 5 table and the glossary's io table show each binding's path | the schema named the TypeScript paths (`node`, `browser`), a per-language fact | `node` and `browser`, the schema's old module names. Not the source and writer adapters themselves (spec 4.3), nor the conformance adapter |
 | `registry layer`, `adapter layer` | the layer that holds the error groups and the diagnostic code type, and the one layer whose concepts may sit in an adapter module (`api.json`) | the loader named `shared` and `io` in code, so a renamed or added layer needed a loader edit | none |
 | I-Regexp | the interoperable regular expression subset of RFC 9485; every schema pattern is one, between `^` and `$`, and each emitter writes it in its engine's dialect | a pattern must mean the same in every binding's engine, not only JavaScript's and Python's | the "no `\s`, `\w`, `\d`, `\b`" rule it replaces |
+
+## New terms for warnings (kno-bzv.2, 2026-10-30)
+
+| Term | Definition | Why it is needed | Existing term it could be |
+|---|---|---|---|
+| `severity` (kind list), `error`, `warning` | how much a diagnostic counts: `error`, or `warning`, which no operation throws, raises or refuses over (spec 2.3). A knobly code's letter gives it (`E`, `W`); a program's own code is an error | the owner chose a warning code for an empty glob, with "a severity field (error \| warning)": "Yes" (2026-10-30) | `diagnostic`, which every diagnostic stays; `error` and `warning` are its two values, not new kinds of record |
+| W3005 `include matched nothing` | the warning for an extension's spec that is a glob and matches no file (spec 4.1) | the owner's pick "2" (a new warning code) and its code: "Yes" (2026-10-30) | E3001 `include not found`, which stays for a path that is no glob |

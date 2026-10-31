@@ -47,6 +47,7 @@
         "returns": {"$ref": "#/$defs/type"},
         "params": {"type": "array", "items": {"$ref": "#/$defs/param"}},
         "optional": {"type": "boolean"},
+        "derived": {"type": "boolean", "description": "a record's property the binding works out from its other properties (a diagnostic's severity, from its code): no constructor takes it and no record stores it, so it cannot disagree with them (spec/codegen.md 3)"},
         "trait": {"enum": ["people form", "iterate", "count", "index", "walk", "collect"]},
         "io": {"type": "boolean"},
         "errors": {"type": "array", "items": {"$ref": "#/$defs/raises"}},
@@ -58,7 +59,7 @@
       },
       "if": {"properties": {"member": {"const": "property"}}},
       "then": {"required": ["type"], "not": {"anyOf": [{"required": ["returns"]}, {"required": ["params"]}]}},
-      "else": {"required": ["returns"], "not": {"required": ["type"]}}
+      "else": {"required": ["returns"], "not": {"anyOf": [{"required": ["type"]}, {"required": ["derived"]}]}}
     },
     "concept": {
       "type": "object",
@@ -189,19 +190,20 @@
     "diagnostics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "ranges", "retired", "rules", "codes"],
+      "required": ["version", "severities", "ranges", "retired", "rules", "codes"],
       "properties": {
         "$schema": {"type": "string"},
         "$comment": {"type": "string"},
         "version": {"const": 2},
+        "severities": {"type": "object", "minProperties": 1, "propertyNames": {"pattern": "^[A-Z]$"}, "additionalProperties": {"$ref": "#/$defs/specName"}},
         "ranges": {"type": "object", "propertyNames": {"pattern": "^[1-9]xxx$"}, "additionalProperties": {"$ref": "#/$defs/prose"}},
         "retired": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["code", "was", "now"],
-          "properties": {"code": {"type": "string", "pattern": "^E[0-9]{4}$"}, "was": {"$ref": "#/$defs/prose"}, "now": {"$ref": "#/$defs/prose"}}}},
+          "properties": {"code": {"type": "string", "pattern": "^[A-Z][0-9]{4}$"}, "was": {"$ref": "#/$defs/prose"}, "now": {"$ref": "#/$defs/prose"}}}},
         "rules": {"type": "array", "items": {"$ref": "#/$defs/prose"}},
         "codes": {"type": "array", "items": {"type": "object", "additionalProperties": false,
           "required": ["code", "name", "layer", "found by", "unreadable reason", "message", "meaning", "summary", "placed at"],
           "properties": {
-            "code": {"type": "string", "pattern": "^E[0-9]{4}$"},
+            "code": {"type": "string", "pattern": "^[A-Z][0-9]{4}$"},
             "name": {"$ref": "#/$defs/specName"},
             "layer": {"enum": ["syntax", "written", "include"]},
             "found by": {"type": "array", "minItems": 1, "uniqueItems": true,

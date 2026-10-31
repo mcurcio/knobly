@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from typing import Any, List, Mapping, Sequence
 
-from common import Session
+from common import Session, diagnostic_entry
 from encode import to_bytes
 from units import line_column, native_length
 
 
 SYNTAX_MEMBERS = frozenset({"tokens", "root", "diagnostics"})
-DIAGNOSTIC_MEMBERS = frozenset({"id", "code", "message", "start", "end"})
+DIAGNOSTIC_MEMBERS = frozenset({"id", "code", "severity", "message", "start", "end"})
 
 
 def native_position(src: str, native: int, unit: str) -> List[int]:
@@ -106,6 +106,6 @@ def run(session: Session, case: Mapping[str, Any]) -> str:
         {
             "tokens": [[t[0], t[1]] for t in dump["tokens"]],
             "cst": dump["root"],
-            "diagnostics": [[d["code"], *line_column(conv, d["start"])] for d in dump["diagnostics"]],
+            "diagnostics": [diagnostic_entry(d, *line_column(conv, d["start"])) for d in dump["diagnostics"]],
         }
     )

@@ -165,17 +165,16 @@ std::string code_text(const std::variant<vl::diagnostic_code, vl::program_code>&
 value diagnostic(const vl::diagnostic& d) {
     return object{{"id", keep(d)},
                   {"code", vl::to_string(d.code())},
+                  {"severity", std::string(vl::to_string(d.severity()))},
                   {"message", d.message()},
                   {"start", position(d.span().start())},
                   {"end", position(d.span().end())}};
 }
 
 value located(const vl::located_diagnostic& d) {
-    return object{{"id", keep(d)},
-                  {"code", code_text(d.code())},
-                  {"message", d.message()},
-                  {"place", place(d.place())},
-                  {"via", steps(d.via())}};
+    return object{
+        {"id", keep(d)},          {"code", code_text(d.code())}, {"severity", std::string(vl::to_string(d.severity()))},
+        {"message", d.message()}, {"place", place(d.place())},   {"via", steps(d.via())}};
 }
 
 value node(const vl::syntax::node& n) {

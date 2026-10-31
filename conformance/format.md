@@ -29,7 +29,16 @@ One JSON object with exactly these keys, in this order:
   into `tokens`, half-open. `children` is an array of nodes in the same 4-element form.
 - `diagnostics`: `[code, line, column]` per diagnostic, in source order (`spec/spec.md` 3.3). `line` and `column`
   are the 0-based start of the diagnostic's span. The column counts UTF-16 code units. The message
-  is not part of the contract.
+  is not part of the contract. A diagnostic's severity is printed by the rule below.
+
+## Severity
+
+Every diagnostic entry, in every corpus (the syntax `diagnostics`, the load and render `diagnostics`, the written
+`["list"]` and a `bad text error`'s diagnostics), is its code, then where it is, then its severity (spec 2.3) **only
+when that is not `error`**: `["E3001","main.conf:0:0"]`, but `["W3005","main.conf:0:0","warning"]`. So an error's
+entry reads as it did before warnings, and only a case with a warning changes. The adapter dumps every
+diagnostic's `severity` (spec/conformance.md 4.2); a dump without one stops the case. The driver applies the rule
+(`diagnostic_entry` in `conformance/driver/common.py`).
 
 ## Bytes
 

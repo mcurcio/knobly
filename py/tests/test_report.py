@@ -79,6 +79,17 @@ def test_a_located_diagnostic_made_directly_checks_its_code() -> None:
         vl.LocatedDiagnostic("E9999", "m", place, ())
 
 
+def test_a_diagnostic_s_severity_is_its_code_s_and_a_program_code_is_an_error() -> None:
+    """Spec 2.3: a W code is a warning, an E code and a program's code are errors; no constructor takes a severity."""
+    place = loaded().origin.place
+    assert vl.LocatedDiagnostic("W3005", "m", place, ()).severity is vl.Severity.WARNING
+    assert vl.LocatedDiagnostic("E3001", "m", place, ()).severity is vl.Severity.ERROR
+    assert vl.LocatedDiagnostic("rasl/x", "m", place, ()).severity is vl.Severity.ERROR
+    problems = vl.Diagnostics()
+    problems.report(loaded(), "m", code="rasl/y")
+    assert [d.severity for d in problems] == [vl.Severity.ERROR]
+
+
 def test_an_error_on_an_override_value_is_placed_on_the_name_that_used_it() -> None:
     load = loaded("blk { target $host; }\n", overrides={"host": vl.text("h")})
     [blk] = load.block

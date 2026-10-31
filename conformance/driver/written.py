@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 from adapter import Thrown
-from common import CaseError, Session, Texts
+from common import CaseError, Session, Texts, diagnostic_entry
 from encode import to_bytes
 from rendered import projection, walk
 from units import line_column
@@ -161,7 +161,7 @@ class Case:
             # A bad text error is located in the text the edit was given (spec 2.8): convert with that text.
             text = given.get("text", given.get("name")) or ""
             conv = self.s.convert(text)
-            diagnostics = [[d["code"], *line_column(conv, d["start"])] for d in error.get("diagnostics", [])]
+            diagnostics = [diagnostic_entry(d, *line_column(conv, d["start"])) for d in error.get("diagnostics", [])]
             return ["error", ERRORS.get(group, group), diagnostics]
         if "handles" in result:
             handles = result["handles"]
@@ -189,7 +189,7 @@ class Case:
                 ]
                 for v in dump["variables"]
             ],
-            "diagnostics": [[d["code"], t.origin(d["place"], d["via"])] for d in dump["diagnostics"]],
+            "diagnostics": [diagnostic_entry(d, t.origin(d["place"], d["via"])) for d in dump["diagnostics"]],
         }
 
     def references(self) -> List[Any]:

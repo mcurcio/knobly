@@ -15,7 +15,7 @@ The user guide, with every sample in TypeScript, Python and C++: [https://mcurci
 
 | Import | What it has |
 |---|---|
-| `knobly` | The shared layer and the I/O ports: places, origins, diagnostics (`Diagnostics`, `DiagnosticCode`), the error classes, config text (`quote`, `text`), `PlaceKind`, `StepKind`, `WalkControl`, `PROGRAM_CODE`. It does no input or output; `memorySource(files)` and `memoryWriter(files)` keep texts in one object; `checkLostUpdates(files, current)` is the one lost-update check every writer calls |
+| `knobly` | The shared layer and the I/O ports: places, origins, diagnostics (`Diagnostics`, `DiagnosticCode`, `Severity`), the error classes, config text (`quote`, `text`), `PlaceKind`, `StepKind`, `WalkControl`, `PROGRAM_CODE`. It does no input or output; `memorySource(files)` and `memoryWriter(files)` keep texts in one object; `checkLostUpdates(files, current)` is the one lost-update check every writer calls |
 | `knobly/syntax` | The syntax layer: `parse`, `spanOf`, `textOf`, `Token`, `Node`, `TokenKind`, `NodeKind`, `MAX_NESTING` |
 | `knobly/written` | The low level: `knobly(...)`, the document graph and its statements, values and variables, `formatDiagnostic`, `StatementKind`, `ValueKind`, `VariableKind`, `UnreadableReason`, the limits (`MAX_DEPTH`, `MAX_DIRECTIVES`, `MAX_EXPANDED_NESTING`, `MAX_SAFE_INTEGER`, `RESERVED`, `VARIABLE_NAME`) |
 | `knobly/rendered` | The rendered tree: `render(graph)`, `Rendered`, `Directive`, `Address`, `Change`, `ChangeKind` |
@@ -117,8 +117,10 @@ Every sample in the guide is a file that `pnpm test` runs (`examples/`). The lan
 
 Problems are diagnostics with stable codes (`DiagnosticCode`: 1xxx lexical, 2xxx syntax, 3xxx
 files and extensions, 4xxx values, 5xxx expansion); a program's own codes are
-`<namespace>/<name>`. Lines and columns are 0-based; offsets and columns count UTF-16 code units, JavaScript's
-string unit, so `text.slice(start.offset, end.offset)` is the spanned text. Only a diagnostic's code and place are a
+`<namespace>/<name>`. Each has a `severity`, `Severity.Error` or `Severity.Warning`: the one warning, W3005, is an
+`@include` glob that matches no file. Nothing throws a warning or acts on one; a program that stops on problems
+counts the errors. Lines and columns are 0-based; offsets and columns count UTF-16 code units, JavaScript's
+string unit, so `text.slice(start.offset, end.offset)` is the spanned text. Only a diagnostic's code, severity and place are a
 contract, not its message. A place, an override, a step and a diagnostic print as people read them (`String(place)`
 is `main.conf:4:5`, 1-based), the same text `formatDiagnostic` starts with. Numbers follow
 [spec/contract.md](../spec/contract.md) 3: no reader returns negative zero, and `1e400` is not a number (E4004).

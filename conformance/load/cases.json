@@ -17,6 +17,7 @@
 {"name": "load-include-twice", "needs": ["include"], "files": {"main.conf": "a {\n  @include \"part.conf\";\n}\nb {\n  @include \"part.conf\";\n}\n", "part.conf": "x 1;\n"}, "root": "main.conf", "extensions": ["include"]},
 {"name": "load-include-exports", "needs": ["include"], "files": {"main.conf": "@include \"vars.conf\";\nport $p;\n", "vars.conf": "@set $p 80;\n"}, "root": "main.conf", "extensions": ["include"]},
 {"name": "load-include-not-found", "needs": ["include"], "files": {"main.conf": "@include \"missing.conf\";\nz 1;\n"}, "root": "main.conf", "extensions": ["include"]},
+{"name": "load-include-glob-empty", "needs": ["include"], "files": {"main.conf": "@include \"d/*.conf\";\nz 1;\n", "d/a.txt": "x;\n"}, "root": "main.conf", "extensions": ["include"]},
 {"name": "load-include-block-wins", "needs": ["include"], "files": {"main.conf": "a {\n  @include \"sink.conf\" {\n    @set $host h1;\n  }\n}\nb {\n  @include \"sink.conf\" {\n    @set $host h2;\n  }\n}\n", "sink.conf": "@set $host h0;\ntarget $host;\n"}, "root": "main.conf", "extensions": ["include"]},
 {"name": "load-include-cycle", "needs": ["include"], "files": {"main.conf": "@include \"a.conf\";\n", "a.conf": "@include \"main.conf\";\nx 1;\n"}, "root": "main.conf", "extensions": ["include"]},
 {"name": "load-diff-var-edit", "needs": ["diff"], "files": {"main.conf": "@set $n 1;\na $n;\nb {\n  c $n;\n}\n"}, "root": "main.conf", "after": {"main.conf": "@set $n 2;\na $n;\nb {\n  c $n;\n}\n"}},

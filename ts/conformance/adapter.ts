@@ -66,8 +66,8 @@ const place = (p: Knobly.Place | Knobly.Override): PlaceDump | OverrideDump =>
 const filePlace = (p: Knobly.Place): PlaceDump => ({ id: ref(p), path: p.resolvedPath, start: pos(p.span.start), end: pos(p.span.end) });
 const steps = (via: readonly Knobly.Step[]): StepDump[] => via.map((s) => ({ id: ref(s), kind: s.kind, name: s.name, place: filePlace(s.place) }));
 const origin = (o: Knobly.Origin): OriginDump => ({ place: place(o.place), via: steps(o.via) });
-const diagnostic = (d: Knobly.Diagnostic): SyntaxDiagnosticDump => ({ id: ref(d), code: d.code, message: d.message, start: pos(d.span.start), end: pos(d.span.end) });
-const located = (d: Knobly.LocatedDiagnostic): LocatedDiagnosticDump => ({ id: ref(d), code: d.code, message: d.message, ...origin(d) });
+const diagnostic = (d: Knobly.Diagnostic): SyntaxDiagnosticDump => ({ id: ref(d), code: d.code, severity: d.severity, message: d.message, start: pos(d.span.start), end: pos(d.span.end) });
+const located = (d: Knobly.LocatedDiagnostic): LocatedDiagnosticDump => ({ id: ref(d), code: d.code, severity: d.severity, message: d.message, ...origin(d) });
 
 function syntax(s: Syntax.Syntax): SyntaxDump {
   const node = (n: Syntax.Node): SyntaxDump["root"] => [n.kind, n.start, n.end, n.children.map(node)];

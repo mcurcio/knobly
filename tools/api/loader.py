@@ -445,6 +445,7 @@ class Member:
     type_parameters: List[str] = field(default_factory=list)
     doc: str = ""
     when: Dict[str, str] = field(default_factory=dict)  # error group -> why this member raises it (else the group's raised when)
+    derived: bool = False  # a record's property worked out from its other properties: no constructor takes it, none stores it
 
 
 TRAITS = closed("member", "properties", "trait")
@@ -654,6 +655,7 @@ class Code:
     meaning: str
     summary: str = ""
     placed_at: str = ""
+    severity: str = "error"  # diagnostics.json's 'severities' of the code's letter: a value of the severity kind list
 
 
 FOUND_BY = tuple(META["$defs"]["diagnostics"]["properties"]["codes"]["items"]["properties"]["found by"]["items"]["enum"])
@@ -766,6 +768,14 @@ class Model:
         self.concept = {c.name: c for c in self.concepts}
         self.functions = [self._function(f) for f in api["free functions"]]
 
+        self.severities = {str(k): str(v) for k, v in diagnostics["severities"].items()}
+        if "severity" not in self.kind:
+            raise SchemaError("api.json has no 'severity' kind list, which diagnostics.json's severities name (spec 2.3)")
+        if sorted(set(self.severities.values())) != sorted(self.kind["severity"].values):
+            raise SchemaError(f"diagnostics.json's severities {self.severities} do not map onto the severity kind list "
+                              f"{self.kind['severity'].values} one to one")
+        if len(set(self.severities.values())) != len(self.severities):
+            raise SchemaError("diagnostics.json gives two letters one severity")
         self.codes = [self._code(c) for c in diagnostics["codes"]]
         self.retired = [str(r["code"]) for r in diagnostics.get("retired", [])]
         self.code_ranges = dict(diagnostics.get("ranges", {}))
@@ -838,8 +848,11 @@ class Model:
                 t = self.parse(m["returns"], mw, extra)
                 params = self._params(m.get("params", []), mw, extra)
             errors, when = raises(m.get("errors", []))
+            if m.get("derived") and (m["member"] != "property" or c["nature"] != "record"):
+                raise SchemaError(f"{mw}: only a record's property may be derived")
             members.append(Member(m["name"], m["member"], t, params, bool(m.get("optional")), m.get("trait"), bool(m.get("io")),
-                                  errors, str(m.get("order", "")), m.get("options"), mtps, m.get("doc", ""), when))
+                                  errors, str(m.get("order", "")), m.get("options"), mtps, m.get("doc", ""), when,
+                                  bool(m.get("derived"))))
         module = c.get("module")
         have = tuple(k for k, lang in self.languages.items()
                      if not lang.omit(c["name"], c["nature"]) and (module is None or module in lang.modules))
@@ -873,8 +886,13 @@ class Model:
                         errors, factory, f.get("module"), f.get("options"), f.get("doc", ""), when)
 
     def _code(self, c: dict) -> Code:
-        if not re.fullmatch(r"E[0-9]{4}", c["code"]):
+        if not re.fullmatch(r"[A-Z][0-9]{4}", c["code"]):
             raise SchemaError(f"bad code {c['code']!r}")
+        severity = self.severities.get(c["code"][0])
+        if severity is None:
+            raise SchemaError(f"{c['code']}: its letter is no key of diagnostics.json's severities {sorted(self.severities)}")
+        if severity != "error" and c["unreadable reason"] is not None:
+            raise SchemaError(f"{c['code']}: a {severity} stops nothing, so its unreadable reason is null (spec 2.3)")
         words(c["name"])
         if c["layer"] not in CODE_LAYERS:
             raise SchemaError(f"{c['code']}: layer {c['layer']!r} is not one of {CODE_LAYERS}")
@@ -888,7 +906,7 @@ class Model:
             if ph not in self.limit:
                 raise SchemaError(f"{c['code']}: message names {{{ph}}}, which is no limit in api.json")
         return Code(c["code"], c["name"], c["layer"], list(c["found by"]), reason, c["message"],
-                    self._limit_text(c, "meaning"), self._limit_text(c, "summary"), c["placed at"])
+                    self._limit_text(c, "meaning"), self._limit_text(c, "summary"), c["placed at"], severity)
 
     def _limit_text(self, c: dict, field: str) -> str:
         """A code's meaning or summary with each {limit name} written as that limit's value (100,000), so api.json's
@@ -1432,6 +1450,11 @@ def planted(api: dict, diagnostics: dict, protocol: dict, languages: Sequence[La
         "undocumented free function": lambda a, d, p: next(f for f in a["free functions"] if f["name"] == "parse").pop("doc"),
         "undocumented kind list": lambda a, d, p: a["kinds"]["node kind"].pop("doc"),
         "doc names an unlisted error": lambda a, d, p: member(a, "document graph", "save")["errors"].pop(),
+        "a code letter with no severity": lambda a, d, p: d["codes"][0].__setitem__("code", "X1001"),
+        "a warning that stops a line": lambda a, d, p: next(c for c in d["codes"] if c["code"] == "W3005").__setitem__(
+            "unreadable reason", "extension"),
+        "severities off the kind list": lambda a, d, p: d["severities"].__setitem__("W", "notice"),
+        "a derived property off a record": lambda a, d, p: member(a, "document", "block").__setitem__("derived", True),
     }
     # The refusal each newer plant must give, so it is caught by its own check and not by an earlier one by chance.
     reason = {
@@ -1461,6 +1484,10 @@ def planted(api: dict, diagnostics: dict, protocol: dict, languages: Sequence[La
         "undocumented free function": "free function 'parse': has no doc",
         "undocumented kind list": "kind list 'node kind': has no doc",
         "doc names an unlisted error": "its doc names the lost update error, which its errors do not list",
+        "a code letter with no severity": "X1001: its letter is no key of diagnostics.json's severities",
+        "a warning that stops a line": "W3005: a warning stops nothing",
+        "severities off the kind list": "do not map onto the severity kind list",
+        "a derived property off a record": "only a record's property may be derived",
         "a root without a class": "must give it one of",
         "a language leaves out a used concept": "still uses",
         "an unknown module": "is not one of",

@@ -1,15 +1,27 @@
 // The shared layer's diagnostics collector (spec 7.7): the one sink load, value readers and programs report into.
-// A handle (const is shallow, design.md 2.3): copies share one list. A port of ts/src/report.ts.
+// A handle (const is shallow, design.md 2.3): copies share one list. A port of ts/src/report.ts. Also each
+// diagnostic's severity (spec 2.3), worked out from its code, a port of ts/src/diagnostics.ts's severityOf.
 #ifndef KNOBLY_DETAIL_SHARED_DIAGNOSTICS_HPP
 #define KNOBLY_DETAIL_SHARED_DIAGNOSTICS_HPP
 
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include <knobly/codes.hpp>
 #include <knobly/knobly.hpp>
 #include <knobly/support/view.hpp>
 
 KNOBLY_NAMESPACE_BEGIN
+
+/// A knobly code's severity is the registry's (its letter's).
+KNOBLY_API ::knobly::severity diagnostic::severity() const noexcept { return facts_of(code()).severity; }
+
+/// A knobly code's severity is the registry's; a program's own code is an error.
+KNOBLY_API ::knobly::severity located_diagnostic::severity() const noexcept {
+    const auto* own = std::get_if<::knobly::diagnostic_code>(&code_);
+    return own != nullptr ? facts_of(*own).severity : ::knobly::severity::error;
+}
 
 namespace detail {
 

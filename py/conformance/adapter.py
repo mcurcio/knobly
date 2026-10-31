@@ -89,11 +89,25 @@ def origin(o: vl.Origin | vl.DirectiveOrigin) -> OriginDump:
 
 
 def diagnostic(d: vl.Diagnostic) -> SyntaxDiagnosticDump:
-    return {"id": ref(d), "code": str(d.code), "message": d.message, "start": pos(d.span.start), "end": pos(d.span.end)}
+    return {
+        "id": ref(d),
+        "code": str(d.code),
+        "severity": str(d.severity),
+        "message": d.message,
+        "start": pos(d.span.start),
+        "end": pos(d.span.end),
+    }
 
 
 def located(d: vl.LocatedDiagnostic) -> LocatedDiagnosticDump:
-    return {"id": ref(d), "code": str(d.code), "message": d.message, "place": file_place(d.place), "via": steps(d.via)}
+    return {
+        "id": ref(d),
+        "code": str(d.code),
+        "severity": str(d.severity),
+        "message": d.message,
+        "place": file_place(d.place),
+        "via": steps(d.via),
+    }
 
 
 def syntax_dump(s: syntax.Syntax) -> SyntaxDump:

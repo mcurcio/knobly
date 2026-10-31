@@ -56,7 +56,7 @@ It is the same text `format diagnostic` prints, which builds on these forms (one
 | `place` | `path:line:col` (the span's start) | `sink.conf:4:5` |
 | `override` (as an origin's place) | `override <variable>` (no `$`) | `override pixels` |
 | `step` | `<kind> <name> at <place>` | `variable pixels at main.conf:7:15` |
-| `located diagnostic` | `<place>: <code>: <message>` | `main.conf:7:15: E5001: unknown variable: $pixels` |
+| `located diagnostic` | `<place>: <code>: <message>`, a warning's too (spec 2.3) | `main.conf:7:15: E5001: unknown variable: $pixels`; `main.conf:1:2: W3005: include matched nothing: d/*.conf` |
 | `diagnostic` (syntax layer, no file) | `line:col: <code>: <message>` | `1:3: E2004: expected closing bracket` |
 | `address` | its people form (spec 7.4), unchanged | `graph > node "leds" > max_count` |
 
@@ -114,7 +114,8 @@ Conformance: `conformance/contract/cases.json`, every case of kind `reader` (`ze
 Each binding maps these groups onto its own classes (the list is `error groups` in
 [schema/api.json](schema/api.json); spec 2.8 says which operation raises which):
 
-- **Problems in the config text** are diagnostics and are never thrown.
+- **Problems in the config text** are diagnostics and are never thrown, errors and warnings alike; a warning is
+  never thrown at all, by any operation (spec 2.3).
 - **Text the caller passes in that breaks the language** raises `bad text error`, with located diagnostics, from
   every entry point (edits, `set override`, each override `load` takes); so does an edit after which the document
   would nest past `MAX_NESTING` (spec 2.8).

@@ -34,7 +34,7 @@ One namespace per layer (binding guide rule 9):
 
 | Import | What it has |
 |---|---|
-| `knobly` | The shared and io layers: `ConfigText`, `quote`, `text`, positions, places, origins and steps, `Diagnostic`, `LocatedDiagnostic`, `Diagnostics`, `DiagnosticCode`, the error classes, `PROGRAM_CODE`, the document source and writer ports, `memory_source`, `memory_writer`, `check_lost_updates` |
+| `knobly` | The shared and io layers: `ConfigText`, `quote`, `text`, positions, places, origins and steps, `Diagnostic`, `LocatedDiagnostic`, `Diagnostics`, `DiagnosticCode`, `Severity`, the error classes, `PROGRAM_CODE`, the document source and writer ports, `memory_source`, `memory_writer`, `check_lost_updates` |
 | `knobly.syntax` | The syntax tree: `parse`, `Syntax`, `Token`, `Node`, `TokenRange`, `span_of`, `text_of`, `TokenKind`, `NodeKind`, `MAX_NESTING` |
 | `knobly.written` | The low level: `Processor`, `DocumentGraph`, the written types, the expansion and its expanded values (`ExpandedWord` ... `ExpandedIndex`), the extension port (`Extension`, `ExtensionUse`), its kind lists and limits, `format_diagnostic`, and the written values `Word`, `String`, `List`, `Slice`, `Index` and `Reference` (import the module, `from knobly import written`, so `written.List` never replaces `typing.List`). It never imports the rendered layer |
 | `knobly.rendered` | The rendered layer: `render`, `Rendered`, `RenderedBlock`, `Directive`, addresses, `KeyRule` and the change classes. It reaches the low level only through `knobly.written`'s public names |
@@ -123,7 +123,9 @@ There is no fetch source and no fetch writer in Python. The user guide, with eve
 C++, is [https://mcurcio.github.io/knobly/](https://mcurcio.github.io/knobly/) (source: [`docs/site/pages/`](../docs/site/pages/)); every sample is a file `pytest` runs
 (`examples/`). The language is [the language reference](https://mcurcio.github.io/knobly/language/).
 
-Diagnostic codes are the same as in TypeScript. Offsets and columns count code points, Python's own string unit
+Diagnostic codes are the same as in TypeScript. Each diagnostic has a `severity`, `Severity.ERROR` or
+`Severity.WARNING`: the one warning, W3005, is an `@include` glob that matches no file. Nothing raises a warning or
+acts on one; a program that stops on problems counts the errors. Offsets and columns count code points, Python's own string unit
 ([spec/contract.md](../spec/contract.md) 1), so `text[span.start.offset:span.end.offset]` is a span's text
 (TypeScript counts UTF-16 code units; the two differ after a character outside the Basic Multilingual Plane). A
 place prints as `main.conf:4:5` (`str(place)`, counting from 1), as do diagnostics and steps. Every expected

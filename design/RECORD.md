@@ -34,6 +34,7 @@ durable record. Every choice below is current and can be revised.
 | A limit after expansion (2026-10-30) | Answer: "100 seems too low. can we increase it?"; asked which limit: "after expansion"; real configs "likely a few dozen, but i want the headroom". 256 (`MAX_EXPANDED_NESTING`, E5013) is a revisable choice, not his number | `kno-bzv.6` |
 | What one nesting level is (2026-10-30) | Proposal, not objected to (the current rule, revisable): each block and each list a value sits inside is one level; a slice's brackets are none | spec 2.5; errata N3 |
 | An edit past `MAX_NESTING` (2026-10-30) | Answer, to the recommendation that such an edit be refused as a bad text error with the document unchanged: "Yes". E2010, its place and the already-past rule are revisable choices (errata D2, D3) | spec 2.8; `kno-bzv.8` |
+| An `@include` glob that matches no file (2026-10-30) | Asked to choose among (1) error E3001, as today, (2) a new warning code, (3) no diagnostic (nginx): "2". Then, for code W3005 "include matched nothing": "Yes"; for warnings in the same diagnostics list as errors, each diagnostic with a severity field (error \| warning): "Yes"; asked what a warning does: "Nothing. Just a diagnostic, not thrown/raised like errors are. They have to be intentionally fetched". His pick is about globs, so a plain path that matches no file stays E3001. Replaces "Every code is an error. There are no warning codes." Revisable choices, not his: a later error on the same line keeps W3005 before it; the core applies the glob rule to the spec's text, whatever the source | spec 2.3, 4.1; `kno-bzv.2` |
 
 ## Owner answers the low-level API rests on (since 2026-10-24)
 
@@ -176,7 +177,7 @@ The full table, with what each code means and where it is placed, is in
 |---|---|---|
 | 1xxx | lexical | E1001, E1003, E1004 (a lone `$`, new in round 11) |
 | 2xxx | syntax | E2001, E2003, E2004, E2007, E2008, E2009, E2010 |
-| 3xxx | files and extensions | E3001, E3004, E3005 (include path; was E2006), E3006 (an extension failed; new) |
+| 3xxx | files and extensions | E3001, E3004, E3005 (include path; was E2006), W3005 (a glob that matched nothing: a warning, 2026-10-30), E3006 (an extension failed; new) |
 | 4xxx | values | E4001 (bound), E4002-E4006 (readers; E4003 checked at load) |
 | 5xxx | expansion (new in round 11) | E5001-E5013 (E5013: nesting after expansion, 2026-10-30) |
 | 6xxx | reserved for the high-level API | none defined |

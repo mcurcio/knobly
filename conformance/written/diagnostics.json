@@ -124,6 +124,26 @@
     ]
   },
   {
+    "name": "diag-include-glob-empty-too-deep",
+    "needs": [
+      "include",
+      "snippet"
+    ],
+    "files": {
+      "main.conf": "@snippet s0 { @include \"d/*.conf\"; }\n@snippet s1 { @use s0; }\n@snippet s2 { @use s1; }\n@snippet s3 { @use s2; }\n@snippet s4 { @use s3; }\n@snippet s5 { @use s4; }\n@snippet s6 { @use s5; }\n@snippet s7 { @use s6; }\n@snippet s8 { @use s7; }\n@snippet s9 { @use s8; }\n@snippet s10 { @use s9; }\n@snippet s11 { @use s10; }\n@snippet s12 { @use s11; }\n@snippet s13 { @use s12; }\n@snippet s14 { @use s13; }\n@snippet s15 { @use s14; }\n@use s15;\n",
+      "d/a.txt": "x;\n"
+    },
+    "root": "main.conf",
+    "extensions": [
+      "include"
+    ],
+    "steps": [
+      [
+        "list"
+      ]
+    ]
+  },
+  {
     "name": "diag-expanded-nesting-257",
     "needs": [
       "snippet"

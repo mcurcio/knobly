@@ -16,7 +16,8 @@ the spec name; each adapter spells it in its binding's casing.
 ## Inputs
 
 `conformance/written/cases.json` and `conformance/written/diagnostics.json` (one case per code no other case
-gives: expansion codes, the limits and an empty glob, E5013's place and order (`diag-expanded-nesting-*`), and
+gives: expansion codes, the limits, an empty glob (W3005, a warning: `diag-include-glob-empty`, and before a later
+check's E5007 in `diag-include-glob-empty-too-deep`), E5013's place and order (`diag-expanded-nesting-*`), and
 E3004, the root's `read error` and E3006 through the faults of spec/conformance.md 4.5 (`diag-*-read-fails`,
 `diag-extension-throws`), each but the root's read from the graph's `diagnostics` by a `["list"]` step):
 JSON arrays of cases, each
@@ -67,7 +68,7 @@ the resolution's `copy.via`. A **variable text** is its `place`, `override <name
   "diagnostics": [[code, origin], ...]}`. `files`: each document (documents order) and its `included by ()` edges
   as their copy texts. `edges`: `graph.edges()`. `variables`: `graph.variables()`; each `wins ()` and `shadowed at
   ()` resolution as its copy text, a `shadowed at ()` one with its winner's variable text. `diagnostics`: the
-  graph's `diagnostics`.
+  graph's `diagnostics`, a warning's entry ending with `"warning"` (`conformance/format.md`, "Severity").
 - `["references"]`: every reference of every document (documents order, then text order, list items and a slice's
   name and bounds included; milestone 5: a slice's name may be a reference, `$s[0~3]`) as `[place, declaration, [[copy, winner, [shadowed, ...]], ...]]`: its declaration's variable
   text, then each of its `resolutions ()` with `winner` and `shadowed` as variable texts.

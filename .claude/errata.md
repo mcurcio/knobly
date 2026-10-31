@@ -1041,3 +1041,22 @@
   probed: 257 steps on `load-expanded-nesting-256`.
 - **Not changed here (append-only):** the missing blank line before the kno-bzv.8 heading and the kno-bzv.11
   heading's missing ", applied"; this entry records that N7's correction there is applied.
+
+## 2026-10-30, warnings and W3005 (kno-bzv.2), the shared contract
+
+- **W1, choices made, revisable (not the owner's).** Read from his "Nothing" and recorded as such in spec 2.3 and
+  4.1 and in design/RECORD.md: (a) an empty glob does not stop its line: resolution goes on to the next spec and the
+  line's later checks; (b) when a later check stops the line (E5007), W3005 stays in the list before that error
+  (case `diag-include-glob-empty-too-deep` pins it); (c) the core applies the glob rule to the spec's text whatever
+  the source, so the fetch source, which returns nothing for a glob, gives W3005; (d) a program's own code is always
+  an error (`report` and `error` take no severity: the brief's scope); (e) `severity` is derived from the code
+  (api.json `derived`, spec/codegen.md 3), so no constructor takes it and a record cannot disagree with its code.
+- **W2, a finding.** W3005 shares its number with E3005 (`include bad path`). The ranges count the digits, so the
+  two are different codes (spec 2.4 now says so), but C++'s `diagnostic_code` used the number as its value; a
+  warning's value is now the number plus 10000 (W3005 is 13005). Revisable; the owner approved the code "W3005".
+- **W3, not decided, not changed.** Bead kno-bzv.2's acceptance criteria also ask for the depth limit's severity
+  ("depth-limit severity recorded"). The owner's answers cover only the empty glob, so E5007 stays an error and no
+  other warning exists. Open for the owner.
+- **W4, fixed in passing.** spec 4.3's glob-rule paragraph sat between rows of the adapters table, splitting it in
+  two (the rows after it rendered as a table without a header). The rule moved to 4.1, where the core now uses it
+  too.

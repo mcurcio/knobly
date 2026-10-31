@@ -12,14 +12,18 @@ from types import TracebackType
 from knobly._api import shared
 from knobly._api.codes import DiagnosticCode
 from knobly._api.errors import DiagnosticError
+from knobly._api.kinds import Severity
 from knobly._api.limits import PROGRAM_CODE
 from knobly._api.shared import Locatable
+from knobly._diagnostics import severity_of
 from knobly._origin import Place, Step
 
 
 @dataclass(frozen=True, slots=True)
 class LocatedDiagnostic(shared.LocatedDiagnostic):
     code: DiagnosticCode | str = field()
+    severity: Severity = field(init=False)
+    """The code's (spec 2.3): a W code's is a warning; every other code's, a program's among them, an error."""
     message: str = field()
     """For people; not part of the cross-language contract."""
     place: Place = field()
@@ -28,12 +32,12 @@ class LocatedDiagnostic(shared.LocatedDiagnostic):
 
     def __post_init__(self) -> None:
         """Raise ValueError when ``code`` is neither a DiagnosticCode value nor a namespaced program code."""
-        if isinstance(self.code, DiagnosticCode):
-            return
-        if self.code in _CODES:
-            object.__setattr__(self, "code", DiagnosticCode(self.code))
-            return
-        check_program_code(self.code)
+        if not isinstance(self.code, DiagnosticCode):
+            if self.code in _CODES:
+                object.__setattr__(self, "code", DiagnosticCode(self.code))
+            else:
+                check_program_code(self.code)
+        object.__setattr__(self, "severity", severity_of(self.code))
 
     def __str__(self) -> str:
         return f"{self.place}: {self.code}: {self.message}"

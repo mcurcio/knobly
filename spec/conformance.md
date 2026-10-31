@@ -128,6 +128,8 @@ The shapes below are exact: members in any order, no other members. `null` stand
 the **syntax** dump and its **syntax diagnostic**s exactly: their members, and every position's line and column
 against its offset in the input (`conformance/driver/syntax.py`). The other shapes it checks only as far as it reads
 them (section 7), so an extra or wrong member there is not yet caught: build to the shape, not to the driver.
+Every diagnostic dump carries its `severity` (spec 2.3); the driver reads it from each one and prints it only when
+it is not `error` ([conformance/format.md](../conformance/format.md), "Severity"), so a missing one stops the case.
 
 <!-- generated: adapter dumps (tools/gen-api.py docs) -->
 | Shape | Members |
@@ -137,8 +139,8 @@ them (section 7), so an extra or wrong member there is not yet caught: build to 
 | override | `{"id", "override": text}` (an origin's place for a value from an override) |
 | step | `{"id", "kind": text, "name": text, "place": place}` |
 | origin | `{"place": place \| override, "via": [step, ...]}` |
-| syntax diagnostic | `{"id", "code": text, "message": text, "start": position, "end": position}` |
-| located diagnostic | `{"id", "code": text, "message": text, "place": place \| override, "via": [step, ...]}` |
+| syntax diagnostic | `{"id", "code": text, "severity": text, "message": text, "start": position, "end": position}` |
+| located diagnostic | `{"id", "code": text, "severity": text, "message": text, "place": place \| override, "via": [step, ...]}` |
 | token | `[text, text, position, position]` ([kind, text, start, end]) |
 | node | `[text, integer, integer, [node, ...]]` ([kind, start, end, children]: token indices, half-open) |
 | syntax | `{"tokens": [token, ...], "root": node, "diagnostics": [syntax diagnostic, ...]}` |

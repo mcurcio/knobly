@@ -424,6 +424,8 @@ def record_lines(model: Model, c: Concept, ctx: Ctx, tvs: Dict[str, str]) -> Lis
     if c.variant_of:
         own = [m for m in model.concept[c.variant_of].members if m.name != "kind"] + own
     fields = [m for m in own if not (m.name == "kind" and c.kind is not None)]
+    if any(m.derived for m in fields):  # a dataclass field is set by its constructor; none of these has one yet
+        raise SchemaError(f"Python emitter: record {c.name!r}: a derived property in a generated dataclass")
     order = {a: i for i, a in enumerate(c.match_args)}
     fields.sort(key=lambda m: order.get(m.name, len(order)))
     # A dataclass matches on every field unless told otherwise; the spec's match args may be fewer (spec 2.10).
@@ -683,10 +685,11 @@ def codes_module(model: Model) -> str:
         messages.append(f"        DiagnosticCode.{upper_snake(c.name)}: {message_expr(model, c.message, imports)},")
         reason = "None" if c.reason is None else f"UnreadableReason.{upper_snake(c.reason)}"
         found = tuple_literal([s(f) for f in c.found_by])
-        facts.append(f"        DiagnosticCode.{upper_snake(c.name)}: CodeFacts({s(c.name)}, {s(c.layer)}, {found}, {reason}),")
+        severity = f"Severity.{upper_snake(c.severity)}"
+        facts.append(f"        DiagnosticCode.{upper_snake(c.name)}: CodeFacts({s(c.name)}, {s(c.layer)}, {found}, {reason}, {severity}),")
     head = [f'"""{HEADER}', "", 'Source: spec/schema/diagnostics.json."""', "", "from collections.abc import Mapping",
             "from dataclasses import dataclass", "from enum import StrEnum", "from types import MappingProxyType",
-            "from typing import Final", "", "from knobly._api.kinds import UnreadableReason"]
+            "from typing import Final", "", "from knobly._api.kinds import Severity, UnreadableReason"]
     if imports:
         head.append(f"from knobly._api.limits import {', '.join(sorted(imports))}")
     return "\n".join([
@@ -698,8 +701,10 @@ def codes_module(model: Model) -> str:
         '"""The base message of each code (for people, not part of the contract)."""', "", "",
         "@dataclass(frozen=True, slots=True)",
         "class CodeFacts:",
-        '    """What the registry says of one code: its spec name, owning layer, who finds it, the reason it gives."""', "",
-        "    name: str", "    layer: str", "    found_by: tuple[str, ...]", "    reason: UnreadableReason | None", "", "",
+        '    """What the registry says of one code: its spec name, owning layer, who finds it, the reason it gives, and its',
+        '    severity (its letter\'s: spec 2.3)."""', "",
+        "    name: str", "    layer: str", "    found_by: tuple[str, ...]", "    reason: UnreadableReason | None",
+        "    severity: Severity", "", "",
         "CODE_FACTS: Final[Mapping[DiagnosticCode, CodeFacts]] = MappingProxyType(", "    {", *facts, "    }", ")",
         '"""Each code\'s facts."""', "", "",
         "@dataclass(frozen=True, slots=True)",

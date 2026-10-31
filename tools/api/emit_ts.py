@@ -418,9 +418,10 @@ def codes_module(model: Model) -> str:
         entries.append(f"  {pascal(c.name)}: {s(c.code)},")
         messages.append(f"  {c.code}: {message_expr(model, c.message, imports)},")
         reason = "null" if c.reason is None else s(c.reason)
-        facts.append(f"  {c.code}: {{ name: {s(c.name)}, layer: {s(c.layer)}, foundBy: [{', '.join(map(s, c.found_by))}], reason: {reason} }},")
+        facts.append(f"  {c.code}: {{ name: {s(c.name)}, layer: {s(c.layer)}, foundBy: [{', '.join(map(s, c.found_by))}], reason: {reason}, "
+                     f"severity: {s(c.severity)} }},")
     out = head("spec/schema/diagnostics.json")
-    out.append('import type { UnreadableReason } from "./kinds.js";')
+    out.append('import type { Severity, UnreadableReason } from "./kinds.js";')
     if imports:
         out.append(f"import {{ {', '.join(sorted(imports))} }} from \"./limits.js\";")
     out += ["",
@@ -429,16 +430,20 @@ def codes_module(model: Model) -> str:
             "export type DiagnosticCode = (typeof DiagnosticCode)[keyof typeof DiagnosticCode];", "",
             "/** The base message of each code (for people, not part of the contract). */",
             "export const MESSAGES: Readonly<Record<DiagnosticCode, string>> = {", *messages, "};", "",
-            "/** What the registry says of one code: its spec name, owning layer, who finds it, the reason it gives. */",
+            "/**",
+            " * What the registry says of one code: its spec name, owning layer, who finds it, the reason it gives, and its",
+            " * severity (its letter's: spec 2.3).",
+            " */",
             "export interface CodeFacts {",
             "  readonly name: string;",
             f"  readonly layer: {' | '.join(map(s, CODE_LAYERS))};",
             f"  readonly foundBy: readonly ({' | '.join(map(s, FOUND_BY))})[];",
             "  readonly reason: UnreadableReason | null;",
+            "  readonly severity: Severity;",
             "}", "",
             "/** Each code's facts, typed so `CODE_FACTS[code].reason` is that code's own reason. */",
             "export const CODE_FACTS = {", *facts, "} as const satisfies Readonly<Record<DiagnosticCode, CodeFacts>>;", "",
-            "/** The unreadable reason a code gives (null: a reader's code, which makes nothing unreadable). */",
+            "/** The unreadable reason a code gives (null: a reader's code or a warning, which makes nothing unreadable). */",
             "export type ReasonOf<C extends DiagnosticCode> = (typeof CODE_FACTS)[C][\"reason\"];", "",
             "/** One diagnostic's code, message and reason, built from the registry so a raise site cannot pair a code with the",
             " * wrong reason or message (the typed diagnostic constructor; spec/codegen.md section 4). `detail` follows ': '. */",

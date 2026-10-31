@@ -56,7 +56,9 @@ One JSON object of the first render, with exactly these keys in this order:
 - `unreadable`: the top level's unreadable statements first (`containerAddress` `""`), then each directive's, the
   directives taken in walk order; within one container, in the order they stand. `reason` is the unreadable's
   `reason` (spec 2.4, 7.2).
-- `diagnostics`: the render's diagnostics in order, each origin built from its `place` and `via`.
+- `diagnostics`: the render's diagnostics in order, each origin built from its `place` and `via`; a warning's entry
+  ends with `"warning"` (conformance/format.md, "Severity"). `load-include-glob-empty` holds only a warning: the
+  load and the render go on (spec 2.3).
 - `changes`: present only when the case has `after`: `[kind, address]` per change, in `diff`'s order.
 
 An origin is one string: its place as `path:line:col` (0-based line, UTF-16 column, the span's start), or

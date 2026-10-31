@@ -52,6 +52,7 @@
       "fields": {
         "id": "id",
         "code": "text",
+        "severity": "text",
         "message": "text",
         "start": "position",
         "end": "position"
@@ -62,6 +63,7 @@
       "fields": {
         "id": "id",
         "code": "text",
+        "severity": "text",
         "message": "text",
         "place": "place or override",
         "via": "step[]"
