@@ -130,7 +130,8 @@ outcome (a diagnostic, read, bad text, save or lost update error) is under `Knob
 is: a detached handle raises `DetachedError` (a `ReferenceError`), misuse `ValueError`, a wrong argument type
 `TypeError`, an index out of range `IndexError` (spec 2.8). The shared cases in `conformance/` stay in UTF-16 units; one shared
 driver ([spec/conformance.md](../spec/conformance.md)) runs every corpus against this package through its adapter,
-`conformance/adapter.py`, converts positions, and compares. The Python package claims level L3 (syntax, low level,
+`conformance/adapter.py`, converts positions, and compares (the adapter's own failing source and `throws` extension
+give the faults of spec/conformance.md 4.5). The Python package claims level L3 (syntax, low level,
 rendered tree, extensions) and passes every case, as the TypeScript package does.
 
 ## Build and test

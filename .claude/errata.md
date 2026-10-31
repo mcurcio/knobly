@@ -1000,3 +1000,20 @@
   unreadable line) an insert is refused (E2010 at 0:0) and only an edit that brings it back within the limit (the
   line's `remove`, or the document's `replace with text`, which is never refused) succeeds. Case
   `nest-edit-already-deep`. The other reading would accept edits whose result is still a wiped tree.
+
+## 2026-10-30, faults a case injects (kno-bzv.5), applied
+
+- **C1 applied.** The protocol's `load` takes `failReads` (paths whose `read` the adapter's source fails), and
+  `extensions` may name the test extension `throws` (its `specs` throws an error of no spec 2.8 group):
+  spec/schema/protocol.json, spec/conformance.md 4.1 and the new 4.5 (prior art: test262's host-defined `$262`, Go's
+  `testing/iotest.ErrReader`), the driver (`common.py` sends `failReads`; `written.py` prints a `load` that raises
+  as `["error", "ReadError", paths]`; `run.py` counts any extension as L3) and the three adapters. Nothing in a
+  binding's public API changed: the source and the extension are each adapter's own, built on the public ports.
+  New written cases `diag-include-read-fails` (E3004 at the `@include`), `diag-root-read-fails` (the root's
+  `read error`, paths `["main.conf"]`) and `diag-extension-throws` (E3006 at the `@throws`) pass in all three
+  bindings. Still not reached by a shared case: a `resolve` that fails, and a port or extension result that is not
+  a list of texts (C++ cannot write one); spec 9's not-covered list names both.
+- **C2 (finding, not changed).** spec/schema/diagnostics.json's E3004 `placed at` says "the extension line's name;
+  the root file at 0:0", and the guide's generated table (`docs/site/pages/diagnostics.md`) repeats it; but its own
+  `meaning`, spec 4.1 and spec 6.2's `load` row say the root file makes `load` fail with a `read error`, which has no
+  place and no code. The "root file at 0:0" clause looks stale. Left for the owner of the codes table.

@@ -80,7 +80,7 @@ A binding claims one level; it holds it when every shared case at that level and
 | L0 | syntax: tokens, the lossless tree, syntax diagnostics |
 | L1 | the low level: load, edit, save |
 | L2 | the rendered tree: render, readers, addresses, diff, and the contract at the edges |
-| L3 | extensions: include |
+| L3 | extensions: include, and the `throws` test extension ([conformance.md 4.5](conformance.md#45-faults-a-case-injects)) |
 | L4 | adapters: memory writer, file and fetch (no shared cases yet) |
 
 ## A new binding's path

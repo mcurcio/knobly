@@ -39,6 +39,22 @@ struct value {
     value(const char* s) : data(std::string(s)) {}
     value(array a) : data(std::make_shared<array>(std::move(a))) {}
     value(object o) : data(std::make_shared<object>(std::move(o))) {}
+    value(const value&) = default;
+    value(value&&) noexcept = default;
+    value& operator=(const value&) = default;
+    value& operator=(value&&) noexcept = default;
+
+    /// Iterative, so a deep tree (a dump 256 levels down) costs heap, not stack: the default destructor recursed
+    /// once per level (kno-bzv.10). Each child this value alone owns moves to a list and is emptied there in turn.
+    ~value() {
+        std::vector<value> pending;
+        adopt(pending);
+        while (!pending.empty()) {
+            value last = std::move(pending.back());
+            pending.pop_back();
+            last.adopt(pending);
+        }
+    }
 
     /// The member `key` of an object, or nullptr when this is no object or has no such member.
     const value* find(std::string_view key) const {
@@ -50,6 +66,23 @@ struct value {
             }
         }
         return nullptr;
+    }
+
+private:
+    /// Moves the children of the array or object this value alone owns to `pending`, leaving it empty.
+    void adopt(std::vector<value>& pending) {
+        if (auto* items = std::get_if<std::shared_ptr<array>>(&data); items != nullptr && items->use_count() == 1) {
+            for (value& item : **items) {
+                pending.push_back(std::move(item));
+            }
+            (*items)->clear();
+        } else if (auto* members = std::get_if<std::shared_ptr<object>>(&data);
+                   members != nullptr && members->use_count() == 1) {
+            for (auto& member : **members) {
+                pending.push_back(std::move(member.second));
+            }
+            (*members)->clear();
+        }
     }
 };
 
@@ -354,42 +387,69 @@ inline void write_string(std::string& out, std::string_view s) {
     out += '"';
 }
 
-inline void write(std::string& out, const value& v) {
-    struct visitor {
-        std::string& out;
-        void operator()(std::nullptr_t) const { out += "null"; }
-        void operator()(bool b) const { out += b ? "true" : "false"; }
-        void operator()(std::int64_t n) const { out += std::to_string(n); }
-        void operator()(double d) const {
-            char spelled[32];
-            std::snprintf(spelled, sizeof spelled, "%.17g", d);
-            out += spelled;
+/// A scalar's text, or false (writing nothing) for an array or object, which write walks itself.
+inline bool write_scalar(std::string& out, const value& v) {
+    if (std::holds_alternative<std::nullptr_t>(v.data)) {
+        out += "null";
+    } else if (const auto* b = std::get_if<bool>(&v.data)) {
+        out += *b ? "true" : "false";
+    } else if (const auto* n = std::get_if<std::int64_t>(&v.data)) {
+        out += std::to_string(*n);
+    } else if (const auto* d = std::get_if<double>(&v.data)) {
+        char spelled[32];
+        std::snprintf(spelled, sizeof spelled, "%.17g", *d);
+        out += spelled;
+    } else if (const auto* s = std::get_if<std::string>(&v.data)) {
+        write_string(out, *s);
+    } else {
+        return false;
+    }
+    return true;
+}
+
+/// Iterative, with a list of the open arrays and objects in place of the call stack, so a deep tree costs heap, not
+/// stack (kno-bzv.10).
+inline void write(std::string& out, const value& root) {
+    struct open {
+        const array* items;     // the open array, or null
+        const object* members;  // else the open object
+        std::size_t next;       // the index of its next member
+    };
+    std::vector<open> stack;
+    const auto enter = [&](const value& v) {
+        if (write_scalar(out, v)) {
+            return;
         }
-        void operator()(const std::string& s) const { write_string(out, s); }
-        void operator()(const std::shared_ptr<array>& items) const {
+        if (const auto* items = std::get_if<std::shared_ptr<array>>(&v.data)) {
             out += '[';
-            for (std::size_t i = 0; i < items->size(); ++i) {
-                if (i != 0) {
-                    out += ", ";
-                }
-                write(out, (*items)[i]);
-            }
-            out += ']';
-        }
-        void operator()(const std::shared_ptr<object>& members) const {
+            stack.push_back({items->get(), nullptr, 0});
+        } else {
             out += '{';
-            for (std::size_t i = 0; i < members->size(); ++i) {
-                if (i != 0) {
-                    out += ", ";
-                }
-                write_string(out, (*members)[i].first);
-                out += ": ";
-                write(out, (*members)[i].second);
-            }
-            out += '}';
+            stack.push_back({nullptr, std::get<std::shared_ptr<object>>(v.data).get(), 0});
         }
     };
-    std::visit(visitor{out}, v.data);
+    enter(root);
+    while (!stack.empty()) {
+        open& top = stack.back();
+        const bool is_array = top.items != nullptr;
+        const std::size_t at = top.next;
+        if (at == (is_array ? top.items->size() : top.members->size())) {
+            out += is_array ? ']' : '}';
+            stack.pop_back();
+            continue;
+        }
+        ++top.next;
+        if (at != 0) {
+            out += ", ";
+        }
+        if (is_array) {
+            enter((*top.items)[at]);  // may grow the stack, so top is not used after it
+        } else {
+            write_string(out, (*top.members)[at].first);
+            out += ": ";
+            enter((*top.members)[at].second);
+        }
+    }
 }
 
 }  // namespace detail

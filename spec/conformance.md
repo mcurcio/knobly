@@ -44,7 +44,7 @@ A binding claims one level in its `hello`. It holds the level when every case at
 | L0 | syntax (spec 3) | the syntax corpus |
 | L1 | the low level: load, edit, save (spec 4, 6) | the written corpus, but its cases that render or use the include extension |
 | L2 | the rendered tree: render, readers, addresses, diff (spec 7, 2.9, [contract.md](contract.md)) | the load, rendered and contract corpora, and written cases whose steps render (`["render"]`, a `rendered` target) |
-| L3 | extensions: include (spec 5) | every case that uses the include extension (`extensions` or `needs` holds `include`) |
+| L3 | extensions: include and the `throws` test extension (spec 5, section 4.5) | every case that uses an extension (`extensions` is not empty, or `needs` holds `include`) |
 | L4 | adapters: the memory writer and the file and fetch adapters (spec 4.3, contract 5) | none yet: each binding tests its adapters itself (section 7) |
 
 The levels are cumulative: L2 means L0, L1 and L2. The high level (spec 8) is outside the levels.
@@ -101,7 +101,7 @@ generated from the same file.
 |---|---|---|---|
 | `hello` | `protocol`: 1 | `{"protocol": 1, "binding": name, "unit": "utf-16" \| "code point" \| "byte", "level": 0 to 4}` | all |
 | `parse` | `text` | a **syntax** dump of `parse (text)` | L0 |
-| `load` | `files` (path to text), `root`, `extensions` (`[]` or `["include"]`), `overrides`? (name to text) | `{"graph": id}`: a processor with a `memory source` over `files` and the extensions named, then `load (root, overrides)` | L1 |
+| `load` | `files` (path to text), `root`, `extensions` (any of `"include"` and the test extension `"throws"`, section 4.5), `overrides`? (name to text), `failReads`? (paths whose `read` fails, section 4.5) | `{"graph": id}`: a processor with a `memory source` over `files` and the extensions named, then `load (root, overrides)`. With `failReads`, the source is the adapter's own over that memory source, whose `read` of each path named throws a plain error (section 4.5) | L1 |
 | `graph` | `graph` | a **graph** dump | L1 |
 | `edit` | `target` (an id), `member` (a spec member name: `set` (on a statement, a variable or a written value), `replace with text`, `remove`, `rename`, `insert statements`, `add statements`, `insert before`, `insert after`, `set override`), `args` (in the member's parameter order; `null` means the argument is absent) | `{"handles": [{"id", "text"}, ...]}` when the member returns handles, else `{}` | L1 |
 | `save` | `graph`, `disk`? (path to text) | without `disk`: `{"batches": [[[path, text], ...], ...]}`, what a recording writer got, each `write` call one batch, during this one `save (writer)`. With `disk`: `save (writer)` with a `memory writer` over a new map holding `disk` (so a file whose text there differs from its saved text is a lost update), then `{"files": [[path, text], ...]}`, the map after, sorted by path | L1 |
@@ -197,6 +197,29 @@ negative zero MUST be sent as the string `"-0"`, which JSON numbers cannot alway
 case), `{"slice": [name, start \| null, end \| null]}` (a `slice value`), `{"index": [name, index]}` (an `index
 value`), `{"value": text}` (an expanded value, by its canonical text), `{"list": [result, ...]}` (the `list`
 reader's items, each `{"value": text}`). The driver prints numbers by the number rule of `conformance/contract/format.md`.
+
+### 4.5 Faults a case injects
+
+A `memory source` never fails and the include extension throws only a `diagnostic error`, so without help no case
+could reach E3004 (the source failed) or E3006 (an extension failed; errata C1, bead kno-bzv.5). Two pieces of test
+surface reach them. Both are the adapter's own objects, built on the binding's public ports (spec 4.1, 5) the way a
+program builds its own source or extension; nothing in any binding's public API exists for them.
+
+- **`failReads`** (on `load`): the paths whose `read` fails. The adapter's source wraps the `memory source` over
+  `files`: `resolve` is the memory source's, and `read` of a path named throws an error of no spec 2.8 group
+  (TypeScript `Error`, Python `RuntimeError`, C++ `std::runtime_error`), so the binding turns it into E3004 at the
+  extension line, or for the root file into a `read error` from `load` (spec 4.1). Without `failReads` the source is
+  the memory source itself.
+- **The `throws` extension** (`extensions` holds `"throws"`): it owns `@throws`, and its `specs` throws an error of
+  no spec 2.8 group, as above, whatever the use; the binding turns that into E3006 at the directive's name (spec 5).
+
+Prior art: test262's host-defined `$262` object, which the harness's host adapter supplies so a test can reach
+behaviour the language alone cannot (`$262.detachArrayBuffer`), and Go's `testing/iotest.ErrReader`, a reader that
+only fails. A case names the fault as data; each adapter supplies it.
+
+Not covered: a `resolve` that fails, and a port or extension that returns something other than a list of texts (a
+bare text, spec 4.1 and 5). The second cannot be written in C++, whose port types are a list of texts; each dynamic
+binding tests it in its own unit tests (`ts/src/rendered/rules.test.ts`, `py/tests/test_load.py`).
 
 ## 5. The driver
 

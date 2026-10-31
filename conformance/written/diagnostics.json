@@ -261,5 +261,56 @@
         "list"
       ]
     ]
+  },
+  {
+    "name": "diag-include-read-fails",
+    "needs": [
+      "include"
+    ],
+    "files": {
+      "main.conf": "@include \"bad.conf\";\nok;\n",
+      "bad.conf": "x;\n"
+    },
+    "root": "main.conf",
+    "extensions": [
+      "include"
+    ],
+    "failReads": [
+      "bad.conf"
+    ],
+    "steps": [
+      [
+        "list"
+      ]
+    ]
+  },
+  {
+    "name": "diag-root-read-fails",
+    "needs": [],
+    "files": {
+      "main.conf": "ok;\n"
+    },
+    "root": "main.conf",
+    "failReads": [
+      "main.conf"
+    ],
+    "steps": []
+  },
+  {
+    "name": "diag-extension-throws",
+    "needs": [],
+    "files": {
+      "main.conf": "@throws \"a.conf\";\nok;\n",
+      "a.conf": "x;\n"
+    },
+    "root": "main.conf",
+    "extensions": [
+      "throws"
+    ],
+    "steps": [
+      [
+        "list"
+      ]
+    ]
   }
 ]

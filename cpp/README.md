@@ -189,7 +189,8 @@ ctest --test-dir build --output-on-failure
   `-DKNOBLY_CONTROL`, which swaps in the nearest valid line, and must succeed, so the failure is the refused line
   and not a typo. Both are left out of the default build; a new file is picked up at the next configure;
 - the shared conformance driver against the adapter (`conformance`: `conformance/adapter.cpp` claims level 3, every
-  case, with byte positions).
+  case, with byte positions; its own failing source and `throws` extension give the faults of spec/conformance.md
+  4.5).
 
 One test at a time: `ctest --test-dir build -R programs_lint --output-on-failure`. Building also compiles every header
 together, each layer's header against the layers it may not import, the generated parser against its hooks, and

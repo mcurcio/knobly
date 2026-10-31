@@ -16,12 +16,13 @@ the spec name; each adapter spells it in its binding's casing.
 ## Inputs
 
 `conformance/written/cases.json` and `conformance/written/diagnostics.json` (one case per code no other case
-gives: expansion codes, the limits and an empty glob, and E5013's place and order (`diag-expanded-nesting-*`), each
-read from the graph's `diagnostics` by a `["list"]` step):
+gives: expansion codes, the limits and an empty glob, E5013's place and order (`diag-expanded-nesting-*`), and
+E3004, the root's `read error` and E3006 through the faults of spec/conformance.md 4.5 (`diag-*-read-fails`,
+`diag-extension-throws`), each but the root's read from the graph's `diagnostics` by a `["list"]` step):
 JSON arrays of cases, each
 
 ```
-{"name", "needs", "files"? | "fixture"?, "root", "overrides"?, "extensions"?, "steps"}
+{"name", "needs", "files"? | "fixture"?, "root", "overrides"?, "extensions"?, "failReads"?, "steps"}
 ```
 
 - `name`: unique; the expected output is `conformance/written/expected/<name>.json`.
@@ -39,8 +40,14 @@ JSON arrays of cases, each
 - `files`: path to text, served with the binding's `memory source` (spec 4.3). Or `fixture`: a directory
   under `fixtures/` whose `*.conf` files are served the same way, by path relative to it.
 - `root`: the path loaded. `overrides`: the load's `overrides` option, by name without `$`.
-- `extensions`: absent (none) or `["include"]`. There is no key rule: rendered addresses are positional.
-- `steps`: run in order on the one graph the case loads; each gives one entry of the output.
+- `extensions`: absent (none), or the extensions to turn on: `"include"`, and `"throws"`, the test extension whose
+  `specs` throws an error of no spec 2.8 group (E3006; [spec/conformance.md 4.5](../../spec/conformance.md#45-faults-a-case-injects)).
+  There is no key rule: rendered addresses are positional.
+- `failReads` (kno-bzv.5): paths whose `read` fails (spec/conformance.md 4.5): E3004 at the extension line that
+  splices one in, or a `read error` from `load` for the root file.
+- `steps`: run in order on the one graph the case loads; each gives one entry of the output. When `load` itself
+  raises (the root file's `read error`, spec 4.1), no step runs and the output is the one entry `["error", token,
+  [path, ...]]`, the error's token and its `paths`; such a case has `"steps": []`.
 
 ## Expected output
 
@@ -122,6 +129,7 @@ the resolution's `copy.via`. A **variable text** is its `place`, `override <name
 | error `"MisuseError"` | `misuse error` (milestone 4: a bad name, spec 2.8) |
 | error `"LostUpdateError"` | `lost update error` (milestone 4, spec 4.2) |
 | error `"TypeError"` | `argument type error` (milestone 5, the `["render", target]` step) |
+| error `"ReadError"` | `read error` (kno-bzv.5: a `load` that raises, spec 4.1) |
 
 Since milestone 3 only the driver reads these tokens (`conformance/driver/written.py`, `OPS` and `ERRORS`): it sends
 each adapter the spec name, and maps the error group's spec name back to the token. No binding reads a TypeScript
