@@ -171,7 +171,7 @@
       "message": "blocks and lists nest deeper than {nesting depth} levels",
       "meaning": "Blocks and lists nested deeper than {nesting depth} levels.",
       "summary": "blocks and lists nested deeper than {nesting depth}",
-      "placed at": "per `conformance/`"
+      "placed at": "the `{` or `[` that opens the level past the limit; at an edit, 0:0 when that bracket is not in the given text"
     },
     {
       "code": "E3001",

@@ -82,7 +82,7 @@ same codes, placed in the text the edit was given ([Editing and saving](editing.
 | E2004 | `ExpectedClosingBracket` | `EXPECTED_CLOSING_BRACKET` | `expected_closing_bracket` | an unmatched bracket | per `conformance/` |
 | E2007 | `BadSlice` | `BAD_SLICE` | `bad_slice` | a malformed slice (`[~]` among them, and `[1:3]`, whose `1:3` is one word), or a literal bound that is not a whole number | per `conformance/` |
 | E2009 | `ValuesTouch` | `VALUES_TOUCH` | `values_touch` | two values with no space or comment between | per `conformance/` |
-| E2010 | `NestingTooDeep` | `NESTING_TOO_DEEP` | `nesting_too_deep` | blocks and lists nested deeper than 100 | per `conformance/` |
+| E2010 | `NestingTooDeep` | `NESTING_TOO_DEEP` | `nesting_too_deep` | blocks and lists nested deeper than 100 | the `{` or `[` that opens the level past the limit; at an edit, 0:0 when that bracket is not in the given text |
 | E3001 | `IncludeNotFound` | `INCLUDE_NOT_FOUND` | `include_not_found` | a spec matched no file | the extension line's name |
 | E3004 | `IncludeResolverFailed` | `INCLUDE_RESOLVER_FAILED` | `include_resolver_failed` | the source threw (for the root file `load` fails) | the extension line's name; the root file at 0:0 |
 | E3005 | `IncludeBadPath` | `INCLUDE_BAD_PATH` | `include_bad_path` | include needs exactly one quoted path | the bad value, or the name when there is none |
