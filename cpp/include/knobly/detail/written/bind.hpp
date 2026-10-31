@@ -15,6 +15,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -133,12 +134,28 @@ struct problem {
 };
 using failure = std::optional<problem>;
 
-/// A statement's problem with knobly's code: its message and its unreadable reason, from the code.
+/// A located diagnostic with knobly's code and its message, and the reason the code makes a statement unreadable
+/// (none for a warning): the one builder behind both a statement's problem and a warning.
+struct described_at {
+    std::optional<::knobly::unreadable_reason> reason;
+    ::knobly::located_diagnostic diagnostic;
+};
+inline described_at describe_at(::knobly::diagnostic_code code, const ::knobly::place& place,
+                                const std::vector<::knobly::step>& via, const std::optional<std::string>& detail) {
+    ::knobly::described d = detail ? ::knobly::describe(code, *detail) : ::knobly::describe(code);
+    return {d.reason, ::knobly::located_diagnostic(code, std::move(d.message), place, via)};
+}
+
+/// A statement's problem with knobly's code: its message and its unreadable reason, from the code. A code that makes
+/// no statement unreadable (a warning, spec 2.3) is refused, so it can never fail a line.
 inline problem located(::knobly::diagnostic_code code, const ::knobly::place& place,
                        const std::vector<::knobly::step>& via, const std::optional<std::string>& detail) {
-    const ::knobly::described d = detail ? ::knobly::describe(code, *detail) : ::knobly::describe(code);
-    return {d.reason.value_or(::knobly::unreadable_reason::expansion),
-            ::knobly::located_diagnostic(code, d.message, place, via)};
+    described_at d = describe_at(code, place, via, detail);
+    if (!d.reason) {
+        ::knobly::detail::raise(
+            std::logic_error(std::string(::knobly::to_string(code)) + " makes no statement unreadable"));
+    }
+    return {*d.reason, std::move(d.diagnostic)};
 }
 
 // ---- scopes (spec/expansion.md)
@@ -846,8 +863,9 @@ private:
                     return fail(::knobly::diagnostic_code::include_not_found, spec);
                 }
                 // An empty glob stops nothing (spec 4.1, 2.3): W3005 is recorded in walk order and the line goes on.
-                binding_->diagnostics.push_back(
-                    *fail(::knobly::diagnostic_code::include_matched_nothing, spec).diagnostic);
+                binding_->diagnostics.push_back(describe_at(::knobly::diagnostic_code::include_matched_nothing,
+                                                            text.place(name.span), context.via, spec)
+                                                    .diagnostic);
                 continue;
             }
             std::vector<std::string> paths = resolved->second.paths;

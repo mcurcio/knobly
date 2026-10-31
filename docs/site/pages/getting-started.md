@@ -155,8 +155,9 @@ an override later without a reload ([Variables, snippets and includes](variables
 ## Problems are diagnostics
 
 A file with problems still loads. Every problem is a **located diagnostic**: a `code` (the stable part, such as
-`E5001`), a `message` for people (which may differ between bindings), the `place` it is about, and `via`, the steps
-that brought it there (an include line, a snippet's use, a variable). The rest of the file is read, and a broken line
+`E5001`), its `severity` (`error`, or a `warning` that stops nothing: [Errors and
+warnings](diagnostics.md#errors-and-warnings)), a `message` for people (which may differ between bindings), the
+`place` it is about, and `via`, the steps that brought it there (an include line, a snippet's use, a variable). The rest of the file is read, and a broken line
 stays in place as unreadable, so it never hides its neighbours. Diagnostics come in order: each file's syntax
 problems, files in the order they were first read, then the load's problems in the order the load met them.
 

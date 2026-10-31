@@ -124,6 +124,49 @@
     ]
   },
   {
+    "name": "diag-include-glob-empty-edit-save",
+    "needs": [
+      "include",
+      "blocks",
+      "save"
+    ],
+    "files": {
+      "main.conf": "@include \"d/*.conf\";\nok;\n",
+      "d/a.txt": "x;\n"
+    },
+    "root": "main.conf",
+    "extensions": [
+      "include"
+    ],
+    "steps": [
+      [
+        "edit",
+        [
+          "block",
+          "main.conf"
+        ],
+        "addStatements",
+        "more;"
+      ],
+      [
+        "texts"
+      ],
+      [
+        "saveTo",
+        {
+          "main.conf": "@include \"d/*.conf\";\nok;\n",
+          "d/a.txt": "x;\n"
+        }
+      ],
+      [
+        "render"
+      ],
+      [
+        "list"
+      ]
+    ]
+  },
+  {
     "name": "diag-include-glob-empty-too-deep",
     "needs": [
       "include",

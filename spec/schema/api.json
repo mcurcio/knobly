@@ -625,7 +625,7 @@
       "returns": "document source",
       "params": [],
       "module": "files",
-      "doc": "a document source over the local filesystem: read reads a path as given, as UTF-8; resolve joins a path spec to the directory of the parent path; a glob (* and ? in the last segment only) lists that directory and returns every matching file. A missing file or directory, or a path that is a directory, resolves to no paths (E3001); any other filesystem failure, such as permissions, fails (E3004)"
+      "doc": "a document source over the local filesystem: read reads a path as given, as UTF-8; resolve joins a path spec to the directory of the parent path; a glob (* and ? in the last segment only) lists that directory and returns every matching file. A missing file or directory, or a path that is a directory, resolves to no paths (E3001 for a spec that is no glob, the warning W3005 for a glob, spec 4.1); any other filesystem failure, such as permissions, fails (E3004)"
     },
     {
       "name": "file writer",
@@ -1310,7 +1310,7 @@
           ],
           "returns": "text[]",
           "io": true,
-          "doc": "the resolved paths a path spec names (a path, or a glob with * and ? in its last segment), in any order: the core sorts them. Empty means not found (E3001); a failure becomes E3004 at the extension line"
+          "doc": "the resolved paths a path spec names (a path, or a glob with * and ? in its last segment), in any order: the core sorts them. Empty means nothing matched: E3001 for a spec that is no glob, the warning W3005 for a glob (spec 4.1); a failure becomes E3004 at the extension line"
         },
         {
           "name": "read",

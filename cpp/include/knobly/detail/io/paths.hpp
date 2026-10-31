@@ -60,7 +60,7 @@ KNOBLY_API std::string join(std::string_view parent_path, std::string_view spec)
     return normalize(joined);
 }
 
-/// Whether a spec is a glob: it holds '*' or '?' (spec 4.3).
+/// Whether a spec is a glob: it holds '*' or '?' (spec 4.1).
 KNOBLY_API bool has_glob(std::string_view spec) noexcept { return spec.find_first_of("*?") != std::string_view::npos; }
 
 /// Whether a file name matches a glob's last segment: '*' any run of code points (empty included), '?' exactly one,

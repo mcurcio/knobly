@@ -1060,3 +1060,18 @@
 - **W4, fixed in passing.** spec 4.3's glob-rule paragraph sat between rows of the adapters table, splitting it in
   two (the rows after it rendered as a table without a header). The rule moved to 4.1, where the core now uses it
   too.
+
+## 2026-10-30, warnings review fixes (kno-bzv.2), fix agent
+
+- **W5, narrowed.** W1(e)'s "a record cannot disagree with its code" holds for every record only in C++ (a class).
+  A TypeScript interface or Python protocol is structural, so a hand-built record given to a sink's `add` is taken
+  as written (`{code: "W3005", severity: "error"}` type-checks). spec/codegen.md 3 and api.schema.json now claim it
+  only for records a binding builds, a stated cost. Revisable: `add` could rebuild the record, or TypeScript tie
+  `severity` to `code` with a conditional type.
+- **W6, changed.** C++'s value offset is taken from the code's letter (E 0, W 10000) in tools/api/emit_cpp.py, no
+  longer from the order of the `severity` kind list, so reordering that list cannot renumber the ABI. Values unchanged.
+- **W7, fixed.** W3005's meaning cited "the glob rule of 4.3" (W4 moved it to 4.1); api.json's `file source` and
+  `resolve` docs still said an empty result is always E3001. Both now follow spec 4.1. Spec 2.4's "none" now covers
+  a warning.
+- **W8, labelled.** W1 (a), (d) and (e) were presented in spec 2.3 and 4.1 next to the owner's quotes as if his;
+  they are now marked revisable choices there and in design/RECORD.md, which has one row per answer.

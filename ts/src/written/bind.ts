@@ -925,15 +925,29 @@ class Walk implements BindingWithNeeds {
 
   /** A warning (spec 2.3): kept in the list in walk order, and nothing stops; its code makes no statement unreadable. */
   private warn(code: DiagnosticCode, text: Text, span: SourceSpan, via: readonly Step[], detail?: string): void {
-    this.diagnostics.push(makeLocated(code, describe(code, detail).message, text.place(span), via));
+    this.diagnostics.push(describeAt(code, text.place(span), via, detail).diagnostic);
   }
 }
 
-/** A statement's problem with knobly's code: its message and its unreadable reason, from the code (`describe`). */
-function located(code: DiagnosticCode, place: Place, via: readonly Step[], detail?: string): Problem {
+/**
+ * A located diagnostic with knobly's code and its message (`describe`), and the reason the code makes a statement
+ * unreadable (null for a warning): the one builder behind both a statement's problem and a warning.
+ */
+function describeAt(
+  code: DiagnosticCode,
+  place: Place,
+  via: readonly Step[],
+  detail?: string,
+): { readonly reason: UnreadableReason | null; readonly diagnostic: LocatedDiagnostic } {
   const { message, reason } = describe(code, detail);
+  return { reason, diagnostic: makeLocated(code, message, place, via) };
+}
+
+/** A statement's problem with knobly's code: its unreadable reason from the code; a warning's code is refused. */
+function located(code: DiagnosticCode, place: Place, via: readonly Step[], detail?: string): Problem {
+  const { reason, diagnostic } = describeAt(code, place, via, detail);
   if (reason === null) throw new Error(`${code} makes no statement unreadable`);
-  return new Problem(reason, makeLocated(code, message, place, via));
+  return new Problem(reason, diagnostic);
 }
 
 function spanOfRef(syntax: Syntax, ref: ValueRef): SourceSpan {

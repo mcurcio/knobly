@@ -47,7 +47,7 @@
         "returns": {"$ref": "#/$defs/type"},
         "params": {"type": "array", "items": {"$ref": "#/$defs/param"}},
         "optional": {"type": "boolean"},
-        "derived": {"type": "boolean", "description": "a record's property the binding works out from its other properties (a diagnostic's severity, from its code): no constructor takes it and no record stores it, so it cannot disagree with them (spec/codegen.md 3)"},
+        "derived": {"type": "boolean", "description": "a record's property the binding works out from its other properties (a diagnostic's severity, from its code): no constructor takes it and no record stores it, so no record the binding builds can disagree with them (spec/codegen.md 3)"},
         "trait": {"enum": ["people form", "iterate", "count", "index", "walk", "collect"]},
         "io": {"type": "boolean"},
         "errors": {"type": "array", "items": {"$ref": "#/$defs/raises"}},

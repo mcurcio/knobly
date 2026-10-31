@@ -1,5 +1,6 @@
-"""The glob rule of include specs, shared by ``memory_source`` and ``file_source``: ``*`` matches any run of
-characters and ``?`` one character, in the last path segment only. Private; a port of ts/src/graph/glob.ts."""
+"""The glob rule of include specs (spec 4.1), shared by the core's bind (W3005 or E3001 for an empty result),
+``memory_source`` and ``file_source``: ``*`` matches any run of characters and ``?`` one character, in the last
+path segment only. Private; a port of ts/src/graph/glob.ts."""
 
 from __future__ import annotations
 

@@ -65,7 +65,7 @@ and may differ. A problem with an override's value is placed on the `$name` that
 
 ## Errors and warnings
 
-Every diagnostic has a `severity` (`severity()` in C++): `error` or `warning`, read from its code's letter. Errors
+Every diagnostic has a `severity` (`severity()` in C++): `error` or `warning`, read from a knobly code's letter. Errors
 and warnings sit in the same list, in the order they were found. A warning does nothing: no load, render, read, edit
 or save throws one or acts differently because one is there, and `collect` never records one, since only a reader's
 error is thrown. The only way to see a warning is to read the list. Today there is one warning, W3005: an `@include`
@@ -76,8 +76,8 @@ a config has problems counts the diagnostics whose severity is `error`.
 
 ## Error codes
 
-Lines and columns are counted from 0 in the API. "At" says where the diagnostic is placed. A code starting with `W`
-is a warning; every other code is an error. The 1xxx and 2xxx codes
+Lines and columns are counted from 0 in the API. "At" says where the diagnostic is placed. A knobly code starting with `W`
+is a warning; every other code, a program's own included, is an error. The 1xxx and 2xxx codes
 come from the syntax layer, which places them as the cases in
 [`conformance/`](https://github.com/mcurcio/knobly/tree/main/conformance) show. An edit that is refused reports the
 same codes, placed in the text the edit was given ([Editing and saving](editing.md#named-edits-and-a-refused-edit)).

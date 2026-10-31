@@ -16,8 +16,9 @@ the spec name; each adapter spells it in its binding's casing.
 ## Inputs
 
 `conformance/written/cases.json` and `conformance/written/diagnostics.json` (one case per code no other case
-gives: expansion codes, the limits, an empty glob (W3005, a warning: `diag-include-glob-empty`, and before a later
-check's E5007 in `diag-include-glob-empty-too-deep`), E5013's place and order (`diag-expanded-nesting-*`), and
+gives: expansion codes, the limits, an empty glob (W3005, a warning: `diag-include-glob-empty`; before a later
+check's E5007 in `diag-include-glob-empty-too-deep`; an edit, a save and a render that go on with only a warning in
+`diag-include-glob-empty-edit-save`, spec 2.3), E5013's place and order (`diag-expanded-nesting-*`), and
 E3004, the root's `read error` and E3006 through the faults of spec/conformance.md 4.5 (`diag-*-read-fails`,
 `diag-extension-throws`), each but the root's read from the graph's `diagnostics` by a `["list"]` step):
 JSON arrays of cases, each

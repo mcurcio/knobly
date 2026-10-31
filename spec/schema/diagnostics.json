@@ -226,7 +226,7 @@
       ],
       "unreadable reason": null,
       "message": "include matched nothing",
-      "meaning": "A warning: an extension's spec that is a glob (the glob rule of 4.3) matched no file. The line splices nothing for it and is not stopped. A spec that is no glob and matches no file is E3001.",
+      "meaning": "A warning: an extension's spec that is a glob (the glob rule of 4.1) matched no file. The line splices nothing for it and is not stopped. A spec that is no glob and matches no file is E3001.",
       "summary": "a glob matched no file: a warning, so the include splices nothing and the load goes on",
       "placed at": "the extension line's name, as E3001"
     },

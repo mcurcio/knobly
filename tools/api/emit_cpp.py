@@ -1092,12 +1092,15 @@ def kinds_header(model: Model) -> str:
 
 def codes_header(model: Model) -> str:
     entries, strings, messages, facts, found = [], [], [], [], []
-    severities = model.kind["severity"].values
+    # A C++ value is part of the ABI, so its offset is fixed by the code's letter (codegen.md 3), never by the order of
+    # a kind list: an error's value is its number, a warning's that number plus 10000 (W3005 is 13005, not E3005's).
+    offsets = {"E": 0, "W": 10000}
     values: Dict[int, str] = {}
     for c in model.codes:
         name = ident(LANGUAGE.code_case(c.name))
-        # An error's value is its number; each later severity adds 10000 (W3005 is 13005), so E3005 and W3005 differ.
-        value = severities.index(c.severity) * 10000 + int(c.code[1:])
+        if c.code[0] not in offsets:
+            raise SchemaError(f"{c.code}: its letter has no C++ value offset (tools/api/emit_cpp.py, codegen.md 3)")
+        value = offsets[c.code[0]] + int(c.code[1:])
         if value in values:
             raise SchemaError(f"{c.code} and {values[value]} would share the C++ value {value}")
         values[value] = c.code

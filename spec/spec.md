@@ -141,13 +141,17 @@ language's to-text conversion ([contract.md 2](contract.md#2-people-forms-the-te
 - **Severity.** Every diagnostic has a `severity`, one of the `severity` list: `error` or `warning`. Errors and
   warnings sit in the same diagnostics lists, in the same order rules (owner, 2026-10-30, asked whether warnings sit
   in the same diagnostics list as errors, each with a severity field: "Yes"). A knobly code's letter is its severity
-  ([schema/diagnostics.json](schema/diagnostics.json) `severities`): `E` an error, `W` a warning. A program's own code
-  is always an error: `error (...)` and `report (...)` take no severity. The one warning today is
+  ([schema/diagnostics.json](schema/diagnostics.json) `severities`): `E` an error, `W` a warning. Two revisable
+  choices, not the owner's: a program's own code is always an error (`error (...)` and `report (...)` take no
+  severity), and `severity` is derived from the code, so no constructor takes it. The one warning today is
   W3005 (2.4, 4.1); parse and the edits find none, so a syntax `diagnostic` and a `bad text error`'s diagnostics are
   always errors.
 - **A warning does nothing** (owner, 2026-10-30, asked what a warning does: "Nothing. Just a diagnostic, not
-  thrown/raised like errors are. They have to be intentionally fetched"). No operation of any layer throws or raises
-  a warning, or fails, refuses or stops a statement because one exists: a warning never becomes a `diagnostic error`
+  thrown/raised like errors are. They have to be intentionally fetched"; the reading stated to him: every API that
+  throws or raises because of diagnostics ignores warnings, and a program sees a warning only by reading the list).
+  No operation of any layer throws or raises a warning, or fails, refuses or stops a statement because one exists
+  (that a warning stops no statement, so an empty glob does not stop its line, is a revisable choice read from
+  "Nothing", not the owner's): a warning never becomes a `diagnostic error`
   or a `bad text error`'s diagnostic, and never makes a statement unreadable; no outcome of `load`, `read`, `render`,
   an edit, `save`, a reader or `collect` turns on whether one exists. A program sees a warning only by reading a
   diagnostics list (the graph's, the render's, a `diagnostics` sink's) and its `severity`. This replaces the rule
@@ -187,7 +191,7 @@ is stale), which also holds each code's message and owning layer.
 | E3001 | `include not found` | load and read | extension | An extension's spec that is no glob matched no file. A glob that matches none is the warning W3005. |
 | E3004 | `include resolver failed` | load and read | extension | The document source rejected while resolving or reading a file. For the root file, `load` fails instead (6.2). |
 | E3005 | `include bad path` | include extension | extension | An `include` whose values are not exactly one quoted path. |
-| W3005 | `include matched nothing` | load and read | none | A warning: an extension's spec that is a glob (the glob rule of 4.3) matched no file. The line splices nothing for it and is not stopped. A spec that is no glob and matches no file is E3001. |
+| W3005 | `include matched nothing` | load and read | none | A warning: an extension's spec that is a glob (the glob rule of 4.1) matched no file. The line splices nothing for it and is not stopped. A spec that is no glob and matches no file is E3001. |
 | E3006 | `extension failed` | load and read | extension | An extension threw something other than a diagnostic error, or returned something other than a list of texts. |
 | E3007 | `unread copy` | low level | unread | An extension line's copy whose specs are not resolved or whose files are not read yet (it is in `unread ()`); `read ()` reads them. Placed on the extension line's name. |
 | E3008 | `unknown extension` | low level | extension | A statement written `@name` where `name` is no language statement (`set`, `snippet`, `use`) and no registered extension's name. Placed on the `@name`; the statement is an `unreadable line`. |
@@ -223,7 +227,7 @@ part of the load conformance output. "syntax" means the statement is an `error` 
 extension line whose block holds one (the code is then the parser's, reported once). A diagnostic
 error an extension's `specs` throws keeps its own code (a program code included) and gives reason
 `extension`. "unread" (E3007) marks an extension copy not read yet. "none" means the code never makes a statement
-unreadable: readers raise it.
+unreadable: readers raise it, or it is a warning (2.3).
 
 Each binding's code registry and message table are generated from
 [schema/diagnostics.json](schema/diagnostics.json) ([codegen.md](codegen.md)); the schema marks which
@@ -714,10 +718,11 @@ writer` that the program supplies.
   to choose for an `@include` glob matching no file among E3001 as today, a new warning code, or no diagnostic:
   "2", then for W3005 "include matched nothing": "Yes"). A failure becomes E3004. All three codes are placed at the
   extension line's name (for include, the word `include`).
-- **An empty glob** is no failure of the line (2.3: a warning does nothing): it gives W3005, adds no path, and
+- **An empty glob** is no failure of the line (2.3: a warning does nothing; a revisable choice read from
+  "Nothing", not the owner's): it gives W3005, adds no path, and
   the core goes on to the next spec and the line's remaining checks (5), as for a spec whose files were found.
   A line whose every spec is an empty glob splices nothing; its `document edge` has the specs and no `targets`.
-  Two revisable choices, not the owner's, read from "Nothing": when a later check stops the line (E5007, say),
+  Two more revisable choices, not the owner's, read from "Nothing": when a later check stops the line (E5007, say),
   W3005 stays in the list before that error, since the list holds every problem found, in walk order; and the
   core decides with the glob rule from the spec's text alone, whatever the source is, so a source that takes no
   globs and returns nothing for `a*.conf` gives W3005 too (a stated cost: the fetch source, 4.3).
@@ -1469,7 +1474,7 @@ finding against this page.
 | Corpus | Format | Level | Covers |
 |---|---|---|---|
 | `syntax`: `conformance/cases.json`, `extra.json`, `depth.json`, `edge.json`, `tracer.json`, `variables.json`, with `conformance/expected/` | [conformance/format.md](../conformance/format.md) | L0 | 2.1 (positions in UTF-16), 2.4 (1xxx and 2xxx codes), 2.5 (nesting), 3 |
-| `written`: `conformance/written/{cases,diagnostics}.json`, `conformance/written/expected/` | [conformance/written/format.md](../conformance/written/format.md) | L1 (L2 for a case that renders, L3 with an extension) | 6.3 to 6.9, by its `needs` tokens: `values`, `directive-values`, `statements`, `blocks`, `rename`, `document`, `override`, `save`, `quote`, `include`, `snippet`; 2.8's entry rules (line breaks, comments, bounds, list items, a values text with no value) and bad names (misuse error); 4.2's lost update (`saveTo`); 6.10's unread copy (and its `diff`); 2.9's `definition` and `chain`; 6.1's value `set` that keeps its handle; 6.5's `@` statements; 7.0's `argument type error` (`["render", target]`); 2.5's E5013 (after expansion: its place and order); 4.1's empty glob (W3005, a warning: before a later check's error, `diag-include-glob-empty-too-deep`); 4.1's failed `read` (E3004, and the root's `read error`) and 5's failing extension (E3006), through the faults of [conformance.md 4.5](conformance.md#45-faults-a-case-injects) |
+| `written`: `conformance/written/{cases,diagnostics}.json`, `conformance/written/expected/` | [conformance/written/format.md](../conformance/written/format.md) | L1 (L2 for a case that renders, L3 with an extension) | 6.3 to 6.9, by its `needs` tokens: `values`, `directive-values`, `statements`, `blocks`, `rename`, `document`, `override`, `save`, `quote`, `include`, `snippet`; 2.8's entry rules (line breaks, comments, bounds, list items, a values text with no value) and bad names (misuse error); 4.2's lost update (`saveTo`); 6.10's unread copy (and its `diff`); 2.9's `definition` and `chain`; 6.1's value `set` that keeps its handle; 6.5's `@` statements; 7.0's `argument type error` (`["render", target]`); 2.5's E5013 (after expansion: its place and order); 4.1's empty glob (W3005, a warning: before a later check's error, `diag-include-glob-empty-too-deep`; 2.3's edit, save and render that go on over it, `diag-include-glob-empty-edit-save`); 4.1's failed `read` (E3004, and the root's `read error`) and 5's failing extension (E3006), through the faults of [conformance.md 4.5](conformance.md#45-faults-a-case-injects) |
 | `load`: `conformance/load/cases.json`, `conformance/load/expected/` | [conformance/load/format.md](../conformance/load/format.md) | L2 (L3 with include) | 2.2, 2.3 (a load and render with only a warning: `load-include-glob-empty`), 2.4 (3xxx to 5xxx), 2.5 (after expansion), 4.3 (`memory source`), 5, 6.2 (`load` with `overrides`), 7.0 (`render (graph)`), 7.1, 7.2, 7.3 (canonical text and origins), 7.4 (people form, with the `rasl` key rule), 7.6; [expansion.md](expansion.md) 6 (each row of the precedence table) |
 | `rendered`: `conformance/rendered/cases.json`, `conformance/rendered/expected/` | [conformance/rendered/format.md](../conformance/rendered/format.md) | L2 | 7.4 (`address text` with escapes, keys from data, occurrences, an empty and an absent key, a rule on the parent), 7.6 (the order of a diff, unknown, a directive listed alone, a block's presence) |
 | `contract`: `conformance/contract/cases.json` (expected results inline) | [conformance/contract/format.md](../conformance/contract/format.md) | L2 | 2.9 (every reader, its results and codes), [contract.md](contract.md) 1 (positions in the binding's unit), 2 (people forms, `format diagnostic` with tabs, a character outside the Basic Multilingual Plane, `"\r\n"` and no graph), 3 (numbers) |
