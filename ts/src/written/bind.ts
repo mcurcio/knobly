@@ -12,6 +12,7 @@
 
 import { anatomyOf, type DirectiveAnatomy, itemsOf, valuesOf } from "../anatomy.js";
 import { MAX_DEPTH, MAX_DIRECTIVES, MAX_EXPANDED_NESTING } from "../gen/api/limits.js";
+import { hasGlob } from "../graph/glob.js";
 import { compareCodePoints } from "../graph/order.js";
 import { makeOverride, makePlace, makeStep } from "../origin.js";
 import { makeLocated } from "../report.js";
@@ -709,7 +710,9 @@ class Walk implements BindingWithNeeds {
       const paths = reads.resolved(text.resolvedPath, spec);
       if (paths === undefined) throw unread({ tag: "resolve", parentPath: text.resolvedPath, specs: [...specs] });
       if (paths instanceof Error) throw fail(DiagnosticCode.IncludeResolverFailed, `${spec}: ${paths.message}`);
-      if (paths.length === 0) throw fail(DiagnosticCode.IncludeNotFound, spec);
+      // An empty glob is the warning W3005 (spec 4.1, 2.3): recorded, and the line goes on; the glob rule decides.
+      if (paths.length === 0 && hasGlob(spec)) this.warn(DiagnosticCode.IncludeMatchedNothing, text, name.span, via, spec);
+      else if (paths.length === 0) throw fail(DiagnosticCode.IncludeNotFound, spec);
       found.push(...[...paths].sort(compareCodePoints));
     }
     const cycle = found.find((path) => open.includes(path));
@@ -918,6 +921,11 @@ class Walk implements BindingWithNeeds {
 
   private problem(code: DiagnosticCode, text: Text, span: SourceSpan, via: readonly Step[], detail?: string): Problem {
     return located(code, text.place(span), via, detail);
+  }
+
+  /** A warning (spec 2.3): kept in the list in walk order, and nothing stops; its code makes no statement unreadable. */
+  private warn(code: DiagnosticCode, text: Text, span: SourceSpan, via: readonly Step[], detail?: string): void {
+    this.diagnostics.push(makeLocated(code, describe(code, detail).message, text.place(span), via));
   }
 }
 

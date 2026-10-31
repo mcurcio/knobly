@@ -8,7 +8,7 @@ import { include } from "../include.js";
 import type { Extension } from "../written/index.js";
 import { knobly } from "../written/index.js";
 import { addresses, countingSource, loadFiles, loadText, only, originText, problems, rendered, texts } from "./testing.js";
-import { BadTextError, DiagnosticError, memorySource, MisuseError, ReadError } from "../index.js";
+import { BadTextError, DiagnosticError, memorySource, MisuseError, ReadError, Severity } from "../index.js";
 
 const INCLUDE = { extensions: [include()] };
 
@@ -314,7 +314,22 @@ describe("rules 7 and 8: extension directives and their blocks", () => {
     expect(loaded.graph.edges()[0]?.targets).toEqual(["d/B.conf", "d/a.conf", "d/b.conf", "d/é.conf"]);
   });
 
-  it("gives E3001 when a spec matches nothing and E3004 when the source rejects, at the directive's name", async () => {
+  it("gives the warning W3005 for a glob that matches nothing, and the line goes on to its next spec (spec 4.1)", async () => {
+    const empty = await loadFiles({ "main.conf": 'x {\n  @include "d/*.none";\n}\nafter;\n', "d/a.conf": "a;\n" }, INCLUDE);
+    expect(problems(empty.diagnostics)).toEqual([["W3005", "main.conf:1:2"]]);
+    expect(empty.diagnostics.map((d) => d.severity)).toEqual([Severity.Warning]);
+    expect(empty.block.at(0)?.unreadable).toEqual([]);
+    expect(addresses(empty)).toEqual(["x", "after"]);
+    expect(empty.graph.edges()[0]?.targets).toEqual([]);
+
+    const both: Extension = { directive: "both", specs: () => ["d/*.none", "d/a.conf"] };
+    const loaded = await loadFiles({ "main.conf": "x {\n  @both;\n}\n", "d/a.conf": "a;\n" }, { extensions: [both] });
+    expect(problems(loaded.diagnostics)).toEqual([["W3005", "main.conf:1:2"]]);
+    expect(addresses(loaded)).toEqual(["x", "x > a"]);
+    expect(loaded.graph.edges()[0]?.targets).toEqual(["d/a.conf"]);
+  });
+
+  it("gives E3001 when a spec that is no glob matches nothing and E3004 when the source rejects, at the directive's name", async () => {
     const missing = await loadFiles({ "main.conf": 'x {\n  @include "nope.conf";\n}\n' }, INCLUDE);
     expect(problems(missing.diagnostics)).toEqual([["E3001", "main.conf:1:2"]]);
     expect(missing.block.at(0)?.unreadable.map((u) => u.reason)).toEqual(["extension"]);
