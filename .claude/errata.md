@@ -984,3 +984,19 @@
 - **N9. Stale lists.** `spec/codegen.md`'s `limits.ts` row now names `MAX_EXPANDED_NESTING`; RECORD's 5xxx band is
   E5001-E5013 and its owner-answers table holds the three 2026-10-30 nesting rows (two answers, one proposal); spec
   9's load and written rows name 2.5 after expansion.
+## 2026-10-30, an edit past MAX_NESTING (kno-bzv.8), applied
+- **D1. Applied: an edit that would nest a document past MAX_NESTING is refused.** Owner, 2026-10-30, to the
+  recommendation that it be refused as a bad text error with the document left unchanged: "Yes". Before, TS, Python
+  and C++ (probed: the same) all accepted such an insert, replace or set inside a deep block and wiped the whole
+  tree with no error. Spec 2.8 ("An edit that would nest the document past `MAX_NESTING`") and a pointer in 2.5; the
+  check is one function beside the text-alone rules in each binding's splice (`nestingProblem`, `_nesting_problem`,
+  `nesting_problem`). Cases `nest-edit-*` in the written corpus.
+- **D2. Revisable choice: the code and place.** 2.8 did not say which code; E2010 (the code an entry rule already
+  gives for nesting in the given text alone) is used, one diagnostic, at the `{` or `[` of the given text that would
+  open level 101 of the document, or at 0:0 when that bracket is not in the given text (as 2.8 places a text-alone
+  rule's fault that lies outside the given text). Checked after the entry rule and before the text-alone rules.
+- **D3. Revisable choice: a document already past the limit.** The rule is "refused when the document after the edit
+  nests past the limit", not "when the edit raises its nesting": so on a document loaded past the limit (one
+  unreadable line) an insert is refused (E2010 at 0:0) and only an edit that brings it back within the limit (the
+  line's `remove`, or the document's `replace with text`, which is never refused) succeeds. Case
+  `nest-edit-already-deep`. The other reading would accept edits whose result is still a wiped tree.

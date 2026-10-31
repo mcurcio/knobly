@@ -87,6 +87,9 @@ Every edit except a document's `replace_with_text` checks its text first, and **
 - Then the rules a file alone must keep are checked on the block the edit would make: a second `@set` of a name in
   one block (E5002), a second snippet of a name (E5005), a malformed `@set`, `@snippet` or `@use` (E5009 to E5011).
   A `@set` line left with no value is E5009.
+- Blocks and lists may nest 100 deep in a file ([Limits](language.md#limits)), counted in the whole file, not only in
+  the text given: an edit that would put a `{` or `[` past that depth is E2010 at that bracket of the given text (at
+  0:0 when the file was already too deep). `x {}` inserted into a block 100 deep is refused at its `{`.
 - An edit that adds an include line is allowed; its file is not read until `graph.read()` ([Variables, snippets and
   includes](variables.md#an-include-an-edit-added)).
 

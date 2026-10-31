@@ -78,7 +78,8 @@ and `render` returns a tree with the same list. Exceptions mirror the error grou
 outcomes derive `knobly::knobly_error` (`diagnostic_error`, `read_error`, `bad_text_error`, `save_error` and
 its `lost_update_error`; a `save_error` nests the writer's exception, so `std::rethrow_if_nested` gives the cause),
 and program bugs derive `std::logic_error` (`detached_error`, `argument_type_error`, `misuse_error`,
-`index_out_of_range`). An edit refused with an exception (`bad_text_error`, `detached_error`, `index_out_of_range`, ...) changes nothing;
+`index_out_of_range`). An edit that would make its file nest blocks and lists deeper than 100 is a `bad_text_error`
+(E2010 at the bracket of the given text). An edit refused with an exception (`bad_text_error`, `detached_error`, `index_out_of_range`, ...) changes nothing;
 one cut short by `std::bad_alloc` may leave its graph part edited and unfit for further use, so drop that graph. `parse` never throws (but `std::bad_alloc`).
 
 **Threads.** Copying a handle or destroying one on another thread is safe (the count is atomic); nothing else is,

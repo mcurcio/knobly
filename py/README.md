@@ -81,7 +81,8 @@ a rendered block (directives) are each a `Sequence` (iterate, `len`, `block[i]`,
   (`port.set(text("1\n2"))` writes `port 1\n2;`). A given text is checked with the grammar's entry rule for it
   (spec 2.8): a values text that holds a `;` or a block, or ends in a comment (which would swallow the `;`), raises
   `BadTextError` (E2001, its message built from its diagnostics); a statement's `set` takes the empty text to clear
-  its values and refuses any other text that holds no value. A written value's `set(text)` takes exactly one value
+  its values and refuses any other text that holds no value. An edit that would make its file nest blocks and lists
+  deeper than 100 raises `BadTextError` too (E2010 at the bracket of the given text). A written value's `set(text)` takes exactly one value
   and keeps the handle: the same object, now of the new value's kind (its class becomes `Word`, `List`, ...). A bad name in `rename`, `set_override` or an override is a program bug,
   `ValueError`. `graph.read()` reads files an edit added, through the graph's own source; until then an include
   copy not read renders as an unreadable with reason `unread` (E3007). `graph.save(writer)` hands the changed

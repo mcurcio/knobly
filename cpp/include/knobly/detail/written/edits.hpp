@@ -657,6 +657,29 @@ inline void replace_document(document_node* doc, std::string_view text) {
     adopt(doc, parse_document(std::string(text)), std::move(none));
 }
 
+// ---- the nesting limit an edit refuses (E2010)
+
+/// E2010 when the spliced text nests past max_nesting (spec 2.5, 2.8): the edit is refused, so no edit wipes a
+/// document's tree. Placed at the bracket of the caller's text that opens the level past the limit, or at 0:0 when
+/// that bracket is not in what it gave.
+inline std::optional<::knobly::diagnostic> nesting_problem(const parsed_text& p, std::int64_t from, const insert& ins) {
+    for (const ::knobly::diagnostic& deep : p.syntax.diagnostics()) {
+        if (deep.code() != ::knobly::diagnostic_code::nesting_too_deep) {
+            continue;
+        }
+        const std::int64_t offset = deep.span().start().offset();
+        const std::int64_t to = from + static_cast<std::int64_t>(ins.text.size());
+        const std::int64_t origin =
+            offset >= from && offset < to ? ins.origin[static_cast<std::size_t>(offset - from)] : -1;
+        if (origin < 0) {
+            return diagnostic_at(ins.given, 0, deep.code());
+        }
+        return ::knobly::diagnostic(deep.code(), deep.message(),
+                                    {position_in(ins.given, origin), position_in(ins.given, origin + 1)});
+    }
+    return std::nullopt;
+}
+
 // ---- the text-alone rules an edit refuses (E5002, E5005, E5009 to E5011)
 
 /// The text-alone rules a spliced text would break, on the statements the splice touches: located in the caller's
@@ -746,6 +769,9 @@ inline std::vector<handle_node*> splice(document_node* doc, std::int64_t start, 
     text += ins.text;
     text += slice(current, end, static_cast<std::int64_t>(current.size()));
     parsed_text parsed = parse_document(std::move(text));
+    if (const std::optional<::knobly::diagnostic> deep = nesting_problem(parsed, start, ins)) {
+        ::knobly::detail::raise(::knobly::bad_text_error({*deep}));
+    }
     const std::vector<::knobly::diagnostic> rules = rule_problems(parsed, doc->graph->extension_names, start, ins);
     if (!rules.empty()) {
         ::knobly::detail::raise(::knobly::bad_text_error(rules));

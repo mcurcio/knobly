@@ -465,6 +465,9 @@ def _splice(
     spliced = _insert_of(insert, [(0, len(insert))]) if isinstance(insert, str) else insert
     text = doc._text[:start] + spliced.text + doc._text[end:]
     syntax = parse(text)
+    deep = _nesting_problem(syntax, start, spliced)
+    if deep is not None:
+        raise BadTextError([deep])
     rules = _rule_problems(syntax, starts_of(syntax), doc._graph._extension_names, start, spliced)
     if rules:
         raise BadTextError(rules)
@@ -910,6 +913,21 @@ def entry_problems(text: str, rule: EntryRule) -> tuple[Diagnostic, ...]:
     replace, ``boundText`` for a slice or index bound's, ``sliceNameText`` for a slice or index name's), its first error
     placed in ``text``. The text-alone rules come after, in ``_splice``."""
     return parse_entry(text, rule).diagnostics
+
+
+def _nesting_problem(syntax: Syntax, frm: int, insert: _Insert) -> Diagnostic | None:
+    """E2010 when the spliced text nests past MAX_NESTING (spec 2.5, 2.8): the edit is refused, so no edit wipes a
+    document's tree. Placed at the bracket of the caller's text that opens the level past the limit, or at 0:0 when
+    that bracket is not in what it gave."""
+    deep = next((d for d in syntax.diagnostics if d.code is DiagnosticCode.NESTING_TOO_DEEP), None)
+    if deep is None:
+        return None
+    offset = deep.span.start.offset
+    origin = insert.origin[offset - frm] if frm <= offset < frm + len(insert.text) else -1
+    if origin < 0:
+        return at(insert.given, 0, deep.code)
+    span = SourceSpan(position_in(insert.given, origin), position_in(insert.given, origin + 1))
+    return Diagnostic(deep.code, deep.message, span)
 
 
 def _rule_problems(

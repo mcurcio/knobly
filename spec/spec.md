@@ -244,7 +244,8 @@ statement classification reads; no binding compares a keyword's text by hand.
   each the statement's first error (3.2). The block or list that would be level 101 ends the parse: `parse` returns a
   `document` node over every token whose one child is an `error` node over every token, and one diagnostic, E2010,
   on the `{` or `[` that opens that level. An entry rule (2.8) returns a `document` node with no children and that one
-  E2010. Cases `nest-*`, `nestlist-*`, `nest-recovered-*` (`depth.json`).
+  E2010. Cases `nest-*`, `nestlist-*`, `nest-recovered-*` (`depth.json`). An edit that would make a document nest
+  past the limit is refused, the document unchanged (2.8, "An edit that would nest the document past").
 - **After expansion (E5013).** The same count over the expanded tree: a directive's block is one level deeper than
   the directive; a snippet's body at a `use` and an included file's top level stand where their line stands (their
   own braces are gone); a `$name` brings its values' lists with it. A statement whose block, or a list among its
@@ -370,6 +371,21 @@ codes each edit checks, and where it places them:
 | `rename` (a directive) | none: a bad name is a misuse error (above); an extension line has no `rename` | |
 | `rename` (a variable) | E5002 when it would make a second `set` of a name in its block (a bad name is a misuse error) | 0:0 |
 | `set override`, and each override `load` takes (the check of an override, 6.3) | the `valuesText` entry rule (so `"1;"` is refused at its `;` and `"1 # c"` at the text's end; `"1\n2"` is two values), then E2001 at a `$name`, or at 0:0 for no value | as stated |
+
+**An edit that would nest the document past `MAX_NESTING`** (bead kno-bzv.8; owner, 2026-10-30, to the
+recommendation that such an edit be refused as a bad text error with the document left unchanged: "Yes"). The entry
+rule counts levels in the given text alone; where the text goes adds the levels around it. So every edit but a
+document's `replace with text` (`remove` and `rename` included) also parses the document as it would be after the
+edit, and when that nests past `MAX_NESTING` (2.5) it is refused: a `bad text error` with one diagnostic, E2010, at
+the `{` or `[` of the given text that would open the level past the limit, or at 0:0 when that bracket is not in the
+given text (the document was already past the limit). This check comes after the entry rule and before the
+text-alone rules, which need the tree the limit takes away. Every edit that writes a `{` or `[` can so deepen a document: a
+statement's `replace with text`, `insert statements`, `add statements`, `insert before`, `insert after`, a
+statement's, variable's or value's `set`, and a value's `replace with text`, list items included. A document's
+`replace with text` is not refused: it takes any text (6.4), and a text past the limit then parses as 2.5 says. So
+no edit but that one leaves a document whose tree the limit took away; one already past it accepts only an edit that
+brings it back within the limit (a `remove`, a `replace with text`). Cases `nest-edit-*` (written corpus: one per
+edit that can deepen, each limit's last level accepted, and a document already past the limit).
 
 **A values text and line breaks** (milestone 4). A line break is whitespace (owner, 2026-10-29, round 15 question
 1: "';' is required and a line break is plain whitespace (nginx); directive names cannot start with a digit or
