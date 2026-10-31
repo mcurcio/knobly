@@ -37,8 +37,9 @@ class Session:
             "root": case["root"],
             "extensions": list(case.get("extensions", [])),
         }
-        if "overrides" in case:
-            params["overrides"] = case["overrides"]
+        for optional in ("overrides", "failReads"):
+            if optional in case:
+                params[optional] = case[optional]
         return str(self.request("load", **params)["graph"])
 
     def graph(self, graph: str) -> Dict[str, Any]:

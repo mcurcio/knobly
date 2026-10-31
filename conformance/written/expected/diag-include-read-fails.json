@@ -1,0 +1,1 @@
+[{"files":[["main.conf",[]]],"edges":[["main.conf:0:0",["bad.conf"],[]]],"variables":[],"diagnostics":[["E3004","main.conf:0:0"]]}]

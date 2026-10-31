@@ -219,13 +219,38 @@ function call(target: string, member: string, args: unknown[]): unknown {
   return (fn as (...a: unknown[]) => unknown).apply(object, args);
 }
 
+/** The test source of spec/conformance.md 4.5: the memory source, but `read` of a path named fails. */
+const failingReads = (source: Knobly.DocumentSource, failing: readonly string[] | undefined): Knobly.DocumentSource =>
+  failing === undefined
+    ? source
+    : {
+        resolve: (spec, context) => source.resolve(spec, context),
+        read: (path) => (failing.includes(path) ? Promise.reject(new Error(`failReads: ${path}`)) : source.read(path)),
+      };
+
+/** The extensions a load names: include, or the test extension `throws` (spec/conformance.md 4.5). */
+const EXTENSIONS: Readonly<Record<string, () => Written.Extension>> = {
+  include,
+  throws: () => ({
+    directive: "throws",
+    specs: () => {
+      throw new Error("the throws extension");
+    },
+  }),
+};
+const extension = (name: string): Written.Extension => {
+  const make = EXTENSIONS[name];
+  if (make === undefined) throw new Error(`no extension ${JSON.stringify(name)}`);
+  return make();
+};
+
 type Handlers = { readonly [K in keyof RequestParams]: (p: RequestParams[K]) => RequestResults[K] | Promise<RequestResults[K]> };
 
 const ops: Handlers = {
   hello: () => ({ protocol: PROTOCOL, binding: "typescript", unit: "utf-16", level: 3 }),
   parse: (p) => syntax(syntaxLayer.parse(p.text)),
   load: async (p) => {
-    const processor = written.knobly({ source: vl.memorySource(p.files), ...(p.extensions.includes("include") ? { extensions: [include()] } : {}) });
+    const processor = written.knobly({ source: failingReads(vl.memorySource(p.files), p.failReads), extensions: p.extensions.map(extension) });
     const overrides = p.overrides === undefined ? undefined : Object.fromEntries(Object.entries(p.overrides).map(([name, text]) => [name, vl.text(text)]));
     return { graph: ref(await processor.load(p.root, overrides === undefined ? undefined : { overrides })) };
   },

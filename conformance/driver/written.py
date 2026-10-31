@@ -30,6 +30,7 @@ ERRORS = {
     "misuse error": "MisuseError",
     "lost update error": "LostUpdateError",
     "argument type error": "TypeError",
+    "read error": "ReadError",
 }
 SKIP = ("COMMENT", "SPACE", "NEWLINE")
 
@@ -255,5 +256,10 @@ class Case:
 
 
 def run(session: Session, case: Mapping[str, Any]) -> str:
-    runner = Case(session, case)
+    try:
+        runner = Case(session, case)
+    except Thrown as thrown:
+        # A load that raises (a read error for the root, spec 4.1) is the case's whole output: no step runs.
+        group = thrown.error.get("group", "")
+        return to_bytes([["error", ERRORS.get(group, group), list(thrown.error.get("paths", []))]])
     return to_bytes([runner.step(step) for step in case["steps"]])

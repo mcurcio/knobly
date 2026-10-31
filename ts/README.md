@@ -165,7 +165,9 @@ The shared corpora under [`conformance/`](../conformance/) are run by one driver
 conformance adapter, [`conformance/adapter.ts`](conformance/adapter.ts): a process that answers the driver's
 requests (one JSON object per line on standard input and output) through the built package's public entry points,
 with positions in UTF-16 units. Its messages are typed by the generated `conformance/shapes.ts`, members are spelled
-by its `SPELLING` table and thrown errors named by `ERROR_GROUP_OF_CLASS`. It claims level L3 (spec/README.md). `corepack pnpm conformance` runs
+by its `SPELLING` table and thrown errors named by `ERROR_GROUP_OF_CLASS`. For the faults a case injects (spec/conformance.md
+4.5) it has a source of its own whose `read` fails for the paths named, and the test extension `throws`, both built
+on the public ports. It claims level L3 (spec/README.md). `corepack pnpm conformance` runs
 `python3 ../conformance/driver/run.py -- node conformance/adapter.ts` (Python 3.9 or later) after `build`; it prints
 TAP, one line per case, and exits 0 when every case at or below the claimed level passes. To run fewer cases, run
 that command yourself with `--corpus NAME` or `--case NAME` before the `--`. The adapter is typechecked and linted with the package but is not
