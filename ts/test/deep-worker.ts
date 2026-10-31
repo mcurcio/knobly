@@ -33,7 +33,7 @@ export type DeepResult =
       /** The frames between `closest`'s caller and the predicate's call on the outermost directive. */
       readonly closestFrames: number;
     }
-  | { readonly diagnostics: number; readonly depth: number; readonly via: number }
+  | { readonly diagnostics: number; readonly depth: number; readonly via: number; readonly text: string | undefined }
   | { readonly error: string };
 
 const job = workerData as DeepJob;
@@ -78,7 +78,7 @@ async function walks(): Promise<DeepResult> {
       if (value.kind === "list") depth += 1;
       via = value.origin.via.length;
     }
-    return { diagnostics: loaded.diagnostics.length, depth, via };
+    return { diagnostics: loaded.diagnostics.length, depth, via, text: loaded.block.at(0)?.values[0]?.text };
   }
 
   const before = await load(job.before);

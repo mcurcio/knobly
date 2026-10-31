@@ -5,11 +5,14 @@
  *
  * Parsing a text 17 blocks deep takes more of the stack than 256 levels of the old recursive walk or closest did, so
  * no stack the load fits in would catch those two: they are held to the frames they put on the stack between the
- * call and the callback, which a recursion makes at least 256. A worker's stack also holds Node's own start (192 KB
+ * call and the callback, which a recursion makes at least 256. The bound is far below that (fewer than 16), so a
+ * helper frame more or less does not matter; one frame a level does. A worker's stack also holds Node's own start (192 KB
  * kept in reserve; a worker that runs nothing fails on 0.26 MB).
  *
  * Measured on Node 24.14 (arm64 macOS), with KNOBLY_DEEP_STACK_MB: the blocks task needs 0.3 MB, so it runs on 0.4.
- * The list task needs 0.28 MB; with the old recursive rebase it needed 0.35, so it runs on 0.31.
+ * The list task needs 0.28 MB; with the old recursive rebase it needed 0.35, so it runs on 0.31: about 10% above the
+ * loop's need and 10% below the recursion's. Linux CI passes it too; if a platform's frames differ, set it again from
+ * these two measures, between them.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -75,22 +78,20 @@ function onSmallStack(stackSizeMb: number, task: DeepTask): Promise<DeepResult> 
   });
 }
 
+/** Fewer frames than this between a walk's call and its callback: far below the 256 a recursion a level would make. */
+const FRAME_BOUND = 16;
+
 describe("a tree 256 levels deep after expansion", () => {
   it("is loaded, rendered, walked, addressed, diffed and climbed on a small stack, with no frame a level", async () => {
     const result = await onSmallStack(0.4, { task: "blocks", before: deepSnippets("leaf;"), after: deepSnippets("leaf 1;") });
-    expect(result).toEqual({
-      diagnostics: 0,
-      walked: 257,
-      walkFrames: 2,
-      deepestAddress: 257,
-      changes: [["changed", 257]],
-      closest: "b",
-      closestFrames: 2,
-    });
+    const { walkFrames, closestFrames, ...rest } = result as Extract<DeepResult, { walked: number }>;
+    expect(rest).toEqual({ diagnostics: 0, walked: 257, deepestAddress: 257, changes: [["changed", 257]], closest: "b" });
+    expect(walkFrames).toBeLessThan(FRAME_BOUND);
+    expect(closestFrames).toBeLessThan(FRAME_BOUND);
   }, 30_000);
 
   it("is a list read through 128 variables, each read rebasing the list below it on a small stack", async () => {
     const result = await onSmallStack(0.31, { task: "list", text: deepList() });
-    expect(result).toEqual({ diagnostics: 0, depth: 256, via: 128 });
+    expect(result).toEqual({ diagnostics: 0, depth: 256, via: 128, text: `${"[".repeat(256)}x${"]".repeat(256)}` });
   }, 30_000);
 });
