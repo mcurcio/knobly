@@ -135,17 +135,21 @@ which every build runs.
 
 ## Install
 
-knobly has not made its first release yet, so for now you build it from a clone:
+Each release on the [releases page](https://github.com/mcurcio/knobly/releases) carries one file per language, built
+reproducibly from its tag, with a `SHA256SUMS` file to check them:
 
-```bash
-git clone https://github.com/mcurcio/knobly
-```
+| Language | Release asset | Install |
+|---|---|---|
+| TypeScript | `knobly-<version>.tgz` | `npm install https://github.com/mcurcio/knobly/releases/download/v<version>/knobly-<version>.tgz`, or from GitHub Packages as `knobly@npm:@mcurcio/knobly@<version>` |
+| Python | `knobly-<version>-py3-none-any.whl` (and the sdist) | `pip install https://github.com/mcurcio/knobly/releases/download/v<version>/knobly-<version>-py3-none-any.whl` |
+| C++ | `knobly-cpp-<version>.tar.gz`, or the single header `knobly.hpp` | CMake `FetchContent` of the archive, or copy the header |
+| Editors | `knobly.tmLanguage.json` | a TextMate grammar for VS Code, Sublime Text, JetBrains IDEs and Shiki |
 
-The [Quickstart page of the user guide](https://mcurcio.github.io/knobly/#get-it) has the exact steps for each
-language. In short: TypeScript needs Node 24 and Java 11+ (to generate the parser), Python needs Python 3.11+ and
-Java 11+, and C++ needs a C++20 compiler (and Python with `uv` to generate the headers). Once releases start, each
-one on the [releases page](https://github.com/mcurcio/knobly/releases) will carry an npm tarball, a Python wheel,
-and a single C++ header; nothing is published to npm or PyPI.
+Nothing is published to npmjs.com or PyPI. Until the first release, build from a clone
+(`git clone https://github.com/mcurcio/knobly`). The [Quickstart page of the user guide](https://mcurcio.github.io/knobly/#get-it)
+has the exact steps for each language. In short: TypeScript needs Node 24 and Java 11+ (to generate the parser),
+Python needs Python 3.11+ and Java 11+, and C++ needs a C++20 compiler (and Python with `uv` to generate the
+headers).
 
 ## Learn more
 

@@ -126,10 +126,37 @@ character.
 
 ## Releases
 
-A push to `main` that passes CI runs semantic-release, which takes the next version from the Conventional Commits
-since the last release. It builds the npm tarball of `ts/`, the Python wheel and sdist of `py/`, and the C++ source
-archive and single header of `cpp/` ([`.github/release-build.sh`](.github/release-build.sh)), and attaches them to a
-GitHub Release. The version is stamped into the manifests only for the build. Nothing is published to npm or PyPI.
+A push to `main` that passes CI (a merged pull request) runs semantic-release (`.releaserc.json`). It takes the next
+version from the Conventional Commits since the last tag: `fix:` a patch, `feat:` a minor, `!` or `BREAKING CHANGE:`
+a major. Then it:
 
-Releases stay in dry-run (the version is computed and the assets built, but nothing is tagged) until the
-repository variable `RELEASE_ENABLED` is `true`.
+1. builds the assets with `.github/release-build.sh <version>`: the npm tarball of `ts/`, the Python wheel and sdist
+   of `py/`, the C++ source archive and single header of `cpp/` (`.github/release-cpp.sh`), the TextMate grammar
+   (`tools/highlight/gen.py textmate`), and `SHA256SUMS` over all of them. The version is stamped into the
+   manifests only for the build;
+2. tags the commit `v<version>` and makes a GitHub Release with those assets. Its notes, grouped by commit type,
+   are the changelog: no `CHANGELOG.md` is committed;
+3. publishes the npm tarball to GitHub Packages as `@mcurcio/knobly`, the same files with only the name changed
+   (`.github/release-npm.sh`). Nothing goes to npmjs.com or PyPI.
+
+Every asset is reproducible from its tag: each build step takes its timestamps from `SOURCE_DATE_EPOCH` (the
+commit's time), the C++ archive is written with sorted entries and fixed owners and modes, and hatchling is pinned.
+CI's release-build job proves it on every push and pull request: `.github/release-reproduce.sh` builds the assets
+twice, in two checkouts, and fails unless the two `SHA256SUMS` match. To check a release yourself, run
+`sha256sum -c SHA256SUMS` over its assets, or rebuild it: `git checkout v<version> && bash .github/release-build.sh
+<version>` gives the same `SHA256SUMS`.
+
+Releases stay in dry-run until the repository variable `RELEASE_ENABLED` is `true`. A dry run computes the version,
+builds the assets, shows what the GitHub Packages publish would send, and uploads the assets as a workflow artifact.
+It tags, releases and publishes nothing.
+
+**The first release** is 0.1.0 (owner, 2026-11-14). With no tag, semantic-release would start at 1.0.0, so a
+maintainer tags the last commit before release automation starts as `v0.0.0`, once, before enabling releases. The
+next `feat:` merge then makes 0.1.0:
+
+```bash
+git tag v0.0.0 <the commit before the first release> && git push origin v0.0.0
+# then: Settings > Secrets and variables > Actions > Variables: RELEASE_ENABLED = true
+```
+
+Until 1.0.0, a breaking change (`feat!:`) still makes 1.0.0: semantic-release gives 0.x no special rule.

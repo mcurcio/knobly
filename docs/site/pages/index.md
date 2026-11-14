@@ -29,10 +29,18 @@ No release has been made yet, so each tab also says how to build the same file f
 
 === "TypeScript"
 
-    The `npm pack` tarball of each release, for Node 24 or later (it is not on npm):
+    The `npm pack` tarball of each release, for Node 24 or later (it is not on npmjs.com):
 
     ```bash
     npm install https://github.com/mcurcio/knobly/releases/download/v<version>/knobly-<version>.tgz
+    ```
+
+    The same build is on GitHub Packages as `@mcurcio/knobly`. Install it under the name `knobly`, so imports stay
+    `knobly/...`. GitHub's npm registry asks for a token with `read:packages`, even for a public package:
+
+    ```bash
+    echo "@mcurcio:registry=https://npm.pkg.github.com" >> .npmrc
+    npm install knobly@npm:@mcurcio/knobly@<version>
     ```
 
     From a checkout (Node 24, pnpm through corepack, Java 11+ and `curl` for the generated parser), build and pack

@@ -1,7 +1,7 @@
 # Releases a downstream editor can consume, and highlighting generated from the grammar
 
-Bead `kno-wii`. Status: **proposal**. The parts marked *owner* are open questions (section 5); nothing here is
-agreed until the owner answers them.
+Bead `kno-wii`. Status: **answered** (owner, 2026-11-14, section 5). The parts marked *owner* were the open questions;
+each now says the answer.
 
 The consumer that started this is ear (mcurcio/ear), an audio router whose config, `ear.conf`, is written in knobly.
 Its browser editor wants to syntax-highlight knobly text with knobly's TypeScript package, installed from a release
@@ -76,7 +76,7 @@ end can never cut a token.
 engine) and tokenizes every file in `fixtures/` and every conformance syntax text. It requires the same boundaries
 and classes as `highlight()`. A second test requires `highlight()`'s spans to equal `parse()`'s tokens.
 
-## 3. The TypeScript highlighting API (*owner*: shape and placement)
+## 3. The TypeScript highlighting API (*owner*: TypeScript only, like fetch)
 
 ```ts
 import { highlight, HighlightClass } from "knobly/highlight";
@@ -106,15 +106,15 @@ export function highlight(text: string): HighlightSpan[];
   throws, for broken text too: what does not lex is an `error` span.
 - **One span per token.** The spans are exactly `parse(text).tokens` (same kinds, same offsets), with a class added.
 - **No antlr4.** The module imports only the generated DFA table and the token kind list. It uses no Node API, so a
-  browser bundle can take it. Measured cost, minified: about 4 KB with the tables (section 6 has the exact
-  number, which the size test pins).
+  browser bundle can take it. Measured cost (esbuild, minified): 2.6 KB, 1.1 KB gzipped. The size test fails above
+  8 KB or when antlr4 enters the bundle.
 - **Performance.** One linear pass with no allocation beyond the spans. An editor can re-highlight the whole text on
   every change.
 
 ## 4. Release pipeline and artifacts
 
 ```
-PR merged to main ──▶ CI (grammar, ts, py, cpp, docs, release-build, reproducible)
+PR merged to main ──▶ CI (grammar, ts, py, cpp, docs, release-build: built twice, compared)
                         │ all green
                         ▼
                 release job: semantic-release
@@ -122,13 +122,13 @@ PR merged to main ──▶ CI (grammar, ts, py, cpp, docs, release-build, repro
                   notes            ─▶ release notes
                   prepare          ─▶ .github/release-build.sh <version>   (assets + SHA256SUMS)
                   publish          ─▶ git tag v<version>, GitHub Release with the assets
-                                   ─▶ npm publish of the tarball to GitHub Packages   (owner: name)
+                                   ─▶ npm publish of the tarball to GitHub Packages as @mcurcio/knobly
                 (RELEASE_ENABLED != true: dry run; builds the assets and uploads them as a workflow artifact)
 ```
 
 | Asset | What | Where |
 |---|---|---|
-| `knobly-<v>.tgz` | `npm pack` of `ts/` | Release; and GitHub Packages (*owner*: package name) |
+| `knobly-<v>.tgz` | `npm pack` of `ts/` | Release; and GitHub Packages as `@mcurcio/knobly`, the same files with only the name changed |
 | `knobly-<v>-py3-none-any.whl`, `knobly-<v>.tar.gz` | wheel and sdist of `py/` | Release (not PyPI) |
 | `knobly-cpp-<v>.tar.gz` | C++ source archive, generated headers included | Release |
 | `knobly.hpp` | C++ single header | Release |
@@ -138,13 +138,13 @@ PR merged to main ──▶ CI (grammar, ts, py, cpp, docs, release-build, repro
 **Reproducible from the tag.** Every asset is a function of the tagged commit and the pinned tools:
 
 - `SOURCE_DATE_EPOCH` is the tagged commit's committer time, for every build step.
-- The C++ archive uses `tar --sort=name --mtime=@$SOURCE_DATE_EPOCH --owner=0 --group=0 --numeric-owner` and
-  `gzip -n`.
+- The C++ archive is written by Python's `tarfile`, the same on Linux and macOS: entries sorted, every mtime
+  `SOURCE_DATE_EPOCH`, owner 0 with no names, modes 644 and 755, and a gzip header with no name or time.
 - `npm pack` already fixes mtimes. hatchling honours `SOURCE_DATE_EPOCH`, and is pinned in the build (kno-h61).
-- A new CI job, `reproducible`, builds the assets twice, in two checkouts at different times, and fails unless the
-  two `SHA256SUMS` are identical.
+- CI's release-build job runs `.github/release-reproduce.sh`. It builds the assets twice, in two checkouts at
+  different times, and fails unless the two `SHA256SUMS` are identical.
 
-**Changelog** (*owner*). Proposed: the release notes on each GitHub Release are the changelog, and no
+**Changelog** (*owner*: release notes only). The release notes on each GitHub Release are the changelog, and no
 `CHANGELOG.md` is committed. A committed changelog would need a bot commit to `main` on every release, and it is
 generated text, which the owner's rule keeps out of the repository.
 
@@ -160,7 +160,11 @@ kno-bzv; kno-9ws tracks the general rule.
 | GitHub Packages | `"knobly": "npm:@mcurcio/knobly@<v>"`, plus `.npmrc`: `@mcurcio:registry=https://npm.pkg.github.com` | a token with `read:packages`, even for a public package |
 | C++ | `FetchContent_Declare(knobly URL .../knobly-cpp-<v>.tar.gz URL_HASH SHA256=<from SHA256SUMS>)` | none |
 
-## 5. Questions for the owner
+## 5. Questions for the owner, and the answers (2026-11-14)
+
+The answers, in order: 1 (a), keep `knobly` and publish an alias; 2, start at 0.1.0, with a `v0.0.0` tag made by hand
+(the next `feat:` then makes 0.1.0, a real release with assets: CONTRIBUTING.md, Releases); 3, release notes only;
+4 (b), TypeScript only, like the fetch adapters: a MAY capability, declared in the schema.
 
 1. **The npm name on GitHub Packages.** GitHub's npm registry only takes a package scoped to its owner. Either
    (a) keep the package `knobly` and publish the same build as `@mcurcio/knobly`. Consumers alias it
@@ -179,7 +183,7 @@ kno-bzv; kno-9ws tracks the general rule.
 ## 6. Other gaps a downstream consumer would hit (filed, not built)
 
 - A line-at-a-time tokenizer with state, for CodeMirror's `StreamLanguage` (the head flag is the whole state).
-- Python and C++ `highlight`, if question 4 says so.
+- Python and C++ `highlight` (question 4 said TypeScript only, for now).
 - tree-sitter grammar (kno-w4b's second step).
 - `knobly/browser` re-exporting nothing of the syntax layer. A browser program that wants `parse` imports
   `knobly/syntax` and pays for antlr4. That is fine, but the guide should say so.
