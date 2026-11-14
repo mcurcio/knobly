@@ -1,0 +1,8 @@
+<span class="kn-keyword">@set</span> <span class="kn-variable">$port</span> <span class="kn-number">8080</span><span class="kn-punctuation">;</span>
+<span class="kn-directive">server</span> <span class="kn-punctuation">{</span>
+    <span class="kn-directive">listen</span> <span class="kn-variable">$port</span><span class="kn-punctuation">;</span>  <span class="kn-comment"># all hosts</span>
+    <span class="kn-directive">name</span> <span class="kn-string">"a"</span> <span class="kn-number">-x</span><span class="kn-punctuation">;</span>
+    <span class="kn-directive">oops</span> <span class="kn-error">"open</span>
+<span class="kn-punctuation">}</span>
+
+spans 34, lossless true
