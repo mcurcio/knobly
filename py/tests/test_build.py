@@ -3,6 +3,7 @@ pyproject.toml)."""
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import sys
@@ -28,6 +29,13 @@ def test_wheel_and_sdist_contain_the_generated_parser_and_api_lists(tmp_path: Pa
     for folder, files in GENERATED.items():
         assert {Path(n).name for n in wheel_names if n.startswith(f"knobly/{folder}/")} >= files
         assert {Path(n).name for n in sdist_names if f"/src/knobly/{folder}/" in n} >= files
+    # The page PyPI shows is PYPI.md: its text is the wheel's long description, and no link in it is relative.
+    with zipfile.ZipFile(wheel) as zf:
+        [metadata_name] = [n for n in wheel_names if n.endswith(".dist-info/METADATA")]
+        metadata = zf.read(metadata_name).decode()
+    assert "Description-Content-Type: text/markdown" in metadata
+    assert (PY / "PYPI.md").read_text() in metadata
+    assert re.findall(r"\]\((?!https://)", metadata) == []
 
 
 CONSUMER = """\

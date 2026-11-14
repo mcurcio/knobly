@@ -3,11 +3,14 @@ name = "knobly"
 # Placeholder: the release job stamps the real version at build time (kno-g7n.3).
 version = "0.0.0"
 description = "A configuration language defined by one formal grammar, with a lossless syntax tree"
+# PYPI.md is the page PyPI shows: for users, with absolute links (README.md is for this folder on GitHub).
+readme = "PYPI.md"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = ["antlr4-python3-runtime==4.13.2"]
 
 [project.urls]
+Documentation = "https://mcurcio.github.io/knobly/"
 Repository = "https://github.com/mcurcio/knobly"
 
 [dependency-groups]
