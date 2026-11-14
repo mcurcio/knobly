@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Generate the parser for one target language from grammar/Knobly.g4.
-#   bash tools/gen.sh ts   -> ts/src/gen/              (TypeScript, each file prefixed "// @ts-nocheck")
+#   bash tools/gen.sh ts   -> ts/src/gen/              (TypeScript, each ANTLR file prefixed "// @ts-nocheck"; plus
+#                             highlight.ts, the highlighter's tables from tools/highlight/gen.py)
 #   bash tools/gen.sh py   -> py/src/knobly/_gen/  (Python 3, plus an empty __init__.py)
 #   bash tools/gen.sh cpp  -> cpp/include/knobly/detail/syntax/parser.gen.hpp, from knobly's own parser
 #                             generator (tools/parser/gen.py) instead of ANTLR: no Java, no download
@@ -58,6 +59,10 @@ if [[ "$lang" == TypeScript ]]; then
   for f in "$tmp"/*.ts; do { echo "// @ts-nocheck"; cat "$f"; } > "$f.new" && mv "$f.new" "$f"; done
 else
   : > "$tmp/__init__.py"
+fi
+if [[ "$lang" == TypeScript ]]; then
+  # The highlighter's tables (the lexer DFA and the highlight classes, no ANTLR): tools/highlight/gen.py.
+  python3 tools/highlight/gen.py ts "$tmp/highlight.ts"
 fi
 for f in "$tmp"/*; do mv -f "$f" "$out/"; done
 
