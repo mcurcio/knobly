@@ -138,17 +138,13 @@ a major. Then it:
    are the changelog: no `CHANGELOG.md` is committed;
 3. publishes the npm tarball to GitHub Packages as `@mcurcio/knobly`, the same files with only the name changed
    (`.github/release-npm.sh`). Nothing goes to npmjs.com;
-4. uploads the wheel and sdist to PyPI as `knobly`, the same files the GitHub Release carries, when the repository
-   variable `PYPI_PUBLISH` is `true` (below). Until then nothing goes to PyPI.
+4. uploads the wheel and sdist to PyPI as `knobly`, the same files the GitHub Release carries.
 
 **PyPI** takes the upload by trusted publishing: PyPI trusts this repository's `ci.yml` workflow itself, so no PyPI
-token is stored here. To turn it on, once:
+token is stored here. The publisher is registered on pypi.org under Publishing (project `knobly`, owner `mcurcio`,
+repository `knobly`, workflow `ci.yml`, no environment; owner, 2026-11-14).
 
-1. on pypi.org, under Publishing, add a pending trusted publisher for GitHub: project name `knobly`, owner
-   `mcurcio`, repository `knobly`, workflow `ci.yml`, no environment;
-2. set the repository variable `PYPI_PUBLISH` to `true` (Settings, Secrets and variables, Actions, Variables).
-
-The next release then creates the PyPI project. PyPI never takes the same version twice, so an upload that fails
+The first upload creates the PyPI project. PyPI never takes the same version twice, so an upload that fails
 after the GitHub Release was made is finished by hand, from the release's own files:
 `uv publish knobly-<version>-py3-none-any.whl knobly-<version>.tar.gz` (with a PyPI API token).
 

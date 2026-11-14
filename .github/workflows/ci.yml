@@ -342,10 +342,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           NODE_AUTH_TOKEN: ${{ github.token }}
         run: corepack pnpm exec semantic-release
-      # The same wheel and sdist the GitHub Release carries, to PyPI, by trusted publishing. Off until the owner
-      # registers this workflow as the PyPI project's trusted publisher and sets the repository variable
-      # PYPI_PUBLISH to 'true' (CONTRIBUTING.md, Releases). dist/release/ holds a wheel only when the step above
-      # made a release, so a push that releases nothing publishes nothing.
+      # The same wheel and sdist the GitHub Release carries, to PyPI, by trusted publishing: PyPI trusts this
+      # workflow as the project's publisher (CONTRIBUTING.md, Releases). dist/release/ holds a wheel only when the
+      # step above made a release, so a push that releases nothing publishes nothing.
       - name: Publish the Python wheel and sdist to PyPI
-        if: vars.PYPI_PUBLISH == 'true' && hashFiles('dist/release/*.whl') != ''
+        if: hashFiles('dist/release/*.whl') != ''
         run: uv publish --trusted-publishing always dist/release/*.whl dist/release/knobly-[0-9]*.tar.gz
