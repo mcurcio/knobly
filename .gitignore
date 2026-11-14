@@ -18,4 +18,5 @@ py/src/knobly/_gen/
 
 # Local tool state, never committed: bd's import scratch file, and agent worktrees.
 .beads/.auto-import-issues.jsonl
+.beads.gate.lock
 .claude/worktrees/
