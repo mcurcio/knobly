@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Generate the parser for one target language from grammar/Knobly.g4.
-#   bash tools/gen.sh ts   -> ts/src/gen/              (TypeScript, each file prefixed "// @ts-nocheck")
+#   bash tools/gen.sh ts   -> ts/src/gen/              (TypeScript, each ANTLR file prefixed "// @ts-nocheck"; plus
+#                             highlight.ts, the highlighter's tables from tools/highlight/gen.py)
 #   bash tools/gen.sh py   -> py/src/knobly/_gen/  (Python 3, plus an empty __init__.py)
 #   bash tools/gen.sh cpp  -> cpp/include/knobly/detail/syntax/parser.gen.hpp, from knobly's own parser
 #                             generator (tools/parser/gen.py) instead of ANTLR: no Java, no download
@@ -31,9 +32,8 @@ esac
 sha256() { if command -v sha256sum > /dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 
 command -v java > /dev/null || die "java not found (needs Java 11+)"
-java_version=$(java -version 2>&1 | grep -m1 ' version "' || true)  # not line 1: JAVA_TOOL_OPTIONS prints a notice first
-java_major=$(sed -nE 's/.*version "(1\.)?([0-9]+).*/\2/p' <<< "$java_version")
-[[ "$java_major" =~ ^[0-9]+$ && "$java_major" -ge 11 ]] || die "needs Java 11+, found: ${java_version:-$(java -version 2>&1 | head -1)}"
+java_major=$(java -version 2>&1 | sed -nE 's/.*version "(1\.)?([0-9]+).*/\2/p' | head -1)  # not line 1: a JAVA_TOOL_OPTIONS notice may come first
+[[ "$java_major" =~ ^[0-9]+$ && "$java_major" -ge 11 ]] || die "needs Java 11+, found: $(java -version 2>&1 | head -1)"
 
 jar_dir="${ANTLR_JAR_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/antlr}"
 jar="$jar_dir/antlr-${ANTLR_VERSION}-complete.jar"
@@ -59,6 +59,10 @@ if [[ "$lang" == TypeScript ]]; then
   for f in "$tmp"/*.ts; do { echo "// @ts-nocheck"; cat "$f"; } > "$f.new" && mv "$f.new" "$f"; done
 else
   : > "$tmp/__init__.py"
+fi
+if [[ "$lang" == TypeScript ]]; then
+  # The highlighter's tables (the lexer DFA and the highlight classes, no ANTLR): tools/highlight/gen.py.
+  python3 tools/highlight/gen.py ts "$tmp/highlight.ts"
 fi
 for f in "$tmp"/*; do mv -f "$f" "$out/"; done
 

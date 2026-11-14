@@ -43,3 +43,39 @@ the specification of the syntax, and every binding's parser is generated from it
 grammar's language. Blocks and lists may nest 100 deep in one text; deeper is E2010, and the whole text is then one
 error node with that one diagnostic. Only the blocks and lists the parser opens count, not brackets it skips while
 recovering from an error.
+
+## Highlighting an editor's text
+
+An editor that only shows knobly text needs the tokens, not the tree. `highlight(text)` from `knobly/highlight`
+(TypeScript only) gives one span per token, each with a highlight class to style. It never throws, and its spans
+cover the text exactly, broken text included:
+
+=== "TypeScript"
+
+    ```ts
+    --8<-- "ts/examples/highlight.ts:main"
+    ```
+
+It prints:
+
+```text
+--8<-- "examples/expected/highlight.txt"
+```
+
+- **The spans are the tokens.** Each span is exactly one of `parse(text).tokens`: same kind (`span.kind`), same
+  start and end (UTF-16 offsets).
+- **The classes** are `directive` (a statement's name), `keyword` (`@set`, `@include`, ...), `word` (a bare value),
+  `variable`, `number`, `string`, `comment`, `punctuation`, `space` and `error` (an unterminated string, a bad
+  escape, a lone `$`, a stray character). A word is a `directive` when it is a statement's first token: the first
+  word of the text, or after a `;`, `{` or `}`, with only spaces, line breaks and comments in between. The rule reads
+  tokens only, so it holds in broken text too.
+- **Small.** `knobly/highlight` does not load the ANTLR runtime: it scans with tables generated from the grammar.
+  It bundles to about 3 KB minified (1 KB gzipped), where `parse` bundles to about 160 KB (42 KB gzipped). It is
+  fast enough to highlight the whole text again on every keystroke.
+- **Display only.** Highlighting says nothing about whether a file is valid. Use `parse`, `load` and `render` for
+  that.
+
+**Other editors.** Every release also carries `knobly.tmLanguage.json`, a TextMate grammar generated from the same
+grammar and the same classes. VS Code, Sublime Text, JetBrains IDEs, Shiki and GitHub can use it. It tokenizes
+exactly as the lexer does, with two exceptions that come from TextMate itself: a lone surrogate, and a `\r` that is
+the text's very last character, which TextMate reads as a line break.

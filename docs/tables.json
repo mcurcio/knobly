@@ -122,7 +122,8 @@
       {"what": "the rendered tree", "ref": "layer: rendered", "names": ["render", "rendered", "directive", "key rule"]},
       {"what": "the include extension", "ref": "module: include", "names": ["include"]},
       {"what": "files on disk", "ref": "module: files", "names": ["file source", "file writer"]},
-      {"what": "files over `fetch`", "ref": "module: fetch", "names": ["fetch source", "fetch writer"]}
+      {"what": "files over `fetch`", "ref": "module: fetch", "names": ["fetch source", "fetch writer"]},
+      {"what": "highlighting, with no parser runtime", "ref": "module: highlight", "names": ["highlight", "highlight span", "highlight class"]}
     ]
   },
   "traits": {
@@ -145,8 +146,8 @@
       {"what": "`nature: named type`, `is: native`", "ref": "trait: native", "last": ["the platform's own type: the emitter's `LANGUAGE.native`; the loader refuses a kept native type without one, and a binding that keeps no native type leaves out the module that holds them"]},
       {"what": "list `[]`", "ref": "trait: list", "last": ["in order"]},
       {"what": "`map`", "ref": "trait: map", "last": ["keyed, ordered"]},
-      {"what": "`module` (`files`, `fetch`, `include`; the path is the emitter's `modules`)", "ref": "trait: module", "last": ["an adapter module, named for what it holds; a module the emitter leaves out does not exist there, nor its functions and concepts"]},
-      {"what": "what a binding leaves out (the emitter's `omit`, and any module it does not map)", "ref": "trait: omit", "last": ["exists in some bindings only (a left-out module takes its functions and concepts with it)"]},
+      {"what": "`module` (`files`, `fetch`, `include`, `highlight`; the path is the emitter's `modules`)", "ref": "trait: module", "last": ["a module a binding may leave out (an adapter, or a MAY capability such as `highlight`), named for what it holds; all of one module is in one layer; a module the emitter leaves out does not exist there, nor its functions, concepts and kind lists"]},
+      {"what": "what a binding leaves out (the emitter's `omit`, and any module it does not map)", "ref": "trait: omit", "last": ["exists in some bindings only (a left-out module takes its functions, concepts and kind lists with it)"]},
       {"what": "a trait's own public names (the emitter's `trait_names`)", "ref": "trait: names", "last": ["a class or type a trait's idiom adds, public beside the concept with the trait"]},
       {"what": "a root error group's class (the emitter's `error_roots`)", "ref": "trait: error roots", "last": ["the root's base, or the language's own class (spec 2.8's and contract 4.2's generated tables)"]},
       {"what": "the argument type error's message (the emitter's `argument_type_message`; the schema keeps its rule and placeholders)", "ref": "trait: argument type message", "last": ["a whole sentence, because it names the language's own conversion and type words (spec 6.9's generated table)"]}

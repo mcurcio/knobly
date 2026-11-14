@@ -14,6 +14,7 @@ import { PUBLIC_NAMES } from "./api-contract.ts";
 const ENTRY: Readonly<Record<keyof typeof PUBLIC_NAMES, string>> = {
   knobly: "../src/index.ts",
   "knobly/browser": "../src/browser.ts",
+  "knobly/highlight": "../src/highlight.ts",
   "knobly/include": "../src/include.ts",
   "knobly/node": "../src/node.ts",
   "knobly/rendered": "../src/rendered/index.ts",

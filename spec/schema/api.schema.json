@@ -19,7 +19,7 @@
       "group": {"$ref": "#/$defs/errorName"}, "when": {"$ref": "#/$defs/prose", "description": "why this member raises it: the doc emitted beside the error class in place of the group's 'raised when'"}}}]},
     "doc": {"$ref": "#/$defs/prose", "description": "the user-facing doc each emitter writes as the declaration's doc comment (JSDoc, docstring): no bead id, owner quote, history or one language's advice (tools/api/loader.py refuses the first kinds)"},
     "rationale": {"$ref": "#/$defs/prose", "description": "why the declaration is as it is (history, quotes, bead ids, per-language notes): read by people, never emitted"},
-    "moduleName": {"enum": ["files", "fetch", "include"], "description": "an adapter module, named for what it holds; each emitter maps it to its own import path or leaves it out (spec/codegen.md section 10)"},
+    "moduleName": {"enum": ["files", "fetch", "include", "highlight"], "description": "a module, named for what it holds, that a binding may leave out (an adapter, or a MAY capability); every entry of one module is in one layer; each emitter maps it to its own import path or leaves it out (spec/codegen.md section 10)"},
     "factoryForm": {"enum": ["constructor", "package function"], "description": "how a binding makes a concept a factory function makes: a class constructed, or the package's own name called; each emitter picks one per concept (Language.factory_forms), so no api.json entry uses this enum: it is the closed list's one home"},
     "rootForm": {"enum": ["base", "builtin"], "description": "a root error group's class in a binding: one that extends the language's class, or the language's class itself (Language.error_roots); the closed list's one home, used by no api.json entry"},
 
@@ -96,7 +96,8 @@
       "properties": {
         "layer": {"$ref": "#/$defs/layerName"},
         "values": {"type": "array", "items": {"$ref": "#/$defs/specName"}, "minItems": 1, "uniqueItems": true},
-        "values from": {"const": "grammar"},
+        "values from": {"enum": ["grammar", "highlight model"], "description": "grammar: the token kinds of grammar/Knobly.g4; highlight model: the classes of grammar/highlight.json"},
+        "module": {"$ref": "#/$defs/moduleName"},
         "sort": {"enum": ["variant set", "tag"]},
         "variants": {"type": "object", "additionalProperties": {"$ref": "#/$defs/specName"}},
         "tag of": {"type": "array", "items": {"$ref": "#/$defs/specName"}},

@@ -2,8 +2,9 @@
 
 A page shows a sample by including its file with pymdownx.snippets (`--8<-- "ts/examples/<id>.ts:main"`); a missing
 file or region already fails the build (check_paths). This hook adds the other half: every id in the sample table is
-included on some page from ts/examples/<id>.ts, py/examples/<id>.py and cpp/examples/<id>.cpp, so a sample cannot
-lose a tab, or never get a page, without the build failing. Run by `hooks:` in mkdocs.yml.
+included on some page from ts/examples/<id>.ts, py/examples/<id>.py and cpp/examples/<id>.cpp (only the languages its
+'languages' names, for a capability only some bindings offer), so a sample cannot lose a tab, or never get a page,
+without the build failing. Run by `hooks:` in mkdocs.yml.
 """
 
 from __future__ import annotations
@@ -37,12 +38,12 @@ def on_env(env: Any, config: Any, files: Any) -> Any:
     table = json.loads((REPO / "examples" / "samples.json").read_text(encoding="utf-8"))
     missing = [
         FILES[language].format(sample)
-        for sample in table["samples"]
-        for language in FILES
+        for sample, entry in table["samples"].items()
+        for language in entry.get("languages", FILES)
         if (language, sample) not in _shown
     ]
     if missing:
         raise PluginError(
-            "samples shown in fewer than three languages (examples/samples.json); no page includes: " + ", ".join(missing)
+            "samples shown in fewer languages than examples/samples.json names; no page includes: " + ", ".join(missing)
         )
     return env

@@ -1,5 +1,5 @@
 {
-  "$comment": "The user guide's samples (.claude/design/cpp/frozen-docs.md, the sample table). Each id has one file per binding (ts/examples/<id>.ts, py/examples/<id>.py, cpp/examples/<id>.cpp) that prints exactly examples/expected/<id>.txt when run in a fresh copy of its fixture folder (null: an empty folder). Each binding's tests run every sample file it has against this table.",
+  "$comment": "The user guide's samples (.claude/design/cpp/frozen-docs.md, the sample table). Each id has one file per binding (ts/examples/<id>.ts, py/examples/<id>.py, cpp/examples/<id>.cpp) that prints exactly examples/expected/<id>.txt when run in a fresh copy of its fixture folder (null: an empty folder). Each binding's tests run every sample file it has against this table. 'languages' (default all three) names the bindings that offer the sample's capability, for a MAY capability only some offer (knobly/highlight: TypeScript only).",
   "samples": {
     "hello": {"fixture": "examples/fixtures/hello"},
     "quickstart": {"fixture": "examples/fixtures/quickstart"},
@@ -18,6 +18,7 @@
     "addresses": {"fixture": "fixtures/rasl/split"},
     "diff_reload": {"fixture": "fixtures/rasl/split"},
     "custom_source": {"fixture": null},
-    "syntax_tree": {"fixture": null}
+    "syntax_tree": {"fixture": null},
+    "highlight": {"fixture": null, "languages": ["ts"]}
   }
 }

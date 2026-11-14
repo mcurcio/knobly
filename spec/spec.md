@@ -707,6 +707,31 @@ The grammar's entry rules `statementsText`, `valuesText`, `valueText`, `itemsTex
 generated parser and the same recovery and codes. They are not part of the syntax layer's public API: the edits
 and the check of an override call them.
 
+### 3.4 Highlighting (MAY)
+
+| Spec name | Required | Inputs | Output | Errors |
+|---|---|---|---|---|
+| `highlight` | MAY. TypeScript only today (`knobly/highlight`) | text | `highlight span[]`: per token, `start`, `end`, `class` (a `highlight class`) and `kind` (its `token kind`) | none: total for any string |
+
+`highlight` is for an editor that shows knobly text. It judges nothing: a text it colours may still fail to parse.
+
+- **The spans are the tokens.** There is one span per token `parse` gives, with the same kind and offsets: contiguous,
+  from 0 to the text's length, none empty. So it is lossless, for broken text too, where what does not lex is an
+  `error` span. Offsets count the binding's own string unit (2.1).
+- **The classes come from the highlight model**, `grammar/highlight.json`. It gives each token kind a class
+  (`directive`, `keyword`, `word`, `variable`, `number`, `string`, `comment`, `punctuation`, `space`, `error`, in that
+  order: the `highlight class` kind list), plus the head rule. `tools/check.sh` refuses a token kind with no class.
+- **The head rule.** A `WORD` that is a statement's first token is a `directive`. It is first when it comes after the
+  start of the text, a `;`, a `{` or a `}`, with only `BOM`, `SPACE`, `NEWLINE` and `COMMENT` tokens between. The rule
+  reads tokens, not the parse tree, so it needs no parser and holds on broken text alike.
+- **No parser runtime.** A binding SHOULD implement it with the lexer alone. TypeScript scans with the minimized
+  lexer DFA generated from `Knobly.g4` (`tools/highlight/gen.py`), and the entry bundles without antlr4.
+
+The same model generates the TextMate grammar, `knobly.tmLanguage.json`, and the user guide's Pygments lexer. Its
+check runs the TextMate grammar under VS Code's own engine over `fixtures/` and the syntax conformance texts, and
+requires the same tokens and classes as `highlight`. There are two exceptions, which the TextMate line model cannot
+express: a lone surrogate, and a `"\r"` that is a text's last character.
+
 ## 4. Ports: where files come from and go to
 
 The core MUST NOT do I/O. Files come in through a `document source` and go out through a `document
