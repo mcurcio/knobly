@@ -1,0 +1,44 @@
+{
+  "$comment": "The highlight model (design/releases-and-highlighting.md section 2): a class for every token kind of Knobly.g4, and the head rule. Every highlighter is generated from this file and the grammar's token rules: the TypeScript highlighter (tools/gen.sh ts), the TextMate grammar (tools/highlight/gen.py textmate) and the docs site's Pygments lexer. tools/check.sh refuses a token kind with no class.",
+  "classes": {
+    "directive": { "doc": "a statement's name: its first WORD", "textmate": "entity.name.function.knobly", "pygments": "Name.Function" },
+    "keyword": { "doc": "an @ word: @set, @snippet, @use, an extension's @include", "textmate": "keyword.control.knobly", "pygments": "Keyword" },
+    "word": { "doc": "a bare word that is a value", "textmate": "string.unquoted.knobly", "pygments": "Name" },
+    "variable": { "doc": "a $name", "textmate": "variable.other.knobly", "pygments": "Name.Variable" },
+    "number": { "doc": "a word that starts with a digit or '-'", "textmate": "constant.numeric.knobly", "pygments": "Number" },
+    "string": { "doc": "a quoted string, double or single", "textmate": "string.quoted.knobly", "pygments": "String" },
+    "comment": { "doc": "a # comment", "textmate": "comment.line.number-sign.knobly", "pygments": "Comment.Single" },
+    "punctuation": { "doc": "{ } [ ] ; , ~", "textmate": "punctuation.knobly", "pygments": "Punctuation" },
+    "space": { "doc": "spaces, tabs, line breaks and a byte order mark", "textmate": null, "pygments": "Text.Whitespace" },
+    "error": { "doc": "text that does not lex: an unterminated string, a bad escape, a lone $, a character no token starts with", "textmate": "invalid.illegal.knobly", "pygments": "Error" }
+  },
+  "tokens": {
+    "BOM": { "class": "space" },
+    "SPACE": { "class": "space" },
+    "NEWLINE": { "class": "space" },
+    "COMMENT": { "class": "comment" },
+    "VARIABLE": { "class": "variable" },
+    "WORD": { "class": "word" },
+    "AT_WORD": { "class": "keyword" },
+    "INTEGER": { "class": "number", "pygments": "Number.Integer" },
+    "DIGIT_WORD": { "class": "number" },
+    "STRING": { "class": "string" },
+    "LBRACE": { "class": "punctuation", "textmate": "punctuation.section.block.begin.knobly" },
+    "RBRACE": { "class": "punctuation", "textmate": "punctuation.section.block.end.knobly" },
+    "LBRACK": { "class": "punctuation", "textmate": "punctuation.section.brackets.begin.knobly" },
+    "RBRACK": { "class": "punctuation", "textmate": "punctuation.section.brackets.end.knobly" },
+    "SEMI": { "class": "punctuation", "textmate": "punctuation.terminator.statement.knobly" },
+    "COMMA": { "class": "punctuation", "textmate": "punctuation.separator.comma.knobly" },
+    "TILDE": { "class": "punctuation", "textmate": "punctuation.separator.slice.knobly" },
+    "UNTERMINATED_STRING": { "class": "error" },
+    "BAD_ESCAPE": { "class": "error" },
+    "LONE_DOLLAR": { "class": "error" },
+    "BAD_CHAR": { "class": "error" }
+  },
+  "head": {
+    "$comment": "The first token of a statement: one after the start of the text, a 'starts' token, and only 'filler' tokens between. A 'classes' kind there takes that class instead of its own (grammar rule `header`: a directive's name).",
+    "starts": ["SEMI", "LBRACE", "RBRACE"],
+    "filler": ["BOM", "SPACE", "NEWLINE", "COMMENT"],
+    "classes": { "WORD": "directive" }
+  }
+}

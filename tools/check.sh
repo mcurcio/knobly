@@ -13,6 +13,9 @@
 #   7. The shared conformance driver's own test (conformance/driver/test_driver.py; spec/conformance.md).
 #   8. knobly's own parser generator (tools/parser/gen.py --check): it accepts grammar/Knobly.g4, refuses each
 #      planted grammar in tools/planted-parser/, and the .g4's tree annotations match the .ebnf's.
+#   9. The highlight model (tools/highlight/gen.py check): grammar/highlight.json classes every token kind, and the
+#      lexer DFA has the properties the generated highlighters rely on; each planted broken model is refused
+#      (tools/highlight/test_gen.py).
 # The public-name check runs in each package's tests against its generated test contract (spec/codegen.md section 4).
 # Needs: python3, bison, uv (for interegular and jsonschema).
 set -u
@@ -51,4 +54,7 @@ if python3 conformance/driver/test_driver.py > "$tmp/driver" 2>&1; then echo "ok
 else echo "FAIL conformance driver: $(cat "$tmp/driver")"; fail=1; fi
 if python3 tools/parser/gen.py --check > "$tmp/parser" 2>&1; then echo "ok   parser generator: $(cat "$tmp/parser")"
 else echo "FAIL parser generator: $(cat "$tmp/parser")"; fail=1; fi
+if python3 tools/highlight/gen.py check > "$tmp/hl" 2>&1 && python3 tools/highlight/test_gen.py > "$tmp/hl-test" 2>&1
+then echo "ok   highlight model: $(cat "$tmp/hl"); planted models refused"
+else echo "FAIL highlight model: $(cat "$tmp/hl" "$tmp/hl-test" 2>/dev/null)"; fail=1; fi
 exit $fail
