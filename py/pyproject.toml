@@ -22,7 +22,7 @@ build-backend = "hatchling.build"
 # src/knobly/_gen/ (the parser) and src/knobly/_api/ (the API lists from spec/schema/) are made by
 # `bash ../tools/gen.sh py` and ignored by git, so hatchling would drop them: artifacts force them into the wheel and
 # sdist (proven by tests/test_build.py).
-# hatch_build.py runs gen.sh itself when the build is from a checkout, so `uv build` and a git dependency
+# hatch_build.py runs gen.sh itself when the build is from a checkout with no generated files, so `uv build` and a git dependency
 # (`knobly @ git+https://github.com/mcurcio/knobly#subdirectory=py`) need no step before them.
 [tool.hatch.build.hooks.custom]
 
