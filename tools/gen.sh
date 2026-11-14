@@ -31,7 +31,7 @@ esac
 sha256() { if command -v sha256sum > /dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 
 command -v java > /dev/null || die "java not found (needs Java 11+)"
-java_major=$(java -version 2>&1 | sed -nE '1s/.*version "(1\.)?([0-9]+).*/\2/p')
+java_major=$(java -version 2>&1 | sed -nE 's/.*version "(1\.)?([0-9]+).*/\2/p' | head -1)  # not line 1: a JAVA_TOOL_OPTIONS notice may come first
 [[ "$java_major" =~ ^[0-9]+$ && "$java_major" -ge 11 ]] || die "needs Java 11+, found: $(java -version 2>&1 | head -1)"
 
 jar_dir="${ANTLR_JAR_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/antlr}"
