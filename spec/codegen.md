@@ -53,9 +53,13 @@ field) is text in this grammar, and every name in it must resolve: a free-text t
 JSON Schema refuses any character outside the grammar's alphabet. Each closed list (traits, natures, `passed`,
 error sorts, found-by, code layers, adapter modules, and the emitter-facing factory forms and root forms) has one
 home, the enum in `api.schema.json`, which the loader reads (`closed`); the layers are `api.json`'s own `layers`
-list, with its `registry layer` (the error groups and the diagnostic code type) and its `adapter layer` (the one
-whose concepts may sit in an adapter module). Every emitter, the docs tables and the stub loop over that list, and
-`tools/gen-api.py --check` renders a schema copy with one more layer to prove each emitter gives it a module.
+list, with its `registry layer` (the error groups and the diagnostic code type) and its `adapter layer` (the io
+adapters' layer, which contract 5's adapter table lists). A module (`module` on a concept, a kind list or a free
+function: an adapter, or a MAY capability such as `highlight`) belongs to one layer: the loader refuses a module
+whose entries sit in two. Every emitter, the docs tables and the stub loop over that list, and
+`tools/gen-api.py --check` renders a schema copy with one more layer to prove each emitter gives it a module. A kind
+list takes its values from `values`, or from a source the loader reads: `grammar` (the token kinds of
+`grammar/Knobly.g4`) or `highlight model` (the classes of `grammar/highlight.json`).
 
 ```text
 type      = union
@@ -149,8 +153,8 @@ emitter's `trait_forms` and its other `Language` facts (a members table, section
 | `nature: named type`, `is: native` | `platform fetch`: `typeof globalThis.fetch` | none | none | the platform's own type: the emitter's `LANGUAGE.native`; the loader refuses a kept native type without one, and a binding that keeps no native type leaves out the module that holds them |
 | list `[]` | `readonly T[]` | `tuple[T, ...]` as a result, `Sequence[T]` as a parameter | `knobly::sequence<T>`, an immutable shared list | in order |
 | `map` | `ReadonlyMap` as a result, `Readonly<Record>` as a parameter or an options record's property (`writable`: `Record`) | `Mapping` (`writable`: `MutableMapping`) | `knobly::ordered_map<K, V>` (`writable`: held by `std::shared_ptr`, shared with the caller) | keyed, ordered |
-| `module` (`files`, `fetch`, `include`; the path is the emitter's `modules`) | `files`: `knobly/node`, `fetch`: `knobly/browser`, `include`: `knobly/include` | `files`: `knobly.files`, `fetch`: none, `include`: `knobly.include` | `files`: `knobly::files`, `fetch`: none, `include`: `knobly::extensions` | an adapter module, named for what it holds; a module the emitter leaves out does not exist there, nor its functions and concepts |
-| what a binding leaves out (the emitter's `omit`, and any module it does not map) | nothing | `load options`, `processor options`, `key options`, `walk control`, the `fetch` module | `walk control`, the `fetch` module | exists in some bindings only (a left-out module takes its functions and concepts with it) |
+| `module` (`files`, `fetch`, `include`, `highlight`; the path is the emitter's `modules`) | `files`: `knobly/node`, `fetch`: `knobly/browser`, `include`: `knobly/include`, `highlight`: `knobly/highlight` | `files`: `knobly.files`, `fetch`: none, `include`: `knobly.include`, `highlight`: none | `files`: `knobly::files`, `fetch`: none, `include`: `knobly::extensions`, `highlight`: none | a module a binding may leave out (an adapter, or a MAY capability such as `highlight`), named for what it holds; all of one module is in one layer; a module the emitter leaves out does not exist there, nor its functions, concepts and kind lists |
+| what a binding leaves out (the emitter's `omit`, and any module it does not map) | nothing | `load options`, `processor options`, `key options`, `walk control`, the `fetch` module, the `highlight` module | `walk control`, the `fetch` module, the `highlight` module | exists in some bindings only (a left-out module takes its functions, concepts and kind lists with it) |
 | a trait's own public names (the emitter's `trait_names`) | none | `Collecting` | `sequence`, `ordered_map`, `walk_view` | a class or type a trait's idiom adds, public beside the concept with the trait |
 | a root error group's class (the emitter's `error_roots`) | `knobly error`: `Error`, `detached error`: `ReferenceError`, `argument type error`: `TypeError`, `misuse error`: `Error`, `index out of range`: `RangeError` | `knobly error`: `Exception`, `detached error`: `ReferenceError`, `argument type error`: `TypeError`, `misuse error`: `ValueError`, `index out of range`: `IndexError` | `knobly error`: `std::runtime_error`, `detached error`: `std::logic_error`, `argument type error`: `std::logic_error`, `misuse error`: `std::invalid_argument`, `index out of range`: `std::out_of_range` | the root's base, or the language's own class (spec 2.8's and contract 4.2's generated tables) |
 | the argument type error's message (the emitter's `argument_type_message`; the schema keeps its rule and placeholders) | `{member}(): argument "{parameter}" must be a string, not {got}; knobly edits take config text: quote() a program string, text() one already written as knobly text, String() a number first` | `{member}() argument '{parameter}' must be str, not {got}; knobly edits take config text: quote() a program string, text() one already written as knobly text, str() a number first` | `{member}(): argument '{parameter}' must be a live object, not {got}` | a whole sentence, because it names the language's own conversion and type words (spec 6.9's generated table) |
@@ -456,8 +460,9 @@ A new binding is **one emitter, one adapter and one name test** (binding guide s
   - `error_roots`: each root error group (one without a parent) to the class it extends, `{"base": ...}`, or is,
     `{"builtin": ...}` (spec 2.8); every root must be given and nothing else;
   - `argument_type_message`: the argument type error's whole sentence, with `{member}`, `{parameter}` and `{got}`;
-  - `modules`: each adapter module it has (`files`, `fetch`, `include`, the closed list in `api.schema.json`) to its
-    import path under the package; a module left out does not exist there, nor its functions and concepts;
+  - `modules`: each module it has (`files`, `fetch`, `include`, `highlight`, the closed list in `api.schema.json`) to
+    its import path under the package; a module left out does not exist there, nor its functions, concepts and kind
+    lists;
   - `factory_forms`: how it makes a concept a factory function makes (`constructor`, the default, or `package
     function`);
   - `native`: the platform's own type for each native named type it keeps;

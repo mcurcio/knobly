@@ -189,6 +189,7 @@ Each layer is its own import:
 | the include extension | `knobly/include`: `include`, ... | `knobly.include`: `include`, ... | `knobly::extensions`: `include`, ... |
 | files on disk | `knobly/node`: `fileSource`, `fileWriter`, ... | `knobly.files`: `file_source`, `file_writer`, ... | `knobly::files`: `file_source`, `file_writer`, ... |
 | files over `fetch` | `knobly/browser`: `fetchSource`, `fetchWriter`, ... | none | none |
+| highlighting, with no parser runtime | `knobly/highlight`: `highlight`, `HighlightSpan`, `HighlightClass`, ... | none | none |
 <!-- end generated -->
 
 ## Project status

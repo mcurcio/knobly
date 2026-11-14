@@ -262,7 +262,8 @@ def layer_names(layer: str) -> Callable[[Model], str]:
         for k in model.kinds:
             if k.layer == layer:
                 rows.append(row(f"`{k.name}` (kind list)", lambda lang, k=k: (  # type: ignore[misc]
-                    f"`{lang.type_case(k.name)}` ({lang.enum_form})" if lang.key in k.languages else lang.omitted_as(k.name, "kind list"))))
+                    f"`{lang.type_case(k.name)}` ({lang.enum_form})" + (f" (`{model.kind_module(k, lang.key)}`)" if k.module else "")
+                    if lang.key in k.languages else lang.omitted_as(k.name, "kind list"))))
         if layer == model.registry_layer:
             rows.append(row("`diagnostic code`", lambda lang: f"`{lang.type_case('diagnostic code')}` ({lang.enum_form})"))
             for g in model.groups:
@@ -346,7 +347,7 @@ def trait_ref(model: Model, trait: str, language: Language) -> str:
                          for mod in MODULES)
     if trait == "omit":
         gone = [f"`{c.name}`" for c in model.concepts if language.key not in c.languages and c.module is None]
-        gone += [f"`{k.name}`" for k in model.kinds if language.key not in k.languages]
+        gone += [f"`{k.name}`" for k in model.kinds if language.key not in k.languages and k.module is None]
         gone += [f"the `{mod}` module" for mod in MODULES if mod not in language.modules]
         return ", ".join(gone) or "nothing"
     if trait == "names":

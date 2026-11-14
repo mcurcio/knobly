@@ -76,7 +76,7 @@ LANGUAGE = Language(
     argument_type_message=('{member}(): argument "{parameter}" must be a string, not {got}; knobly edits take config '
                            "text: quote() a program string, text() one already written as knobly text, String() a "
                            "number first"),  # {got}: null, array or typeof
-    modules={"files": "node", "fetch": "browser", "include": "include"},
+    modules={"files": "node", "fetch": "browser", "include": "include", "highlight": "highlight"},
     factory_forms={"processor": "package function"},  # knobly({ source }); every other factory is a class
     native={"platform fetch": "typeof globalThis.fetch"},  # a native type is the platform's, never declared here
     # Prettier, pinned exactly in ts/package.json and installed by pnpm install; its options are here (no config file,

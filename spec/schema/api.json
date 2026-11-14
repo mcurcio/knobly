@@ -77,6 +77,13 @@
       ],
       "doc": "the kinds of syntax tree node: the whole document, a directive, a block, a list, a slice, and a statement the parser could not read"
     },
+    "highlight class": {
+      "layer": "syntax",
+      "module": "highlight",
+      "values from": "highlight model",
+      "sort": "tag",
+      "doc": "how a highlighter shows a token (grammar/highlight.json, in its order): a statement's name, an @ word, a bare word that is a value, a variable, a number, a string, a comment, punctuation, space, or text that does not lex"
+    },
     "statement kind": {
       "layer": "written",
       "values": [
@@ -470,6 +477,20 @@
       ],
       "doc": "the exact source text of a token range; for the root node, the whole input. Out of range as for span of",
       "rationale": "spec 1, 'Where an operation lives', rule 4; stays a free function since milestone 1"
+    },
+    {
+      "name": "highlight",
+      "layer": "syntax",
+      "module": "highlight",
+      "params": [
+        {
+          "name": "text",
+          "type": "text"
+        }
+      ],
+      "returns": "highlight span[]",
+      "doc": "the text's tokens, each with its highlight class. The spans are contiguous, start at 0, end at the text's length, are never empty and are exactly the tokens parse gives. A WORD that is a statement's first token (after the text's start, a ';', a '{' or a '}', with only spaces, line breaks and comments between) is a directive. Pure and total: it never raises for any input; what does not lex is an error span",
+      "rationale": "spec 3.4: a MAY capability, TypeScript only today; it scans with the lexer DFA alone, so a browser editor can highlight without the parser's runtime"
     },
     {
       "name": "quote",
@@ -1182,6 +1203,39 @@
       ],
       "doc": "the one block shape of every layer: iterated and indexed in order, its directives by name, and a depth-first walk over its items at any depth. The written block holds statements, the expansion block directive expansions, the rendered block directives",
       "rationale": "binding guide rule 5; owner, 2026-10-29: \"Yes, rename now\""
+    },
+    {
+      "name": "highlight span",
+      "layer": "syntax",
+      "nature": "record",
+      "module": "highlight",
+      "members": [
+        {
+          "name": "start",
+          "member": "property",
+          "type": "integer",
+          "doc": "where the span starts: an offset into the text, in the binding's own string unit"
+        },
+        {
+          "name": "end",
+          "member": "property",
+          "type": "integer",
+          "doc": "where it ends (exclusive); never equal to start"
+        },
+        {
+          "name": "class",
+          "member": "property",
+          "type": "highlight class",
+          "doc": "how to show it"
+        },
+        {
+          "name": "kind",
+          "member": "property",
+          "type": "token kind",
+          "doc": "the token's kind, for finer styling: the kind parse gives the same token"
+        }
+      ],
+      "doc": "one token of a text, classed for highlighting"
     },
     {
       "name": "token range",
