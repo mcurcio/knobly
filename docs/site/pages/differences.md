@@ -81,6 +81,7 @@ compile-fail test in `cpp/tests/compile_fail/`.
 
 ## What each binding has
 
-Python and C++ have no fetch source or fetch writer (`knobly/browser` is TypeScript only). The C++ syntax and
+Python and C++ have no fetch source or fetch writer (`knobly/browser` is TypeScript only). Nor do they have `highlight`
+(`knobly/highlight`, a lexer-only highlighter for editors, is TypeScript only). The C++ syntax and
 written layers also build with `-fno-exceptions -fno-rtti`, where a thrown error is written to standard error and
 `std::abort()` is called instead.

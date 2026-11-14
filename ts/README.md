@@ -5,8 +5,9 @@ ANTLR4 from [`grammar/Knobly.g4`](../grammar/Knobly.g4), the language's one spec
 It is an ES module for Node 24 and later, with one runtime dependency, `antlr4` 4.13.2 (the same
 version as the generator).
 
-It is not on npm. Releases attach the `npm pack` tarball to the GitHub Release (see the
-[root README](../README.md#releases)).
+It is not on npmjs.com. Each release attaches the `npm pack` tarball to the GitHub Release, and publishes the same build
+to GitHub Packages as `@mcurcio/knobly`: install it as `knobly@npm:@mcurcio/knobly@<version>` so imports stay
+`knobly/...` (see the [root README](../README.md#install)).
 
 The user guide, with every sample in TypeScript, Python and C++: [https://mcurcio.github.io/knobly/](https://mcurcio.github.io/knobly/) (source:
 [`docs/site/pages/`](../docs/site/pages/)).

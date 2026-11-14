@@ -173,7 +173,7 @@ where TypeScript or Python break one, section 4 says so.
    public import path, and every public name has exactly one: the package root holds the shared and io layers
    (positions, places, diagnostics and the sink, error classes, config text, the ports and the memory adapters); the
    syntax, written and rendered layers are their own paths; an adapter keeps its own path (the file and fetch
-   adapters, the include extension). A name is never re-exported under a second path, and no old name is kept.
+   adapters, the include extension), and so does a MAY capability (highlighting). A name is never re-exported under a second path, and no old name is kept.
 
    | Layer | TypeScript | Python |
    |---|---|---|
@@ -183,6 +183,7 @@ where TypeScript or Python break one, section 4 says so.
    | rendered | `knobly/rendered` | `knobly.rendered` |
    | file adapters | `knobly/node` | `knobly.files` |
    | fetch adapters | `knobly/browser` | none (MAY, spec 4.3) |
+   | highlighting | `knobly/highlight` | none (MAY, spec 3.4) |
    | include extension | `knobly/include` | `knobly.include` |
 
    The exact names per path are generated (`PUBLIC_NAMES`, codegen.md section 4), and each binding's name test
@@ -270,6 +271,7 @@ names. The exact old-to-new tables, with signatures, are the milestones' frozen 
 | `file source` | `createFileSource()` from `knobly/node` | `file_source()` from `knobly.files` | rule 3. M2: `fileSource()` |
 | `file writer` | `createFsWriter()` from `knobly/node` | `fs_writer()` | rule 3; medium named `fs` here, `file` in the source. M2: `fileWriter()`, `file_writer()` |
 | `fetch source`, `fetch writer` | `createFetchSource(fetch)`, `createFetchWriter(fetch, options)` from `knobly/browser` | none | MAY in spec 4.3. M2: `fetchSource`, `fetchWriter` |
+| `highlight`, `highlight span`, `highlight class` | `highlight(text)`, `HighlightSpan`, `HighlightClass` from `knobly/highlight` | none | MAY in spec 3.4 (kno-wii) |
 | `document writer` | `IDocumentWriter` | `DocumentWriter` (a `Protocol`) | rule 2 |
 | `file write` | `IFileWrite` | `FileWrite` | |
 | `extension` | `IExtension` | `Extension` (a `Protocol`) | |

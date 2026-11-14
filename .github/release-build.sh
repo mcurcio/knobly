@@ -5,11 +5,15 @@
 #   knobly-<version>.tar.gz              uv build of py/ (sdist)
 #   knobly-cpp-<version>.tar.gz          the C++ source archive, generated headers included (.github/release-cpp.sh)
 #   knobly.hpp                           the C++ single header (.github/release-cpp.sh)
+#   knobly.tmLanguage.json               the TextMate grammar (tools/highlight/gen.py)
+#   SHA256SUMS                           the sha256 of every asset above, for `sha256sum -c`
+# Reproducible: every asset is the same bytes from the same commit (.github/release-reproduce.sh checks it). Each
+# build step takes its timestamps from SOURCE_DATE_EPOCH, by default the commit's time; npm pack fixes its own.
 # The version is stamped into ts/package.json and py/pyproject.toml for the build only; both files get their
 # committed bytes back on exit, so the version is never committed. Run by semantic-release's prepare step
-# (.releaserc.json), in dry-run by the release job in .github/workflows/ci.yml, and on every push and pull request by
+# (.releaserc.json) in the release job of .github/workflows/ci.yml, and on every push and pull request by
 # its release-build job.
-# Needs: Node 24 with corepack, ts/ dependencies installed, Java 11+ (tools/gen.sh), uv, python3.
+# Needs: Node 24 with corepack, ts/ dependencies installed, Java 11+ (tools/gen.sh), uv, python3, git, sha256sum.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -20,6 +24,8 @@ saved=$(mktemp -d)
 cp ts/package.json py/pyproject.toml "$saved/"
 restore() { cp "$saved/package.json" ts/package.json; cp "$saved/pyproject.toml" py/pyproject.toml; rm -rf "$saved"; }
 trap restore EXIT
+
+export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct)}"
 
 rm -rf "$out"
 mkdir -p "$out"
@@ -37,4 +43,8 @@ uv build --out-dir "$out" py
 
 bash .github/release-cpp.sh "$version" "$out"
 
+python3 tools/highlight/gen.py textmate "$out/knobly.tmLanguage.json"
+
+(cd "$out" && LC_ALL=C sha256sum -- $(LC_ALL=C ls | grep -vx SHA256SUMS) > SHA256SUMS)
 ls -l "$out"
+cat "$out/SHA256SUMS"

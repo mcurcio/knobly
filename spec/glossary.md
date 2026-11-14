@@ -154,15 +154,18 @@ Python `X: TypeAlias = A | B | ...` over classes (so `isinstance(x, X)` works). 
 <!-- generated: names: syntax (tools/gen-api.py docs) -->
 | Spec name | TypeScript | Python | C++ |
 |---|---|---|---|
+| `highlight span` | `HighlightSpan` (`knobly/highlight`) | none | none |
 | `token range` | `TokenRange` | `TokenRange` | `token_range` |
 | `token` | `Token` | `Token` | `token` |
 | `node` | `Node` | `Node` | `node` |
 | `syntax` | `Syntax` | `Syntax` | `syntax` |
 | `token kind` (kind list) | `TokenKind` (as-const object and type) | `TokenKind` (`StrEnum`) | `token_kind` (`enum class`) |
 | `node kind` (kind list) | `NodeKind` (as-const object and type) | `NodeKind` (`StrEnum`) | `node_kind` (`enum class`) |
+| `highlight class` (kind list) | `HighlightClass` (as-const object and type) (`knobly/highlight`) | none | none |
 | `parse` (free function) | `parse` | `parse` | `parse` |
 | `span of` (free function) | `spanOf` | `span_of` | `span_of` |
 | `text of` (free function) | `textOf` | `text_of` | `text_of` |
+| `highlight` (free function) | `highlight` (`knobly/highlight`) | none | none |
 | `max nesting` (constant) | `MAX_NESTING` | `MAX_NESTING` | `max_nesting` |
 <!-- end generated -->
 
@@ -368,8 +371,8 @@ These are words of the schema and its generator ([codegen.md](codegen.md)), not 
 |---|---|---|---|
 | `doc` | a schema entry's text for the binding's users (a concept, member, parameter, kind list, error group, free function, protocol shape or request), which every emitter writes as the declaration's doc comment (JSDoc, a docstring); it may not carry a bead id, `milestone N`, an `owner, <date>` quote or a language's name ([codegen.md](codegen.md) 3, "Docs and rationale") | one `note` held both user docs and maintainer history, and the history reached generated code | `note`, which it and `rationale` replace |
 | `rationale` | a schema entry's text for the people who maintain the schema: history, the owner's words, bead ids, one language's notes; no emitter reads it | the same | `note` |
-| adapter module (`files`, `fetch`, `include`) | a module a binding may have beside its layer namespaces, named for what it holds: `files` the filesystem source and writer, `fetch` the fetch source and writer, `include` the include extension. Each emitter maps it to its own import path or leaves it out (its `LANGUAGE.modules`); the generated contract 5 table and the glossary's io table show each binding's path | the schema named the TypeScript paths (`node`, `browser`), a per-language fact | `node` and `browser`, the schema's old module names. Not the source and writer adapters themselves (spec 4.3), nor the conformance adapter |
-| `registry layer`, `adapter layer` | the layer that holds the error groups and the diagnostic code type, and the one layer whose concepts may sit in an adapter module (`api.json`) | the loader named `shared` and `io` in code, so a renamed or added layer needed a loader edit | none |
+| adapter module (`files`, `fetch`, `include`, `highlight`) | a module a binding may have beside its layer namespaces, named for what it holds: `files` the filesystem source and writer, `fetch` the fetch source and writer, `include` the include extension, `highlight` the highlighter (a MAY capability of the syntax layer, spec 3.4). Every entry of one module is in one layer. Each emitter maps it to its own import path or leaves it out (its `LANGUAGE.modules`); the generated contract 5 table and the glossary's io table show each binding's path | the schema named the TypeScript paths (`node`, `browser`), a per-language fact | `node` and `browser`, the schema's old module names. Not the source and writer adapters themselves (spec 4.3), nor the conformance adapter |
+| `registry layer`, `adapter layer` | the layer that holds the error groups and the diagnostic code type, and the layer of the io adapters (fetch, files) (`api.json`) | the loader named `shared` and `io` in code, so a renamed or added layer needed a loader edit | none |
 | I-Regexp | the interoperable regular expression subset of RFC 9485; every schema pattern is one, between `^` and `$`, and each emitter writes it in its engine's dialect | a pattern must mean the same in every binding's engine, not only JavaScript's and Python's | the "no `\s`, `\w`, `\d`, `\b`" rule it replaces |
 
 ## New terms for warnings (kno-bzv.2, 2026-10-30)
@@ -378,3 +381,11 @@ These are words of the schema and its generator ([codegen.md](codegen.md)), not 
 |---|---|---|---|
 | `severity` (kind list), `error`, `warning` | how much a diagnostic counts: `error`, or `warning`, which no operation throws, raises or refuses over (spec 2.3). A knobly code's letter gives it (`E`, `W`); a program's own code is an error | the owner chose a warning code for an empty glob and, asked whether warnings sit in the same diagnostics list as errors, each with a severity field (error \| warning): "Yes" (2026-10-30) | `diagnostic`, which every diagnostic stays; `error` and `warning` are its two values, not new kinds of record |
 | W3005 `include matched nothing` | the warning for an extension's spec that is a glob and matches no file (spec 4.1) | the owner's pick "2" (a new warning code) and its code: "Yes" (2026-10-30) | E3001 `include not found`, which stays for a path that is no glob |
+
+## New terms for highlighting (kno-wii, 2026-11-14)
+
+| Term | Definition | Why it is needed | Existing term it could be |
+|---|---|---|---|
+| `highlight class` | how a highlighter shows a token: `directive`, `keyword`, `word`, `variable`, `number`, `string`, `comment`, `punctuation`, `space` or `error`, from the highlight model (spec 3.4) | an editor styles by a stable class, not by the grammar's token names | `token kind`, which stays the finer name and travels with each span |
+| `highlight span` | one token of a text with its highlight class: `start`, `end`, `class`, `kind` | `highlight`'s result: an editor marks ranges of the text | `token`, whose `span` and `text` an editor does not need |
+| highlight model | `grammar/highlight.json`: a class for every token kind and the head rule; every highlighter (TypeScript, TextMate, Pygments) is generated from it and the grammar | one place decides how knobly text looks, as the grammar decides how it lexes | the docs lexer's own style table, which it replaces |
