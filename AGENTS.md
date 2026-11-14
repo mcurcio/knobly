@@ -102,11 +102,19 @@ were ported from mcurcio/rasl on 2026-10-22; each one's notes say where it came 
 - **During work:** file a bead for every follow-up, bug or open question; record decided rules in
   the bead's design field.
 - **After work:** `bd close <id>`; update the rest.
-- **Sync to GitHub:** the beads database's Dolt remote is `origin` (`refs/dolt/data`). A
-  `Stop` hook in `.claude/settings.json` runs `bd dolt push` after every Claude turn. Agents
-  without that hook run `bd dolt push` after changing beads. On a new machine, run
-  `bd dolt pull`.
-- **Readable snapshot:** `bd export -o .beads/issues.jsonl`, committed with the work.
+- **Sync to GitHub:** `.beads/issues.jsonl` is the shared copy of the beads, one per line,
+  committed with the work. The database `bd` reads is local to each machine, built from that
+  file, and never pushed (owner, 2026-11-14: "make the change": cloud sessions can push only
+  their own branch, so the database's own remote went stale).
+  - **Start of a session:** `bd bootstrap; bd import .beads/issues.jsonl` builds or refreshes the
+    local database. The import never overwrites a bead that is newer locally. Run it again after
+    pulling or switching branches.
+  - **After changing beads:** `bd export -o .beads/issues.jsonl`, and commit the file.
+  - Hooks in `.claude/settings.json` do both for Claude: `SessionStart` imports, then runs
+    `bd prime`; `Stop` exports after every turn. Other agents run the two commands themselves.
+    Do not run `bd dolt push` or `bd dolt pull`.
+  - Two branches that both change beads can conflict in `issues.jsonl`. Keep both sides' lines;
+    for one bead changed on both, keep the line with the later `updated_at`.
 - Lasting notes about the owner or the project go in Claude memory files, not `bd remember`.
 
 ## Collaboration preferences
