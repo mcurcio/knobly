@@ -15,6 +15,7 @@ lists the parser opens, recovery's included, as TypeScript's ``installNestingGua
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -104,6 +105,16 @@ P = KnoblyParser
 _EOF = AntlrToken.EOF
 
 
+_COLON_BOUNDS = re.compile(r"(-?(?:0|[1-9][0-9]*)):(-?(?:0|[1-9][0-9]*))?")
+
+
+def tilde_hint(text: str) -> str:
+    """What a malformed slice's message adds when its bounds are written with ':' (``a[1:3]``, whose ``1:3`` is one
+    word): the same bounds with ``~``. Empty for any other text."""
+    bounds = _COLON_BOUNDS.fullmatch(text)
+    return "" if bounds is None else f" (separate a slice's bounds with ~: [{bounds[1]}~{bounds[2] or ''}])"
+
+
 def _rule_of(c: Any) -> int | None:
     return c.getRuleIndex() if c is not None and hasattr(c, "getRuleIndex") else None
 
@@ -163,6 +174,8 @@ class _Recovery(DefaultErrorStrategy):  # type: ignore[misc]
         statements, in_block = _scope(p)
         code = classify_error(kinds, at, _statement_start(statements, p._input.index), in_block)
         what = "end of input" if offending.type == _EOF else json.dumps(offending.text)
+        if code is DiagnosticCode.BAD_SLICE and offending.type != _EOF:
+            what += tilde_hint(offending.text)
         self._report(RawDiagnostic(code, at, min(at + 1, len(kinds)), describe(code, what).message))
 
     def _skip(self, p: Any) -> None:
