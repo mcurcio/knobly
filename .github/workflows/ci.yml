@@ -2,7 +2,8 @@
 # semantic-release (.releaserc.json). Releases are dry-run until the owner sets the repository variable
 # RELEASE_ENABLED to 'true' (owner, 2026-10-23: "Dry-run until I enable it"). In dry-run the job computes the
 # next version, builds the release assets (the npm package, the Python wheel and sdist, the C++ source archive and
-# single header: .github/release-build.sh) and uploads them as a workflow artifact; it never tags or releases.
+# single header, the TextMate grammar and SHA256SUMS: .github/release-build.sh), shows what the GitHub Packages
+# publish would send, and uploads the assets as a workflow artifact; it never tags, releases or publishes.
 name: CI
 
 on:
@@ -220,7 +221,8 @@ jobs:
       - run: bash cpp/tests/consumer/check.sh "$VERSION" "$WORK/assets" "$WORK"
 
   # The release flow's own build (.github/release-build.sh, semantic-release's prepare step) end to end on every push
-  # and pull request, so a change that breaks it fails here instead of in the release job on main. The version is
+  # and pull request, so a change that breaks it fails here instead of in the release job on main. Built twice, to
+  # prove the assets reproducible. The version is
   # made up (any semver that is also a valid Python version) so the asset names prove it was stamped.
   release-build:
     name: Release build (.github/release-build.sh)
@@ -243,15 +245,20 @@ jobs:
         with:
           version: ${{ env.UV_VERSION }}
       - run: corepack pnpm -C ts install --frozen-lockfile
-      - run: bash .github/release-build.sh "$VERSION"
-      # The five assets .releaserc.json attaches, and no stamped version left in the tree.
+      # Builds the assets twice, here and in a fresh worktree of the same commit, and fails unless the two SHA256SUMS
+      # are identical: every asset is reproducible from the commit.
+      - run: bash .github/release-reproduce.sh "$VERSION"
+      # The seven assets .releaserc.json attaches, the checksums check, and no stamped version left in the tree.
       - run: |
           for asset in "knobly-$VERSION.tgz" "knobly-$VERSION-py3-none-any.whl" "knobly-$VERSION.tar.gz" \
-              "knobly-cpp-$VERSION.tar.gz" knobly.hpp; do
+              "knobly-cpp-$VERSION.tar.gz" knobly.hpp knobly.tmLanguage.json SHA256SUMS; do
             [ -s "dist/release/$asset" ] || { echo "::error::missing release asset dist/release/$asset"; exit 1; }
           done
+          (cd dist/release && sha256sum -c SHA256SUMS)
           changed=$(git status --porcelain)
           [ -z "$changed" ] || { echo "::error::release-build.sh left changes in the tree:"; echo "$changed"; exit 1; }
+      # What the GitHub Packages publish would send (npm publish --dry-run, no token).
+      - run: bash .github/release-npm.sh "$VERSION" --dry-run
 
   # The user guide (docs/site/, MkDocs Material: .claude/design/cpp/frozen-docs.md). Built on every push and pull
   # request; a missing sample file or region fails the build (pymdownx.snippets check_paths, --strict). The samples
@@ -306,9 +313,11 @@ jobs:
       group: release
       cancel-in-progress: false
     # contents: write is needed in dry-run too: semantic-release always checks push access (git push --dry-run).
+    # packages: write publishes the npm tarball to GitHub Packages as @mcurcio/knobly (.github/release-npm.sh).
     # Comments, labels and failure issues are off in .releaserc.json, so no issues or pull-requests scope.
     permissions:
       contents: write
+      packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -330,6 +339,7 @@ jobs:
         id: release
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
           RELEASE_ENABLED: ${{ vars.RELEASE_ENABLED }}
         run: |
           if [ "$RELEASE_ENABLED" = true ]; then
@@ -343,7 +353,9 @@ jobs:
         if: vars.RELEASE_ENABLED != 'true' && steps.release.outputs.version != ''
         env:
           VERSION: ${{ steps.release.outputs.version }}
-        run: bash .github/release-build.sh "$VERSION"
+        run: |
+          bash .github/release-build.sh "$VERSION"
+          bash .github/release-npm.sh "$VERSION" --dry-run
       - name: Upload the packages (dry-run)
         if: vars.RELEASE_ENABLED != 'true' && steps.release.outputs.version != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -7,18 +7,42 @@
       "@semantic-release/exec",
       {
         "verifyReleaseCmd": "if [ -n \"$GITHUB_OUTPUT\" ]; then echo \"version=${nextRelease.version}\" >> \"$GITHUB_OUTPUT\"; fi",
-        "prepareCmd": "bash .github/release-build.sh ${nextRelease.version}"
+        "prepareCmd": "bash .github/release-build.sh ${nextRelease.version}",
+        "publishCmd": "bash .github/release-npm.sh ${nextRelease.version}"
       }
     ],
     [
       "@semantic-release/github",
       {
         "assets": [
-          { "path": "dist/release/*.tgz", "label": "npm package (${nextRelease.gitTag})" },
-          { "path": "dist/release/*.whl", "label": "Python wheel (${nextRelease.gitTag})" },
-          { "path": "dist/release/knobly-[0-9]*.tar.gz", "label": "Python sdist (${nextRelease.gitTag})" },
-          { "path": "dist/release/knobly-cpp-*.tar.gz", "label": "C++ source archive with the generated headers (${nextRelease.gitTag})" },
-          { "path": "dist/release/knobly.hpp", "label": "C++ single header (${nextRelease.gitTag})" }
+          {
+            "path": "dist/release/*.tgz",
+            "label": "npm package (${nextRelease.gitTag})"
+          },
+          {
+            "path": "dist/release/*.whl",
+            "label": "Python wheel (${nextRelease.gitTag})"
+          },
+          {
+            "path": "dist/release/knobly-[0-9]*.tar.gz",
+            "label": "Python sdist (${nextRelease.gitTag})"
+          },
+          {
+            "path": "dist/release/knobly-cpp-*.tar.gz",
+            "label": "C++ source archive with the generated headers (${nextRelease.gitTag})"
+          },
+          {
+            "path": "dist/release/knobly.hpp",
+            "label": "C++ single header (${nextRelease.gitTag})"
+          },
+          {
+            "path": "dist/release/knobly.tmLanguage.json",
+            "label": "TextMate grammar (${nextRelease.gitTag})"
+          },
+          {
+            "path": "dist/release/SHA256SUMS",
+            "label": "SHA-256 checksums of every asset (${nextRelease.gitTag})"
+          }
         ],
         "successCommentCondition": false,
         "failCommentCondition": false,
