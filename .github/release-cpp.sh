@@ -8,7 +8,7 @@
 # The version is stamped into the archive's copy of include/knobly/support/config.hpp (the C++ version's one
 # home), never into the repository. Run by .github/release-build.sh (semantic-release's prepare step, and the
 # dry-run release job) and by the C++ package job in .github/workflows/ci.yml (cpp/tests/consumer/check.sh).
-# Needs: python3 (3.9+) and uv (tools/gen.sh cpp, for the pinned clang-format), tar.
+# Needs: python3 (3.9+), uv (tools/gen.sh cpp, for the pinned clang-format) and git.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -45,8 +45,28 @@ open(path, "w", encoding="utf-8").write(text)
 EOF
 
 mkdir -p "$out"
-# No extended attributes or macOS metadata files (._*): a second top-level entry stops FetchContent from stripping
-# the knobly-cpp-<version>/ folder.
-COPYFILE_DISABLE=1 tar --no-xattrs -C "$stage" -czf "$out/$name.tar.gz" "$name"
+# A reproducible archive, the same bytes from the same commit on any machine: entries sorted, every mtime
+# $SOURCE_DATE_EPOCH (default: the commit's time), owner 0 and no names, modes 644 and 755, no gzip name or time.
+# One top-level entry and no extended attributes or macOS metadata files (._*): a second top-level entry stops
+# FetchContent from stripping the knobly-cpp-<version>/ folder.
+SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct)}" python3 - "$stage" "$name" "$out/$name.tar.gz" <<'EOF2'
+import gzip, os, sys, tarfile
+stage, name, dest = sys.argv[1:]
+mtime = int(os.environ["SOURCE_DATE_EPOCH"])
+paths = [name]
+for root, dirs, files in os.walk(os.path.join(stage, name)):
+    paths += [os.path.relpath(os.path.join(root, f), stage) for f in dirs + files]
+with open(dest, "wb") as raw, gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0, compresslevel=9) as gz:
+    with tarfile.open(fileobj=gz, mode="w", format=tarfile.PAX_FORMAT) as tar:
+        for path in sorted(paths):
+            info = tar.gettarinfo(os.path.join(stage, path), arcname=path)
+            info.mtime, info.uid, info.gid, info.uname, info.gname = mtime, 0, 0, "", ""
+            info.mode = 0o755 if info.isdir() else 0o644
+            if info.isdir():
+                tar.addfile(info)
+            else:
+                with open(os.path.join(stage, path), "rb") as f:
+                    tar.addfile(info, f)
+EOF2
 python3 tools/amalgamate.py --include "$dir/include" --output "$out/knobly.hpp"
 ls -l "$out/$name.tar.gz" "$out/knobly.hpp"

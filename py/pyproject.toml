@@ -16,7 +16,7 @@ Repository = "https://github.com/mcurcio/knobly"
 dev = ["pytest", "ruff==0.17.2", "mypy"]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling==1.33.0"]  # pinned: the release build runs next to a write token, and reproducible assets need one backend (kno-h61)
 build-backend = "hatchling.build"
 
 # src/knobly/_gen/ (the parser) and src/knobly/_api/ (the API lists from spec/schema/) are made by
