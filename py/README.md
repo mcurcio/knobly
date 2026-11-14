@@ -5,8 +5,8 @@ from [`grammar/Knobly.g4`](../grammar/Knobly.g4), the language's one specificati
 needs Python 3.11 or later and has one dependency, `antlr4-python3-runtime` 4.13.2 (the same
 version as the generator).
 
-It is not on PyPI. Releases attach the wheel and sdist to the GitHub Release (see the
-[root README](../README.md#releases)).
+Install it from [PyPI](https://pypi.org/project/knobly/) with `pip install knobly`. Each release also attaches the
+same wheel and sdist to the GitHub Release (see the [root README](../README.md#install)).
 
 ## What it has
 

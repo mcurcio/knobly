@@ -141,12 +141,12 @@ reproducibly from its tag, with a `SHA256SUMS` file to check them:
 | Language | Release asset | Install |
 |---|---|---|
 | TypeScript | `knobly-<version>.tgz` | `npm install https://github.com/mcurcio/knobly/releases/download/v<version>/knobly-<version>.tgz`, or from GitHub Packages as `knobly@npm:@mcurcio/knobly@<version>` |
-| Python | `knobly-<version>-py3-none-any.whl` (and the sdist) | `pip install https://github.com/mcurcio/knobly/releases/download/v<version>/knobly-<version>-py3-none-any.whl` |
+| Python | `knobly-<version>-py3-none-any.whl` (and the sdist) | `pip install knobly`: the same wheel and sdist are on [PyPI](https://pypi.org/project/knobly/) |
 | C++ | `knobly-cpp-<version>.tar.gz`, or the single header `knobly.hpp` | CMake `FetchContent` of the archive, or copy the header |
 | Editors | `knobly.tmLanguage.json` | a TextMate grammar for VS Code, Sublime Text, JetBrains IDEs and Shiki |
 
-Nothing is published to npmjs.com or PyPI. Until the first release, build from a clone
-(`git clone https://github.com/mcurcio/knobly`). The [Quickstart page of the user guide](https://mcurcio.github.io/knobly/#get-it)
+Nothing is published to npmjs.com. To build from a clone instead
+(`git clone https://github.com/mcurcio/knobly`), the [Quickstart page of the user guide](https://mcurcio.github.io/knobly/#get-it)
 has the exact steps for each language. In short: TypeScript needs Node 24 and Java 11+ (to generate the parser),
 Python needs Python 3.11+ and Java 11+, and C++ needs a C++20 compiler (and Python with `uv` to generate the
 headers).

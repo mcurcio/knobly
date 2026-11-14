@@ -24,7 +24,7 @@ knobly depends on nothing but each language's standard library (and, in TypeScri
 runtime their generated parsers use). Nothing is installed system-wide: each release on
 [GitHub](https://github.com/mcurcio/knobly/releases) carries one file per language that goes into your project.
 
-No release has been made yet, so each tab also says how to build the same file from a git checkout
+Each tab also says how to build the same file from a git checkout
 (`git clone https://github.com/mcurcio/knobly`; commands from its root).
 
 === "TypeScript"
@@ -58,7 +58,13 @@ No release has been made yet, so each tab also says how to build the same file f
 
 === "Python"
 
-    The wheel of each release, for Python 3.11 or later (it is not on PyPI):
+    From [PyPI](https://pypi.org/project/knobly/), for Python 3.11 or later:
+
+    ```bash
+    pip install knobly
+    ```
+
+    Each GitHub release carries the same wheel, if you would rather install the file:
 
     ```bash
     pip install https://github.com/mcurcio/knobly/releases/download/v<version>/knobly-<version>-py3-none-any.whl
