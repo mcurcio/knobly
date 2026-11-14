@@ -125,7 +125,7 @@ C++, is [https://mcurcio.github.io/knobly/](https://mcurcio.github.io/knobly/) (
 
 Diagnostic codes are the same as in TypeScript. Each diagnostic has a `severity`, `Severity.ERROR` or
 `Severity.WARNING`: the one warning, W3005, is an `@include` glob that matches no file. Nothing raises a warning or
-acts on one; a program that stops on problems counts the errors. Offsets and columns count code points, Python's own string unit
+acts on one; a program that stops on problems reads the sink's `errors` (`Diagnostics(tree.diagnostics).errors`). Offsets and columns count code points, Python's own string unit
 ([spec/contract.md](../spec/contract.md) 1), so `text[span.start.offset:span.end.offset]` is a span's text
 (TypeScript counts UTF-16 code units; the two differ after a character outside the Basic Multilingual Plane). A
 place prints as `main.conf:4:5` (`str(place)`, counting from 1), as do diagnostics and steps. Every expected
@@ -159,5 +159,11 @@ whether the claimed level holds.
 `spec/schema/`) into `src/knobly/_api/`, the adapter's message shapes and error groups into
 `conformance/shapes.py`, and the names, match fields, unions and module Protocols the tests check against into
 `tests/api_contract.py` (all ignored by git, never committed). That needs Java 11+; the ANTLR jar is
-cached in `$ANTLR_JAR_DIR` (default `~/.cache/antlr`). Run `gen.sh` before `uv build` too:
-`pyproject.toml` forces the ignored `_gen/` and `_api/` files into the wheel and sdist, so they must exist.
+cached in `$ANTLR_JAR_DIR` (default `~/.cache/antlr`). A build needs no step first: `hatch_build.py` runs `gen.sh` when it builds from a checkout that has no generated files (after a grammar or
+schema change, run `gen.sh` or the tests first: the hook does not refresh files that exist), and `pyproject.toml`
+forces the ignored `_gen/` and `_api/` files into the wheel and sdist. So another project can depend on a commit
+before any release (it needs bash, Java 11+, `curl` and `uv` when it installs):
+
+```toml
+dependencies = ["knobly @ git+https://github.com/mcurcio/knobly@<commit>#subdirectory=py"]
+```

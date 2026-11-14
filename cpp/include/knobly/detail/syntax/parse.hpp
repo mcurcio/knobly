@@ -128,6 +128,28 @@ inline ::knobly::diagnostic_code classify(const std::vector<raw_token>& tokens, 
     return code::unexpected_token;
 }
 
+/// What a malformed slice's message adds when its bounds are written with ':' (a[1:3], whose 1:3 is one word): the
+/// same bounds with ~. Empty for any other text.
+inline std::string tilde_hint(std::string_view text) {
+    const auto whole_number = [](std::string_view part) {
+        if (part.starts_with('-')) {
+            part.remove_prefix(1);
+        }
+        return !part.empty() && part.find_first_not_of("0123456789") == std::string_view::npos &&
+               (part.size() == 1 || part.front() != '0');  // as a bound is written: no leading zero
+    };
+    const std::size_t colon = text.find(':');
+    if (colon == std::string_view::npos) {
+        return {};
+    }
+    const std::string_view start = text.substr(0, colon);
+    const std::string_view end = text.substr(colon + 1);
+    if (!whole_number(start) || !(end.empty() || whole_number(end))) {
+        return {};
+    }
+    return " (separate a slice's bounds with ~: [" + std::string(start) + "~" + std::string(end) + "])";
+}
+
 /// A token's text as a diagnostic's detail shows it: in double quotes, with JSON's escapes.
 inline std::string quoted(std::string_view text) {
     std::string out = "\"";
@@ -323,9 +345,14 @@ private:
         const level& here = levels_.back();
         const std::size_t start = here.open_directive != npos ? here.open_directive : pos_;
         const ::knobly::diagnostic_code code = classify(tokens_, at, start, levels_.size() > 1);
-        const std::string what = at < tokens_.size()
-                                     ? quoted(text_.substr(tokens_[at].start, tokens_[at].end - tokens_[at].start))
-                                     : std::string("end of input");
+        std::string what = "end of input";
+        if (at < tokens_.size()) {
+            const std::string_view offending = text_.substr(tokens_[at].start, tokens_[at].end - tokens_[at].start);
+            what = quoted(offending);
+            if (code == ::knobly::diagnostic_code::bad_slice) {
+                what += tilde_hint(offending);
+            }
+        }
         diagnostics_.push_back({code, at, ::knobly::describe(code, what).message});
     }
 

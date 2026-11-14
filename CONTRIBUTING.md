@@ -137,7 +137,16 @@ a major. Then it:
 2. tags the commit `v<version>` and makes a GitHub Release with those assets. Its notes, grouped by commit type,
    are the changelog: no `CHANGELOG.md` is committed;
 3. publishes the npm tarball to GitHub Packages as `@mcurcio/knobly`, the same files with only the name changed
-   (`.github/release-npm.sh`). Nothing goes to npmjs.com or PyPI.
+   (`.github/release-npm.sh`). Nothing goes to npmjs.com;
+4. uploads the wheel and sdist to PyPI as `knobly`, the same files the GitHub Release carries.
+
+**PyPI** takes the upload by trusted publishing: PyPI trusts this repository's `ci.yml` workflow itself, so no PyPI
+token is stored here. The publisher is registered on pypi.org under Publishing (project `knobly`, owner `mcurcio`,
+repository `knobly`, workflow `ci.yml`, no environment; owner, 2026-11-14).
+
+The first upload creates the PyPI project. PyPI never takes the same version twice, so an upload that fails
+after the GitHub Release was made is finished by hand, from the release's own files:
+`uv publish knobly-<version>-py3-none-any.whl knobly-<version>.tar.gz` (with a PyPI API token).
 
 Every asset is reproducible from its tag: each build step takes its timestamps from `SOURCE_DATE_EPOCH` (the
 commit's time), the C++ archive is written with sorted entries and fixed owners and modes, and hatchling is pinned.

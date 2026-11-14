@@ -144,3 +144,20 @@ class TestSpanOfAndTextOf:
             span_of(self.syntax, rng)
         with pytest.raises(IndexError):
             text_of(self.syntax, rng)
+
+
+@pytest.mark.parametrize(
+    ("bounds", "hint"),
+    [
+        ("1:3", " (separate a slice's bounds with ~: [1~3])"),
+        ("0:", " (separate a slice's bounds with ~: [0~])"),
+        ("-2:5", " (separate a slice's bounds with ~: [-2~5])"),
+        ("x:1", ""),  # not whole numbers: the hint would not parse either
+        ("01:3", ""),
+        ("1:2:3", ""),
+    ],
+)
+def test_a_slice_written_with_a_colon_is_told_to_use_a_tilde(bounds: str, hint: str) -> None:
+    [diagnostic] = parse(f"connect leds[{bounds}];").diagnostics
+    assert diagnostic.code is DiagnosticCode.BAD_SLICE
+    assert diagnostic.message == f'malformed slice: "{bounds}"{hint}'

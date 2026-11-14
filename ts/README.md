@@ -120,7 +120,7 @@ Problems are diagnostics with stable codes (`DiagnosticCode`: 1xxx lexical, 2xxx
 files and extensions, 4xxx values, 5xxx expansion); a program's own codes are
 `<namespace>/<name>`. Each has a `severity`, `Severity.Error` or `Severity.Warning`: the one warning, W3005, is an
 `@include` glob that matches no file. Nothing throws a warning or acts on one; a program that stops on problems
-counts the errors. Lines and columns are 0-based; offsets and columns count UTF-16 code units, JavaScript's
+reads the sink's `errors` (`new Diagnostics(tree.diagnostics).errors`). Lines and columns are 0-based; offsets and columns count UTF-16 code units, JavaScript's
 string unit, so `text.slice(start.offset, end.offset)` is the spanned text. Only a diagnostic's code, severity and place are a
 contract, not its message. A place, an override, a step and a diagnostic print as people read them (`String(place)`
 is `main.conf:4:5`, 1-based), the same text `formatDiagnostic` starts with. Numbers follow

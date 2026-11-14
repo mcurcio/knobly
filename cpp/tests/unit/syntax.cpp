@@ -101,6 +101,20 @@ TEST_CASE("a diagnostic at the end of the text is zero-width there", "[parse]") 
     CHECK(knobly::to_string(s.diagnostics().at(0)).rfind("3:1: E2003: ", 0) == 0);
 }
 
+TEST_CASE("a slice written with a colon is told to use a tilde", "[parse]") {
+    const auto message = [](const std::string& text) {
+        const syntax::syntax s = syntax::parse(text);
+        REQUIRE(codes(s) == std::vector{diagnostic_code::bad_slice});
+        return std::string(s.diagnostics().at(0).message());
+    };
+    CHECK(message("connect leds[1:3];") == "malformed slice: \"1:3\" (separate a slice's bounds with ~: [1~3])");
+    CHECK(message("connect leds[0:];") == "malformed slice: \"0:\" (separate a slice's bounds with ~: [0~])");
+    CHECK(message("connect leds[-2:5];") == "malformed slice: \"-2:5\" (separate a slice's bounds with ~: [-2~5])");
+    CHECK(message("connect leds[x:1];") == "malformed slice: \"x:1\"");  // the hint would not parse either
+    CHECK(message("connect leds[01:3];") == "malformed slice: \"01:3\"");
+    CHECK(message("connect leds[1:2:3];") == "malformed slice: \"1:2:3\"");
+}
+
 TEST_CASE("F16: a bad statement inside a finished block hides no later statement", "[parse][recovery]") {
     const syntax::syntax s = syntax::parse("a { b [; }\n\"x\" 1;\nc 2;\nd ];\n");
     CHECK(shape_of(s.root()) ==

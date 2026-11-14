@@ -52,6 +52,19 @@ describe("parse", () => {
     expect(textOf(syntax, syntax.root)).toBe("connect foo[~];");
   });
 
+  it.each([
+    ["1:3", " (separate a slice's bounds with ~: [1~3])"],
+    ["0:", " (separate a slice's bounds with ~: [0~])"],
+    ["-2:5", " (separate a slice's bounds with ~: [-2~5])"],
+    ["x:1", ""], // not whole numbers: the hint would not parse either
+    ["01:3", ""],
+    ["1:2:3", ""],
+  ])("tells a slice written with a colon to use a tilde: [%s]", (bounds, hint) => {
+    const [diagnostic, ...more] = parse(`connect leds[${bounds}];`).diagnostics;
+    expect(more).toEqual([]);
+    expect(diagnostic).toMatchObject({ code: DiagnosticCode.BadSlice, message: `malformed slice: "${bounds}"${hint}` });
+  });
+
   it("codes lexical errors by the offending token", () => {
     expect(parse("a \u0001;").diagnostics.map((d) => d.code)).toEqual([DiagnosticCode.UnexpectedCharacter]);
     expect(parse('a "b').diagnostics.map((d) => d.code)).toEqual([DiagnosticCode.UnterminatedString]);

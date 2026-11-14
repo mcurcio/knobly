@@ -8,7 +8,7 @@ import type * as api from "./gen/api/shared.js";
 import { locatedForm } from "./people.js";
 import type { DiagnosticCode } from "./gen/api/codes.js";
 import { DiagnosticError } from "./gen/api/errors.js";
-import type { Severity } from "./gen/api/kinds.js";
+import { Severity } from "./gen/api/kinds.js";
 import { severityOf } from "./diagnostics.js";
 
 class LocatedDiagnostic implements api.LocatedDiagnostic {
@@ -42,6 +42,10 @@ export class Diagnostics implements api.Diagnostics {
 
   get length(): number {
     return this.items.length;
+  }
+
+  get errors(): readonly api.LocatedDiagnostic[] {
+    return this.items.filter((item) => item.severity === Severity.Error);
   }
 
   add(diagnostic: api.LocatedDiagnostic): void {

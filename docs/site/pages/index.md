@@ -64,12 +64,12 @@ No release has been made yet, so each tab also says how to build the same file f
     pip install https://github.com/mcurcio/knobly/releases/download/v<version>/knobly-<version>-py3-none-any.whl
     ```
 
-    From a checkout, write the generated parser and API modules first (Java 11+ and `curl`; they are not
-    committed), then install the folder:
+    From a checkout, install the folder; the build writes the generated parser and API modules itself (it needs
+    bash, Java 11+, `curl` and `uv`; they are not committed). The same works straight from git, at a commit:
 
     ```bash
-    bash tools/gen.sh py
     pip install <checkout>/py
+    pip install "knobly @ git+https://github.com/mcurcio/knobly@<commit>#subdirectory=py"
     ```
 
     Each layer is its own module: `knobly`, `knobly.syntax`, `knobly.written`, `knobly.rendered`,

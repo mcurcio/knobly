@@ -58,6 +58,22 @@ TEST_CASE("a diagnostic's severity is its code's, and a program's code is an err
     CHECK(vl::diagnostic_code::include_matched_nothing != vl::diagnostic_code::include_bad_path);  // W3005, E3005
 }
 
+TEST_CASE("errors are the diagnostics that stop a program, warnings left out, as a snapshot", "[diagnostics]") {
+    const vl::place at("a", {{0, 0, 0}, {0, 0, 0}});
+    const vl::diagnostics sink;
+    CHECK(sink.errors().empty());
+    sink.add(vl::located_diagnostic(vl::diagnostic_code::unknown_variable, "first", at, {}));
+    sink.add(vl::located_diagnostic(vl::diagnostic_code::include_matched_nothing, "empty glob", at, {}));
+    const vl::sequence<vl::located_diagnostic> before = sink.errors();
+    sink.add(vl::located_diagnostic(vl::program_code("app/x"), "mine", at, {}));
+    CHECK(sink.size() == 3);
+    const vl::sequence<vl::located_diagnostic> errors = sink.errors();
+    REQUIRE(errors.size() == 2);
+    CHECK(vl::to_string(errors.at(0)) == "a:1:1: E5001: first");
+    CHECK(vl::to_string(errors.at(1)) == "a:1:1: app/x: mine");
+    CHECK(before.size() == 1);
+}
+
 TEST_CASE("collect records a reader's diagnostic error and returns absent", "[diagnostics]") {
     const vw::document_graph graph = fixture::load("x 8080 nope;\n");
     const vl::sequence<vw::expanded_value> values = graph.expand().block().at(0).values();

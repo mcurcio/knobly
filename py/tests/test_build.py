@@ -3,6 +3,7 @@ pyproject.toml)."""
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -73,3 +74,29 @@ def test_a_consumer_type_checks_against_the_installed_wheel(tmp_path: Path) -> N
     assert "import-untyped" not in checked.stdout, checked.stdout
     errors = [line for line in checked.stdout.splitlines() if ": error:" in line]
     assert len(errors) == 1 and "consumer.py:8:" in errors[0] and '"str"' in errors[0], checked.stdout
+
+
+def test_a_checkout_without_generated_code_builds_a_wheel_that_has_it(tmp_path: Path) -> None:
+    """hatch_build.py runs tools/gen.sh, so a git dependency (which builds a wheel straight from a clone, where
+    nothing generated exists) gets the parser and the API lists."""
+    repo = PY.parent
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "grammar", "spec", "tools", "py"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split("\0")
+    clone = tmp_path / "clone"
+    for name in filter(None, tracked):
+        if (repo / name).is_file():  # a file deleted but not yet committed is still listed
+            (clone / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(repo / name, clone / name)
+    assert not (clone / "py" / "src" / "knobly" / "_gen").exists()
+    out = tmp_path / "dist"
+    subprocess.run(["uv", "build", "--wheel", "--quiet", "--out-dir", str(out), str(clone / "py")], check=True)
+    [wheel] = out.glob("*.whl")
+    with zipfile.ZipFile(wheel) as zf:
+        names = zf.namelist()
+    for folder, files in GENERATED.items():
+        assert {Path(n).name for n in names if n.startswith(f"knobly/{folder}/")} >= files

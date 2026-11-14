@@ -315,9 +315,11 @@ jobs:
     # contents: write pushes the tag and makes the GitHub Release.
     # packages: write publishes the npm tarball to GitHub Packages as @mcurcio/knobly (.github/release-npm.sh).
     # Comments, labels and failure issues are off in .releaserc.json, so no issues or pull-requests scope.
+    # id-token: write lets the PyPI step prove it is this workflow (trusted publishing); no PyPI token is stored.
     permissions:
       contents: write
       packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -340,3 +342,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           NODE_AUTH_TOKEN: ${{ github.token }}
         run: corepack pnpm exec semantic-release
+      # The same wheel and sdist the GitHub Release carries, to PyPI, by trusted publishing: PyPI trusts this
+      # workflow as the project's publisher (CONTRIBUTING.md, Releases). dist/release/ holds a wheel only when the
+      # step above made a release, so a push that releases nothing publishes nothing.
+      - name: Publish the Python wheel and sdist to PyPI
+        if: hashFiles('dist/release/*.whl') != ''
+        run: uv publish --trusted-publishing always dist/release/*.whl dist/release/knobly-[0-9]*.tar.gz

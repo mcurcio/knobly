@@ -74,6 +74,17 @@ export function classifyError(kinds: readonly TokenKind[], at: number, from: num
   return DiagnosticCode.UnexpectedToken;
 }
 
+const COLON_BOUNDS = /^(-?(?:0|[1-9][0-9]*)):(-?(?:0|[1-9][0-9]*))?$/;
+
+/**
+ * What a malformed slice's message adds when its bounds are written with ':' (`a[1:3]`, whose `1:3` is one word):
+ * the same bounds with `~`. Empty for any other text.
+ */
+export function tildeHint(text: string): string {
+  const bounds = COLON_BOUNDS.exec(text);
+  return bounds === null ? "" : ` (separate a slice's bounds with ~: [${bounds[1]}~${bounds[2] ?? ""}])`;
+}
+
 // --- the ANTLR strategy -----------------------------------------------------------------------------------------
 
 const P = KnoblyParser;
@@ -187,7 +198,8 @@ class Recovery extends DefaultErrorStrategy {
     const { statements, inBlock } = scope(p);
     const code = classifyError(kinds, at, statementStart(statements, p._input.index), inBlock);
     const range = { start: at, end: Math.min(at + 1, kinds.length) };
-    const what = offending.type === EOF ? "end of input" : JSON.stringify(offending.text);
+    let what = offending.type === EOF ? "end of input" : JSON.stringify(offending.text);
+    if (code === DiagnosticCode.BadSlice && offending.type !== EOF) what += tildeHint(offending.text);
     this.report({ code, range, message: describe(code, what).message });
   }
 

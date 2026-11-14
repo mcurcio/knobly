@@ -1484,12 +1484,13 @@ it with a list of `located diagnostic`s (usually a render's `diagnostics`). Its 
 | `add (diagnostic)` | append one `located diagnostic`, an error or a warning |
 | `report (at, message, code)` | append the diagnostic `at.error(message, code)` would carry; `at` is anything with `error (...)` (a rendered tree, a directive, an expanded value). `code` is required, as there; the diagnostic is an error (2.3) |
 | iterate | the diagnostics in the order added, warnings among them |
-| `count` | how many, warnings included: a program that stops on problems counts those whose `severity` is `error` |
+| `count` | how many, warnings included |
+| `errors` | the diagnostics whose `severity` is `error`, in the order added, as a snapshot: what a program that stops on problems reads |
 | `collect (read)` | run `read`; when it raises a `diagnostic error`, append its diagnostic and return absent instead; any other error passes through; otherwise return `read`'s result |
 
-Today TypeScript has `new Diagnostics(initial)`, `add`, `report`, `length`, iteration and
+Today TypeScript has `new Diagnostics(initial)`, `add`, `report`, `length`, `errors`, iteration and
 `collect(read)`; Python has `Diagnostics(initial)`, `add`, `report(at, message, code=...)`,
-`len()`, iteration, and `collect` as the context manager `with problems.collecting():`, the Python
+`len()`, `errors`, iteration, and `collect` as the context manager `with problems.collecting():`, the Python
 idiom for "run this block, catching one kind of error".
 
 ## 8. High level (future)

@@ -81,6 +81,10 @@ class Diagnostics(shared.Diagnostics):
     def __iter__(self) -> Iterator[LocatedDiagnostic]:
         return iter(tuple(self._items))
 
+    @property
+    def errors(self) -> tuple[LocatedDiagnostic, ...]:
+        return tuple(item for item in self._items if item.severity is Severity.ERROR)
+
     def add(self, diagnostic: LocatedDiagnostic, /) -> None:
         self._items.append(diagnostic)
 
