@@ -159,5 +159,10 @@ whether the claimed level holds.
 `spec/schema/`) into `src/knobly/_api/`, the adapter's message shapes and error groups into
 `conformance/shapes.py`, and the names, match fields, unions and module Protocols the tests check against into
 `tests/api_contract.py` (all ignored by git, never committed). That needs Java 11+; the ANTLR jar is
-cached in `$ANTLR_JAR_DIR` (default `~/.cache/antlr`). Run `gen.sh` before `uv build` too:
-`pyproject.toml` forces the ignored `_gen/` and `_api/` files into the wheel and sdist, so they must exist.
+cached in `$ANTLR_JAR_DIR` (default `~/.cache/antlr`). A build needs no step first: `hatch_build.py` runs `gen.sh` when it builds from a checkout, and `pyproject.toml`
+forces the ignored `_gen/` and `_api/` files into the wheel and sdist. So another project can depend on a commit
+before any release (it needs bash, Java 11+, `curl` and `uv` when it installs):
+
+```toml
+dependencies = ["knobly @ git+https://github.com/mcurcio/knobly@<commit>#subdirectory=py"]
+```
