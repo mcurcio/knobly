@@ -76,7 +76,7 @@ a process that keeps one graph for a long run of edits should load a fresh graph
 **Errors.** Problems in the config text are never thrown: `load` returns a graph whose `diagnostics()` lists them,
 and `render` returns a tree with the same list. Each has a `severity()`, `severity::error` or `severity::warning`:
 the one warning, W3005, is an `@include` glob that matches no file, and nothing throws one or acts on one (a
-program that stops on problems counts the errors). A warning's `diagnostic_code` value is its number plus 10000
+program that stops on problems reads the sink's `errors()`: `diagnostics(tree.diagnostics()).errors()`). A warning's `diagnostic_code` value is its number plus 10000
 (W3005 is 13005), so it differs from E3005's. Exceptions mirror the error groups of the other bindings: expected
 outcomes derive `knobly::knobly_error` (`diagnostic_error`, `read_error`, `bad_text_error`, `save_error` and
 its `lost_update_error`; a `save_error` nests the writer's exception, so `std::rethrow_if_nested` gives the cause),

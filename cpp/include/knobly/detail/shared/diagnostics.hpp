@@ -52,6 +52,17 @@ KNOBLY_API std::size_t diagnostics::size() const { return ::knobly::detail::item
 
 KNOBLY_API bool diagnostics::empty() const { return ::knobly::detail::items_of(view_).empty(); }
 
+/// A snapshot of the errors: a later add is not in it.
+KNOBLY_API ::knobly::sequence<::knobly::located_diagnostic> diagnostics::errors() const {
+    std::vector<::knobly::located_diagnostic> errors;
+    for (const ::knobly::located_diagnostic& item : ::knobly::detail::items_of(view_)) {
+        if (item.severity() == ::knobly::severity::error) {
+            errors.push_back(item);
+        }
+    }
+    return ::knobly::sequence<::knobly::located_diagnostic>(std::move(errors));
+}
+
 /// One snapshot of the list, which the iterator holds, so an add during a loop never invalidates it.
 KNOBLY_API ::knobly::sequence<::knobly::located_diagnostic>::iterator diagnostics::begin() const {
     return ::knobly::sequence<::knobly::located_diagnostic>(::knobly::detail::items_of(view_)).begin();

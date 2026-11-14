@@ -125,7 +125,7 @@ C++, is [https://mcurcio.github.io/knobly/](https://mcurcio.github.io/knobly/) (
 
 Diagnostic codes are the same as in TypeScript. Each diagnostic has a `severity`, `Severity.ERROR` or
 `Severity.WARNING`: the one warning, W3005, is an `@include` glob that matches no file. Nothing raises a warning or
-acts on one; a program that stops on problems counts the errors. Offsets and columns count code points, Python's own string unit
+acts on one; a program that stops on problems reads the sink's `errors` (`Diagnostics(tree.diagnostics).errors`). Offsets and columns count code points, Python's own string unit
 ([spec/contract.md](../spec/contract.md) 1), so `text[span.start.offset:span.end.offset]` is a span's text
 (TypeScript counts UTF-16 code units; the two differ after a character outside the Basic Multilingual Plane). A
 place prints as `main.conf:4:5` (`str(place)`, counting from 1), as do diagnostics and steps. Every expected

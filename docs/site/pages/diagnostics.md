@@ -71,8 +71,9 @@ or save throws one or acts differently because one is there, and `collect` never
 error is thrown. The only way to see a warning is to read the list. Today there is one warning, W3005: an `@include`
 glob that matches no file, so the include splices nothing (a path that matches no file stays the error E3001).
 
-A program's own codes (`report`, `error`) are errors. A sink's count includes warnings, so a program that stops when
-a config has problems counts the diagnostics whose severity is `error`.
+A program's own codes (`report`, `error`) are errors. A sink's count and iteration include warnings, so a program
+that stops when a config has problems reads the sink's `errors` (`errors()` in C++): the diagnostics whose severity
+is `error`, in the order they were added.
 
 ## Error codes
 

@@ -323,7 +323,7 @@ names. The exact old-to-new tables, with signatures, are the milestones' frozen 
 | diagnostic codes | `DiagnosticCode.UnterminatedString` | `DiagnosticCode.UNTERMINATED_STRING` | copied by hand: see codegen.md |
 | `diagnostic error`, edit errors, `save error`, `read error` | as spec 2.8 | as spec 2.8; `EditError` is a `ValueError` | no package base error. M2: `KnoblyError` base; `DetachedError` off `EditError` (Python: a `ReferenceError`); `ReadError` not a diagnostic error; `ReadError` and `SaveError` with `paths` (contract 4) |
 | `format diagnostic` | `formatDiagnostic(d, graph?)` | `format_diagnostic(d, graph=None)` | |
-| diagnostics sink (`make diagnostics`, `add`, `report`, `count`, `collect`) | `new Diagnostics(initial)`, `add`, `report`, `length`, `collect(read)` | `Diagnostics(initial)`, `add`, `report`, `len()`, `with problems.collecting():` | `collect` as a context manager is the Python idiom |
+| diagnostics sink (`make diagnostics`, `add`, `report`, `count`, `errors`, `collect`) | `new Diagnostics(initial)`, `add`, `report`, `length`, `errors`, `collect(read)` | `Diagnostics(initial)`, `add`, `report`, `len()`, `errors`, `with problems.collecting():` | `collect` as a context manager is the Python idiom |
 | `error (message, code)` | `error(message, code)` | `error(message, code=...)` | |
 | syntax | `parse`, `spanOf`, `textOf`, `IToken`, `INode`, `ISyntax` | `parse`, `span_of`, `text_of`, `Token`, `Node`, `Syntax` | |
 

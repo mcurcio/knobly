@@ -43,6 +43,18 @@ describe("Diagnostics", () => {
     expect([...sink].map((d) => d.severity)).toEqual([Severity.Error]);
   });
 
+  it("errors are the diagnostics that stop a program, warnings left out, as a snapshot", async () => {
+    const loaded = await loadText("a $nope;\nnode x;\n");
+    const sink = new Diagnostics(loaded.diagnostics);
+    sink.add(makeLocated(DiagnosticCode.IncludeMatchedNothing, "empty glob", loaded.origin.place, []));
+    const before = sink.errors;
+    sink.report(loaded, "no graph", "rasl/no-graph");
+    expect([...sink].map((d) => d.code)).toEqual(["E5001", "W3005", "rasl/no-graph"]);
+    expect(sink.errors.map((d) => d.code)).toEqual(["E5001", "rasl/no-graph"]);
+    expect(before.map((d) => d.code)).toEqual(["E5001"]);
+    expect(new Diagnostics().errors).toEqual([]);
+  });
+
   it("collect records a DiagnosticError and returns undefined; passes anything else through", async () => {
     const loaded = await loadText("port eighty;\n");
     const sink = new Diagnostics();

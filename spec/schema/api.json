@@ -1108,6 +1108,13 @@
           "doc": "how many diagnostics it holds, warnings included"
         },
         {
+          "name": "errors",
+          "member": "property",
+          "type": "located diagnostic[]",
+          "order": "as added",
+          "doc": "the diagnostics it holds whose severity is error, in the order added: what a program that stops on problems reads, since count and iteration include warnings. A snapshot: a diagnostic added later is not in a list read earlier"
+        },
+        {
           "name": "iterate",
           "member": "method",
           "params": [],

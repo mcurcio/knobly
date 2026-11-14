@@ -38,6 +38,19 @@ def test_report_and_add_record_in_order_after_the_initial_ones() -> None:
     assert list(problems)[2].place == load.origin.place
 
 
+def test_errors_are_the_diagnostics_that_stop_a_program_warnings_left_out() -> None:
+    load = loaded("a $x;\nb 1;\n")
+    place = load.origin.place
+    problems = vl.Diagnostics(load.diagnostics)
+    problems.add(vl.LocatedDiagnostic(vl.DiagnosticCode.INCLUDE_MATCHED_NOTHING, "empty glob", place, ()))
+    before = problems.errors
+    problems.report(load.block[0], "b is not wanted", code="rasl/unwanted")
+    assert [str(d.code) for d in problems] == ["E5001", "W3005", "rasl/unwanted"]
+    assert [str(d.code) for d in problems.errors] == ["E5001", "rasl/unwanted"]
+    assert [str(d.code) for d in before] == ["E5001"]  # a snapshot
+    assert vl.Diagnostics().errors == ()
+
+
 def test_collecting_records_a_diagnostic_error_and_ends_the_block() -> None:
     load = loaded("a word;\n")
     problems = vl.Diagnostics()
