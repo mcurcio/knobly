@@ -13,8 +13,8 @@ highlighter for display only.
 - **Releases** are already wired up but have never run for real. A push to `main` that passes CI runs semantic-release
   (`.releaserc.json`): the commit analyzer picks the version, the release-notes generator writes the notes,
   `.github/release-build.sh` builds five assets, and `@semantic-release/github` tags the commit and attaches the assets to a
-  GitHub Release. The job stays in dry-run until the repository variable `RELEASE_ENABLED` is `true` (owner,
-  2026-10-23, kno-g7n.3). The dry run on `c1ef4ae` (CI run 41208935289) computed **1.0.0** and built
+  GitHub Release. The job stayed in dry-run until the repository variable `RELEASE_ENABLED` was `true` (owner,
+  2026-10-23, kno-g7n.3; the gate was removed on 2026-11-14). The dry run on `c1ef4ae` (CI run 41208935289) computed **1.0.0** and built
   `knobly-1.0.0.tgz`, `knobly-1.0.0-py3-none-any.whl`, `knobly-1.0.0.tar.gz`, `knobly-cpp-1.0.0.tar.gz` and
   `knobly.hpp`.
 - **Highlighting** exists only as the docs site's Pygments lexer (`docs/site/lexer/`). It scans with the
@@ -123,7 +123,6 @@ PR merged to main ──▶ CI (grammar, ts, py, cpp, docs, release-build: built
                   prepare          ─▶ .github/release-build.sh <version>   (assets + SHA256SUMS)
                   publish          ─▶ git tag v<version>, GitHub Release with the assets
                                    ─▶ npm publish of the tarball to GitHub Packages as @mcurcio/knobly
-                (RELEASE_ENABLED != true: dry run; builds the assets and uploads them as a workflow artifact)
 ```
 
 | Asset | What | Where |

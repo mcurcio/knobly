@@ -1,9 +1,9 @@
 # Checks on every push and pull request; on a push to main that passes them, the release job runs
-# semantic-release (.releaserc.json). Releases are dry-run until the owner sets the repository variable
-# RELEASE_ENABLED to 'true' (owner, 2026-10-23: "Dry-run until I enable it"). In dry-run the job computes the
-# next version, builds the release assets (the npm package, the Python wheel and sdist, the C++ source archive and
-# single header, the TextMate grammar and SHA256SUMS: .github/release-build.sh), shows what the GitHub Packages
-# publish would send, and uploads the assets as a workflow artifact; it never tags, releases or publishes.
+# semantic-release (.releaserc.json), which releases whenever the Conventional Commits since the last tag call for
+# one (owner, 2026-11-14: no dry runs, no RELEASE_ENABLED gate). It builds the release assets (the npm package, the
+# Python wheel and sdist, the C++ source archive and single header, the TextMate grammar and SHA256SUMS:
+# .github/release-build.sh), tags the commit, makes the GitHub Release with the assets, and publishes the npm
+# package to GitHub Packages as @mcurcio/knobly (.github/release-npm.sh).
 name: CI
 
 on:
@@ -312,7 +312,7 @@ jobs:
     concurrency:
       group: release
       cancel-in-progress: false
-    # contents: write is needed in dry-run too: semantic-release always checks push access (git push --dry-run).
+    # contents: write pushes the tag and makes the GitHub Release.
     # packages: write publishes the npm tarball to GitHub Packages as @mcurcio/knobly (.github/release-npm.sh).
     # Comments, labels and failure issues are off in .releaserc.json, so no issues or pull-requests scope.
     permissions:
@@ -336,30 +336,7 @@ jobs:
       - run: corepack pnpm install --frozen-lockfile
       - run: corepack pnpm -C ts install --frozen-lockfile
       - name: semantic-release
-        id: release
         env:
           GITHUB_TOKEN: ${{ github.token }}
           NODE_AUTH_TOKEN: ${{ github.token }}
-          RELEASE_ENABLED: ${{ vars.RELEASE_ENABLED }}
-        run: |
-          if [ "$RELEASE_ENABLED" = true ]; then
-            corepack pnpm exec semantic-release
-          else
-            echo "::notice::RELEASE_ENABLED is not 'true': dry-run, no tag or release"
-            corepack pnpm exec semantic-release --dry-run
-          fi
-      # Dry-run only: semantic-release skips its prepare step (the build), so build here with the computed version.
-      - name: Build the packages (dry-run)
-        if: vars.RELEASE_ENABLED != 'true' && steps.release.outputs.version != ''
-        env:
-          VERSION: ${{ steps.release.outputs.version }}
-        run: |
-          bash .github/release-build.sh "$VERSION"
-          bash .github/release-npm.sh "$VERSION" --dry-run
-      - name: Upload the packages (dry-run)
-        if: vars.RELEASE_ENABLED != 'true' && steps.release.outputs.version != ''
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: knobly-${{ steps.release.outputs.version }}
-          path: dist/release/
-          if-no-files-found: error
+        run: corepack pnpm exec semantic-release

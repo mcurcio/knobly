@@ -146,17 +146,15 @@ twice, in two checkouts, and fails unless the two `SHA256SUMS` match. To check a
 `sha256sum -c SHA256SUMS` over its assets, or rebuild it: `git checkout v<version> && bash .github/release-build.sh
 <version>` gives the same `SHA256SUMS`.
 
-Releases stay in dry-run until the repository variable `RELEASE_ENABLED` is `true`. A dry run computes the version,
-builds the assets, shows what the GitHub Packages publish would send, and uploads the assets as a workflow artifact.
-It tags, releases and publishes nothing.
+There is no dry-run mode or switch: every push to `main` that passes CI releases when its commits call for a release
+(owner, 2026-11-14).
 
-**The first release** is 0.1.0 (owner, 2026-11-14). With no tag, semantic-release would start at 1.0.0, so a
-maintainer tags the last commit before release automation starts as `v0.0.0`, once, before enabling releases. The
-next `feat:` merge then makes 0.1.0:
+**The first release** is 0.1.0 (owner, 2026-11-14). With no tag, semantic-release would start at 1.0.0, so the
+commit before the first release is tagged `v0.0.0`, once, before the first release's merge reaches `main`. The
+`feat:` commits after it then make 0.1.0:
 
 ```bash
-git tag v0.0.0 <the commit before the first release> && git push origin v0.0.0
-# then: Settings > Secrets and variables > Actions > Variables: RELEASE_ENABLED = true
+git tag v0.0.0 c1ef4ae && git push origin v0.0.0
 ```
 
 Until 1.0.0, a breaking change (`feat!:`) still makes 1.0.0: semantic-release gives 0.x no special rule.

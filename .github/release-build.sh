@@ -11,7 +11,7 @@
 # build step takes its timestamps from SOURCE_DATE_EPOCH, by default the commit's time; npm pack fixes its own.
 # The version is stamped into ts/package.json and py/pyproject.toml for the build only; both files get their
 # committed bytes back on exit, so the version is never committed. Run by semantic-release's prepare step
-# (.releaserc.json), in dry-run by the release job in .github/workflows/ci.yml, and on every push and pull request by
+# (.releaserc.json) in the release job of .github/workflows/ci.yml, and on every push and pull request by
 # its release-build job.
 # Needs: Node 24 with corepack, ts/ dependencies installed, Java 11+ (tools/gen.sh), uv, python3, git, sha256sum.
 set -euo pipefail

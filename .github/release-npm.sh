@@ -5,8 +5,8 @@
 # The registry copy is dist/release/knobly-<version>.tgz with only package.json's name changed (and a publishConfig
 # naming the registry): the same files, byte for byte. A consumer aliases it back, so its imports stay "knobly/...":
 #   "knobly": "npm:@mcurcio/knobly@<version>"   with   @mcurcio:registry=https://npm.pkg.github.com   in .npmrc
-# Run by semantic-release's publish step (.releaserc.json) after .github/release-build.sh; in dry-run by the release
-# job, with --dry-run (npm publish --dry-run: prints what it would publish, needs no token).
+# Run by semantic-release's publish step (.releaserc.json) after .github/release-build.sh. CI's release-build job runs
+# it with --dry-run on every push and pull request (npm publish --dry-run: checks the package, needs no token).
 # Needs: Node 24 (npm), tar; NODE_AUTH_TOKEN with write:packages (in CI, the job's GITHUB_TOKEN) unless --dry-run.
 set -euo pipefail
 cd "$(dirname "$0")/.."

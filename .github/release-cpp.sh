@@ -7,7 +7,7 @@
 #   knobly.hpp                    the single header (tools/amalgamate.py), from the archive's headers
 # The version is stamped into the archive's copy of include/knobly/support/config.hpp (the C++ version's one
 # home), never into the repository. Run by .github/release-build.sh (semantic-release's prepare step, and the
-# dry-run release job) and by the C++ package job in .github/workflows/ci.yml (cpp/tests/consumer/check.sh).
+# release-build job) and by the C++ package job in .github/workflows/ci.yml (cpp/tests/consumer/check.sh).
 # Needs: python3 (3.9+), uv (tools/gen.sh cpp, for the pinned clang-format) and git.
 set -euo pipefail
 cd "$(dirname "$0")/.."
